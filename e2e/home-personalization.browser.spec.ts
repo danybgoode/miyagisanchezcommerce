@@ -28,8 +28,17 @@ const MODULE_IDS = [
 test.describe('home-personalization · islands (browser)', () => {
   test('anonymous: no personalization module renders on the static homepage', async ({ page }) => {
     await page.goto('/mx')
-    // Let client hydration settle — the islands mount client-side, then no-op (no session).
-    await page.waitForLoadState('networkidle')
+    // Let client hydration settle — the islands mount client-side, then no-op (no
+    // session). Unlike the presence checks in home-hero-auth, this settle CANNOT
+    // just be deleted: these are absence assertions, and asserting absence before
+    // hydration would pass vacuously whether or not the islands behave.
+    //
+    // But the settle is a best-effort *precondition*, not the thing under test, so
+    // it must not be able to fail the run. The marketplace homepage carries
+    // analytics/beacon traffic that can keep the network busy past any budget, so
+    // an un-caught `networkidle` blew the 30s test timeout on a roughly nightly
+    // basis — before a single assertion ran. Cap it and continue either way.
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
     for (const id of MODULE_IDS) {
       await expect(page.locator(`[data-testid="${id}"]`)).toHaveCount(0)
     }
