@@ -19,11 +19,20 @@ test.describe('pdp · unclaimed is contact-only (browser)', () => {
   test('no Buy / Offer / Bundle CTAs render; the claim nudge does', async ({ page }) => {
     requireEnv(LISTING_ID, 'MS_TEST_UNCLAIMED_LISTING_ID')
     await page.goto(`/l/${LISTING_ID}`)
-    await expect(page.getByTestId('seller-trust-card').first()).toBeVisible()
+
+    // <SellerTrustCard> dual-renders (S3.2): one instance `md:hidden` above the
+    // methods box for mobile, one `hidden md:block` below for desktop — same
+    // React element, two DOM positions, so exactly one is CSS-visible at a time.
+    // This project runs Desktop Chrome, but scope by `:visible` rather than by
+    // DOM order (`.first()`/`.last()`) so the assertion doesn't depend on which
+    // instance the renderer happens to place first.
+    const sellerTrustCard = page.locator('[data-testid="seller-trust-card"]:visible').first()
+    await expect(sellerTrustCard).toBeVisible()
 
     // Confirm the fixture really is unclaimed — the claim nudge is the tell. If a
-    // claimed listing was set by mistake, skip rather than false-fail.
-    const claimNudge = page.getByRole('link', { name: /Reclamar/i })
+    // claimed listing was set by mistake, skip rather than false-fail. Scoped to
+    // the visible card for the same dual-render reason as above.
+    const claimNudge = sellerTrustCard.getByRole('link', { name: /Reclamar/i })
     const isUnclaimed = (await claimNudge.count()) > 0
     test.skip(!isUnclaimed, 'fixture listing is claimed (no "Reclamar" nudge) — set an unclaimed one')
     await expect(claimNudge.first()).toBeVisible()

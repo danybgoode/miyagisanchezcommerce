@@ -36,7 +36,7 @@ test('US invitation is a research conversation, not a catalog launch', async ({ 
     'href',
     /^mailto:daniel@miyagisanchez\.com\?subject=/,
   )
-  await expect(page.getByTestId('us-pilot-proof')).toContainText('three consenting client shops')
+  await expect(page.getByTestId('us-pilot-proof')).toContainText('Three consenting client shops')
   await expect(page.locator('[data-listing-id]')).toHaveCount(0)
   await expect(page.locator('body')).toContainText('working hypothesis')
 })

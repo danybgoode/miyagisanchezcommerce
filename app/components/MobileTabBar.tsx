@@ -8,6 +8,7 @@ import {
   LABEL_MODE, shouldHideTabBar, nextTabBarHidden,
   BOTTOM_TABS, resolveBottomTabHref, isBottomTabActive, type LabelMode,
 } from '@/lib/tabbar-visibility'
+import { stripMarketPrefix } from '@/lib/market-url'
 import SearchSheet, { type SearchSheetCopy } from '@/app/components/SearchSheet'
 
 // Badge dot for unread counts
@@ -181,7 +182,12 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
   }, [])
 
   // Bar is removed entirely on full-screen flows (PDP / checkout / conversation / publish).
-  if (shouldHideTabBar(pathname)) return null
+  // `shouldHideTabBar` was written against the pre-market-cutover, un-prefixed route
+  // shapes (`/l/<id>`, not `/mx/l/<id>`) and stays that way by design — strip the
+  // market prefix here at the call site (the pattern `stripMarketPrefix` documents:
+  // "hide the tab bar on a PDP" is its own worked example) rather than teach the
+  // pure predicate about markets.
+  if (shouldHideTabBar(stripMarketPrefix(pathname))) return null
 
   return (
     <>
