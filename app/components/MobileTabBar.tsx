@@ -124,8 +124,15 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
   // Poll unread count every 150s, but only while the tab is visible — a hidden/
   // backgrounded tab generates no invocations (in-conversation delivery is realtime;
   // this is just the global badge). Refetch immediately when the tab returns.
+  //
+  // Signed-out is DERIVED at the render site (`isSignedIn && hasUnread` below), not
+  // written back into state here. The old `setHasUnread(false)` on the signed-out
+  // branch was a synchronous setState in an effect body — a cascading extra render
+  // on every mount for anonymous visitors, and a `react-hooks/set-state-in-effect`
+  // error that blocks `lint:changed` for anyone who touches this file. Deriving is
+  // the equivalent, cheaper expression of the same rule: no badge without a session.
   useEffect(() => {
-    if (!isSignedIn) { setHasUnread(false); return }
+    if (!isSignedIn) return
     let cancelled = false
 
     async function checkUnread() {
@@ -274,7 +281,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
               icon={tab.icon}
               label={tab.label}
               active={active}
-              hasUnread={tab.unread ? hasUnread && !active : false}
+              hasUnread={tab.unread ? !!isSignedIn && hasUnread && !active : false}
               labelMode={LABEL_MODE}
             />
           )
