@@ -28,17 +28,28 @@ const MODULE_IDS = [
 test.describe('home-personalization · islands (browser)', () => {
   test('anonymous: no personalization module renders on the static homepage', async ({ page }) => {
     await page.goto('/mx')
-    // Let client hydration settle — the islands mount client-side, then no-op (no
-    // session). Unlike the presence checks in home-hero-auth, this settle CANNOT
-    // just be deleted: these are absence assertions, and asserting absence before
-    // hydration would pass vacuously whether or not the islands behave.
+    // Wait for the REAL precondition, not a proxy for it.
     //
-    // But the settle is a best-effort *precondition*, not the thing under test, so
-    // it must not be able to fail the run. The marketplace homepage carries
-    // analytics/beacon traffic that can keep the network busy past any budget, so
-    // an un-caught `networkidle` blew the 30s test timeout on a roughly nightly
-    // basis — before a single assertion ran. Cap it and continue either way.
-    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+    // Every island short-circuits on `if (!isLoaded) return null` (HomeSellerModule,
+    // HomeRetomaOffers — `isLoaded` mirrors Clerk's client session). So before Clerk
+    // resolves, "no island rendered" is vacuously true and this test would pass
+    // whether or not the islands behave. It needs a settle point.
+    //
+    // `networkidle` was the wrong settle twice over: it blew the 30s test timeout on
+    // a roughly nightly basis (the homepage carries analytics/beacon traffic that can
+    // keep the network busy past any budget), and capping-and-swallowing it just moved
+    // the vacuous-pass risk rather than removing it — a slow session could still
+    // resolve after the cap. Clerk's own readiness flag IS the condition the islands
+    // gate on, so wait on that directly. `window.Clerk` is already this suite's
+    // readiness signal (see `e2e/_helpers/auth.ts`).
+    //
+    // Failing here is CORRECT, not flake: if Clerk never loads, the absence proves
+    // nothing and a green run would be a lie.
+    await page.waitForFunction(
+      () => (window as unknown as { Clerk?: { loaded?: boolean } }).Clerk?.loaded === true,
+      undefined,
+      { timeout: 20_000 },
+    )
     for (const id of MODULE_IDS) {
       await expect(page.locator(`[data-testid="${id}"]`)).toHaveCount(0)
     }
