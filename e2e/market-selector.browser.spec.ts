@@ -36,9 +36,13 @@ test('US invitation is a research conversation, not a catalog launch', async ({ 
     'href',
     /^mailto:daniel@miyagisanchez\.com\?subject=/,
   )
-  await expect(page.getByTestId('us-pilot-proof')).toContainText('three consenting client shops')
+  // Cased exactly as app/(site)/us/page.tsx renders it. Both of these were
+  // written as lowercase paraphrases of capitalized UI copy in #328, so they
+  // never matched — the file is `mode: 'serial'`, so the console-error failure
+  // in the test above skipped this one and CI never reported the mismatch.
+  await expect(page.getByTestId('us-pilot-proof')).toContainText('Three consenting client shops')
   await expect(page.locator('[data-listing-id]')).toHaveCount(0)
-  await expect(page.locator('body')).toContainText('working hypothesis')
+  await expect(page.locator('body')).toContainText('Working hypothesis')
 })
 
 test('US has no marketplace children while the market is invitation-only', async ({ page }) => {
