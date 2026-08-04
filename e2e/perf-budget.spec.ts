@@ -45,6 +45,22 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(route).toMatch(/protocol !== 'https:'/)
   })
 
+  // A still-hotlinked listing image (pre-dating the R2-ingestion backfill,
+  // scripts/backfill-hotlinked-images.mjs) has an https URL whose host just isn't
+  // R2/Supabase. That's not itself a security problem — we simply never fetch it
+  // server-side — so /api/img must hand the browser a redirect to the original URL
+  // instead of a hard 400. A 400 here surfaces as a console-visible resource-load
+  // error on every page that renders that listing (observed on the nightly
+  // browser-smoke market-selector spec), even though nothing about the request was
+  // actually malicious.
+  test('/api/img redirects the browser to the original URL for a disallowed-but-https host, instead of a hard 400', () => {
+    const route = read('app/api/img/route.ts')
+    const disallowedBlock = route.match(/if \(hosts\.size === 0 \|\| !hosts\.has\(parsed\.hostname\)\) \{[\s\S]*?\n  \}/)?.[0]
+    expect(disallowedBlock, 'expected the disallowed-host branch in /api/img').toBeTruthy()
+    expect(disallowedBlock).toMatch(/NextResponse\.redirect\(parsed\.toString\(\),\s*307\)/)
+    expect(disallowedBlock).not.toMatch(/status:\s*400/)
+  })
+
   test('/api/img sets a long-lived, immutable Cache-Control on every response', () => {
     const route = read('app/api/img/route.ts')
     expect(route).toMatch(/Cache-Control['"]?:\s*['"]public, max-age=31536000, immutable['"]/)

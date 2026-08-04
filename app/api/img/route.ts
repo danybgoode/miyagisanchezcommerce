@@ -85,9 +85,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'url inválida.' }, { status: 400 })
   }
 
+  if (parsed.protocol !== 'https:') {
+    return NextResponse.json({ error: 'url inválida.' }, { status: 400 })
+  }
+
   const hosts = allowedHosts()
-  if (parsed.protocol !== 'https:' || hosts.size === 0 || !hosts.has(parsed.hostname)) {
-    return NextResponse.json({ error: 'host de origen no permitido.' }, { status: 400 })
+  if (hosts.size === 0 || !hosts.has(parsed.hostname)) {
+    // Not one of our own R2/Supabase hosts — most often a still-hotlinked listing
+    // image from before the R2-ingestion backfill (scripts/backfill-hotlinked-
+    // images.mjs still has to run against real credentials to migrate these).
+    // We never fetch an unrecognized origin ourselves (that's the SSRF boundary
+    // this allow-list exists for), but a validated https URL is safe to hand
+    // the BROWSER directly — it just loses resize/format optimization instead of
+    // hard-failing the whole <img> with a console-visible 400.
+    return NextResponse.redirect(parsed.toString(), 307)
   }
 
   const requestedW = parseInt(searchParams.get('w') ?? '', 10)
