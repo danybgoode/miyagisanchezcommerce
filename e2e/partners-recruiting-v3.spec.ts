@@ -186,6 +186,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
   test('operator intake and review cannot create grants/consent or expose activation hashes', () => {
     const intake = fs.readFileSync(path.join(ROOT, 'lib/promoter-applications.ts'), 'utf8')
     const admin = fs.readFileSync(path.join(ROOT, 'app/(shell)/admin/promoter/PromoterAdminClient.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(site)/us/FoundingOperatorApplication.tsx'), 'utf8')
     expect(intake).not.toContain("from('partner_grants')")
     expect(intake).not.toMatch(/relationship|consent/i)
     expect(admin).toContain('rel="noopener noreferrer"')
@@ -193,6 +194,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     for (const hardcodedEnglish of ['Practice', 'Active shops', 'Confirmed', 'Request conversation', 'Nomination is not merchant consent.']) {
       expect(admin, hardcodedEnglish).not.toContain(hardcodedEnglish)
     }
+    expect(form).toContain('new Set(normalizedShops.map((shop) => shop.url)).size !== 3')
     expect(admin).not.toContain('activation_token_hash')
   })
 

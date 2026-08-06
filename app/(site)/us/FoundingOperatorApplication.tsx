@@ -68,6 +68,10 @@ export function FoundingOperatorApplication({ source = 'direct' }: { source?: Re
       disqualify('shop_url', 'Each ledger entry needs a public http or https shop URL. Local, private, or credential-bearing URLs are not accepted.')
       return
     }
+    if (new Set(normalizedShops.map((shop) => shop.url)).size !== 3) {
+      disqualify('shop_url', 'Each ledger entry must name a different public shop URL.')
+      return
+    }
     if (shops.some((shop) => shop.channels.length === 0)) {
       disqualify('qualification', 'Choose at least one operating channel for every shop.')
       return
