@@ -187,26 +187,24 @@ export async function bindPromoterClerkId(code: string, clerkUserId: string): Pr
   if (promoter.clerk_user_id === clerkUserId) return { ok: true, promoter, alreadyBound: true }
   if (promoter.clerk_user_id) return { ok: false, reason: 'code_taken' }
 
-  // This identity must not already operate a different code.
-  const existing = await getPromoterByClerkId(clerkUserId)
+  // A Clerk user may bind exactly one partner identity across both tracks.
+  const existing = await getPartnerIdentityByClerkId(clerkUserId)
   if (existing && existing.id !== promoter.id) return { ok: false, reason: 'user_taken' }
 
-  const { data, error } = await db
-    .from('marketplace_promoters')
-    .update({ clerk_user_id: clerkUserId })
-    .eq('id', promoter.id)
-    .eq('program_track', 'promoter')
-    .is('clerk_user_id', null)
-    .select('id, code, name, clerk_user_id, program_track, created_at')
-    .maybeSingle()
+  const { data, error } = await db.rpc('miyagi_bind_partner_identity', {
+    p_promoter_id: promoter.id,
+    p_clerk_user_id: clerkUserId,
+  })
   if (error || !data) {
     if (error && !/does not exist|relation/i.test(error.message ?? '')) {
       console.error('[promoter] clerk bind failed:', error.message)
     }
-    // 0-row update without error = lost the race (someone bound it first).
-    return { ok: false, reason: error ? 'error' : 'code_taken' }
+    if (/clerk_user_already_bound/.test(error?.message ?? '')) return { ok: false, reason: 'user_taken' }
+    if (/identity_already_bound/.test(error?.message ?? '')) return { ok: false, reason: 'code_taken' }
+    return { ok: false, reason: 'error' }
   }
-  return { ok: true, promoter: data as Promoter, alreadyBound: false }
+  const bound = (Array.isArray(data) ? data[0] : data) as Promoter
+  return { ok: true, promoter: bound, alreadyBound: false }
 }
 
 /** All promoters, newest first (admin console). Empty on missing tables/error. */

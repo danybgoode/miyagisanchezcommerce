@@ -9,6 +9,10 @@ import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
 import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
 import { formatRentalBookingLines, type RentalBookingLike } from '@/lib/rental-booking'
+import {
+  resolveFoundingOperatorInvitationOutcome,
+  type FoundingOperatorInvitationOutcome,
+} from '@/lib/founding-operator-invitation-outcome'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -52,9 +56,16 @@ export async function getSellerEmail(clerkUserId: string): Promise<string | null
 type Brand = { url: string; label: string }
 const DEFAULT_BRAND: Brand = { url: SITE, label: 'miyagisanchez.com' }
 
-function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND): string {
+type EmailLanguage = 'es' | 'en'
+
+function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND, language: EmailLanguage = 'es'): string {
+  const footer = language === 'en'
+    ? `This email was sent because of activity on your account.<br>
+    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a>`
+    : `Este correo fue enviado por actividad en tu cuenta.<br>
+    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.`
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="${language}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -72,8 +83,7 @@ function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND): stri
 
   <!-- Footer -->
   <div style="margin-top:36px;padding-top:14px;border-top:1px solid #e2e2de;font-size:12px;color:#6b6b67;line-height:1.5">
-    Este correo fue enviado por actividad en tu cuenta.<br>
-    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.
+    ${footer}
   </div>
 
 </div>
@@ -224,6 +234,7 @@ async function send(
   body: string,
   scheduledAt?: Date,
   brand?: Brand,
+  language: EmailLanguage = 'es',
 ): Promise<string | null> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
@@ -239,7 +250,7 @@ async function send(
       from: FROM,
       to,
       subject,
-      html: html(subject, body, brand),
+      html: html(subject, body, brand, language),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
     })
     return result.data?.id ?? null
@@ -1789,13 +1800,14 @@ export async function sendFoundingOperatorApplicationReceivedToAdmin(ctx: {
   adminEmail: string
   adminUrl: string
 }): Promise<void> {
-  const subject = 'New Founding Commerce Operator application'
+  const ui = (await getDictionary('es')).partnersRecruiting.email
+  const subject = ui.adminApplicationSubject
   const body = [
-    h1('Founding Commerce Operator application received'),
-    p('A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.'),
-    cta('Review application', ctx.adminUrl),
+    h1(ui.adminApplicationHeading),
+    p(ui.adminApplicationBody),
+    cta(ui.adminApplicationCta, ctx.adminUrl),
   ].join('')
-  await send(ctx.adminEmail, subject, body)
+  await send(ctx.adminEmail, subject, body, undefined, undefined, 'es')
 }
 
 /** Applicant: approved — here's your PRM- code + how to finish signup. */
@@ -1839,14 +1851,55 @@ export async function sendPromoterApplicationRejected(ctx: {
 export async function sendFoundingOperatorApplicationRejected(ctx: {
   to: string
   name: string
+  locale?: Locale
 }): Promise<void> {
-  const subject = 'Your Miyagi Partners application'
+  const locale = ctx.locale ?? 'en'
+  const ui = (await getDictionary(locale)).partnersRecruiting.email
+  const subject = ui.rejectionSubject
   const body = [
-    h1(`Thank you for applying, ${esc(ctx.name)}`),
-    p('We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.'),
-    p('This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.'),
+    h1(ui.rejectionHeading.replace('{name}', ctx.name)),
+    p(ui.rejectionBody),
+    p(ui.rejectionBoundary),
   ].join('')
-  await send(ctx.to, subject, body)
+  await send(ctx.to, subject, body, undefined, undefined, locale)
+}
+
+export type { FoundingOperatorInvitationOutcome } from '@/lib/founding-operator-invitation-outcome'
+
+type FoundingOperatorInvitationDeps = {
+  sendEmail: (to: string, subject: string, body: string) => Promise<string | null>
+}
+
+/**
+ * The only outcome-bearing email helper. Existing Promise<void> callers stay
+ * untouched. A non-empty Resend acceptance id is the sole success signal;
+ * missing config, null ids, exceptions and ambiguous network results are all
+ * recoverable `unconfirmed` outcomes—not mailbox-delivery claims.
+ */
+export async function sendFoundingOperatorActivationInvitationWithOutcome(
+  ctx: { to: string; name: string; activationUrl: string; expiresAt: string; locale?: Locale },
+  deps?: FoundingOperatorInvitationDeps,
+): Promise<FoundingOperatorInvitationOutcome> {
+  const locale = ctx.locale ?? 'en'
+  const ui = (await getDictionary(locale)).partnersRecruiting.email
+  const subject = ui.subject
+  const expiry = new Date(ctx.expiresAt).toLocaleString(locale === 'es' ? 'es-MX' : 'en-US', {
+    timeZone: locale === 'es' ? 'America/Mexico_City' : 'America/New_York', dateStyle: 'medium', timeStyle: 'short',
+  })
+  const body = [
+    h1(ui.heading.replace('{name}', ctx.name)),
+    p(ui.approved),
+    p(ui.boundary),
+    table([
+      [ui.programKey, ui.programValue],
+      [ui.expiresKey, expiry],
+    ]),
+    cta(ui.cta, ctx.activationUrl),
+    notice(ui.notice),
+  ].join('')
+  return resolveFoundingOperatorInvitationOutcome(() => deps
+    ? deps.sendEmail(ctx.to, subject, body)
+    : send(ctx.to, subject, body, undefined, undefined, locale))
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

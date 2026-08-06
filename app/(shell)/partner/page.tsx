@@ -10,10 +10,12 @@ import { SITE_ORIGIN } from '@/lib/market-seo'
 import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { marketVisibility } from '@/lib/market-visibility'
+import { partnerWorkspaceAdmitted } from '@/lib/founding-operator-activation'
+import { getDictionary, type Locale } from '@/lib/dictionary'
 import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Mis tiendas — Socios', robots: { index: false } }
+export const metadata = { title: 'Miyagi Partners', robots: { index: false } }
 
 interface GrantedShop {
   grantId: string
@@ -31,8 +33,8 @@ interface GrantedShop {
 
 const ROLE_LABEL: Record<'manager' | 'viewer', string> = { manager: 'Gestor', viewer: 'Solo lectura' }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })
+function fmtDate(iso: string, locale = 'es-MX'): string {
+  return new Date(iso).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 /**
@@ -50,14 +52,15 @@ function fmtDate(iso: string): string {
  * read-only, so it's offered alongside as the actually-useful "see it live"
  * deep link.
  *
- * Admission is track-aware: the existing Promotor path remains behind
- * `partners.mcp_enabled`; a founding-operator identity is admitted only by
- * `partners.recruiting_v3_enabled`. `force-dynamic` keeps either OFF result
- * from baking into a cached static shell.
+ * Admission is track-aware: Promotores remain behind `partners.mcp_enabled`,
+ * while founding operators use `partners.recruiting_v3_enabled`. `force-dynamic`
+ * keeps either flag decision out of a cached static shell.
  *
  * STEWARDSHIP PORTFOLIO (merchant-partner-lifecycle S1.2): with
  * `promoter.partner_portfolio_enabled` ON, the `<PartnerPortfolio>` action queue
- * renders ABOVE the grant list. With the flag OFF — its born state — the
+ * renders ABOVE the Promotor grant list. The founding-operator branch suppresses
+ * that legacy es-MX-only component until it has a matching bilingual contract.
+ * With the flag OFF — its born state — the
  * expression below evaluates to `false`, React renders nothing for it, and this
  * page's markup is BYTE-IDENTICAL to what it serves today. That is the whole
  * promise of the kill-switch, and it is why the portfolio is an ADDITIONAL
@@ -82,15 +85,24 @@ export default async function PartnerDashboardPage({
     getPartnerIdentityByClerkId(user.id),
   ])
   if (promoter) {
-    if (!(promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled)) notFound()
+    if (!partnerWorkspaceAdmitted(promoter.program_track ?? 'promoter', partnerMcpEnabled, recruitingEnabled)) notFound()
   } else if (!partnerMcpEnabled) {
     // Preserve the existing PRM binding entry only under its existing flag.
     notFound()
   }
+  const foundingOperator = promoter ? promoter.program_track === 'founding_operator' : false
+  const query = await searchParams
+  const rawLang = query.lang
+  const requestedLang = Array.isArray(rawLang) ? rawLang[0] : rawLang
+  const operatorLocale: Locale = requestedLang === 'es' ? 'es' : 'en'
+  const operatorUi = foundingOperator
+    ? (await getDictionary(operatorLocale)).partnersRecruiting.workspace
+    : null
+  const showPortfolio = portfolioEnabled && !foundingOperator
 
   const params = new URLSearchParams()
-  if (portfolioEnabled) {
-    for (const [key, value] of Object.entries(await searchParams)) {
+  if (showPortfolio) {
+    for (const [key, value] of Object.entries(query)) {
       if (typeof value === 'string') params.set(key, value)
       // An array-valued param (`?due=a&due=b`) keeps only the FIRST value —
       // the pure filter parser reads one value per key, and silently honoring
@@ -141,22 +153,34 @@ export default async function PartnerDashboardPage({
   }
 
   return (
-    <div className={portfolioEnabled ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
+    <div className={showPortfolio ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
       <header>
-        <h1 className="text-2xl font-bold">Mis tiendas</h1>
-        {promoter ? (
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold">{foundingOperator ? operatorUi!.heading : 'Mis tiendas'}</h1>
+          {foundingOperator && (
+            <Link href={operatorLocale === 'en' ? '/partner?lang=es' : '/partner'} className="text-xs underline">
+              {operatorUi!.switchLanguage}
+            </Link>
+          )}
+        </div>
+        {foundingOperator && promoter && (
+          <p className="text-sm text-[var(--color-muted)] mt-1">
+            {operatorUi!.trackLabel}{promoter.name && <span className="ml-2">· {promoter.name}</span>}
+          </p>
+        )}
+        {!foundingOperator && promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
             Socio <span className="font-mono font-semibold">{promoter.code}</span>
             {promoter.name && <span className="ml-2">· {promoter.name}</span>}
           </p>
-        ) : (
+        ) : !promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
             No encontramos una cuenta de socio vinculada a tu sesión.
           </p>
-        )}
+        ) : null}
       </header>
 
-      {portfolioEnabled && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
+      {showPortfolio && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
 
       {!promoter && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
@@ -168,9 +192,15 @@ export default async function PartnerDashboardPage({
 
       {promoter && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
-          Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
-          en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
-          automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.
+          {foundingOperator ? (
+            operatorUi!.zeroShops
+          ) : (
+            <>
+              Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
+              en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
+              automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.
+            </>
+          )}
         </div>
       )}
 
@@ -181,19 +211,35 @@ export default async function PartnerDashboardPage({
               <div>
                 <div className="font-medium">{g.shop.name}</div>
                 <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                  {ROLE_LABEL[g.role]} · desde {fmtDate(g.grantedAt)}
+                  {foundingOperator
+                    ? (g.role === 'manager' ? operatorUi!.roleManager : operatorUi!.roleViewer)
+                    : ROLE_LABEL[g.role]} · {foundingOperator ? operatorUi!.since : 'desde'}{' '}
+                  {fmtDate(g.grantedAt, foundingOperator && operatorLocale === 'en' ? 'en-US' : 'es-MX')}
                 </div>
                 <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                  {g.shop.operatingMarketLabel} · {g.shop.marketplacePublicationLabel}
+                  {foundingOperator
+                    ? g.shop.operatingMarketCode === null
+                      ? operatorUi!.operatingMarketUnavailable
+                      : g.shop.operatingMarketCode === 'mx'
+                        ? operatorUi!.ownedShopMx
+                        : operatorUi!.ownedShopUs
+                    : g.shop.operatingMarketLabel}{' · '}
+                  {foundingOperator
+                    ? g.shop.operatingMarketCode === null
+                      ? operatorUi!.marketplaceUnavailable
+                      : g.shop.operatingMarketCode === 'mx'
+                        ? operatorUi!.marketplaceMx
+                        : operatorUi!.marketplaceUsUnavailable
+                    : g.shop.marketplacePublicationLabel}
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0 text-sm">
                 <Link href={shopUrlFor(SITE_ORIGIN, g.shop.slug)} target="_blank" rel="noreferrer" className="underline">
-                  Ver tienda
+                  {foundingOperator ? operatorUi!.viewShop : 'Ver tienda'}
                 </Link>
-                <Link href="/shop/manage" className="underline">
+                {!foundingOperator && <Link href="/shop/manage" className="underline">
                   Administrar
-                </Link>
+                </Link>}
               </div>
             </li>
           ))}

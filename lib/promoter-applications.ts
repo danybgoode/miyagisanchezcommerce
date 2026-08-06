@@ -57,7 +57,44 @@ export interface PromoterApplication {
 }
 
 const APPLICATION_COLUMNS =
-  'id, name, email, whatsapp, city, motivation, status, promoter_id, program_track, operator_details_version, operator_details, created_at, decided_at'
+  'id, name, email, whatsapp, city, motivation, status, promoter_id, program_track, operator_details_version, operator_details, activation_expires_at, activation_used_at, invitation_provider_status, invitation_attempt_count, invitation_attempted_at, invitation_provider_accepted_at, created_at, decided_at'
+
+/**
+ * RPCs return the table's composite row, which includes the activation hash.
+ * Rebuild the application from an explicit public/admin-safe field list before
+ * any route can serialize it. Internal MYP identifiers live on the identity row
+ * and are never selected here either.
+ */
+export function sanitizePromoterApplicationRow(value: unknown): PromoterApplication | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string'
+    || typeof value.email !== 'string' || typeof value.whatsapp !== 'string'
+    || (value.program_track !== 'promoter' && value.program_track !== 'founding_operator')
+    || (value.status !== 'pending' && value.status !== 'approved' && value.status !== 'rejected')) return null
+
+  return {
+    id: value.id,
+    name: value.name,
+    email: value.email,
+    whatsapp: value.whatsapp,
+    city: typeof value.city === 'string' ? value.city : null,
+    motivation: typeof value.motivation === 'string' ? value.motivation : null,
+    status: value.status,
+    promoter_id: typeof value.promoter_id === 'string' ? value.promoter_id : null,
+    program_track: value.program_track,
+    operator_details_version: value.operator_details_version === 1 ? 1 : null,
+    operator_details: isRecord(value.operator_details) ? value.operator_details as unknown as OperatorDetailsV1 : null,
+    activation_expires_at: typeof value.activation_expires_at === 'string' ? value.activation_expires_at : null,
+    activation_used_at: typeof value.activation_used_at === 'string' ? value.activation_used_at : null,
+    invitation_provider_status: value.invitation_provider_status === 'pending'
+      || value.invitation_provider_status === 'provider_accepted'
+      || value.invitation_provider_status === 'unconfirmed' ? value.invitation_provider_status : null,
+    invitation_attempt_count: typeof value.invitation_attempt_count === 'number' ? value.invitation_attempt_count : null,
+    invitation_attempted_at: typeof value.invitation_attempted_at === 'string' ? value.invitation_attempted_at : null,
+    invitation_provider_accepted_at: typeof value.invitation_provider_accepted_at === 'string' ? value.invitation_provider_accepted_at : null,
+    created_at: typeof value.created_at === 'string' ? value.created_at : undefined,
+    decided_at: typeof value.decided_at === 'string' ? value.decided_at : null,
+  }
+}
 
 export type ApplicationInput = {
   name?: unknown
@@ -303,4 +340,88 @@ export async function rejectPromoterApplication(id: string): Promise<DecideAppli
     .update({ status: 'rejected', decided_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending')
     .select(APPLICATION_COLUMNS).maybeSingle()
   return error || !data ? { ok: false, reason: 'invalid_transition' } : { ok: true, application: data as PromoterApplication }
+}
+
+type RpcError = { code?: string; message?: string } | null
+type ApplicationRpcDeps = {
+  rpc: (functionName: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: RpcError }>
+}
+const applicationRpcDeps: ApplicationRpcDeps = {
+  rpc: (functionName, args) => db.rpc(functionName, args),
+}
+
+export type FoundingOperatorMutationResult =
+  | { ok: true; application: PromoterApplication }
+  | { ok: false; reason: 'not_found' | 'invalid_transition' | 'unavailable' }
+
+async function callFoundingOperatorRpc(
+  functionName: string,
+  args: Record<string, unknown>,
+  deps: ApplicationRpcDeps,
+): Promise<FoundingOperatorMutationResult> {
+  const { data, error } = await deps.rpc(functionName, args)
+  if (error) {
+    const reason = error.code === 'P0002' || /not_found/.test(error.message ?? '')
+      ? 'not_found'
+      : error.code === '55000' || error.code === '23505' || /invalid|already|stale|mismatch|expired|used/.test(error.message ?? '')
+        ? 'invalid_transition'
+        : 'unavailable'
+    // Never log args: activation hashes are deliberately opaque even in logs.
+    if (reason === 'unavailable') console.error(`[founding-operator] ${functionName} unavailable (${error.code ?? 'unknown'})`)
+    return { ok: false, reason }
+  }
+  const application = sanitizePromoterApplicationRow(Array.isArray(data) ? data[0] : data)
+  return application ? { ok: true, application } : { ok: false, reason: 'unavailable' }
+}
+
+export function approveFoundingOperatorApplication(
+  applicationId: string,
+  activationTokenHash: string,
+  activationExpiresAt: string,
+  deps: ApplicationRpcDeps = applicationRpcDeps,
+): Promise<FoundingOperatorMutationResult> {
+  return callFoundingOperatorRpc('miyagi_approve_founding_operator_application', {
+    p_application_id: applicationId,
+    p_activation_token_hash: activationTokenHash,
+    p_activation_expires_at: activationExpiresAt,
+  }, deps)
+}
+
+export function rotateFoundingOperatorInvitation(
+  applicationId: string,
+  activationTokenHash: string,
+  activationExpiresAt: string,
+  deps: ApplicationRpcDeps = applicationRpcDeps,
+): Promise<FoundingOperatorMutationResult> {
+  return callFoundingOperatorRpc('miyagi_rotate_founding_operator_invitation', {
+    p_application_id: applicationId,
+    p_activation_token_hash: activationTokenHash,
+    p_activation_expires_at: activationExpiresAt,
+  }, deps)
+}
+
+export function recordFoundingOperatorInvitationOutcome(
+  applicationId: string,
+  activationTokenHash: string,
+  providerOutcome: 'provider_accepted' | 'unconfirmed',
+  deps: ApplicationRpcDeps = applicationRpcDeps,
+): Promise<FoundingOperatorMutationResult> {
+  return callFoundingOperatorRpc('miyagi_record_founding_operator_invitation_outcome', {
+    p_application_id: applicationId,
+    p_activation_token_hash: activationTokenHash,
+    p_provider_outcome: providerOutcome,
+  }, deps)
+}
+
+export function activateFoundingOperator(
+  activationTokenHash: string,
+  clerkUserId: string,
+  verifiedEmails: string[],
+  deps: ApplicationRpcDeps = applicationRpcDeps,
+): Promise<FoundingOperatorMutationResult> {
+  return callFoundingOperatorRpc('miyagi_activate_founding_operator', {
+    p_activation_token_hash: activationTokenHash,
+    p_clerk_user_id: clerkUserId,
+    p_verified_emails: verifiedEmails,
+  }, deps)
 }

@@ -192,7 +192,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(route).toContain("operatorTrack ? { ok: true, received: true } : { ok: true }")
     expect(route).not.toContain('duplicate:')
     expect(form).not.toContain('data.duplicate')
-    expect(partnerPage).toContain("promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled")
+    expect(partnerPage).toContain("partnerWorkspaceAdmitted(promoter.program_track ?? 'promoter', partnerMcpEnabled, recruitingEnabled)")
     expect(relationshipAccess).toContain("actor.programTrack === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(relationshipAccess.indexOf("actor.programTrack === 'founding_operator'")).toBeLessThan(relationshipAccess.indexOf("checkRateLimit('relationship'"))
     expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
@@ -222,7 +222,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
       .filter((match) => match[0].includes(".from('marketplace_promoters')"))
     expect(promoter.match(/\.from\('marketplace_promoters'\)/g) ?? []).toHaveLength(functionBlocks.length)
     expect(functionBlocks.map((match) => match[1]).sort()).toEqual([
-      'accrueCommissionForAttribution', 'bindPromoterClerkId', 'createPromoter', 'getPromoterByClerkId',
+      'accrueCommissionForAttribution', 'createPromoter', 'getPromoterByClerkId',
       'getPartnerIdentityByClerkId', 'getPartnerIdentityById', 'getPromoterByCode', 'getPromoterById', 'listPromoters',
     ].sort())
     for (const [name, body] of functionBlocks.map((match) => [match[1], match[0]] as const)) {
@@ -264,6 +264,13 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
       expect(source, file).toMatch(/\bgetPromoterById\s*\(/)
       expect(source, file).not.toMatch(/\bgetPartnerIdentityById\s*\(/)
     }
+    const bindBlock = promoter.slice(
+      promoter.indexOf('export async function bindPromoterClerkId'),
+      promoter.indexOf('/** All promoters', promoter.indexOf('export async function bindPromoterClerkId')),
+    )
+    expect(bindBlock).toContain('getPartnerIdentityByClerkId(clerkUserId)')
+    expect(bindBlock).toContain("db.rpc('miyagi_bind_partner_identity'")
+    expect(bindBlock).not.toContain('.update({ clerk_user_id:')
     expect(autoGrant).toContain(".eq('program_track', 'promoter')")
     expect(applications.indexOf("program_track === 'founding_operator'")).toBeLessThan(applications.indexOf('createPromoter(claimed.name)'))
     expect(applications).toContain("reason: 'operator_approval_unavailable'")
