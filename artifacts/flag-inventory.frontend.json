@@ -375,9 +375,9 @@
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
         "app/api/ucp/mcp/p/[slug]/route.ts:49",
-        "lib/partner-auth.ts:160",
+        "lib/partner-auth.ts:162",
         "lib/partner-grant-server.ts:67",
-        "lib/portfolio/partner-portfolio-auth.ts:108"
+        "lib/portfolio/partner-portfolio-auth.ts:109"
       ]
     },
     {
@@ -457,8 +457,8 @@
       "enforcement": "frontend",
       "callsites": [
         "app/(shell)/partner/page.tsx:84",
-        "lib/portfolio/gate-server.ts:54",
-        "lib/portfolio/partner-portfolio-auth.ts:107",
+        "lib/portfolio/gate-server.ts:55",
+        "lib/portfolio/partner-portfolio-auth.ts:108",
         "lib/portfolio/reminders-server.ts:220"
       ]
     },

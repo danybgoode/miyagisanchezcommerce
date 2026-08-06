@@ -108,6 +108,17 @@ test.describe('D2 — resolvePartnerPortfolioActor: isAdmin: false is STRUCTURAL
     expect(resolveAt).toBeGreaterThan(-1)
     expect(flagAt).toBeLessThan(resolveAt)
   })
+
+  test('founding-operator credentials also close when the recruiting flag is OFF', () => {
+    expect(source).toContain("import { recruitingV3Enabled } from '@/lib/recruiting-v3'")
+    const resolveAt = source.indexOf('resolvePartnerRow(token)')
+    const trackGateAt = source.indexOf("partner.program_track === 'founding_operator'")
+    const grantsAt = source.indexOf(".from('partner_grants')")
+    expect(resolveAt).toBeLessThan(trackGateAt)
+    expect(trackGateAt).toBeLessThan(grantsAt)
+    expect(source).toContain('!(await recruitingV3Enabled())')
+    expect(source).toContain('return { ok: false, message: null }')
+  })
 })
 
 test.describe('a separate MCP route — never added to app/api/ucp/mcp/route.ts', () => {
@@ -458,14 +469,18 @@ test.describe('the agent actor resolves the SAME population as the UI actor', ()
     expect(code).toMatch(/typeof bound\?\.clerk_user_id === 'string'/)
   })
 
-  test('the shared seller-credential seam was NOT widened to get it', () => {
-    // `PARTNER_COLS` feeds every seller tool's credential resolution; a targeted
-    // read answers one question about one promoter without touching it.
+  test('the shared seller-credential seam carries track so every token surface can honor rollback', () => {
     const partnerAuth = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), '..', 'lib/partner-auth.ts'),
       'utf8',
     )
-    expect(partnerAuth).toContain("const PARTNER_COLS = 'id, code, name, partner_token_hash, partner_connector_slug'")
+    expect(partnerAuth).toContain("const PARTNER_COLS = 'id, code, name, program_track, partner_token_hash, partner_connector_slug'")
+    const resolveAt = partnerAuth.indexOf('resolvePartnerRow(token)')
+    const trackGateAt = partnerAuth.indexOf("partner.program_track === 'founding_operator'")
+    const grantsAt = partnerAuth.indexOf(".from('partner_grants')")
+    expect(resolveAt).toBeLessThan(trackGateAt)
+    expect(trackGateAt).toBeLessThan(grantsAt)
+    expect(partnerAuth).toContain('!(await recruitingV3Enabled())')
   })
 
   test('BOTH the UI route and the agent call the same scoped-list function — one population, by construction', () => {

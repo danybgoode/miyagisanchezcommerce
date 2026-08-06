@@ -51,6 +51,7 @@ import { getPartnerIdentityById } from '@/lib/promoter'
 import { parseBearer, classifyAgentCredential } from '@/lib/agent-auth'
 import { resolvePartnerRow } from '@/lib/partner-auth'
 import type { RelationshipActor } from '@/lib/relationship-access'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 
 export type PortfolioActorResult =
   | { ok: true; actor: RelationshipActor; partnerId: string; partnerCode: string }
@@ -109,6 +110,9 @@ export async function resolvePartnerPortfolioActor(
 
   const partner = await resolvePartnerRow(token)
   if (!partner) return { ok: false, message: null }
+  if (partner.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return { ok: false, message: null }
+  }
 
   // Grants are checked PER CALL — a revoke denies the very next call, same
   // discipline as `resolveToolShop`. Fetch revoked rows too so the audit
@@ -168,6 +172,7 @@ export async function resolvePartnerPortfolioActor(
       clerkUserId: boundClerkId ?? `partner:${partner.id}`,
       promoterId: partner.id,
       promoterCode: partner.code,
+      programTrack: partner.program_track,
       // `isAdmin` is an inline literal with no variable, no branch and no spread —
       // an MCP credential is never a Clerk admin session, and that must be
       // structurally impossible to set rather than merely defaulted (D2).
