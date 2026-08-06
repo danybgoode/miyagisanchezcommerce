@@ -16,10 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.redirect(new URL(`/sign-in?redirect_url=${returnTo}`, req.url), 303)
   }
 
-  // Verified is a Clerk fact, not primary/first-email position. The SQL RPC
-  // independently rechecks the normalized match while holding the token row.
-  const verifiedEmails = user.emailAddresses.filter((email) => email.verification?.status === 'verified')
-  const result = await completeFoundingOperatorActivation(token, user.id, verifiedEmails)
+  // The activation seam is the single owner of Clerk verified-email filtering
+  // and normalization; SQL independently rechecks the normalized match under lock.
+  const result = await completeFoundingOperatorActivation(token, user.id, user.emailAddresses)
   if (!result.ok) {
     const query = new URLSearchParams({ status: 'invalid' })
     if (locale === 'es') query.set('lang', 'es')
