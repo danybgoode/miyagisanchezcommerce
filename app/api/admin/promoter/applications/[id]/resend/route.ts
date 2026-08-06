@@ -16,7 +16,7 @@ export const POST = withAdmin(async (_req: Request, { params }: { params: Promis
   if (!application) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (application.program_track !== 'founding_operator'
     || application.status !== 'approved'
-    || application.activation_used_at) {
+    || application.activation_used_at != null) {
     return NextResponse.json({ error: 'invalid_transition' }, { status: 409 })
   }
 

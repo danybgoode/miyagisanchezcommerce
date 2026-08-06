@@ -55,10 +55,17 @@ const APPLICATION_STATUS_LABEL: Record<PromoterApplication['status'], string> = 
 }
 
 const INVITATION_PROVIDER_LABEL = {
-  pending: 'Resultado del proveedor pendiente',
-  provider_accepted: 'Proveedor aceptó la solicitud de correo',
-  unconfirmed: 'Resultado del proveedor no confirmado',
+  pending: 'Confirmación del proveedor pendiente',
+  provider_accepted: 'Proveedor aceptó la solicitud de envío',
+  unconfirmed: 'Aceptación del proveedor no confirmada',
 } as const
+
+function invitationProviderLabel(value: unknown): string {
+  if (value === 'pending') return INVITATION_PROVIDER_LABEL.pending
+  if (value === 'provider_accepted') return INVITATION_PROVIDER_LABEL.provider_accepted
+  if (value === 'unconfirmed') return INVITATION_PROVIDER_LABEL.unconfirmed
+  return 'Estado del proveedor no disponible'
+}
 
 function merchantAwarenessLabel(value: unknown): string {
   if (value === 'not_contacted') return 'Sin contactar sobre la nominación'
@@ -297,8 +304,7 @@ export default function PromoterAdminClient({
       setApplications((list) => list.map((a) => (a.id === id ? data.application : a)))
       if (data.promoter) setPromoters((list) => [data.promoter, ...list])
       if (action === 'approve' && data.application?.program_track === 'founding_operator') {
-        const providerStatus = data.invitation?.providerStatus as keyof typeof INVITATION_PROVIDER_LABEL | undefined
-        setMsg(`Solicitud aprobada. ${providerStatus ? INVITATION_PROVIDER_LABEL[providerStatus] : INVITATION_PROVIDER_LABEL.pending}.`)
+        setMsg(`Solicitud aprobada. ${invitationProviderLabel(data.invitation?.providerStatus)}.`)
       } else {
         setMsg(action === 'approve' ? 'Solicitud aprobada — se envió el código por correo.' : 'Solicitud rechazada.')
       }
@@ -308,6 +314,12 @@ export default function PromoterAdminClient({
   }
 
   async function resendInvitation(id: string) {
+    const application = applications.find((candidate) => candidate.id === id)
+    if (!application || application.program_track !== 'founding_operator'
+      || application.status !== 'approved' || application.activation_used_at != null) {
+      setMsg('La invitación ya no se puede rotar desde este estado.')
+      return
+    }
     setResendingId(id)
     setMsg(null)
     try {
@@ -318,8 +330,7 @@ export default function PromoterAdminClient({
         return
       }
       setApplications((list) => list.map((application) => application.id === id ? data.application : application))
-      const providerStatus = data.invitation?.providerStatus as keyof typeof INVITATION_PROVIDER_LABEL | undefined
-      setMsg(`Invitación rotada. ${providerStatus ? INVITATION_PROVIDER_LABEL[providerStatus] : INVITATION_PROVIDER_LABEL.pending}.`)
+      setMsg(`Invitación rotada. ${invitationProviderLabel(data.invitation?.providerStatus)}.`)
     } finally {
       setResendingId(null)
     }
@@ -441,7 +452,7 @@ export default function PromoterAdminClient({
                     {a.status === 'approved' && a.invitation_provider_status && (
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="rounded bg-[var(--color-surface-alt)] px-2 py-1">
-                          {INVITATION_PROVIDER_LABEL[a.invitation_provider_status]}
+                          {invitationProviderLabel(a.invitation_provider_status)}
                         </span>
                         {a.invitation_attempt_count != null && <span className="text-[var(--color-muted)]">Intentos registrados: {a.invitation_attempt_count}</span>}
                       </div>
