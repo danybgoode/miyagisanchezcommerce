@@ -50,9 +50,10 @@ function fmtDate(iso: string): string {
  * read-only, so it's offered alongside as the actually-useful "see it live"
  * deep link.
  *
- * Behind `partners.mcp_enabled` — flag off → `notFound()`. `force-dynamic` so
- * that 404 doesn't bake into the prerender (LEARNINGS: a flag flip must be
- * visible on the very next request, not held back by a cached static shell).
+ * Admission is track-aware: the existing Promotor path remains behind
+ * `partners.mcp_enabled`; a founding-operator identity is admitted only by
+ * `partners.recruiting_v3_enabled`. `force-dynamic` keeps either OFF result
+ * from baking into a cached static shell.
  *
  * STEWARDSHIP PORTFOLIO (merchant-partner-lifecycle S1.2): with
  * `promoter.partner_portfolio_enabled` ON, the `<PartnerPortfolio>` action queue
@@ -71,12 +72,22 @@ export default async function PartnerDashboardPage({
   // Next.js 16: a Promise, always awaited (AGENTS).
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  if (!(await isEnabled('partners.mcp_enabled'))) notFound()
-
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
-  const portfolioEnabled = await isEnabled(PORTFOLIO_FLAG)
+  const [partnerMcpEnabled, recruitingEnabled, portfolioEnabled, promoter] = await Promise.all([
+    isEnabled('partners.mcp_enabled'),
+    isEnabled('partners.recruiting_v3_enabled'),
+    isEnabled(PORTFOLIO_FLAG),
+    getPartnerIdentityByClerkId(user.id),
+  ])
+  if (promoter) {
+    if (!(promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled)) notFound()
+  } else if (!partnerMcpEnabled) {
+    // Preserve the existing PRM binding entry only under its existing flag.
+    notFound()
+  }
+
   const params = new URLSearchParams()
   if (portfolioEnabled) {
     for (const [key, value] of Object.entries(await searchParams)) {
@@ -87,8 +98,6 @@ export default async function PartnerDashboardPage({
       else if (Array.isArray(value) && value.length > 0) params.set(key, value[0])
     }
   }
-
-  const promoter = await getPartnerIdentityByClerkId(user.id)
 
   let grants: GrantedShop[] = []
   if (promoter) {
