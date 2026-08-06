@@ -629,7 +629,6 @@ export async function sendOfferAccepted(ctx: OfferEmailCtx & {
   sellerPhone?: string | null
 }): Promise<void> {
   const subject = `✓ Tu oferta fue aceptada — ${ctx.listingTitle}`
-  const savings = ctx.askingPrice // we'll show % saved
   const expiryStr = ctx.checkoutExpiresAt
     ? new Date(ctx.checkoutExpiresAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium', timeStyle: 'short' })
     : null
