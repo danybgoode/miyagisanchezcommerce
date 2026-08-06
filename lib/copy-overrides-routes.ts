@@ -84,6 +84,12 @@ const EVENTS_SECTIONS: Record<string, RouteInfo | null> = {
   email: { label: 'Eventos — correos', path: '(correo transaccional, no es una página web)' },
 }
 
+const PARTNERS_RECRUITING_SECTIONS: Record<string, RouteInfo | null> = {
+  activation: { label: 'Miyagi Partners — activación', path: '/partner/activate/[token]' },
+  workspace: { label: 'Miyagi Partners — espacio de trabajo', path: '/partner' },
+  email: { label: 'Miyagi Partners — correos', path: '(correo transaccional, no es una página web)' },
+}
+
 /** A namespace with one single page (no per-section fan-out). */
 const SIMPLE_NAMESPACE_ROUTES: Record<string, RouteInfo | null> = {
   // `home.*` is the Mexico marketplace copy. The master-brand root `/` is now
@@ -111,6 +117,7 @@ export function namespaceLabel(namespace: string): string {
   if (namespace === 'sellerAcquisition') return 'Vende (todas las páginas)'
   if (namespace === 'sweepstakes') return 'Sorteos'
   if (namespace === 'events') return 'Eventos'
+  if (namespace === 'partnersRecruiting') return 'Miyagi Partners'
   return SIMPLE_NAMESPACE_ROUTES[namespace]?.label ?? namespace
 }
 
@@ -125,6 +132,7 @@ export function routeForNamespaceSection(namespace: string, section: string): Ro
   if (namespace === 'sellerAcquisition') return SELLER_ACQUISITION_SECTIONS[section] ?? null
   if (namespace === 'sweepstakes') return SWEEPSTAKES_SECTIONS[section] ?? null
   if (namespace === 'events') return EVENTS_SECTIONS[section] ?? null
+  if (namespace === 'partnersRecruiting') return PARTNERS_RECRUITING_SECTIONS[section] ?? null
   return SIMPLE_NAMESPACE_ROUTES[namespace] ?? null
 }
 

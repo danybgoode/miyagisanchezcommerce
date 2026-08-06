@@ -12,6 +12,7 @@ import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { marketVisibility } from '@/lib/market-visibility'
 import { partnerWorkspaceAdmitted } from '@/lib/founding-operator-activation'
+import { getDictionary, type Locale } from '@/lib/dictionary'
 import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
@@ -92,11 +93,18 @@ export default async function PartnerDashboardPage({
     notFound()
   }
   const foundingOperator = promoter ? promoter.program_track === 'founding_operator' : false
+  const query = await searchParams
+  const rawLang = query.lang
+  const requestedLang = Array.isArray(rawLang) ? rawLang[0] : rawLang
+  const operatorLocale: Locale = requestedLang === 'es' ? 'es' : 'en'
+  const operatorUi = foundingOperator
+    ? (await getDictionary(operatorLocale)).partnersRecruiting.workspace
+    : null
   const showPortfolio = portfolioEnabled && !foundingOperator
 
   const params = new URLSearchParams()
   if (showPortfolio) {
-    for (const [key, value] of Object.entries(await searchParams)) {
+    for (const [key, value] of Object.entries(query)) {
       if (typeof value === 'string') params.set(key, value)
       // An array-valued param (`?due=a&due=b`) keeps only the FIRST value —
       // the pure filter parser reads one value per key, and silently honoring
@@ -149,10 +157,17 @@ export default async function PartnerDashboardPage({
   return (
     <div className={showPortfolio ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
       <header>
-        <h1 className="text-2xl font-bold">{foundingOperator ? 'Miyagi Partners' : 'Mis tiendas'}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold">{foundingOperator ? operatorUi!.heading : 'Mis tiendas'}</h1>
+          {foundingOperator && (
+            <Link href={operatorLocale === 'en' ? '/partner?lang=es' : '/partner'} className="text-xs underline">
+              {operatorUi!.switchLanguage}
+            </Link>
+          )}
+        </div>
         {foundingOperator && promoter && (
           <p className="text-sm text-[var(--color-muted)] mt-1">
-            Founding Commerce Operator{promoter.name && <span className="ml-2">· {promoter.name}</span>}
+            {operatorUi!.trackLabel}{promoter.name && <span className="ml-2">· {promoter.name}</span>}
           </p>
         )}
         {!foundingOperator && promoter ? (
@@ -184,11 +199,7 @@ export default async function PartnerDashboardPage({
       {promoter && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
           {foundingOperator ? (
-            <>
-              Your operator identity is active and currently has zero shops. Program approval is not shop access:
-              a shop appears only after a separate merchant or Miyagi administrator grants it. The next step is the
-              founder review for the bounded 90-day proof.
-            </>
+            operatorUi!.zeroShops
           ) : (
             <>
               Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
