@@ -77,7 +77,7 @@ export default async function FoundingOperatorActivationPage({
   return (
     <main className="mx-auto max-w-xl px-4 py-16">
       <div className="flex items-center justify-between gap-4">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--accent)]">Miyagi Partners</p>
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--accent)]">{ui.eyebrow}</p>
         <Link href={toggleHref} className="text-xs underline">{ui.switchLanguage}</Link>
       </div>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">{ui.unavailableTitle}</h1>
