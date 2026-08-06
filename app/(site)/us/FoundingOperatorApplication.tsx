@@ -102,8 +102,9 @@ export function FoundingOperatorApplication({ source = 'direct' }: { source?: Re
         disqualify(reason, data.error ?? 'We could not receive the application. Try again.')
         return
       }
-      if (data.duplicate) pushRecruitingEvent({ event: 'application_disqualified', track: 'founding_operator', source, reason: 'duplicate' })
-      else pushRecruitingEvent({ event: 'application_submitted', track: 'founding_operator', source })
+      // New and idempotent retry results are intentionally indistinguishable so
+      // this public surface cannot enumerate applications by email.
+      pushRecruitingEvent({ event: 'application_submitted', track: 'founding_operator', source })
       setDone(true)
     } catch {
       setError('We could not receive the application. Your answers are still here; try again.')
