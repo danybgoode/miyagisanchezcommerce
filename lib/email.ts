@@ -52,9 +52,16 @@ export async function getSellerEmail(clerkUserId: string): Promise<string | null
 type Brand = { url: string; label: string }
 const DEFAULT_BRAND: Brand = { url: SITE, label: 'miyagisanchez.com' }
 
-function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND): string {
+type EmailLanguage = 'es' | 'en'
+
+function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND, language: EmailLanguage = 'es'): string {
+  const footer = language === 'en'
+    ? `This email was sent because of activity on your account.<br>
+    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a>`
+    : `Este correo fue enviado por actividad en tu cuenta.<br>
+    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.`
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="${language}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -72,8 +79,7 @@ function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND): stri
 
   <!-- Footer -->
   <div style="margin-top:36px;padding-top:14px;border-top:1px solid #e2e2de;font-size:12px;color:#6b6b67;line-height:1.5">
-    Este correo fue enviado por actividad en tu cuenta.<br>
-    <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.
+    ${footer}
   </div>
 
 </div>
@@ -224,6 +230,7 @@ async function send(
   body: string,
   scheduledAt?: Date,
   brand?: Brand,
+  language: EmailLanguage = 'es',
 ): Promise<string | null> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
@@ -239,7 +246,7 @@ async function send(
       from: FROM,
       to,
       subject,
-      html: html(subject, body, brand),
+      html: html(subject, body, brand, language),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
     })
     return result.data?.id ?? null
@@ -1852,6 +1859,51 @@ export async function sendFoundingOperatorApplicationRejected(ctx: {
     p(ui.rejectionBoundary),
   ]).join('')
   await send(ctx.to, subject, body)
+}
+
+export type FoundingOperatorInvitationOutcome =
+  | { ok: true; providerMessageId: string }
+  | { ok: false; kind: 'unconfirmed' }
+
+type FoundingOperatorInvitationDeps = {
+  sendEmail: (to: string, subject: string, body: string) => Promise<string | null>
+}
+
+/**
+ * The only outcome-bearing email helper. Existing Promise<void> callers stay
+ * untouched. A non-empty Resend acceptance id is the sole success signal;
+ * missing config, null ids, exceptions and ambiguous network results are all
+ * recoverable `unconfirmed` outcomes—not mailbox-delivery claims.
+ */
+export async function sendFoundingOperatorActivationInvitationWithOutcome(
+  ctx: { to: string; name: string; activationUrl: string; expiresAt: string },
+  deps: FoundingOperatorInvitationDeps = {
+    sendEmail: (to, subject, body) => send(to, subject, body, undefined, undefined, 'en'),
+  },
+): Promise<FoundingOperatorInvitationOutcome> {
+  const subject = 'Activate your Miyagi Partners identity'
+  const expiry = new Date(ctx.expiresAt).toLocaleString('en-US', {
+    timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short',
+  })
+  const body = [
+    h1(`Your partner identity is ready, ${esc(ctx.name)}`),
+    p('Your Founding Commerce Operator application was approved for the 90-day parallel proof.'),
+    p('Activation links this invitation to your Miyagi account. It does not create a shop, contact a nominated merchant, or grant access to any shop.'),
+    table([
+      ['Program', 'Founding Commerce Operator — United States'],
+      ['Link expires', expiry],
+    ]),
+    cta('Activate Miyagi Partners', ctx.activationUrl),
+    notice('Use the Miyagi account whose verified email matches this invitation. If you did not expect this email, do not use the link.'),
+  ].join('')
+  try {
+    const providerMessageId = await deps.sendEmail(ctx.to, subject, body)
+    return typeof providerMessageId === 'string' && providerMessageId.trim()
+      ? { ok: true, providerMessageId }
+      : { ok: false, kind: 'unconfirmed' }
+  } catch {
+    return { ok: false, kind: 'unconfirmed' }
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

@@ -11,6 +11,7 @@ import { SITE_ORIGIN } from '@/lib/market-seo'
 import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { marketVisibility } from '@/lib/market-visibility'
+import { partnerWorkspaceAdmitted } from '@/lib/founding-operator-activation'
 import PartnerPortfolio from './PartnerPortfolio'
 
 export const dynamic = 'force-dynamic'
@@ -85,12 +86,12 @@ export default async function PartnerDashboardPage({
     getPartnerIdentityByClerkId(user.id),
   ])
   if (promoter) {
-    if (!(promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled)) notFound()
+    if (!partnerWorkspaceAdmitted(promoter.program_track ?? 'promoter', partnerMcpEnabled, recruitingEnabled)) notFound()
   } else if (!partnerMcpEnabled) {
     // Preserve the existing PRM binding entry only under its existing flag.
     notFound()
   }
-  const foundingOperator = promoter?.program_track === 'founding_operator'
+  const foundingOperator = promoter ? promoter.program_track === 'founding_operator' : false
   const showPortfolio = portfolioEnabled && !foundingOperator
 
   const params = new URLSearchParams()
@@ -148,8 +149,13 @@ export default async function PartnerDashboardPage({
   return (
     <div className={showPortfolio ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
       <header>
-        <h1 className="text-2xl font-bold">Mis tiendas</h1>
-        {promoter ? (
+        <h1 className="text-2xl font-bold">{foundingOperator ? 'Miyagi Partners' : 'Mis tiendas'}</h1>
+        {foundingOperator && promoter && (
+          <p className="text-sm text-[var(--color-muted)] mt-1">
+            Founding Commerce Operator{promoter.name && <span className="ml-2">· {promoter.name}</span>}
+          </p>
+        )}
+        {!foundingOperator && promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
             {foundingOperator ? (
               <>Operador fundador de comercio</>
@@ -158,11 +164,11 @@ export default async function PartnerDashboardPage({
             )}
             {promoter.name && <span className="ml-2">· {promoter.name}</span>}
           </p>
-        ) : (
+        ) : !promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
             No encontramos una cuenta de socio vinculada a tu sesión.
           </p>
-        )}
+        ) : null}
       </header>
 
       {showPortfolio && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
@@ -178,11 +184,17 @@ export default async function PartnerDashboardPage({
       {promoter && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
           {foundingOperator ? (
-            <>Tu identidad de operador está activa y actualmente no tiene tiendas. La aprobación del programa no equivale al acceso: una tienda aparece solo después de que un comercio o un administrador de Miyagi te concede un permiso independiente.</>
+            <>
+              Your operator identity is active and currently has zero shops. Program approval is not shop access:
+              a shop appears only after a separate merchant or Miyagi administrator grants it. The next step is the
+              founder review for the bounded 90-day proof.
+            </>
           ) : (
-            <>Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
+            <>
+              Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
               en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
-              automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.</>
+              automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.
+            </>
           )}
         </div>
       )}
