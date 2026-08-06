@@ -70,6 +70,7 @@ export async function autoGrantPartnerOnClose(input: {
       .from('marketplace_promoters')
       .select('partner_token_hash')
       .eq('id', promoterId)
+      .eq('program_track', 'promoter')
       .maybeSingle()
     if (readError) throw new Error(readError.message)
     // No partner credential — this promoter closes exactly as today. No error, no grant.

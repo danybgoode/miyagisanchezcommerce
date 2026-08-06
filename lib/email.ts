@@ -1785,6 +1785,20 @@ export async function sendPromoterApplicationReceivedToAdmin(ctx: {
   await send(ctx.adminEmail, subject, body)
 }
 
+/** Privacy-minimal operator alert: qualification stays in the Clerk-admin queue. */
+export async function sendFoundingOperatorApplicationReceivedToAdmin(ctx: {
+  adminEmail: string
+  adminUrl: string
+}): Promise<void> {
+  const subject = 'New Founding Commerce Operator application'
+  const body = [
+    h1('Founding Commerce Operator application received'),
+    p('A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.'),
+    cta('Review application', ctx.adminUrl),
+  ].join('')
+  await send(ctx.adminEmail, subject, body)
+}
+
 /** Applicant: approved — here's your PRM- code + how to finish signup. */
 export async function sendPromoterApplicationApproved(ctx: {
   to: string
@@ -1819,6 +1833,19 @@ export async function sendPromoterApplicationRejected(ctx: {
     h1(`Gracias por tu interés, ${esc(ctx.name)}`),
     p('Revisamos tu solicitud para ser promotor de Miyagi Sánchez y, por ahora, no podemos avanzar con ella.'),
     p('Puedes volver a aplicar más adelante si tu situación cambia. Gracias por el interés en el proyecto.'),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
+
+export async function sendFoundingOperatorApplicationRejected(ctx: {
+  to: string
+  name: string
+}): Promise<void> {
+  const subject = 'Your Miyagi Partners application'
+  const body = [
+    h1(`Thank you for applying, ${esc(ctx.name)}`),
+    p('We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.'),
+    p('This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.'),
   ].join('')
   await send(ctx.to, subject, body)
 }

@@ -44,6 +44,7 @@ export interface Promoter {
    *  promoter logs into the workspace and binds their code. Powers the
    *  self-referral guard and "who am I" in the authed close workspace. */
   clerk_user_id?: string | null
+  program_track?: 'promoter' | 'founding_operator'
   created_at?: string
 }
 
@@ -80,8 +81,8 @@ export async function createPromoter(name: string | null): Promise<Promoter | nu
     const code = generatePromoterCode()
     const { data, error } = await db
       .from('marketplace_promoters')
-      .insert({ code, name: cleanName })
-      .select('id, code, name, created_at')
+      .insert({ code, name: cleanName, program_track: 'promoter' })
+      .select('id, code, name, program_track, created_at')
       .maybeSingle()
     if (!error && data) return data as Promoter
     if (error?.code === '23505') continue // code collided — try another
@@ -99,8 +100,9 @@ export async function getPromoterByCode(code: string): Promise<Promoter | null> 
   if (!normalized) return null
   const { data, error } = await db
     .from('marketplace_promoters')
-    .select('id, code, name, clerk_user_id, created_at')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
     .eq('code', normalized)
+    .eq('program_track', 'promoter')
     .maybeSingle()
   if (error || !data) return null
   return data as Promoter
@@ -111,8 +113,9 @@ export async function getPromoterById(id: string): Promise<Promoter | null> {
   if (!id) return null
   const { data, error } = await db
     .from('marketplace_promoters')
-    .select('id, code, name, clerk_user_id, created_at')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
     .eq('id', id)
+    .eq('program_track', 'promoter')
     .maybeSingle()
   if (error || !data) return null
   return data as Promoter
@@ -127,7 +130,7 @@ export async function getPromoterByClerkId(clerkUserId: string): Promise<Promote
   if (!clerkUserId) return null
   const { data, error } = await db
     .from('marketplace_promoters')
-    .select('id, code, name, clerk_user_id, created_at')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
     .eq('clerk_user_id', clerkUserId)
     .maybeSingle()
   if (error || !data) return null
@@ -163,8 +166,9 @@ export async function bindPromoterClerkId(code: string, clerkUserId: string): Pr
     .from('marketplace_promoters')
     .update({ clerk_user_id: clerkUserId })
     .eq('id', promoter.id)
+    .eq('program_track', 'promoter')
     .is('clerk_user_id', null)
-    .select('id, code, name, clerk_user_id, created_at')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
     .maybeSingle()
   if (error || !data) {
     if (error && !/does not exist|relation/i.test(error.message ?? '')) {
@@ -180,7 +184,8 @@ export async function bindPromoterClerkId(code: string, clerkUserId: string): Pr
 export async function listPromoters(): Promise<Promoter[]> {
   const { data, error } = await db
     .from('marketplace_promoters')
-    .select('id, code, name, created_at')
+    .select('id, code, name, program_track, created_at')
+    .eq('program_track', 'promoter')
     .order('created_at', { ascending: false })
   if (error || !data) return []
   return data as Promoter[]
@@ -645,9 +650,11 @@ export async function accrueCommissionForAttribution(attributionId: string): Pro
 
   const { data: promoter } = await db
     .from('marketplace_promoters')
-    .select('clerk_user_id')
+    .select('clerk_user_id, program_track')
     .eq('id', attr.promoter_id)
+    .eq('program_track', 'promoter')
     .maybeSingle()
+  if (!isPromoterEconomicIdentity(promoter)) return
 
   let shopOwnerClerkUserId: string | null = null
   if (attr.seller_id) {
@@ -682,6 +689,13 @@ export async function accrueCommissionForAttribution(attributionId: string): Pro
   if (error && error.code !== '23505' && !/does not exist|relation/i.test(error.message ?? '')) {
     console.error('[promoter] commission accrual insert failed:', error.message)
   }
+}
+
+/** Missing or non-Promotor identities can never enter commission economics. */
+export function isPromoterEconomicIdentity(
+  row: { clerk_user_id?: string | null; program_track?: string | null } | null,
+): row is { clerk_user_id: string | null; program_track: 'promoter' } {
+  return row?.program_track === 'promoter'
 }
 
 /** A promoter's commission rows, newest first (dashboard + admin). US-8. */

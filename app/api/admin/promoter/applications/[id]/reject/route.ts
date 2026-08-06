@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/admin/guard'
 import { rejectPromoterApplication } from '@/lib/promoter-applications'
-import { sendPromoterApplicationRejected } from '@/lib/email'
+import { sendFoundingOperatorApplicationRejected, sendPromoterApplicationRejected } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,10 +19,11 @@ export const POST = withAdmin(async (_req: Request, { params }: { params: Promis
     return NextResponse.json({ error: result.reason }, { status })
   }
 
-  sendPromoterApplicationRejected({
-    to: result.application.email,
-    name: result.application.name,
-  }).catch((e) => console.error('[promoter-applications] rejected email failed:', e))
+  const sendRejection = result.application.program_track === 'founding_operator'
+    ? sendFoundingOperatorApplicationRejected
+    : sendPromoterApplicationRejected
+  sendRejection({ to: result.application.email, name: result.application.name })
+    .catch((e) => console.error('[promoter-applications] rejected email failed:', e))
 
   return NextResponse.json({ ok: true, application: result.application })
 })

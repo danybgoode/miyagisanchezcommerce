@@ -130,6 +130,10 @@ const IMMUTABLE_FRONTEND_DEFINITION_SEEDS = {
     description: 'Credencial multi-tienda ms_partner_ para socios (Miyagi Partners): con la flag apagada, un token de socio se rechaza igual que un token desconocido. Actívala solo tras la prueba en vivo del recorrido de Sprint 1.',
     defaultVariantKey: 'on', polarity: 'enablement', criticality: 'medium', enforcement: 'frontend',
   },
+  'partners.recruiting_v3_enabled': {
+    description: 'Miyagi Partners recruiting v3 for founding US commerce operators. Enables the /us proposition and intake, neutral activation, and track-aware workspace orientation. Keep OFF until the full operator-versus-Promotor authorization smoke passes.',
+    defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high', enforcement: 'frontend',
+  },
   pdp_redesign: {
     description: 'Diseño nuevo de la página de producto. Actívala para mostrar el diseño nuevo; apágala para regresar al diseño anterior al instante.',
     defaultVariantKey: 'on', polarity: 'killswitch', criticality: 'low', enforcement: 'frontend',
