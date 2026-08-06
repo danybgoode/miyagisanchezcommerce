@@ -27,6 +27,14 @@ ALTER TABLE marketplace_promoter_applications
   ADD COLUMN IF NOT EXISTS invitation_attempted_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS invitation_provider_accepted_at TIMESTAMPTZ;
 
+-- This legacy table was anonymously reachable through PostgREST. Recruiting v3
+-- adds contact details, candidate-shop URLs and operating free text, so the table
+-- itself must be private; routing writes through Next.js is not an authorization
+-- boundary. Server routes use the service-role client and privileged RPCs.
+ALTER TABLE marketplace_promoter_applications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE marketplace_promoter_applications FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE marketplace_promoter_applications TO service_role;
+
 ALTER TABLE marketplace_promoter_applications
   DROP CONSTRAINT IF EXISTS marketplace_promoter_applications_program_track_check,
   DROP CONSTRAINT IF EXISTS marketplace_promoter_applications_status_check,

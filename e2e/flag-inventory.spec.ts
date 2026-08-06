@@ -14,7 +14,7 @@ test('pinned frontend inventory exactly matches typed production callsites', () 
   const pinned = fs.readFileSync(path.join(root, FLAG_INVENTORY_REPORT_PATH), 'utf8')
 
   expect(pinned).toBe(renderFlagInventory(report))
-  expect(report.flags).toHaveLength(41)
+  expect(report.flags).toHaveLength(42)
   expect(new Set(report.flags.map((entry) => entry.key)).size).toBe(FLAG_KEYS.length)
   expect(report.flags.filter((entry) => entry.enforcement === 'both')).toHaveLength(12)
   expect(report.flags.filter((entry) => entry.enforcement === 'backend')).toEqual([
