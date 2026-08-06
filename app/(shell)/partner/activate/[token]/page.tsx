@@ -16,7 +16,8 @@ export default async function FoundingOperatorActivationPage({
   if (!(await recruitingV3Enabled())) notFound()
   const { token } = await params
   const state = await inspectFoundingOperatorActivation(token)
-  const status = (await searchParams).status
+  const rawStatus = (await searchParams).status
+  const status = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus
   if (state === 'ready') {
     const user = await currentUser()
     if (!user) {

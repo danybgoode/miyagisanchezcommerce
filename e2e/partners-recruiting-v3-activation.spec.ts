@@ -212,6 +212,7 @@ test.describe('partners recruiting v3 · activation and serialization', () => {
     expect(activationApi).toContain('recruitingV3Enabled()')
     expect(activationApi).toContain("verification?.status === 'verified'")
     expect(activationPage).toContain('inspectFoundingOperatorActivation')
+    expect(activationPage).toContain('Array.isArray(rawStatus) ? rawStatus[0] : rawStatus')
     expect(promoter).toContain("db.rpc('miyagi_bind_partner_identity'")
     expect(promoter).not.toContain('.update({ clerk_user_id: clerkUserId })')
   })
