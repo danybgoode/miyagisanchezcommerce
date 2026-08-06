@@ -8,12 +8,12 @@ import { coarseRecruitingSource } from '../lib/recruiting-source'
 import { isPromoterEconomicIdentity } from '../lib/promoter'
 
 const ROOT = process.cwd()
-const PARTNER_IDENTITY_CONSUMERS = [
+const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
   'app/(shell)/partner/page.tsx',
   'lib/portfolio/draft-server.ts',
   'lib/relationship-access.ts',
 ] as const
-const PROMOTER_IDENTITY_CONSUMERS = [
+const PROMOTER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
   'app/(shell)/promotor/cerrar/page.tsx',
   'app/(shell)/vende/promotor/page.tsx',
   'app/api/promoter/claim/link/route.ts',
@@ -29,6 +29,14 @@ const PROMOTER_IDENTITY_CONSUMERS = [
   'app/api/promoter/preview/route.ts',
   'app/api/promoter/rate-card/route.ts',
   'app/api/promoter/shop/setup/route.ts',
+] as const
+const PARTNER_IDENTITY_BY_ID_CONSUMERS = [
+  'lib/portfolio/partner-portfolio-auth.ts',
+] as const
+const PROMOTER_IDENTITY_BY_ID_CONSUMERS = [
+  'app/api/admin/promoter/transfers/[id]/approve/route.ts',
+  'app/api/admin/promoter/transfers/[id]/reject/route.ts',
+  'lib/promoter-close-notify.ts',
 ] as const
 
 function sourceFilesBelow(relativeDirectory: string): string[] {
@@ -190,31 +198,46 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(promoter.match(/\.from\('marketplace_promoters'\)/g) ?? []).toHaveLength(functionBlocks.length)
     expect(functionBlocks.map((match) => match[1]).sort()).toEqual([
       'accrueCommissionForAttribution', 'bindPromoterClerkId', 'createPromoter', 'getPromoterByClerkId',
-      'getPartnerIdentityByClerkId', 'getPromoterByCode', 'getPromoterById', 'listPromoters',
+      'getPartnerIdentityByClerkId', 'getPartnerIdentityById', 'getPromoterByCode', 'getPromoterById', 'listPromoters',
     ].sort())
     for (const [name, body] of functionBlocks.map((match) => [match[1], match[0]] as const)) {
       if (name === 'createPromoter') expect(body).toContain(".insert({ code, name: cleanName, program_track: 'promoter' })")
-      else if (name === 'getPartnerIdentityByClerkId') {
+      else if (name === 'getPartnerIdentityByClerkId' || name === 'getPartnerIdentityById') {
         expect(body).toContain(".select('id, code, name, clerk_user_id, program_track, created_at')")
         expect(body).not.toContain(".eq('program_track', 'promoter')")
       } else expect(body, name).toContain(".eq('program_track', 'promoter')")
     }
 
-    const resolverCalls = /\b(?:getPartnerIdentityByClerkId|getPromoterByClerkId)\s*\(/
+    const resolverCalls = /\b(?:getPartnerIdentityByClerkId|getPromoterByClerkId|getPartnerIdentityById|getPromoterById)\s*\(/
     const consumerFiles = [...sourceFilesBelow('app'), ...sourceFilesBelow('lib')]
       .filter((file) => file !== 'lib/promoter.ts')
       .filter((file) => resolverCalls.test(fs.readFileSync(path.join(ROOT, file), 'utf8')))
       .sort()
-    expect(consumerFiles).toEqual([...PARTNER_IDENTITY_CONSUMERS, ...PROMOTER_IDENTITY_CONSUMERS].sort())
-    for (const file of PARTNER_IDENTITY_CONSUMERS) {
+    expect(consumerFiles).toEqual([
+      ...PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS,
+      ...PROMOTER_IDENTITY_BY_CLERK_ID_CONSUMERS,
+      ...PARTNER_IDENTITY_BY_ID_CONSUMERS,
+      ...PROMOTER_IDENTITY_BY_ID_CONSUMERS,
+    ].sort())
+    for (const file of PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS) {
       const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
       expect(source, file).toMatch(/\bgetPartnerIdentityByClerkId\s*\(/)
       expect(source, file).not.toMatch(/\bgetPromoterByClerkId\s*\(/)
     }
-    for (const file of PROMOTER_IDENTITY_CONSUMERS) {
+    for (const file of PROMOTER_IDENTITY_BY_CLERK_ID_CONSUMERS) {
       const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
       expect(source, file).toMatch(/\bgetPromoterByClerkId\s*\(/)
       expect(source, file).not.toMatch(/\bgetPartnerIdentityByClerkId\s*\(/)
+    }
+    for (const file of PARTNER_IDENTITY_BY_ID_CONSUMERS) {
+      const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toMatch(/\bgetPartnerIdentityById\s*\(/)
+      expect(source, file).not.toMatch(/\bgetPromoterById\s*\(/)
+    }
+    for (const file of PROMOTER_IDENTITY_BY_ID_CONSUMERS) {
+      const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toMatch(/\bgetPromoterById\s*\(/)
+      expect(source, file).not.toMatch(/\bgetPartnerIdentityById\s*\(/)
     }
     expect(autoGrant).toContain(".eq('program_track', 'promoter')")
     expect(applications.indexOf("program_track === 'founding_operator'")).toBeLessThan(applications.indexOf('createPromoter(claimed.name)'))

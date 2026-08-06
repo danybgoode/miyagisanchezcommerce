@@ -108,7 +108,19 @@ export async function getPromoterByCode(code: string): Promise<Promoter | null> 
   return data as Promoter
 }
 
-/** Look up a promoter by id (epic 08 · S4 — resolving a transfer's owner). Null if not found / tables missing. */
+/** Resolve either partner track by row id for grant-aware partner contexts. */
+export async function getPartnerIdentityById(id: string): Promise<Promoter | null> {
+  if (!id) return null
+  const { data, error } = await db
+    .from('marketplace_promoters')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as Promoter
+}
+
+/** Look up a Promotor by id for transfer/email/economic paths. */
 export async function getPromoterById(id: string): Promise<Promoter | null> {
   if (!id) return null
   const { data, error } = await db
