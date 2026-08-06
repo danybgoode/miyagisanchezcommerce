@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
 import { db } from '@/lib/supabase'
-import { getPromoterByClerkId } from '@/lib/promoter'
+import { getPartnerIdentityByClerkId } from '@/lib/promoter'
 import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
@@ -88,7 +88,7 @@ export default async function PartnerDashboardPage({
     }
   }
 
-  const promoter = await getPromoterByClerkId(user.id)
+  const promoter = await getPartnerIdentityByClerkId(user.id)
 
   let grants: GrantedShop[] = []
   if (promoter) {

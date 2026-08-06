@@ -8,6 +8,42 @@ import { coarseRecruitingSource } from '../lib/recruiting-source'
 import { isPromoterEconomicIdentity } from '../lib/promoter'
 
 const ROOT = process.cwd()
+const PARTNER_IDENTITY_CONSUMERS = [
+  'app/(shell)/partner/page.tsx',
+  'lib/portfolio/draft-server.ts',
+  'lib/relationship-access.ts',
+] as const
+const PROMOTER_IDENTITY_CONSUMERS = [
+  'app/(shell)/promotor/cerrar/page.tsx',
+  'app/(shell)/vende/promotor/page.tsx',
+  'app/api/promoter/claim/link/route.ts',
+  'app/api/promoter/close/domain/route.ts',
+  'app/api/promoter/close/listing/route.ts',
+  'app/api/promoter/close/migration/route.ts',
+  'app/api/promoter/close/ml-sync/route.ts',
+  'app/api/promoter/close/print/route.ts',
+  'app/api/promoter/close/subdomain/route.ts',
+  'app/api/promoter/close/transfer/[id]/report/route.ts',
+  'app/api/promoter/close/transfer/route.ts',
+  'app/api/promoter/preview/activate/route.ts',
+  'app/api/promoter/preview/route.ts',
+  'app/api/promoter/rate-card/route.ts',
+  'app/api/promoter/shop/setup/route.ts',
+] as const
+
+function sourceFilesBelow(relativeDirectory: string): string[] {
+  const found: string[] = []
+  const visit = (relativePath: string) => {
+    for (const entry of fs.readdirSync(path.join(ROOT, relativePath), { withFileTypes: true })) {
+      const child = path.join(relativePath, entry.name)
+      if (entry.isDirectory()) visit(child)
+      else if (/\.tsx?$/.test(entry.name)) found.push(child)
+    }
+  }
+  visit(relativeDirectory)
+  return found
+}
+
 const SHOPS = [1, 2, 3].map((n) => ({
   url: `https://shop-${n}.example/products`, platform: 'shopify', channels: ['online_store'], merchant_awareness: 'not_contacted',
 }))
@@ -154,14 +190,31 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(promoter.match(/\.from\('marketplace_promoters'\)/g) ?? []).toHaveLength(functionBlocks.length)
     expect(functionBlocks.map((match) => match[1]).sort()).toEqual([
       'accrueCommissionForAttribution', 'bindPromoterClerkId', 'createPromoter', 'getPromoterByClerkId',
-      'getPromoterByCode', 'getPromoterById', 'listPromoters',
+      'getPartnerIdentityByClerkId', 'getPromoterByCode', 'getPromoterById', 'listPromoters',
     ].sort())
     for (const [name, body] of functionBlocks.map((match) => [match[1], match[0]] as const)) {
       if (name === 'createPromoter') expect(body).toContain(".insert({ code, name: cleanName, program_track: 'promoter' })")
-      else if (name === 'getPromoterByClerkId') {
+      else if (name === 'getPartnerIdentityByClerkId') {
         expect(body).toContain(".select('id, code, name, clerk_user_id, program_track, created_at')")
         expect(body).not.toContain(".eq('program_track', 'promoter')")
       } else expect(body, name).toContain(".eq('program_track', 'promoter')")
+    }
+
+    const resolverCalls = /\b(?:getPartnerIdentityByClerkId|getPromoterByClerkId)\s*\(/
+    const consumerFiles = [...sourceFilesBelow('app'), ...sourceFilesBelow('lib')]
+      .filter((file) => file !== 'lib/promoter.ts')
+      .filter((file) => resolverCalls.test(fs.readFileSync(path.join(ROOT, file), 'utf8')))
+      .sort()
+    expect(consumerFiles).toEqual([...PARTNER_IDENTITY_CONSUMERS, ...PROMOTER_IDENTITY_CONSUMERS].sort())
+    for (const file of PARTNER_IDENTITY_CONSUMERS) {
+      const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toMatch(/\bgetPartnerIdentityByClerkId\s*\(/)
+      expect(source, file).not.toMatch(/\bgetPromoterByClerkId\s*\(/)
+    }
+    for (const file of PROMOTER_IDENTITY_CONSUMERS) {
+      const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toMatch(/\bgetPromoterByClerkId\s*\(/)
+      expect(source, file).not.toMatch(/\bgetPartnerIdentityByClerkId\s*\(/)
     }
     expect(autoGrant).toContain(".eq('program_track', 'promoter')")
     expect(applications.indexOf("program_track === 'founding_operator'")).toBeLessThan(applications.indexOf('createPromoter(claimed.name)'))

@@ -45,7 +45,7 @@ import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { currentUserIsAdmin } from '@/lib/admin/guard'
-import { getPromoterByClerkId } from '@/lib/promoter'
+import { getPartnerIdentityByClerkId } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { canAnchorPreview } from '@/lib/promoter-close'
 import { decideRelationshipRole } from '@/lib/relationship-role'
@@ -94,7 +94,7 @@ export interface RelationshipActor {
 /** Resolve the calling Clerk identity to its promoter binding + admin status. */
 export async function resolveActor(clerkUserId: string): Promise<RelationshipActor> {
   const [promoter, isAdmin] = await Promise.all([
-    getPromoterByClerkId(clerkUserId),
+    getPartnerIdentityByClerkId(clerkUserId),
     currentUserIsAdmin(),
   ])
   return {

@@ -122,9 +122,25 @@ export async function getPromoterById(id: string): Promise<Promoter | null> {
 }
 
 /**
- * Look up the promoter bound to a Clerk identity (epic 08 · S4 — the authed
- * close workspace resolves "who am I" from the logged-in user). Null when the
- * user hasn't bound a code yet / tables missing.
+ * Resolve either partner track by Clerk identity. This track-agnostic seam is
+ * deliberately named differently so only grant-aware `/partner` contexts use
+ * it; Promotor acquisition/economic surfaces must use getPromoterByClerkId.
+ */
+export async function getPartnerIdentityByClerkId(clerkUserId: string): Promise<Promoter | null> {
+  if (!clerkUserId) return null
+  const { data, error } = await db
+    .from('marketplace_promoters')
+    .select('id, code, name, clerk_user_id, program_track, created_at')
+    .eq('clerk_user_id', clerkUserId)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as Promoter
+}
+
+/**
+ * Look up only the Promotor-track identity bound to a Clerk user. Null when the
+ * user has no PRM identity (including when they are a founding operator), so a
+ * neutral partner identity can never enter a Promotor-only capability.
  */
 export async function getPromoterByClerkId(clerkUserId: string): Promise<Promoter | null> {
   if (!clerkUserId) return null
@@ -132,6 +148,7 @@ export async function getPromoterByClerkId(clerkUserId: string): Promise<Promote
     .from('marketplace_promoters')
     .select('id, code, name, clerk_user_id, program_track, created_at')
     .eq('clerk_user_id', clerkUserId)
+    .eq('program_track', 'promoter')
     .maybeSingle()
   if (error || !data) return null
   return data as Promoter
