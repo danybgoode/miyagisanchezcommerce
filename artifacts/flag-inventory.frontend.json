@@ -381,6 +381,16 @@
       ]
     },
     {
+      "key": "partners.recruiting_v3_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/recruiting-v3.ts:6"
+      ]
+    },
+    {
       "key": "pdp_redesign",
       "compileDefault": true,
       "polarity": "killswitch",
