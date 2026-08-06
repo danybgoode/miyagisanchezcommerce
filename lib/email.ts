@@ -9,6 +9,10 @@ import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
 import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
 import { formatRentalBookingLines, type RentalBookingLike } from '@/lib/rental-booking'
+import {
+  resolveFoundingOperatorInvitationOutcome,
+  type FoundingOperatorInvitationOutcome,
+} from '@/lib/founding-operator-invitation-outcome'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
 const SITE = 'https://miyagisanchez.com'
@@ -1856,9 +1860,7 @@ export async function sendFoundingOperatorApplicationRejected(ctx: {
   await send(ctx.to, subject, body)
 }
 
-export type FoundingOperatorInvitationOutcome =
-  | { ok: true; providerMessageId: string }
-  | { ok: false; kind: 'unconfirmed' }
+export type { FoundingOperatorInvitationOutcome } from '@/lib/founding-operator-invitation-outcome'
 
 type FoundingOperatorInvitationDeps = {
   sendEmail: (to: string, subject: string, body: string) => Promise<string | null>
@@ -1891,14 +1893,7 @@ export async function sendFoundingOperatorActivationInvitationWithOutcome(
     cta('Activate Miyagi Partners', ctx.activationUrl),
     notice('Use the Miyagi account whose verified email matches this invitation. If you did not expect this email, do not use the link.'),
   ].join('')
-  try {
-    const providerMessageId = await deps.sendEmail(ctx.to, subject, body)
-    return typeof providerMessageId === 'string' && providerMessageId.trim()
-      ? { ok: true, providerMessageId }
-      : { ok: false, kind: 'unconfirmed' }
-  } catch {
-    return { ok: false, kind: 'unconfirmed' }
-  }
+  return resolveFoundingOperatorInvitationOutcome(() => deps.sendEmail(ctx.to, subject, body))
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

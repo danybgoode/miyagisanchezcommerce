@@ -17,6 +17,7 @@ import {
   sanitizePromoterApplicationRow,
   type PromoterApplication,
 } from '../lib/promoter-applications'
+import { resolveFoundingOperatorInvitationOutcome } from '../lib/founding-operator-invitation-outcome'
 
 const ROOT = process.cwd()
 const APPLICATION: PromoterApplication = {
@@ -71,15 +72,20 @@ test.describe('partners recruiting v3 · invitation material and principal', () 
 })
 
 test.describe('partners recruiting v3 · truthful provider outcomes', () => {
-  test('email helper names only provider acceptance and collapses null/throws to unconfirmed', () => {
+  test('email helper names only provider acceptance and executes ID/null/throw outcomes truthfully', async () => {
     const email = fs.readFileSync(path.join(ROOT, 'lib/email.ts'), 'utf8')
     const start = email.indexOf('export async function sendFoundingOperatorActivationInvitationWithOutcome')
     const helper = email.slice(start, email.indexOf('\n}\n', start) + 2)
     expect(start).toBeGreaterThan(0)
-    expect(helper).toContain("providerMessageId.trim()")
-    expect(helper).toContain("{ ok: true, providerMessageId }")
-    expect(helper.match(/\{ ok: false, kind: 'unconfirmed' \}/g)).toHaveLength(2)
+    expect(helper).toContain('resolveFoundingOperatorInvitationOutcome')
     expect(helper).not.toMatch(/delivered|delivery/i)
+
+    await expect(resolveFoundingOperatorInvitationOutcome(async () => ' msg_123 '))
+      .resolves.toEqual({ ok: true, providerMessageId: 'msg_123' })
+    await expect(resolveFoundingOperatorInvitationOutcome(async () => null))
+      .resolves.toEqual({ ok: false, kind: 'unconfirmed' })
+    await expect(resolveFoundingOperatorInvitationOutcome(async () => { throw new Error('ambiguous provider result') }))
+      .resolves.toEqual({ ok: false, kind: 'unconfirmed' })
   })
 
   test('approval commits before send and records only the matching material outcome', async () => {
