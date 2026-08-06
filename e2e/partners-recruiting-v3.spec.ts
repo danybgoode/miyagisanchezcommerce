@@ -149,6 +149,11 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(sql).toContain('ALTER TABLE marketplace_promoter_applications ENABLE ROW LEVEL SECURITY')
     expect(sql).toContain('REVOKE ALL ON TABLE marketplace_promoter_applications FROM PUBLIC, anon, authenticated')
     expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE marketplace_promoter_applications TO service_role')
+    for (const table of ['marketplace_promoters', 'partner_grants']) {
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`)
+      expect(sql).toContain(`REVOKE ALL ON TABLE ${table} FROM PUBLIC, anon, authenticated`)
+      expect(sql).toContain(`GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${table} TO service_role`)
+    }
     expect(sql).toContain("p_activation_token_hash !~ '^[0-9a-f]{64}$'")
     expect(sql).toContain("invitation_provider_status IN ('pending', 'provider_accepted', 'unconfirmed')")
     expect(sql).toContain("invitation_provider_status = 'pending'")
