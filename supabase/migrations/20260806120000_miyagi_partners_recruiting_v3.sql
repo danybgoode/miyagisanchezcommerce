@@ -2,6 +2,18 @@
 -- This file is applied by the orchestrator, never by the builder. All functions are
 -- service-role-only because they cross the application/identity authorization seam.
 
+-- These identity/authorization tables predate recruiting v3 and were reachable
+-- directly through PostgREST. Their only supported access is through server routes
+-- using the service-role client; anonymous/authenticated table writes would bypass
+-- Clerk admission and could manufacture a partner identity or shop grant.
+ALTER TABLE marketplace_promoters ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE marketplace_promoters FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE marketplace_promoters TO service_role;
+
+ALTER TABLE partner_grants ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE partner_grants FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE partner_grants TO service_role;
+
 ALTER TABLE marketplace_promoters
   ADD COLUMN IF NOT EXISTS program_track TEXT NOT NULL DEFAULT 'promoter';
 
