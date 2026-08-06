@@ -170,6 +170,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const resolver = fs.readFileSync(path.join(ROOT, 'lib/recruiting-v3.ts'), 'utf8')
     const page = fs.readFileSync(path.join(ROOT, 'app/(site)/us/page.tsx'), 'utf8')
     const route = fs.readFileSync(path.join(ROOT, 'app/api/promoter/apply/route.ts'), 'utf8')
+    const rejectRoute = fs.readFileSync(path.join(ROOT, 'app/api/admin/promoter/applications/[id]/reject/route.ts'), 'utf8')
     expect(resolver).toContain("isEnabled('partners.recruiting_v3_enabled')")
     expect(page).toContain('LegacyUnitedStatesPilotPage')
     expect(page).toContain('MiyagiPartnersRecruitingPage')
@@ -178,6 +179,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(route.indexOf("checkRateLimit('promoter_apply'")).toBeLessThan(route.indexOf('await req.json()'))
     expect(route.indexOf('await req.json()')).toBeLessThan(route.indexOf('if (operatorTrack && !(await recruitingV3Enabled()))'))
     expect(route).toContain("operatorTrack ? { ok: true, received: true, duplicate: !created } : { ok: true }")
+    expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
+    expect(rejectRoute.indexOf('getPromoterApplication(id)')).toBeLessThan(rejectRoute.indexOf('rejectPromoterApplication(id)'))
   })
 
   test('operator intake and review cannot create grants/consent or expose activation hashes', () => {
@@ -186,6 +189,10 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(intake).not.toContain("from('partner_grants')")
     expect(intake).not.toMatch(/relationship|consent/i)
     expect(admin).toContain('rel="noopener noreferrer"')
+    expect(admin).toContain('merchantAwarenessLabel(shop.merchant_awareness)')
+    for (const hardcodedEnglish of ['Practice', 'Active shops', 'Confirmed', 'Request conversation', 'Nomination is not merchant consent.']) {
+      expect(admin, hardcodedEnglish).not.toContain(hardcodedEnglish)
+    }
     expect(admin).not.toContain('activation_token_hash')
   })
 
