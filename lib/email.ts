@@ -1800,13 +1800,14 @@ export async function sendFoundingOperatorApplicationReceivedToAdmin(ctx: {
   adminEmail: string
   adminUrl: string
 }): Promise<void> {
-  const subject = 'New Founding Commerce Operator application'
+  const ui = (await getDictionary('es')).partnersRecruiting.email
+  const subject = ui.adminApplicationSubject
   const body = [
-    h1('Founding Commerce Operator application received'),
-    p('A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.'),
-    cta('Review application', ctx.adminUrl),
+    h1(ui.adminApplicationHeading),
+    p(ui.adminApplicationBody),
+    cta(ui.adminApplicationCta, ctx.adminUrl),
   ].join('')
-  await send(ctx.adminEmail, subject, body)
+  await send(ctx.adminEmail, subject, body, undefined, undefined, 'es')
 }
 
 /** Applicant: approved — here's your PRM- code + how to finish signup. */
@@ -1850,14 +1851,17 @@ export async function sendPromoterApplicationRejected(ctx: {
 export async function sendFoundingOperatorApplicationRejected(ctx: {
   to: string
   name: string
+  locale?: Locale
 }): Promise<void> {
-  const subject = 'Your Miyagi Partners application'
+  const locale = ctx.locale ?? 'en'
+  const ui = (await getDictionary(locale)).partnersRecruiting.email
+  const subject = ui.rejectionSubject
   const body = [
-    h1(`Thank you for applying, ${esc(ctx.name)}`),
-    p('We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.'),
-    p('This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.'),
+    h1(ui.rejectionHeading.replace('{name}', ctx.name)),
+    p(ui.rejectionBody),
+    p(ui.rejectionBoundary),
   ].join('')
-  await send(ctx.to, subject, body)
+  await send(ctx.to, subject, body, undefined, undefined, locale)
 }
 
 export type { FoundingOperatorInvitationOutcome } from '@/lib/founding-operator-invitation-outcome'
@@ -1873,27 +1877,29 @@ type FoundingOperatorInvitationDeps = {
  * recoverable `unconfirmed` outcomes—not mailbox-delivery claims.
  */
 export async function sendFoundingOperatorActivationInvitationWithOutcome(
-  ctx: { to: string; name: string; activationUrl: string; expiresAt: string },
-  deps: FoundingOperatorInvitationDeps = {
-    sendEmail: (to, subject, body) => send(to, subject, body, undefined, undefined, 'en'),
-  },
+  ctx: { to: string; name: string; activationUrl: string; expiresAt: string; locale?: Locale },
+  deps?: FoundingOperatorInvitationDeps,
 ): Promise<FoundingOperatorInvitationOutcome> {
-  const subject = 'Activate your Miyagi Partners identity'
-  const expiry = new Date(ctx.expiresAt).toLocaleString('en-US', {
-    timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short',
+  const locale = ctx.locale ?? 'en'
+  const ui = (await getDictionary(locale)).partnersRecruiting.email
+  const subject = ui.subject
+  const expiry = new Date(ctx.expiresAt).toLocaleString(locale === 'es' ? 'es-MX' : 'en-US', {
+    timeZone: locale === 'es' ? 'America/Mexico_City' : 'America/New_York', dateStyle: 'medium', timeStyle: 'short',
   })
   const body = [
-    h1(`Your partner identity is ready, ${esc(ctx.name)}`),
-    p('Your Founding Commerce Operator application was approved for the 90-day parallel proof.'),
-    p('Activation links this invitation to your Miyagi account. It does not create a shop, contact a nominated merchant, or grant access to any shop.'),
+    h1(ui.heading.replace('{name}', ctx.name)),
+    p(ui.approved),
+    p(ui.boundary),
     table([
-      ['Program', 'Founding Commerce Operator — United States'],
-      ['Link expires', expiry],
+      [ui.programKey, ui.programValue],
+      [ui.expiresKey, expiry],
     ]),
-    cta('Activate Miyagi Partners', ctx.activationUrl),
-    notice('Use the Miyagi account whose verified email matches this invitation. If you did not expect this email, do not use the link.'),
+    cta(ui.cta, ctx.activationUrl),
+    notice(ui.notice),
   ].join('')
-  return resolveFoundingOperatorInvitationOutcome(() => deps.sendEmail(ctx.to, subject, body))
+  return resolveFoundingOperatorInvitationOutcome(() => deps
+    ? deps.sendEmail(ctx.to, subject, body)
+    : send(ctx.to, subject, body, undefined, undefined, locale))
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

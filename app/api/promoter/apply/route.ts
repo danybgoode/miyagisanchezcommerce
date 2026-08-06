@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const adminUrl = `${SITE}/admin/promoter`
   const adminEmail = process.env.MIYAGI_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? null
   if (created && application.program_track === 'founding_operator') {
-    tg.alert(`New Founding Commerce Operator application — review at ${adminUrl}`).catch((e) => console.error('[promoter-apply] tg notify failed:', e))
+    tg.alert(`Nueva solicitud de Founding Commerce Operator — revisar en ${adminUrl}`).catch((e) => console.error('[promoter-apply] tg notify failed:', e))
     if (adminEmail) sendFoundingOperatorApplicationReceivedToAdmin({ adminEmail, adminUrl }).catch((e) => console.error('[promoter-apply] admin email failed:', e))
   } else if (created) {
     tg.promoterApplicationSubmitted(application.name, application.city, adminUrl).catch((e) => console.error('[promoter-apply] tg notify failed:', e))

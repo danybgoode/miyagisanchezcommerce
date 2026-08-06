@@ -10,6 +10,48 @@
       "activeSeasonal": "Collaboration active"
     }
   },
+  "partnersRecruiting": {
+    "activation": {
+      "metadataTitle": "Activate Miyagi Partners",
+      "eyebrow": "Miyagi Partners · identity activation",
+      "title": "Link your approved operator identity.",
+      "body": "This links the approved Founding Commerce Operator invitation to your signed-in Miyagi account. It creates no shop, contacts no merchant, and grants access to no shop.",
+      "mismatch": "This account could not activate the invitation. Use the Miyagi account whose verified email received it.",
+      "cta": "Activate Miyagi Partners",
+      "boundary": "Program approval and shop permission are separate. Shops appear only after an active merchant or Miyagi administrator grants access.",
+      "unavailableTitle": "Activation unavailable.",
+      "used": "This invitation has already been activated.",
+      "expired": "This invitation has expired. Ask Miyagi to rotate and resend it.",
+      "unavailable": "We could not check this invitation right now. Try again in a moment.",
+      "invalid": "This activation invitation is not available.",
+      "switchLanguage": "Ver en español"
+    },
+    "workspace": {
+      "heading": "Miyagi Partners",
+      "trackLabel": "Founding Commerce Operator",
+      "zeroShops": "Your operator identity is active and currently has zero shops. Program approval is not shop access: a shop appears only after a separate merchant or Miyagi administrator grants it. The next step is the founder review for the bounded 90-day proof.",
+      "switchLanguage": "Ver en español"
+    },
+    "email": {
+      "adminApplicationSubject": "New Founding Commerce Operator application",
+      "adminApplicationHeading": "Founding Commerce Operator application received",
+      "adminApplicationBody": "A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.",
+      "adminApplicationCta": "Review application",
+      "rejectionSubject": "Your Miyagi Partners application",
+      "rejectionHeading": "Thank you for applying, {name}",
+      "rejectionBody": "We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.",
+      "rejectionBoundary": "This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.",
+      "subject": "Activate your Miyagi Partners identity",
+      "heading": "Your partner identity is ready, {name}",
+      "approved": "Your Founding Commerce Operator application was approved for the 90-day parallel proof.",
+      "boundary": "Activation links this invitation to your Miyagi account. It does not create a shop, contact a nominated merchant, or grant access to any shop.",
+      "programKey": "Program",
+      "programValue": "Founding Commerce Operator — United States",
+      "expiresKey": "Link expires",
+      "cta": "Activate Miyagi Partners",
+      "notice": "Use the Miyagi account whose verified email matches this invitation. If you did not expect this email, do not use the link."
+    }
+  },
   "pwaSearch": {
     "title": "Search",
     "placeholder": "What are you looking for?",

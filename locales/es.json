@@ -10,6 +10,48 @@
       "activeSeasonal": "Colaboración activa"
     }
   },
+  "partnersRecruiting": {
+    "activation": {
+      "metadataTitle": "Activa Miyagi Partners",
+      "eyebrow": "Miyagi Partners · activación de identidad",
+      "title": "Vincula tu identidad de operador aprobada.",
+      "body": "Esto vincula la invitación aprobada de Founding Commerce Operator con tu cuenta de Miyagi. No crea una tienda, no contacta a ningún comercio y no otorga acceso a ninguna tienda.",
+      "mismatch": "Esta cuenta no pudo activar la invitación. Usa la cuenta de Miyagi cuyo correo verificado recibió la invitación.",
+      "cta": "Activar Miyagi Partners",
+      "boundary": "La aprobación del programa y el permiso de una tienda son cosas separadas. Las tiendas aparecen solo cuando un comercio o administrador de Miyagi otorga acceso.",
+      "unavailableTitle": "Activación no disponible.",
+      "used": "Esta invitación ya fue activada.",
+      "expired": "Esta invitación venció. Pide a Miyagi que la rote y la reenvíe.",
+      "unavailable": "No pudimos verificar esta invitación en este momento. Inténtalo de nuevo en unos minutos.",
+      "invalid": "Esta invitación de activación no está disponible.",
+      "switchLanguage": "View in English"
+    },
+    "workspace": {
+      "heading": "Miyagi Partners",
+      "trackLabel": "Founding Commerce Operator",
+      "zeroShops": "Tu identidad de operador está activa y actualmente tiene cero tiendas. La aprobación del programa no es acceso a tiendas: una tienda aparece solo cuando un comercio o administrador de Miyagi la otorga. El siguiente paso es la revisión del fundador para la prueba acotada de 90 días.",
+      "switchLanguage": "View in English"
+    },
+    "email": {
+      "adminApplicationSubject": "Nueva solicitud de Founding Commerce Operator",
+      "adminApplicationHeading": "Solicitud de Founding Commerce Operator recibida",
+      "adminApplicationBody": "Hay un nuevo expediente de operador de Estados Unidos listo para revisión. Los datos de contacto, las tiendas candidatas y la evaluación en texto libre permanecen en la fila administrativa autenticada.",
+      "adminApplicationCta": "Revisar solicitud",
+      "rejectionSubject": "Tu solicitud de Miyagi Partners",
+      "rejectionHeading": "Gracias por postularte, {name}",
+      "rejectionBody": "Revisamos tu solicitud de Founding Commerce Operator y por ahora no podemos incorporarla a la prueba de 90 días.",
+      "rejectionBoundary": "Esta decisión no crea acceso a tiendas ni contacta a ningún comercio nominado. Puedes volver a postularte si cambia tu situación operativa.",
+      "subject": "Activa tu identidad de Miyagi Partners",
+      "heading": "Tu identidad de socio está lista, {name}",
+      "approved": "Tu solicitud de Founding Commerce Operator fue aprobada para la prueba paralela de 90 días.",
+      "boundary": "La activación vincula esta invitación con tu cuenta de Miyagi. No crea una tienda, no contacta a un comercio nominado y no otorga acceso a ninguna tienda.",
+      "programKey": "Programa",
+      "programValue": "Founding Commerce Operator — Estados Unidos",
+      "expiresKey": "El enlace vence",
+      "cta": "Activar Miyagi Partners",
+      "notice": "Usa la cuenta de Miyagi cuyo correo verificado coincide con esta invitación. Si no esperabas este correo, no uses el enlace."
+    }
+  },
   "pwaSearch": {
     "title": "Buscar",
     "placeholder": "¿Qué estás buscando?",
