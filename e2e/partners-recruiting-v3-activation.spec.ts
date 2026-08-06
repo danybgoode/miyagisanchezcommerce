@@ -226,6 +226,7 @@ test.describe('partners recruiting v3 · activation and serialization', () => {
     expect(activationPage).toContain('Array.isArray(rawStatus) ? rawStatus[0] : rawStatus')
     expect(activationPage).toContain('getDictionary(locale)')
     expect(activationPage).not.toContain('Link your approved operator identity.')
+    expect(activationPage).not.toContain('>Miyagi Partners</p>')
     expect(partnerPage).toContain('partnersRecruiting.workspace')
     expect(partnerPage).not.toContain('Your operator identity is active and currently has zero shops.')
     expect(email).toContain('partnersRecruiting.email')
