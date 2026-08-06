@@ -370,7 +370,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:74",
+        "app/(shell)/partner/page.tsx:82",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
@@ -413,7 +413,7 @@
         "app/(shell)/promotor/cerrar/page.tsx:27",
         "app/(shell)/promotor/relaciones/page.tsx:19",
         "lib/merchant-lifecycle-sweep.ts:539",
-        "lib/relationship-access.ts:122"
+        "lib/relationship-access.ts:126"
       ]
     },
     {
@@ -456,7 +456,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:79",
+        "app/(shell)/partner/page.tsx:84",
         "lib/portfolio/gate-server.ts:54",
         "lib/portfolio/partner-portfolio-auth.ts:107",
         "lib/portfolio/reminders-server.ts:220"
