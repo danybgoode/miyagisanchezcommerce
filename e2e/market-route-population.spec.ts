@@ -5,7 +5,7 @@ import {
   MARKET_PREFIXED_PATH_FAMILIES,
   isMarketPrefixablePath,
 } from '../lib/market-url'
-import { MARKET_CODES, marketBasePath } from '../lib/markets'
+import { marketBasePath, openMarketCodes } from '../lib/markets'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 
@@ -73,21 +73,43 @@ test.describe('market route population', () => {
     // next deploy. `/` shipped that way and broke in production 2026-08-06; `/us`
     // had the identical defect and was spared only by edge-cache luck.
     //
-    // A page that genuinely must render per-request opts out with `dynamic` —
+    // A page that genuinely must render per-request opts out with `force-dynamic` —
     // banning one thing without allowing its negation trains people to bypass the
     // guard (Roadmap/LEARNINGS.md).
-    const offenders = filesBelow('app/(site)')
-      .filter((file) => file.endsWith('/page.tsx'))
-      .flatMap((file) => {
-        const source = readFileSync(file, 'utf8')
-        const relative = path.relative(ROOT, file).replace(/\\/g, '/')
-        if (/export const dynamic\s*=/.test(source)) return []
-        const declared = /export const revalidate\s*=\s*(\d+)/.exec(source)
-        if (!declared) return [`${relative} (no revalidate — inherits s-maxage=31536000)`]
-        // An hour is already far longer than a deploy takes to delete the old chunks.
-        const seconds = Number(declared[1])
-        return seconds > 3600 ? [`${relative} (revalidate=${seconds} exceeds 3600)`] : []
-      })
+    //
+    // ONLY `force-dynamic`, and that precision is load-bearing: an earlier draft of
+    // this guard accepted any `export const dynamic = …`, which let
+    // `dynamic = 'force-static'` through. `force-static` (like `'error'` and the
+    // default `'auto'`) prerenders with `revalidate: false` ⇒ `s-maxage=31536000` —
+    // it is the defect wearing the escape hatch's clothes. Caught by the fresh
+    // reviewer on PR #345 by mutation, not by reasoning; re-verify the same way.
+    //
+    // `(site)` IS the whole population, and here is why it isn't an arbitrary root:
+    // `app/(shell)/layout.tsx` reads `headers()`, so everything under `(shell)`
+    // renders per-request (verified live — `/vende`, `/terminos` and a 404 all return
+    // `private, no-cache, no-store`). A future sibling route group with a static
+    // layout WOULD escape this, so it must be added here when one appears.
+    const pages = filesBelow('app/(site)').filter((file) => file.endsWith('/page.tsx'))
+
+    // A scan that silently finds nothing must not read as a pass — AGENTS.md rule 5.
+    // Matches the sibling assertion at the MX-shop-route test below.
+    expect(pages.length, 'the (site) page scan found nothing — the guard is inert').toBeGreaterThanOrEqual(3)
+
+    const offenders = pages.flatMap((file) => {
+      const source = readFileSync(file, 'utf8')
+      const relative = path.relative(ROOT, file).replace(/\\/g, '/')
+      if (/export const dynamic\s*=\s*['"]force-dynamic['"]/.test(source)) return []
+      const declared = /export const revalidate\s*=\s*(\d+)\b/.exec(source)
+      if (!declared) {
+        // Distinguish "never declared" from "declared but not a literal Next can
+        // statically analyse" — three states, never two.
+        const nonLiteral = /export const revalidate\s*=/.test(source)
+        return [`${relative} (${nonLiteral ? 'non-literal revalidate' : 'no revalidate'} — inherits s-maxage=31536000)`]
+      }
+      // An hour is already far longer than a deploy takes to delete the old chunks.
+      const seconds = Number(declared[1])
+      return seconds > 3600 ? [`${relative} (revalidate=${seconds} exceeds 3600)`] : []
+    })
     expect(offenders).toEqual([])
   })
 
@@ -170,7 +192,12 @@ test.describe('post-authentication destination', () => {
     const home = /const POST_AUTH_HOME = '([^']+)'/.exec(source)
     expect(home, 'POST_AUTH_HOME must stay a single named destination').not.toBeNull()
     expect(home![1]).not.toBe('/')
-    expect(MARKET_CODES.some((code) => home![1] === marketBasePath(code))).toBe(true)
+    // An OPEN market, not merely a known one. `/us` is a registry-valid code whose
+    // marketplace_status is 'invitation' — no Region, no USD price, no checkout — so
+    // landing a signed-in user there is a dead end of a different shape than `/`.
+    const openHomes = openMarketCodes().map((code) => marketBasePath(code))
+    expect(openHomes, 'no open market to land on').not.toEqual([])
+    expect(openHomes).toContain(home![1])
 
     // Both halves wired, or a signed-up user still strands on the selector.
     expect(source).toContain('signInFallbackRedirectUrl={POST_AUTH_HOME}')

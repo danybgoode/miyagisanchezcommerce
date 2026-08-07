@@ -16,8 +16,14 @@ import MarketRecommendation from './MarketRecommendation'
  * Mexico marketplace with a country menu bolted on, which is the exact "one
  * marketplace pretending to be the brand" conflation the epic exists to remove.
  * So: zero listing reads, zero Medusa calls, zero Supabase calls.
- * `e2e/market-routes.spec.ts` asserts the no-catalog property against the
- * rendered HTML rather than trusting this comment.
+ *
+ * The HTML-level proof is `e2e/market-selector.browser.spec.ts` (`expect(
+ * page.locator('[data-listing-id]')).toHaveCount(0)`). This comment used to cite
+ * `e2e/market-routes.spec.ts`, which has never existed in this repo's history —
+ * a citation to a nonexistent guard reads exactly like a guarded property, which
+ * is worse than no citation. Note that the browser job is NON-BLOCKING in CI, so
+ * the source-level check in `e2e/market-route-population.spec.ts` (no
+ * `@/lib/{listings,medusa,supabase}` import) is the part that actually gates.
  *
  * ── What the copy may and may not claim ──────────────────────────────────────
  * Mexico is an operating marketplace. The United States is an invitation-only
