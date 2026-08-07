@@ -129,6 +129,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Space Grotesk — display + body */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          {/* eslint-disable-next-line @next/next/no-page-custom-font -- the rule is a
+              pages-router heuristic: it warns that a font outside `pages/_document.js`
+              reloads per page. This IS the App Router's document-level head — it renders
+              once for every route, which is the placement the rule asks for. Pre-existing
+              and unrelated to this PR; surfaced only because `lint:changed` runs at
+              max-warnings 0 and this PR touches the file. Migrating to `next/font` (self
+              hosted, no render-blocking round trip — the same win the iconoir subset above
+              took) is the real fix and is tracked separately. */}
           <link
             rel="stylesheet"
             href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
