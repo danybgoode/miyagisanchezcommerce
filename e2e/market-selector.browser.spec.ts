@@ -7,10 +7,27 @@ for (const viewport of [
   { name: 'desktop', width: 1280, height: 900 },
 ]) {
   test(`root selector chooses Mexico without an automatic redirect (${viewport.name})`, async ({ page }) => {
-    const consoleErrors: string[] = []
+    // Real JS bugs land in two different Playwright events: `console` (type 'error',
+    // e.g. a caught error the app logs, or React logging a warning-turned-error) and
+    // `pageerror` (an uncaught exception) — the previous version of this test only
+    // listened for the former, so an uncaught throw here would have passed silently.
+    //
+    // `console` also carries Chromium's own resource-load-failure noise — "Failed to
+    // load resource: the server responded with a status of 400 ()" for any image/font/
+    // script that 4xx's or 5xx's — which is NOT a JS bug: it fired against this exact
+    // assertion on 2026-08-01 and again on 2026-08-03 (both flagged in #333/#338 as
+    // unreproduced, left as-is rather than guessed at) with no accompanying app error,
+    // and a flaky CDN asset says nothing about whether the selector's own code is
+    // correct. Filtered out here so the assertion below means what it claims: no JS
+    // error, not "zero network hiccups of any kind."
+    const jsErrors: string[] = []
+    const RESOURCE_LOAD_FAILURE = /^Failed to load resource: the server responded with a status of \d+/
     page.on('console', (message) => {
-      if (message.type() === 'error') consoleErrors.push(message.text())
+      if (message.type() === 'error' && !RESOURCE_LOAD_FAILURE.test(message.text())) {
+        jsErrors.push(message.text())
+      }
     })
+    page.on('pageerror', (err) => jsErrors.push(`pageerror: ${err.message}`))
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/')
 
@@ -23,7 +40,7 @@ for (const viewport of [
     await page.getByTestId('market-choice-mx').click()
     await expect(page).toHaveURL(/\/mx$/)
     await expect(page.locator('body')).toContainText('Lo que tu barrio vende, compra y recomienda')
-    expect(consoleErrors).toEqual([])
+    expect(jsErrors).toEqual([])
   })
 }
 
