@@ -15,8 +15,8 @@ import {
  */
 
 test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
-  test('covers all 41 known flags with a polarity + a matching fail-open default', () => {
-    expect(FLAG_KEYS).toHaveLength(41)
+  test('covers all 42 known flags with a polarity + a matching fail-open default', () => {
+    expect(FLAG_KEYS).toHaveLength(42)
     for (const key of FLAG_KEYS) {
       const meta = FLAG_META[key]
       expect(meta.polarity === 'killswitch' || meta.polarity === 'enablement').toBe(true)
@@ -84,6 +84,7 @@ test.describe('flags-admin · FLAG_META / FLAG_KEYS', () => {
     // OFF is also the closed state: a flag-read outage keeps admission at today's
     // marketplace-publication proof and can never widen it.
     expect(FLAG_META['catalog.owned_shop_only_enabled']).toEqual({ polarity: 'killswitch', default: true })
+    expect(FLAG_META['partners.recruiting_v3_enabled']).toEqual({ polarity: 'enablement', default: false })
   })
 })
 

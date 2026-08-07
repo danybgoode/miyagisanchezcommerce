@@ -111,10 +111,10 @@ function definitionFor(key: string) {
   return definition!
 }
 
-test('frontend publishes its deterministic 40-definition fragment and omits backend-only orders', () => {
+test('frontend publishes its deterministic 41-definition fragment and omits backend-only orders', () => {
   const entries = frontendGoldenFlagDefinitionEntries()
 
-  expect(entries).toHaveLength(40)
+  expect(entries).toHaveLength(41)
   expect(entries.map((entry) => entry.key)).toEqual([...entries.map((entry) => entry.key)].sort())
   expect(entries.map((entry) => entry.key)).not.toContain('ml.orders_enabled')
   expect(entries.map((entry) => entry.key)).toEqual(
@@ -156,6 +156,7 @@ test('the migrated catalog retains live Golden defaults instead of local compile
   const definitions = frontendGoldenFlagDefinitionEntries()
 
   expect(definitions.filter(({ definition }) => definition.defaultVariantKey === 'off')).toEqual([
+    expect.objectContaining({ key: 'partners.recruiting_v3_enabled' }),
     expect.objectContaining({ key: 'shipping.envia_enabled' }),
   ])
   expect(definitionFor('catalog.owned_shop_only_enabled')).toMatchObject({

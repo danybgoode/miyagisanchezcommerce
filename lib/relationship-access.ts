@@ -45,10 +45,11 @@ import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { currentUserIsAdmin } from '@/lib/admin/guard'
-import { getPromoterByClerkId } from '@/lib/promoter'
+import { getPartnerIdentityByClerkId } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { canAnchorPreview } from '@/lib/promoter-close'
 import { decideRelationshipRole } from '@/lib/relationship-role'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 
 export interface RelationshipRow {
   id: string
@@ -88,19 +89,21 @@ export interface RelationshipActor {
    *  (`canAnchorPreview`/`isPromoterShopOwner` key off the code embedded in a
    *  promoter-created shop's `source_url`, not the promoter row id). */
   promoterCode: string | null
+  programTrack?: 'promoter' | 'founding_operator' | null
   isAdmin: boolean
 }
 
 /** Resolve the calling Clerk identity to its promoter binding + admin status. */
 export async function resolveActor(clerkUserId: string): Promise<RelationshipActor> {
   const [promoter, isAdmin] = await Promise.all([
-    getPromoterByClerkId(clerkUserId),
+    getPartnerIdentityByClerkId(clerkUserId),
     currentUserIsAdmin(),
   ])
   return {
     clerkUserId,
     promoterId: promoter?.id ?? null,
     promoterCode: promoter?.code ?? null,
+    programTrack: promoter?.program_track ?? null,
     isAdmin,
   }
 }
@@ -113,7 +116,8 @@ export type RelationshipAuthResult =
  * The gate every `/api/promoter/relationship*` route runs FIRST: the
  * `promoter.activation_crm_enabled` flag (OFF ⇒ 404, indistinguishable from
  * absent — the build contract's dark-launch requirement), then a real Clerk
- * session (401), then a rate limit, then the actor's promoter/admin binding.
+ * session (401), then the actor's track-specific recruiting gate, then a rate
+ * limit. The actor's promoter/admin binding is returned to the route.
  * Deliberately does NOT require a promoter binding here — an admin with no
  * promoter code must still be able to reach a route; `resolveRelationshipAccess`
  * (or the create-path's own explicit check) is where binding is enforced.
@@ -125,6 +129,11 @@ export async function authorizeRelationshipRequest(req: NextRequest): Promise<Re
   const user = await currentUser().catch(() => null)
   if (!user) return { error: NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 }) }
 
+  const actor = await resolveActor(user.id)
+  if (actor.programTrack === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return { error: NextResponse.json({ ok: false }, { status: 404 }) }
+  }
+
   const rl = await checkRateLimit('relationship', getClientIp(req))
   if (!rl.allowed) {
     return {
@@ -135,7 +144,6 @@ export async function authorizeRelationshipRequest(req: NextRequest): Promise<Re
     }
   }
 
-  const actor = await resolveActor(user.id)
   return { user: { id: user.id }, actor }
 }
 

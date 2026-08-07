@@ -32,7 +32,7 @@ import { stageLabel } from '@/lib/merchant-stage-labels'
 import { ageInStageDays, nextOpenTask } from '@/lib/relationship-pipeline'
 import { preferredChannelLabel } from '@/lib/preferred-channels'
 import { resolveLinkedShopSummary, type RelationshipActor, type RelationshipRow } from '@/lib/relationship-access'
-import { getPromoterByClerkId } from '@/lib/promoter'
+import { getPartnerIdentityByClerkId } from '@/lib/promoter'
 import { shopTarget } from '@/lib/shortlink'
 import { buildDraftFacts, type DraftFactsSourceInput } from '@/lib/portfolio/draft-facts'
 import { composeDraft, DRAFT_TEMPLATE_VERSION, type DraftTemplateId } from '@/lib/portfolio/draft-compose'
@@ -50,7 +50,7 @@ export interface GatherDraftFactsResult {
  * the open-task title/date (a dedicated small read — `RelationshipRow` and
  * `EnrichedRelationship` carry neither), the linked shop's public URL
  * (`resolveLinkedShopSummary`, already scope-safe), and the ACTING partner's
- * own display name (never the merchant's — `getPromoterByClerkId`).
+ * own display name (never the merchant's — `getPartnerIdentityByClerkId`).
  */
 export async function gatherDraftFacts(
   relationship: RelationshipRow,
@@ -97,7 +97,7 @@ export async function gatherDraftFacts(
   // ── The ACTING partner's own display name (never the merchant's) ───────
   let partnerDisplayName: string | null = null
   try {
-    const promoter = actor.promoterId ? await getPromoterByClerkId(actor.clerkUserId) : null
+    const promoter = actor.promoterId ? await getPartnerIdentityByClerkId(actor.clerkUserId) : null
     partnerDisplayName = promoter?.name ?? null
   } catch (err) {
     console.error('[portfolio/draft] partner name read failed — the draft will omit the introduction:', err)

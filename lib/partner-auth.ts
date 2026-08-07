@@ -25,6 +25,7 @@
 import { timingSafeEqual } from 'crypto'
 import { db } from './supabase'
 import { isEnabled } from './flags'
+import { recruitingV3Enabled } from './recruiting-v3'
 import {
   parseBearer,
   classifyAgentCredential,
@@ -59,11 +60,12 @@ export interface PartnerRow {
   id: string
   code: string
   name: string | null
+  program_track: 'promoter' | 'founding_operator'
   partner_token_hash: string | null
   partner_connector_slug: string | null
 }
 
-const PARTNER_COLS = 'id, code, name, partner_token_hash, partner_connector_slug'
+const PARTNER_COLS = 'id, code, name, program_track, partner_token_hash, partner_connector_slug'
 const SHOP_COLS = 'id, clerk_user_id, name, slug, description, location, logo_url, metadata'
 
 function constantTimeEq(a: string, b: string): boolean {
@@ -161,6 +163,9 @@ export async function resolveToolShop(
 
   const partner = await resolvePartnerRow(token)
   if (!partner) return { ok: false, message: null }
+  if (partner.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return { ok: false, message: null }
+  }
 
   // Cap the audited slug (caller-controlled) so the audit table can't be
   // bloated; shop slugs are ≤40 chars by policy.

@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { marketLandingMetadata } from '@/lib/market-seo'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
+import { FoundingOperatorApplication, RecruitingTrackLink } from './FoundingOperatorApplication'
+import { coarseRecruitingSource } from '@/lib/recruiting-source'
+import type { RecruitingSource } from '@/lib/recruiting-events'
 
 /**
  * The US market exists as an invitation surface, not as a catalog.
@@ -27,7 +31,17 @@ export const metadata: Metadata = {
   ...marketLandingMetadata('us'),
 }
 
-export default function UnitedStatesPilotPage() {
+// The production authority is runtime Golden Beans; never freeze the OFF default
+// into a static build artifact or a later cohort flip would have no effect.
+export const dynamic = 'force-dynamic'
+
+export default async function UnitedStatesPilotPage({ searchParams }: { searchParams: Promise<{ source?: string | string[] }> }) {
+  const source = coarseRecruitingSource((await searchParams).source)
+  if (await recruitingV3Enabled()) return <MiyagiPartnersRecruitingPage source={source} />
+  return <LegacyUnitedStatesPilotPage />
+}
+
+function LegacyUnitedStatesPilotPage() {
   return (
     <main className="max-w-3xl mx-auto px-4 py-14 sm:py-20" data-testid="us-invitation">
       <div className="max-w-2xl">
@@ -87,6 +101,58 @@ export default function UnitedStatesPilotPage() {
         self-service availability claim. We are not claiming Amazon, eBay, Walmart, accounting,
         Veeqo, or ShipStation parity before the interviews establish the pilot&apos;s real need.
       </aside>
+    </main>
+  )
+}
+
+function MiyagiPartnersRecruitingPage({ source }: { source: RecruitingSource }) {
+  return (
+    <main className="bg-[var(--bg)] text-[var(--fg)]" data-testid="us-partners-recruiting">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <header className="grid gap-10 py-16 sm:py-24 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--accent)]">Miyagi Partners · Founding proof 01</p>
+            <h1 className="mt-5 max-w-4xl text-5xl font-semibold leading-[0.98] tracking-[-0.045em] sm:text-7xl">Operate three shops. Prove one calmer practice.</h1>
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--fg-muted)]">A 90-day, no-cutover working proof for experienced US commerce operators. Keep each merchant&apos;s owned shop and required systems while testing whether repeated operating work becomes safer and more legible.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <RecruitingTrackLink href="#founding-operator-application" track="founding_operator" source={source} className="btn btn-primary no-underline" testId="operator-primary-cta">Apply with three shops</RecruitingTrackLink>
+              <RecruitingTrackLink href="/vende/promotor" track="promoter" source={source} className="btn btn-secondary no-underline" testId="promotor-secondary-cta">Promotor — Mexico</RecruitingTrackLink>
+            </div>
+          </div>
+          <aside className="border-l-4 border-[var(--agent)] bg-[var(--agent-soft)] p-6">
+            <p className="font-mono text-xs uppercase tracking-[0.15em] text-[var(--agent)]">What is true today</p>
+            <p className="mt-3 leading-7">Miyagi operates marketplace and seller rails in Mexico. The United States has no open marketplace, public catalog, dollar checkout, shipping, or payment promise. This pilot exists to learn what must be proven before any such claim.</p>
+          </aside>
+        </header>
+
+        <section className="border-y border-[var(--border-strong)] py-12" aria-labelledby="proof-mechanism">
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--fg-muted)]">Parallel-proof mechanism</p>
+          <h2 id="proof-mechanism" className="mt-3 text-3xl font-semibold tracking-tight">Four checkpoints, no forced migration.</h2>
+          <ol className="mt-8 grid gap-px overflow-hidden border border-[var(--border)] bg-[var(--border)] md:grid-cols-4">
+            {[
+              ['01', 'Name the evidence', 'Submit three public shops and the systems that must remain.'],
+              ['02', 'Separate permissions', 'Nomination, discovery, parallel setup, real orders, and a public story stay distinct.'],
+              ['03', 'Work in parallel', 'Run a bounded operating window without asking a merchant to cut over.'],
+              ['04', 'Review the proof', 'At 90 days, decide what worked, what did not, and whether anyone should continue.'],
+            ].map(([number, title, detail]) => <li key={number} className="bg-[var(--bg)] p-5"><span className="font-mono text-sm text-[var(--agent)]">{number}</span><h3 className="mt-5 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-[var(--fg-muted)]">{detail}</p></li>)}
+          </ol>
+        </section>
+
+        <section className="grid gap-10 py-14 md:grid-cols-2">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--accent)]">A strong fit</p>
+            <h2 className="mt-3 text-2xl font-semibold">You already carry the operating burden.</h2>
+            <ul className="mt-5 space-y-3 text-[var(--fg-muted)]"><li>• You actively steward at least three independent-product shops.</li><li>• You can name a recent repeated operating problem, not just desired features.</li><li>• You can protect merchant context and keep required systems in place.</li><li>• You can join a working checkpoint through a 90-day window.</li></ul>
+          </div>
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--promo)]">Not this program</p>
+            <h2 className="mt-3 text-2xl font-semibold">No leads, badges, commission promise, or instant access.</h2>
+            <ul className="mt-5 space-y-3 text-[var(--fg-muted)]"><li>• This is not a reseller, lead marketplace, certification, or agency CRM.</li><li>• The 90-day proof has no Miyagi platform or migration fee; that is not permanent pricing.</li><li>• No operator revenue share is promised.</li><li>• A shop URL never authorizes access or merchant contact.</li></ul>
+          </div>
+        </section>
+
+        <FoundingOperatorApplication source={source} />
+      </div>
     </main>
   )
 }

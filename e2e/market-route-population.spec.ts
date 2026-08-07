@@ -44,10 +44,12 @@ test.describe('market route population', () => {
     const usRoutes = filesBelow('app')
       .map((file) => path.relative(ROOT, file).replace(/\\/g, '/'))
       .filter((file) => /\/(?:us)(?:\/|$)/.test(file))
+      .filter((file) => /\/(?:page|route)\.(?:ts|tsx)$/.test(file))
       .sort()
 
-    // D9: directory absence is the guard. A later `/us/l`, `/us/s`, search, or
-    // category folder cannot quietly become a plausible-but-empty US marketplace.
+    // D9: route-entrypoint absence is the guard. Colocated components are allowed,
+    // but a later `/us/l`, `/us/s`, search, or category route cannot quietly become
+    // a plausible-but-empty US marketplace.
     expect(usRoutes).toEqual(['app/(site)/us/page.tsx'])
   })
 

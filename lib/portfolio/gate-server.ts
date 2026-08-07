@@ -4,7 +4,7 @@
  * Merchant Partner lifecycle · Sprint 1 — the ONE gate every new route in this
  * epic runs FIRST. Deliberately shaped EXACTLY like
  * `lib/relationship-access.ts#authorizeRelationshipRequest` (flag ⇒ 404, then
- * Clerk ⇒ 401, then rate limit ⇒ 429, then resolve the actor), differing in one
+ * Clerk ⇒ 401, resolve the actor, enforce its track rollback, then rate limit), differing in one
  * respect only: it reads the NEW `promoter.partner_portfolio_enabled` flag
  * instead of `promoter.activation_crm_enabled`.
  *
@@ -32,6 +32,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { resolveActor, type RelationshipActor } from '@/lib/relationship-access'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 
 /** The epic's enablement flag. Exported so the `/partner` page and
  *  `e2e/portfolio-routes.spec.ts` name the same string this gate reads, rather
@@ -43,8 +44,8 @@ export type PortfolioAuthResult =
   | { error?: undefined; user: { id: string }; actor: RelationshipActor }
 
 /**
- * Flag ⇒ 404 · no Clerk session ⇒ 401 · over the rate limit ⇒ 429 · otherwise
- * the caller's resolved actor. Reuses the `relationship` rate-limit bucket
+ * Flag ⇒ 404 · no Clerk session ⇒ 401 · operator track OFF ⇒ 404 · over the
+ * rate limit ⇒ 429 · otherwise the caller's resolved actor. Reuses the `relationship` rate-limit bucket
  * on purpose: these routes read exactly the same records, at the same human
  * cadence, as the routes that bucket was sized for (60/10min per IP), and a
  * portfolio read must not be able to rate-limit a promoter out of a money route
@@ -58,6 +59,11 @@ export async function authorizePortfolioRequest(req: NextRequest): Promise<Portf
   const user = await currentUser().catch(() => null)
   if (!user) return { error: NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 }) }
 
+  const actor = await resolveActor(user.id)
+  if (actor.programTrack === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return { error: NextResponse.json({ ok: false }, { status: 404 }) }
+  }
+
   const rl = await checkRateLimit('relationship', getClientIp(req))
   if (!rl.allowed) {
     return {
@@ -68,6 +74,5 @@ export async function authorizePortfolioRequest(req: NextRequest): Promise<Portf
     }
   }
 
-  const actor = await resolveActor(user.id)
   return { user: { id: user.id }, actor }
 }
