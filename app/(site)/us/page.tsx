@@ -9,6 +9,17 @@ import { marketLandingMetadata } from '@/lib/market-seo'
  * Mexico product id under `/us/l/...` an ordinary structural 404, and keeps the
  * invitation state honest without a runtime filter or an empty-looking catalog.
  */
+/**
+ * Same reason as the market selector at `app/(site)/page.tsx` — see the long
+ * note there. A dataless prerender with no `revalidate` is served with
+ * `s-maxage=31536000`, which lets a CDN pin HTML that references build-scoped
+ * `/_next/static/chunks/*` hashes long after those chunks are deleted. `/` was
+ * caught serving a 7-day-old copy with 404'ing CSS; this page had the identical
+ * defect and was spared only because the edge happened not to be caching it.
+ * Fixed here too rather than waiting for it to surface.
+ */
+export const revalidate = 60
+
 export const metadata: Metadata = {
   title: 'Miyagi Sánchez United States — Private pilot',
   description:

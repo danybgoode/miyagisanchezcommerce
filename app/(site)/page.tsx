@@ -15,11 +15,15 @@ import MarketRecommendation from './MarketRecommendation'
  * A selector that previews Mexican products is not a selector — it is the
  * Mexico marketplace with a country menu bolted on, which is the exact "one
  * marketplace pretending to be the brand" conflation the epic exists to remove.
- * So: zero listing reads, zero Medusa calls, zero Supabase calls. That is also
- * why it prerenders as a pure static CDN asset with no `revalidate` at all —
- * there is nothing here that can go stale. `e2e/market-routes.spec.ts` asserts
- * the no-catalog property against the rendered HTML rather than trusting this
- * comment.
+ * So: zero listing reads, zero Medusa calls, zero Supabase calls.
+ *
+ * The HTML-level proof is `e2e/market-selector.browser.spec.ts` (`expect(
+ * page.locator('[data-listing-id]')).toHaveCount(0)`). This comment used to cite
+ * `e2e/market-routes.spec.ts`, which has never existed in this repo's history —
+ * a citation to a nonexistent guard reads exactly like a guarded property, which
+ * is worse than no citation. Note that the browser job is NON-BLOCKING in CI, so
+ * the source-level check in `e2e/market-route-population.spec.ts` (no
+ * `@/lib/{listings,medusa,supabase}` import) is the part that actually gates.
  *
  * ── What the copy may and may not claim ──────────────────────────────────────
  * Mexico is an operating marketplace. The United States is an invitation-only
@@ -35,6 +39,27 @@ import MarketRecommendation from './MarketRecommendation'
  * this surface is not on the bilingual allow-list. Sprint 3's `/us` page is the
  * English surface.
  */
+
+/**
+ * The page holds no data, so this window is NOT about content freshness — it is
+ * about the build-scoped asset URLs the HTML embeds.
+ *
+ * This page used to carry no `revalidate` at all, reasoned from "there is
+ * nothing here that can go stale". That reasoning was wrong, and it broke the
+ * homepage in production (2026-08-06): a prerender with no `revalidate` is
+ * served with `s-maxage=31536000`, Cloudflare cached `/` on that one-year TTL,
+ * and the HTML kept pointing at `/_next/static/chunks/*` hashes from the build
+ * that produced it. Those chunks are deleted the moment a new Cloud Run
+ * revision takes over, so the edge served a 7-day-old document whose CSS 404'd
+ * — an unstyled homepage, while every other route (all of which do carry a
+ * `revalidate`) rendered fine.
+ *
+ * The content is static; the asset hashes are not. A page is only as cacheable
+ * as the shortest-lived thing its HTML references. 60s matches `/mx` and, with
+ * Next's `stale-while-revalidate`, bounds post-deploy breakage to roughly one
+ * request instead of a year.
+ */
+export const revalidate = 60
 
 export const metadata: Metadata = {
   title: 'Miyagi Sánchez — Tu tienda propia y los mercados por país',
