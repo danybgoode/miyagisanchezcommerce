@@ -94,9 +94,36 @@ export const viewport: Viewport = {
  * (gated on path eligibility) rather than here, so it stays absent on ineligible pages
  * (e.g. /terminos) — the static root has no path to gate on.
  */
+/**
+ * Where a signed-in user lands when nothing else asked for a destination.
+ *
+ * `/` is the master-brand market SELECTOR (`app/(site)/page.tsx`) — a country
+ * picker. Sending someone who just authenticated to a "which country are you?"
+ * screen is a dead end, and it was the default only by omission: Clerk's
+ * `signInFallbackRedirectUrl` defaults to `/`.
+ *
+ * It looked configured but was not. `cloudbuild.yaml`/`Dockerfile` still pass
+ * `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL='/'`, and that variable DOES NOT EXIST in
+ * @clerk/nextjs v7 — it was removed with the v5 redirect-prop rework, so the
+ * build arg has been inert since the upgrade and the redirect silently fell
+ * through to the Clerk Dashboard's own after-sign-in URL. Setting it here keeps
+ * the destination in version control instead of in dashboard state, and out of
+ * the build-arg list that is manually mirrored across two repos.
+ *
+ * FALLBACK, never FORCE: per @clerk/shared's `SignInFallbackRedirectUrl`, this
+ * applies only when the path carries no `redirect_url`. A "sign in to continue"
+ * hop from checkout still returns to checkout — `forceRedirectUrl` would hijack
+ * the money path.
+ */
+const POST_AUTH_HOME = '/mx'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider localization={esMX}>
+    <ClerkProvider
+      localization={esMX}
+      signInFallbackRedirectUrl={POST_AUTH_HOME}
+      signUpFallbackRedirectUrl={POST_AUTH_HOME}
+    >
       <html lang="es" suppressHydrationWarning>
         <head>
           {/* Space Grotesk — display + body */}

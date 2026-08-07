@@ -33,6 +33,17 @@ substitutions:
   _NEXT_PUBLIC_SITE_URL: 'https://miyagisanchez.com'
   _NEXT_PUBLIC_CLERK_SIGN_IN_URL: '/sign-in'
   _NEXT_PUBLIC_CLERK_SIGN_UP_URL: '/sign-up'
+  # ⚠️ INERT — these two configure NOTHING. @clerk/nextjs v7 has no
+  # NEXT_PUBLIC_CLERK_AFTER_SIGN_{IN,UP}_URL; the v5 redirect rework replaced them
+  # with *_FALLBACK_REDIRECT_URL / *_FORCE_REDIRECT_URL (verify:
+  # `grep -rhoE 'NEXT_PUBLIC_CLERK_[A-Z_]+' node_modules/@clerk/nextjs/dist/`).
+  # They have been dead since the upgrade, which is why the post-sign-in redirect
+  # silently fell through to the Clerk Dashboard and dumped users on `/`.
+  #
+  # The live destination is `POST_AUTH_HOME` in `app/layout.tsx` — change it there.
+  # Kept (not deleted) only because this list is manually mirrored in the root
+  # repo's infra/gcp/test/frontend-build-args.test.js and e2e/frontend-build-args
+  # .spec.ts; removing them is a coordinated two-repo change, tracked separately.
   _NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: '/'
   _NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: '/'
   # GTM container id — public by definition (visible in every page's gtm.js URL).
