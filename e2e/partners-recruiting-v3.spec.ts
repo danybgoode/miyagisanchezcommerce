@@ -6,7 +6,7 @@ import { validateApplicationInput } from '../lib/promoter-applications'
 import { buildRecruitingAnalyticsPayload } from '../lib/recruiting-events'
 import { coarseRecruitingSource } from '../lib/recruiting-source'
 import { getPartnerIdentityByClerkId, isPromoterEconomicIdentity } from '../lib/promoter'
-import { resolvePartnerRecruitingPreflight } from '../lib/partner-recruiting-preflight'
+import { isLegacyPartnerTrackSchemaError, resolvePartnerRecruitingPreflight } from '../lib/partner-recruiting-preflight'
 
 const ROOT = process.cwd()
 const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
@@ -154,6 +154,12 @@ test.describe('partners recruiting v3 · partner MCP preflight', () => {
       recruitingV3Enabled: async () => false,
     })).rejects.toThrow('partner_identity_unavailable')
   })
+
+  test('recognizes only the known pre-migration program_track schema gap', () => {
+    expect(isLegacyPartnerTrackSchemaError({ code: '42703', message: 'column marketplace_promoters.program_track does not exist' })).toBe(true)
+    expect(isLegacyPartnerTrackSchemaError({ code: '42703', message: 'column something_else does not exist' })).toBe(false)
+    expect(isLegacyPartnerTrackSchemaError({ code: '08006', message: 'connection failure' })).toBe(false)
+  })
 })
 
 test.describe('partners recruiting v3 · privacy-closed measurement', () => {
@@ -287,6 +293,9 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const partnerAuth = fs.readFileSync(path.join(ROOT, 'lib/partner-auth.ts'), 'utf8')
     expect(partnerAuth).toContain('if (byHashError) throw new Error(\'partner_identity_unavailable\'')
     expect(partnerAuth).toContain('if (bySlugError) throw new Error(\'partner_identity_unavailable\'')
+    expect(partnerAuth).toContain("program_track: 'promoter'")
+    expect(partnerAuth).toContain('isLegacyPartnerTrackSchemaError(byHashError)')
+    expect(partnerAuth).toContain('isLegacyPartnerTrackSchemaError(bySlugError)')
     expect(directMcp).toContain("checkRateLimit('mcp_partner_preflight', ip)")
     expect(directMcp).toContain("partnerPreflight.kind === 'partner_preflight_limited'")
     expect(directMcp).toContain('const partnerToolCall = requests.some(isPartnerSellerToolCall)')

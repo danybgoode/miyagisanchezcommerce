@@ -2,6 +2,15 @@ export type RecruitingPartnerIdentity = {
   program_track: 'promoter' | 'founding_operator'
 }
 
+/** The sole schema error that proves a legacy, pre-track partner table. */
+export function isLegacyPartnerTrackSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { code?: unknown; message?: unknown }
+  return candidate.code === '42703'
+    && typeof candidate.message === 'string'
+    && candidate.message.includes('program_track')
+}
+
 export type PartnerRecruitingPreflight<T extends RecruitingPartnerIdentity> =
   | { kind: 'recruiting_enabled' }
   | { kind: 'partner_preflight_limited' }

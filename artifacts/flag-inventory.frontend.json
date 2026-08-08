@@ -375,7 +375,7 @@
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:40",
         "app/api/ucp/mcp/p/[slug]/route.ts:48",
-        "lib/partner-auth.ts:206",
+        "lib/partner-auth.ts:228",
         "lib/partner-grant-server.ts:67",
         "lib/portfolio/partner-portfolio-auth.ts:109"
       ]
