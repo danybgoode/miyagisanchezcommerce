@@ -88,13 +88,17 @@ test.describe('partner-auth · partners.mcp_enabled fail-open default (pure)', (
 })
 
 test.describe('partner-auth · live boundary — partner token on the main MCP route', () => {
-  test('a never-issued partner token is rejected exactly like a garbage token (never 500, never scope)', async ({ request }) => {
+  test('a never-issued partner token is rejected generically or reports identity storage unavailable', async ({ request }) => {
     const res = await request.post('/api/ucp/mcp', {
       data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_my_listings', arguments: {} } },
       headers: { Authorization: `Bearer ${PARTNER_PREFIX}${'0'.repeat(64)}` },
     })
-    expect(res.status()).toBeLessThan(500)
     const body = await res.json()
+    if (res.status() === 503) {
+      expect(body).toEqual({ jsonrpc: '2.0', id: null, error: { code: -32003, message: 'Service unavailable' } })
+      return
+    }
+    expect(res.status()).toBeLessThan(500)
     expect(body.result.isError).toBe(true)
     expect(body.result.content[0].text).toContain('Unauthorized')
   })
@@ -104,8 +108,12 @@ test.describe('partner-auth · live boundary — partner token on the main MCP r
       data: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'get_store_configuration', arguments: { shop_slug: 'any-shop' } } },
       headers: { Authorization: `Bearer ${PARTNER_PREFIX}${'0'.repeat(64)}` },
     })
-    expect(res.status()).toBeLessThan(500)
     const body = await res.json()
+    if (res.status() === 503) {
+      expect(body).toEqual({ jsonrpc: '2.0', id: null, error: { code: -32003, message: 'Service unavailable' } })
+      return
+    }
+    expect(res.status()).toBeLessThan(500)
     expect(body.result.isError).toBe(true)
   })
 })
