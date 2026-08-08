@@ -112,6 +112,28 @@ export async function resolvePartnerRow(token: string): Promise<PartnerRow | nul
   return null
 }
 
+/**
+ * Pre-rate-limit rollback check for shared MCP entry routes.
+ *
+ * The dispatcher still performs the authoritative per-tool check below. This
+ * lightweight duplicate exists only because the route-level MCP bucket is
+ * otherwise touched before dispatch: an operator credential rolled back by
+ * the recruiting flag must behave like an invalid credential without
+ * consuming (or being masked by) rate-limit state. Seller, buyer, malformed,
+ * and promoter traffic retains the existing rate-limit behavior.
+ */
+export async function partnerRecruitingPreflight(
+  authHeader: string | null | undefined,
+): Promise<boolean> {
+  const token = parseBearer(authHeader)
+  if (!token || classifyAgentCredential(token) !== 'partner') return true
+
+  const partner = await resolvePartnerRow(token)
+  if (!partner || partner.program_track !== 'founding_operator') return true
+
+  return recruitingV3Enabled()
+}
+
 /** Best-effort per-call audit (incl. denials) — a logging failure never fails the call. */
 async function auditPartnerCall(entry: {
   promoterId: string

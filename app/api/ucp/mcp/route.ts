@@ -40,7 +40,7 @@ import { ensureUrlProtocol } from '@/lib/url'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import type { AgentShop } from '@/lib/agent-auth'
-import { resolveToolShop } from '@/lib/partner-auth'
+import { partnerRecruitingPreflight, resolveToolShop } from '@/lib/partner-auth'
 import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
 import { listSubmissionsForShop, getLaunchpadShopBySlug, transitionSubmission, publishSubmission } from '@/lib/launchpad'
@@ -4201,13 +4201,20 @@ export async function GET(req: NextRequest) {
 
 // POST — JSON-RPC 2.0 dispatcher
 export async function POST(req: NextRequest) {
+  // Recruiting rollback precedes the shared bucket. The authoritative tool
+  // resolver checks again after body parsing; this preflight solely prevents
+  // an OFF operator credential from consuming or receiving rate-limit state.
+  const recruitingAdmitted = await partnerRecruitingPreflight(req.headers.get('authorization'))
+
   // ── Rate limiting ─────────────────────────────────────────────────────────
-  const rl = await checkRateLimit('mcp', getClientIp(req))
-  if (!rl.allowed) {
-    return NextResponse.json(
-      err(null, -32029, 'Rate limit exceeded — too many requests'),
-      { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
-    )
+  if (recruitingAdmitted) {
+    const rl = await checkRateLimit('mcp', getClientIp(req))
+    if (!rl.allowed) {
+      return NextResponse.json(
+        err(null, -32029, 'Rate limit exceeded — too many requests'),
+        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+      )
+    }
   }
 
   const host    = req.headers.get('host') ?? 'miyagisanchez.com'
