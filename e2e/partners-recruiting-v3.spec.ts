@@ -6,6 +6,7 @@ import { validateApplicationInput } from '../lib/promoter-applications'
 import { buildRecruitingAnalyticsPayload } from '../lib/recruiting-events'
 import { coarseRecruitingSource } from '../lib/recruiting-source'
 import { getPartnerIdentityByClerkId, isPromoterEconomicIdentity } from '../lib/promoter'
+import { resolvePartnerRecruitingPreflight } from '../lib/partner-recruiting-preflight'
 
 const ROOT = process.cwd()
 const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
@@ -105,6 +106,42 @@ test.describe('partners recruiting v3 · operator contract', () => {
     expect(validateApplicationInput({ name: ' Test ', email: 'TEST@example.com', whatsapp: ' 555 ', city: ' CDMX ', motivation: ' Hola ' })).toEqual({
       ok: true, clean: { name: 'Test', email: 'test@example.com', whatsapp: '555', city: 'CDMX', motivation: 'Hola' },
     })
+  })
+})
+
+test.describe('partners recruiting v3 · partner MCP preflight', () => {
+  const operator = {
+    id: 'operator-1', code: 'MYP-TEST', name: 'Test Operator', program_track: 'founding_operator',
+    partner_token_hash: null, partner_connector_slug: null,
+  } as const
+
+  test('returns a reusable rolled-back identity result without consuming the MCP bucket', async () => {
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => operator,
+      recruitingV3Enabled: async () => false,
+    })
+    expect(result).toEqual({ kind: 'operator_rolled_back', partner: operator })
+  })
+
+  test('adds no preflight identity read in normal recruiting-ON operation', async () => {
+    let identityReads = 0
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { identityReads += 1; return operator },
+      recruitingV3Enabled: async () => true,
+    })
+    expect(result).toEqual({ kind: 'recruiting_enabled' })
+    expect(identityReads).toBe(0)
+  })
+
+  test('preserves confirmed absence and storage unavailability as different states', async () => {
+    await expect(resolvePartnerRecruitingPreflight({
+      loadPartner: async () => null,
+      recruitingV3Enabled: async () => false,
+    })).resolves.toEqual({ kind: 'partner_absent' })
+    await expect(resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { throw new Error('partner_identity_unavailable') },
+      recruitingV3Enabled: async () => false,
+    })).rejects.toThrow('partner_identity_unavailable')
   })
 })
 
@@ -219,12 +256,20 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(relationshipAccess.indexOf("actor.programTrack === 'founding_operator'")).toBeLessThan(relationshipAccess.indexOf("checkRateLimit('relationship'"))
     expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(rejectRoute.indexOf('getPromoterApplication(id)')).toBeLessThan(rejectRoute.indexOf('rejectPromoterApplication(id)'))
+    const ratePeek = directMcp.indexOf("await peekRateLimit('mcp'")
     const directPreflight = directMcp.indexOf("await partnerRecruitingPreflight(req.headers.get('authorization'))")
+    const rateConsume = directMcp.indexOf("await checkRateLimit('mcp'")
+    expect(ratePeek).toBeGreaterThan(-1)
     expect(directPreflight).toBeGreaterThan(-1)
-    expect(directPreflight).toBeLessThan(directMcp.indexOf("checkRateLimit('mcp'"))
-    const connectorPreflight = connectorMcp.indexOf('await partnerRecruitingPreflight(`Bearer ${PARTNER_PREFIX}${slug}`)')
-    expect(connectorPreflight).toBeGreaterThan(-1)
-    expect(connectorPreflight).toBeLessThan(connectorMcp.indexOf("checkRateLimit('mcp'"))
+    expect(rateConsume).toBeGreaterThan(-1)
+    expect(ratePeek).toBeLessThan(directPreflight)
+    expect(directPreflight).toBeLessThan(rateConsume)
+    expect(connectorMcp).not.toContain('checkRateLimit(')
+    expect(connectorMcp).not.toContain('partnerRecruitingPreflight(')
+    expect(connectorMcp).toContain('return baseMcpPost(forwarded)')
+    const partnerAuth = fs.readFileSync(path.join(ROOT, 'lib/partner-auth.ts'), 'utf8')
+    expect(partnerAuth).toContain('if (byHashError) throw new Error(\'partner_identity_unavailable\'')
+    expect(partnerAuth).toContain('if (bySlugError) throw new Error(\'partner_identity_unavailable\'')
   })
 
   test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {

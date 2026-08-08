@@ -189,15 +189,7 @@ const comparatorAnalyzeLimiter = () => {
 
 export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply' | 'fundadoras_track'
 
-/**
- * Check rate limit for a given key and identifier (usually IP address).
- * Returns { allowed: true } if passes or if Redis is unconfigured.
- * Returns { allowed: false, retryAfter: number } if blocked.
- */
-export async function checkRateLimit(
-  key: LimitKey,
-  identifier: string,
-): Promise<{ allowed: true } | { allowed: false; retryAfter: number; limit: number; remaining: number }> {
+function limiterFor(key: LimitKey): Ratelimit | null {
   const getLimiter = key === 'offers'          ? offerLimiter
     : key === 'checkout'        ? checkoutLimiter
     : key === 'mcp'             ? mcpLimiter
@@ -216,8 +208,42 @@ export async function checkRateLimit(
     : key === 'fundadoras_apply' ? fundadorasApplyLimiter
     : key === 'fundadoras_track' ? fundadorasTrackLimiter
     : supplyImportLimiter
+  return getLimiter()
+}
 
-  const limiter = getLimiter()
+export type LimitDecision =
+  | { allowed: true }
+  | { allowed: false; retryAfter: number; limit: number; remaining: number }
+
+/** Read the current bucket without adding a request. */
+export async function peekRateLimit(key: LimitKey, identifier: string): Promise<LimitDecision> {
+  const limiter = limiterFor(key)
+  if (!limiter) return { allowed: true }
+
+  try {
+    const { remaining, reset, limit } = await limiter.getRemaining(identifier)
+    if (remaining > 0) return { allowed: true }
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((reset - Date.now()) / 1000),
+      limit,
+      remaining,
+    }
+  } catch {
+    return { allowed: true }
+  }
+}
+
+/**
+ * Check rate limit for a given key and identifier (usually IP address).
+ * Returns { allowed: true } if passes or if Redis is unconfigured.
+ * Returns { allowed: false, retryAfter: number } if blocked.
+ */
+export async function checkRateLimit(
+  key: LimitKey,
+  identifier: string,
+): Promise<LimitDecision> {
+  const limiter = limiterFor(key)
   if (!limiter) return { allowed: true }   // Redis not configured — pass through
 
   try {

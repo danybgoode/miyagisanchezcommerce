@@ -27,6 +27,10 @@ import { db } from './supabase'
 import { isEnabled } from './flags'
 import { recruitingV3Enabled } from './recruiting-v3'
 import {
+  resolvePartnerRecruitingPreflight,
+  type PartnerRecruitingPreflight,
+} from './partner-recruiting-preflight'
+import {
   parseBearer,
   classifyAgentCredential,
   hashAgentToken,
@@ -65,6 +69,12 @@ export interface PartnerRow {
   partner_connector_slug: string | null
 }
 
+export type RoutePartnerPreflight =
+  | { kind: 'not_partner' }
+  | PartnerRecruitingPreflight<PartnerRow>
+
+const routePreflightByArgs = new WeakMap<Record<string, unknown>, RoutePartnerPreflight>()
+
 const PARTNER_COLS = 'id, code, name, program_track, partner_token_hash, partner_connector_slug'
 const SHOP_COLS = 'id, clerk_user_id, name, slug, description, location, logo_url, metadata'
 
@@ -88,23 +98,25 @@ export async function resolvePartnerRow(token: string): Promise<PartnerRow | nul
 
   // 1) token shape — SHA-256 of the full token (same discipline as ms_agent_).
   const hash = hashAgentToken(token)
-  const { data: byHash } = await db
+  const { data: byHash, error: byHashError } = await db
     .from('marketplace_promoters')
     .select(PARTNER_COLS)
     .eq('partner_token_hash', hash)
     .limit(1)
     .maybeSingle()
+  if (byHashError) throw new Error('partner_identity_unavailable', { cause: byHashError })
   if (byHash && typeof byHash.partner_token_hash === 'string' && constantTimeEq(byHash.partner_token_hash, hash)) {
     return byHash as PartnerRow
   }
 
   // 2) connector-slug shape — plaintext, re-showable (see header).
-  const { data: bySlug } = await db
+  const { data: bySlug, error: bySlugError } = await db
     .from('marketplace_promoters')
     .select(PARTNER_COLS)
     .eq('partner_connector_slug', suffix)
     .limit(1)
     .maybeSingle()
+  if (bySlugError) throw new Error('partner_identity_unavailable', { cause: bySlugError })
   if (bySlug && typeof bySlug.partner_connector_slug === 'string' && constantTimeEq(bySlug.partner_connector_slug, suffix)) {
     return bySlug as PartnerRow
   }
@@ -124,14 +136,22 @@ export async function resolvePartnerRow(token: string): Promise<PartnerRow | nul
  */
 export async function partnerRecruitingPreflight(
   authHeader: string | null | undefined,
-): Promise<boolean> {
+): Promise<RoutePartnerPreflight> {
   const token = parseBearer(authHeader)
-  if (!token || classifyAgentCredential(token) !== 'partner') return true
+  if (!token || classifyAgentCredential(token) !== 'partner') return { kind: 'not_partner' }
 
-  const partner = await resolvePartnerRow(token)
-  if (!partner || partner.program_track !== 'founding_operator') return true
+  return resolvePartnerRecruitingPreflight({
+    loadPartner: () => resolvePartnerRow(token),
+    recruitingV3Enabled,
+  })
+}
 
-  return recruitingV3Enabled()
+/** Reuse the OFF-path lookup inside resolveToolShop for this request only. */
+export function rememberPartnerRecruitingPreflight(
+  args: Record<string, unknown>,
+  preflight: RoutePartnerPreflight,
+): void {
+  routePreflightByArgs.set(args, preflight)
 }
 
 /** Best-effort per-call audit (incl. denials) — a logging failure never fails the call. */
@@ -183,9 +203,17 @@ export async function resolveToolShop(
   // (per the dark-launch acceptance; also flag → auth ordering, LEARNINGS).
   if (!(await isEnabled('partners.mcp_enabled'))) return { ok: false, message: null }
 
-  const partner = await resolvePartnerRow(token)
+  const preflight = args ? routePreflightByArgs.get(args) : undefined
+  if (preflight?.kind === 'operator_rolled_back') return { ok: false, message: null }
+  if (preflight?.kind === 'partner_absent') return { ok: false, message: null }
+
+  const partner = preflight?.kind === 'partner_admitted'
+    ? preflight.partner
+    : await resolvePartnerRow(token)
   if (!partner) return { ok: false, message: null }
-  if (partner.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
+  // A cached admitted row is necessarily a Promotor from the OFF-path check.
+  // All other operator rows recheck the flag at the authoritative tool seam.
+  if (preflight?.kind !== 'partner_admitted' && partner.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
     return { ok: false, message: null }
   }
 

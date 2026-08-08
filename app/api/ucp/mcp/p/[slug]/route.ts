@@ -20,8 +20,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GET as baseMcpGet, POST as baseMcpPost } from '../../route'
 import { PARTNER_PREFIX } from '@/lib/agent-auth'
-import { partnerRecruitingPreflight } from '@/lib/partner-auth'
-import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { isEnabled } from '@/lib/flags'
 
 const CORS = {
@@ -56,24 +54,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS })
   }
 
-  // Resolve the track gate before touching the shared bucket. The forwarded
-  // base route repeats this preflight and resolveToolShop remains authoritative.
-  const recruitingAdmitted = await partnerRecruitingPreflight(`Bearer ${PARTNER_PREFIX}${slug}`)
-  if (recruitingAdmitted) {
-    const rl = await checkRateLimit('mcp', getClientIp(req))
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded — too many requests' },
-        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
-      )
-    }
-  }
-
   // Forward to the shared dispatcher with the synthesized credential — the
-  // per-call resolution (flag re-check, partner lookup, grant/role checks,
-  // audit) happens inside resolveToolShop at every tool call. No pre-resolve
-  // here: a partner credential is multi-shop, so unlike the seller variant
-  // there is no single shop to 401 against before dispatch.
+  // shared route owns the one rate peek/consume and recruiting preflight; the
+  // resolved OFF-path identity is then reused by resolveToolShop. No duplicate
+  // connector bucket or partner-table lookup exists here.
   const bodyText = await req.text()
   const forwardedHeaders = new Headers(req.headers)
   forwardedHeaders.set('authorization', `Bearer ${PARTNER_PREFIX}${slug}`)
