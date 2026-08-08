@@ -4224,12 +4224,6 @@ export async function POST(req: NextRequest) {
   // does not consume a token; the normal limiter call below remains the atomic
   // consume/race check after the recruiting rollback decision.
   const ratePeek = await peekRateLimit('mcp', ip)
-  if (!ratePeek.allowed) {
-    return NextResponse.json(
-      err(null, -32029, 'Rate limit exceeded — too many requests'),
-      { status: 429, headers: { ...CORS, 'Retry-After': String(ratePeek.retryAfter) } },
-    )
-  }
 
   let partnerPreflight: RoutePartnerPreflight
   try {
@@ -4246,6 +4240,15 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
   if (partnerPreflight.kind !== 'operator_rolled_back') {
+    // The read happens before any possible OFF-path identity query, but its
+    // denial is deferred until rollback is classified. Thus an exhausted OFF
+    // operator is still indistinguishable from a bad credential, never a 429.
+    if (!ratePeek.allowed) {
+      return NextResponse.json(
+        err(null, -32029, 'Rate limit exceeded — too many requests'),
+        { status: 429, headers: { ...CORS, 'Retry-After': String(ratePeek.retryAfter) } },
+      )
+    }
     const rl = await checkRateLimit('mcp', ip)
     if (!rl.allowed) {
       return NextResponse.json(
