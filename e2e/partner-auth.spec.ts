@@ -115,6 +115,7 @@ test.describe('partner-auth · live boundary — partner token on the main MCP r
     }
     expect(res.status()).toBeLessThan(500)
     expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toContain('Unauthorized')
   })
 })
 

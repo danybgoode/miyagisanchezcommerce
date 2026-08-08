@@ -112,6 +112,7 @@ test.describe('send_feedback MCP tool', () => {
     }
     expect(res.status()).toBeLessThan(500)
     expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toContain('Unauthorized')
   })
 })
 
