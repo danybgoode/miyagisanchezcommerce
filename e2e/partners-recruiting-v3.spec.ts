@@ -133,6 +133,17 @@ test.describe('partners recruiting v3 · partner MCP preflight', () => {
     expect(identityReads).toBe(0)
   })
 
+  test('bounds OFF-path identity work and treats an exhausted lookup budget as generic denial', async () => {
+    let identityReads = 0
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { identityReads += 1; return operator },
+      recruitingV3Enabled: async () => false,
+      identityLookupAllowed: async () => false,
+    })
+    expect(result).toEqual({ kind: 'partner_preflight_limited' })
+    expect(identityReads).toBe(0)
+  })
+
   test('preserves confirmed absence and storage unavailability as different states', async () => {
     await expect(resolvePartnerRecruitingPreflight({
       loadPartner: async () => null,
@@ -257,13 +268,16 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(rejectRoute.indexOf('getPromoterApplication(id)')).toBeLessThan(rejectRoute.indexOf('rejectPromoterApplication(id)'))
     const ratePeek = directMcp.indexOf("await peekRateLimit('mcp'")
-    const directPreflight = directMcp.indexOf("await partnerRecruitingPreflight(req.headers.get('authorization'))")
+    const bodyParse = directMcp.indexOf('await req.json()')
+    const directPreflight = directMcp.indexOf('await partnerRecruitingPreflight(')
     const peekDenial = directMcp.indexOf('if (!ratePeek.allowed)')
     const rateConsume = directMcp.indexOf("await checkRateLimit('mcp'")
     expect(ratePeek).toBeGreaterThan(-1)
+    expect(bodyParse).toBeGreaterThan(-1)
     expect(directPreflight).toBeGreaterThan(-1)
     expect(rateConsume).toBeGreaterThan(-1)
     expect(ratePeek).toBeLessThan(directPreflight)
+    expect(bodyParse).toBeLessThan(directPreflight)
     expect(directPreflight).toBeLessThan(peekDenial)
     expect(peekDenial).toBeLessThan(rateConsume)
     expect(directPreflight).toBeLessThan(rateConsume)
@@ -273,6 +287,10 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const partnerAuth = fs.readFileSync(path.join(ROOT, 'lib/partner-auth.ts'), 'utf8')
     expect(partnerAuth).toContain('if (byHashError) throw new Error(\'partner_identity_unavailable\'')
     expect(partnerAuth).toContain('if (bySlugError) throw new Error(\'partner_identity_unavailable\'')
+    expect(directMcp).toContain("checkRateLimit('mcp_partner_preflight', ip)")
+    expect(directMcp).toContain("partnerPreflight.kind === 'partner_preflight_limited'")
+    expect(directMcp).toContain('const partnerToolCall = requests.some(isPartnerSellerToolCall)')
+    expect(directMcp).toContain("partnerToolCall ? await partnerRecruitingPreflight(")
   })
 
   test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {

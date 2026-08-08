@@ -4216,6 +4216,12 @@ export async function GET(req: NextRequest) {
   )
 }
 
+function isPartnerSellerToolCall(request: JsonRpcRequest): boolean {
+  if (request.method !== 'tools/call') return false
+  const name = String((request.params?.name as string | undefined) ?? '')
+  return (MCP_SELLER_TOOLS as readonly string[]).includes(name)
+}
+
 // POST — JSON-RPC 2.0 dispatcher
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req)
@@ -4225,16 +4231,38 @@ export async function POST(req: NextRequest) {
   // consume/race check after the recruiting rollback decision.
   const ratePeek = await peekRateLimit('mcp', ip)
 
+  let body: JsonRpcRequest | JsonRpcRequest[]
+  try {
+    body = await req.json() as JsonRpcRequest | JsonRpcRequest[]
+  } catch {
+    return NextResponse.json(
+      err(null, -32700, 'Parse error'),
+      { status: 400, headers: CORS }
+    )
+  }
+  const requests = Array.isArray(body) ? body : [body]
+  const partnerToolCall = requests.some(isPartnerSellerToolCall)
+
   let partnerPreflight: RoutePartnerPreflight
   try {
-    partnerPreflight = await partnerRecruitingPreflight(req.headers.get('authorization'))
+    partnerPreflight = partnerToolCall ? await partnerRecruitingPreflight(
+        req.headers.get('authorization'),
+        async () => (await checkRateLimit('mcp_partner_preflight', ip)).allowed,
+      ) : { kind: 'not_partner' }
   } catch (error) {
     // Identity storage unavailable is not an absent token. Fail closed before
-    // consuming the shared bucket or parsing/dispatching a seller operation.
+    // consuming the shared bucket or dispatching a seller operation.
     console.error('[partner-auth] MCP preflight unavailable:', error)
     return NextResponse.json(
       err(null, -32003, 'Service unavailable'),
       { status: 503, headers: CORS },
+    )
+  }
+
+  if (partnerPreflight.kind === 'partner_preflight_limited') {
+    return NextResponse.json(
+      err(null, -32001, 'Unauthorized.'),
+      { status: 401, headers: CORS },
     )
   }
 
@@ -4261,16 +4289,6 @@ export async function POST(req: NextRequest) {
   const host    = req.headers.get('host') ?? 'miyagisanchez.com'
   const proto   = host.includes('localhost') ? 'http' : 'https'
   const baseUrl = `${proto}://${host}`
-
-  let body: JsonRpcRequest | JsonRpcRequest[]
-  try {
-    body = await req.json() as JsonRpcRequest | JsonRpcRequest[]
-  } catch {
-    return NextResponse.json(
-      err(null, -32700, 'Parse error'),
-      { status: 400, headers: CORS }
-    )
-  }
 
   // Support batch requests
   if (Array.isArray(body)) {

@@ -4,6 +4,7 @@ export type RecruitingPartnerIdentity = {
 
 export type PartnerRecruitingPreflight<T extends RecruitingPartnerIdentity> =
   | { kind: 'recruiting_enabled' }
+  | { kind: 'partner_preflight_limited' }
   | { kind: 'partner_absent' }
   | { kind: 'partner_admitted'; partner: T }
   | { kind: 'operator_rolled_back'; partner: T }
@@ -16,11 +17,15 @@ export type PartnerRecruitingPreflight<T extends RecruitingPartnerIdentity> =
 export async function resolvePartnerRecruitingPreflight<T extends RecruitingPartnerIdentity>(deps: {
   loadPartner: () => Promise<T | null>
   recruitingV3Enabled: () => Promise<boolean>
+  identityLookupAllowed?: () => Promise<boolean>
 }): Promise<PartnerRecruitingPreflight<T>> {
   // Normal ON operation adds no identity read. The authoritative resolver
   // still rechecks after parsing; only OFF needs the track to distinguish a
   // rolled-back operator from a Promotor whose existing path must continue.
   if (await deps.recruitingV3Enabled()) return { kind: 'recruiting_enabled' }
+  if (deps.identityLookupAllowed && !(await deps.identityLookupAllowed())) {
+    return { kind: 'partner_preflight_limited' }
+  }
   const partner = await deps.loadPartner()
   if (!partner) return { kind: 'partner_absent' }
   if (partner.program_track !== 'founding_operator') return { kind: 'partner_admitted', partner }

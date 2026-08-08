@@ -55,6 +55,16 @@ const mcpLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(120, '1 m'), prefix: 'rl:mcp' })
 }
 
+// Partner-shaped credentials need a track lookup while recruiting is OFF so
+// an operator can be rolled back before the shared MCP bucket. Keep that
+// pre-auth DB work independently bounded; exhaustion degrades to the same
+// generic unauthorized result for every partner-shaped credential.
+const mcpPartnerPreflightLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(120, '1 m'), prefix: 'rl:mcp_partner_preflight' })
+}
+
 // Supply import: max 5 batch imports per IP per hour — prevents bulk abuse
 const supplyImportLimiter = () => {
   const redis = getRedis()
@@ -187,12 +197,13 @@ const comparatorAnalyzeLimiter = () => {
 
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply' | 'fundadoras_track'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'mcp_partner_preflight' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply' | 'fundadoras_track'
 
 function limiterFor(key: LimitKey): Ratelimit | null {
   const getLimiter = key === 'offers'          ? offerLimiter
     : key === 'checkout'        ? checkoutLimiter
     : key === 'mcp'             ? mcpLimiter
+    : key === 'mcp_partner_preflight' ? mcpPartnerPreflightLimiter
     : key === 'stamps'          ? stampLimiter
     : key === 'catalog_extract' ? catalogExtractLimiter
     : key === 'embed'           ? embedLimiter
