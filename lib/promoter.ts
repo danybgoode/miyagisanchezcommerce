@@ -137,16 +137,35 @@ export async function getPromoterById(id: string): Promise<Promoter | null> {
  * Resolve either partner track by Clerk identity. This track-agnostic seam is
  * deliberately named differently so only grant-aware `/partner` contexts use
  * it; Promotor acquisition/economic surfaces must use getPromoterByClerkId.
+ *
+ * A failed read is NOT absence. This lookup participates in track-specific
+ * rollback authorization, so collapsing unavailable storage into `null` would
+ * let an already-bound founding operator look unbound and retain steward-scoped
+ * access. The injected query keeps that three-state decision directly testable.
  */
-export async function getPartnerIdentityByClerkId(clerkUserId: string): Promise<Promoter | null> {
+export type PartnerIdentityQuery = (clerkUserId: string) => Promise<{
+  data: Promoter | null
+  error: { message?: string } | null
+}>
+
+export async function getPartnerIdentityByClerkId(
+  clerkUserId: string,
+  query: PartnerIdentityQuery = async (identity) => {
+    const result = await db
+      .from('marketplace_promoters')
+      .select('id, code, name, clerk_user_id, program_track, created_at')
+      .eq('clerk_user_id', identity)
+      .maybeSingle()
+    return { data: result.data as Promoter | null, error: result.error }
+  },
+): Promise<Promoter | null> {
   if (!clerkUserId) return null
-  const { data, error } = await db
-    .from('marketplace_promoters')
-    .select('id, code, name, clerk_user_id, program_track, created_at')
-    .eq('clerk_user_id', clerkUserId)
-    .maybeSingle()
-  if (error || !data) return null
-  return data as Promoter
+  const { data, error } = await query(clerkUserId)
+  if (error) {
+    console.error('[partner-identity] lookup unavailable:', error.message ?? 'unknown_error')
+    throw new Error('partner_identity_unavailable')
+  }
+  return data
 }
 
 /**

@@ -5,7 +5,7 @@ import { canonicalCandidateShopUrl } from '../lib/candidate-shop-url'
 import { validateApplicationInput } from '../lib/promoter-applications'
 import { buildRecruitingAnalyticsPayload } from '../lib/recruiting-events'
 import { coarseRecruitingSource } from '../lib/recruiting-source'
-import { isPromoterEconomicIdentity } from '../lib/promoter'
+import { getPartnerIdentityByClerkId, isPromoterEconomicIdentity } from '../lib/promoter'
 
 const ROOT = process.cwd()
 const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
@@ -136,6 +136,14 @@ test.describe('partners recruiting v3 · privacy-closed measurement', () => {
 })
 
 test.describe('partners recruiting v3 · schema, gate and population guards', () => {
+  test('partner identity lookup distinguishes confirmed absence from unavailable storage', async () => {
+    await expect(getPartnerIdentityByClerkId('user_absent', async () => ({ data: null, error: null }))).resolves.toBeNull()
+    await expect(getPartnerIdentityByClerkId('user_operator', async () => ({
+      data: null,
+      error: { message: 'program_track column unavailable' },
+    }))).rejects.toThrow('partner_identity_unavailable')
+  })
+
   test('migration is additive, defaults both tracks to promoter, keeps the flag dark and locks SQL functions to service_role', () => {
     const sql = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20260806120000_miyagi_partners_recruiting_v3.sql'), 'utf8')
     expect(sql.match(/program_track TEXT NOT NULL DEFAULT 'promoter'/g)).toHaveLength(2)
@@ -201,6 +209,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(partnerPage).toContain('La aprobación del programa no equivale al acceso')
     expect(partnerPage).toContain('const showPortfolio = portfolioEnabled && !foundingOperator')
     expect(partnerPage).toContain('{!foundingOperator && (')
+    expect(partnerPage.indexOf('getPartnerIdentityByClerkId(user.id)')).toBeLessThan(partnerPage.indexOf(".from('partner_grants')"))
     expect(relationshipAccess).toContain("actor.programTrack === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(relationshipAccess.indexOf("actor.programTrack === 'founding_operator'")).toBeLessThan(relationshipAccess.indexOf("checkRateLimit('relationship'"))
     expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
