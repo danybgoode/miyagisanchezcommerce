@@ -254,6 +254,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(intake).not.toMatch(/relationship|consent/i)
     expect(admin).toContain('rel="noopener noreferrer"')
     expect(admin).toContain('merchantAwarenessLabel(shop.merchant_awareness)')
+    expect(admin).toContain('platformLabel(shop.platform)')
+    expect(admin).not.toContain('{shop.platform} ·')
     for (const hardcodedEnglish of ['Practice', 'Active shops', 'Confirmed', 'Request conversation', 'Nomination is not merchant consent.']) {
       expect(admin, hardcodedEnglish).not.toContain(hardcodedEnglish)
     }

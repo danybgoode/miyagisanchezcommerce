@@ -61,6 +61,13 @@ function merchantAwarenessLabel(value: unknown): string {
   return 'Estado no disponible'
 }
 
+function platformLabel(value: unknown): string {
+  if (value === 'shopify') return 'Shopify'
+  if (value === 'woocommerce') return 'WooCommerce'
+  if (value === 'other') return 'Otra'
+  return 'Plataforma no disponible'
+}
+
 /** Build a tappable wa.me link from a stored WhatsApp number (digits only). */
 function whatsappLink(whatsapp: string): string {
   return `https://wa.me/${whatsapp.replace(/\D/g, '')}`
@@ -398,7 +405,7 @@ export default function PromoterAdminClient({
                         <li key={`${a.id}-${index}`} className="grid gap-1 py-2 text-xs sm:grid-cols-[2rem_1fr_auto] sm:items-center">
                           <span className="font-mono text-[var(--color-agent)]">0{index + 1}</span>
                           <a href={shop.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{shop.url}</a>
-                          <span className="text-[var(--color-muted)]">{shop.platform} · {merchantAwarenessLabel(shop.merchant_awareness)}</span>
+                          <span className="text-[var(--color-muted)]">{platformLabel(shop.platform)} · {merchantAwarenessLabel(shop.merchant_awareness)}</span>
                         </li>
                       ))}
                     </ol>
