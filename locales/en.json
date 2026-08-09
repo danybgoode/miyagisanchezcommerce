@@ -10,6 +10,88 @@
       "activeSeasonal": "Collaboration active"
     }
   },
+  "partnersRecruiting": {
+    "landing": {
+      "switchLanguage": "Ver en español",
+      "heroEyebrow": "Miyagi Partners · Founding proof 01",
+      "title": "Operate three shops. Prove one calmer practice.",
+      "body": "A 90-day, no-cutover working proof for experienced US commerce operators. Keep each merchant's owned shop and required systems while testing whether repeated operating work becomes safer and more legible.",
+      "primaryCta": "Apply with three shops",
+      "promotorCta": "Promotor — Mexico",
+      "truthEyebrow": "What is true today",
+      "truthBody": "Miyagi operates marketplace and seller rails in Mexico. The United States has no open marketplace, public catalog, dollar checkout, shipping, or payment promise. This pilot exists to learn what must be proven before any such claim.",
+      "proofEyebrow": "Parallel-proof mechanism",
+      "proofTitle": "Four checkpoints, no forced migration.",
+      "proofSteps": [
+        { "number": "01", "title": "Name the evidence", "detail": "Submit three public shops and the systems that must remain." },
+        { "number": "02", "title": "Separate permissions", "detail": "Nomination, discovery, parallel setup, real orders, and a public story stay distinct." },
+        { "number": "03", "title": "Work in parallel", "detail": "Run a bounded operating window without asking a merchant to cut over." },
+        { "number": "04", "title": "Review the proof", "detail": "At 90 days, decide what worked, what did not, and whether anyone should continue." }
+      ],
+      "fitEyebrow": "A strong fit",
+      "fitTitle": "You already carry the operating burden.",
+      "fitItems": [
+        "You actively steward at least three independent-product shops.",
+        "You can name a recent repeated operating problem, not just desired features.",
+        "You can protect merchant context and keep required systems in place.",
+        "You can join a working checkpoint through a 90-day window."
+      ],
+      "notFitEyebrow": "Not this program",
+      "notFitTitle": "No leads, badges, commission promise, or instant access.",
+      "notFitItems": [
+        "This is not a reseller, lead marketplace, certification, or agency CRM.",
+        "The 90-day proof has no Miyagi platform or migration fee; that is not permanent pricing.",
+        "No operator revenue share is promised.",
+        "A shop URL never authorizes access or merchant contact."
+      ]
+    },
+    "application": {
+      "channelOptions": { "online_store": "Owned online store", "marketplace": "Marketplace", "social": "Social commerce", "wholesale": "Wholesale", "other": "Other" },
+      "awarenessOptions": { "not_contacted": "Not contacted about this nomination", "aware_of_nomination": "Aware that I am nominating the shop", "interested_in_conversation": "Interested in a conversation with Miyagi" },
+      "otherPlatform": "Other",
+      "validation": {
+        "shopCount": "This proof requires an operator who actively supports at least three shops.",
+        "shopUrl": "Each ledger entry needs a public http or https shop URL. Local, private, or credential-bearing URLs are not accepted.",
+        "duplicateShop": "Each ledger entry must name a different public shop URL.",
+        "channels": "Choose at least one operating channel for every shop.",
+        "checkpoint": "Confirm that you can participate in a 90-day operating checkpoint.",
+        "receive": "We could not receive the application. Try again.",
+        "network": "We could not receive the application. Your answers are still here; try again."
+      },
+      "successEyebrow": "Dossier received",
+      "successTitle": "Received for review — not accepted yet.",
+      "successBody": "We will review the operating fit and contact you directly. This submission created no shop access, contacted no merchant, and granted no permission.",
+      "eyebrow": "Application dossier · version 1",
+      "title": "Put three real shops on the table.",
+      "body": "We ask for public evidence and operating constraints—not passwords, tokens, customer data, revenue, or a cutover commitment.",
+      "profileLegend": "Your operating profile",
+      "fields": {
+        "name": "Your name",
+        "email": "Work email",
+        "phone": "WhatsApp or phone",
+        "company": "Company or practice",
+        "role": "Your operating role",
+        "rolePlaceholder": "e.g. agency principal, ecommerce lead",
+        "activeShops": "Active shops you operate today"
+      },
+      "evidenceLegend": "Three-shop evidence ledger",
+      "evidenceBody": "A nomination is not merchant consent. Miyagi will not contact these shops from this form.",
+      "shopUrl": "Public shop URL",
+      "shopUrlPlaceholder": "https://shop.example",
+      "platform": "Platform",
+      "merchantAwareness": "Merchant awareness",
+      "channels": "Channels you operate for this shop",
+      "constraintsLegend": "Operating constraints",
+      "recentProblem": "One recent operating problem across these shops",
+      "retainSystems": "Systems or merchant practices that must remain in place",
+      "whyNow": "Why is a 90-day parallel proof worth testing now?",
+      "checkpoint": "I can join a 90-day working checkpoint. I understand this is a no-cutover proof, not acceptance, shop access, merchant consent, permanent free pricing, or revenue share.",
+      "honeypot": "Additional field",
+      "sending": "Sending dossier…",
+      "submit": "Submit for founder review",
+      "boundary": "Success means received for review. It does not create an account, grant a shop, or contact a nominated merchant."
+    }
+  },
   "pwaSearch": {
     "title": "Search",
     "placeholder": "What are you looking for?",

@@ -216,6 +216,31 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(rejectRoute.indexOf('getPromoterApplication(id)')).toBeLessThan(rejectRoute.indexOf('rejectPromoterApplication(id)'))
   })
 
+  test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {
+    const page = fs.readFileSync(path.join(ROOT, 'app/(site)/us/page.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(site)/us/FoundingOperatorApplication.tsx'), 'utf8')
+    const bilingual = fs.readFileSync(path.join(ROOT, 'lib/bilingual-namespaces.ts'), 'utf8')
+    const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8'))
+    const es = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/es.json'), 'utf8'))
+    expect(bilingual).toContain("'partnersRecruiting'")
+    expect(en.partnersRecruiting.landing.title).toContain('Operate three shops')
+    expect(es.partnersRecruiting.landing.title).toContain('Opera tres tiendas')
+    expect(en.partnersRecruiting.application.submit).toBe('Submit for founder review')
+    expect(es.partnersRecruiting.application.submit).toBe('Enviar para revisión del fundador')
+    expect(page).toContain("getDictionary(locale)")
+    expect(page).toContain("lang: 'en' | 'es'")
+    expect(form).toContain('copy: PartnersRecruitingCopy')
+    for (const hardcodedEnglish of [
+      'Operate three shops. Prove one calmer practice.',
+      'Four checkpoints, no forced migration.',
+      'Put three real shops on the table.',
+      'Submit for founder review',
+    ]) {
+      expect(page, hardcodedEnglish).not.toContain(hardcodedEnglish)
+      expect(form, hardcodedEnglish).not.toContain(hardcodedEnglish)
+    }
+  })
+
   test('operator intake and review cannot create grants/consent or expose activation hashes', () => {
     const intake = fs.readFileSync(path.join(ROOT, 'lib/promoter-applications.ts'), 'utf8')
     const admin = fs.readFileSync(path.join(ROOT, 'app/(shell)/admin/promoter/PromoterAdminClient.tsx'), 'utf8')

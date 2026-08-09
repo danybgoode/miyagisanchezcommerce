@@ -12,7 +12,8 @@
  * `sweepstakes` (the public sweepstakes flow, `app/g/[slug]`), and `acerca` (the
  * `/acerca` page's `?lang=en` toggle — Sprint 2 of admin-content-and-announcements
  * migrated it here from its own standalone `lib/about-content.ts` data module; see
- * `lib/about-content-overrides.ts`). `sellerAcquisition` is es-only by deliberate
+ * `lib/about-content-overrides.ts`), and `partnersRecruiting` (the US founding-
+ * operator journey, English-default with an explicit Spanish toggle). `sellerAcquisition` is es-only by deliberate
  * code choice (the `/vende` family hardcodes `'es'`) even though `en.json` carries
  * unused translations for it. The embed widget's locale toggle isn't dictionary-backed
  * at all (no `embed` namespace exists).
@@ -26,7 +27,7 @@
  * namespace here alongside actually wiring `getDictionary(locale)` at its call
  * site(s), never one without the other.
  */
-export const BILINGUAL_NAMESPACES = ['terms', 'sweepstakes', 'acerca'] as const
+export const BILINGUAL_NAMESPACES = ['terms', 'sweepstakes', 'acerca', 'partnersRecruiting'] as const
 
 export type BilingualNamespace = typeof BILINGUAL_NAMESPACES[number]
 
