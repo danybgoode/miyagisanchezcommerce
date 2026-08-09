@@ -1839,18 +1839,18 @@ export async function sendPromoterApplicationRejected(ctx: {
 export async function sendFoundingOperatorApplicationRejected(ctx: {
   to: string
   name: string
+  locale?: Locale
 }): Promise<void> {
   // Intake locale is deliberately not persisted with the qualification dossier,
-  // so the applicant close is bilingual instead of guessing from stored identity.
-  const subject = 'Your Miyagi Partners application / Tu solicitud de Miyagi Partners'
-  const body = [
-    h1(`Thank you for applying, ${esc(ctx.name)}`),
-    p('We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.'),
-    p('This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.'),
-    h1(`Gracias por postularte, ${esc(ctx.name)}`),
-    p('Revisamos tu solicitud para Operador Fundador de Comercio y, por ahora, no podemos incorporarla a la prueba de 90 días.'),
-    p('Esta decisión no crea acceso a ninguna tienda ni contacta a los comercios nominados. Puedes volver a postularte si cambia tu situación operativa.'),
-  ].join('')
+  // so an unspecified locale sends both dictionaries instead of guessing.
+  const locales: Locale[] = ctx.locale ? [ctx.locale] : ['en', 'es']
+  const messages = await Promise.all(locales.map(async (locale) => (await getDictionary(locale)).partnersRecruiting.email))
+  const subject = messages.map((ui) => ui.rejectionSubject).join(' / ')
+  const body = messages.flatMap((ui) => [
+    h1(ui.rejectionHeading.replace('{name}', ctx.name)),
+    p(ui.rejectionBody),
+    p(ui.rejectionBoundary),
+  ]).join('')
   await send(ctx.to, subject, body)
 }
 

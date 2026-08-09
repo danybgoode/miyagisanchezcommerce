@@ -237,8 +237,9 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(page).toContain("lang: 'en' | 'es'")
     expect(form).toContain('copy: PartnersRecruitingCopy')
     const rejectionEmail = email.slice(email.indexOf('export async function sendFoundingOperatorApplicationRejected'), email.indexOf('// ══', email.indexOf('export async function sendFoundingOperatorApplicationRejected')))
-    expect(rejectionEmail).toContain('Thank you for applying')
-    expect(rejectionEmail).toContain('Gracias por postularte')
+    expect(rejectionEmail).toContain("ctx.locale ? [ctx.locale] : ['en', 'es']")
+    expect(en.partnersRecruiting.email.rejectionHeading).toContain('Thank you for applying')
+    expect(es.partnersRecruiting.email.rejectionHeading).toContain('Gracias por postularte')
     for (const hardcodedEnglish of [
       'Operate three shops. Prove one calmer practice.',
       'Four checkpoints, no forced migration.',

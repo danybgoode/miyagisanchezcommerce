@@ -11,6 +11,12 @@
     }
   },
   "partnersRecruiting": {
+    "email": {
+      "rejectionSubject": "Your Miyagi Partners application",
+      "rejectionHeading": "Thank you for applying, {name}",
+      "rejectionBody": "We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.",
+      "rejectionBoundary": "This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes."
+    },
     "landing": {
       "switchLanguage": "Ver en español",
       "heroEyebrow": "Miyagi Partners · Founding proof 01",

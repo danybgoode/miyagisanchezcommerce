@@ -11,6 +11,12 @@
     }
   },
   "partnersRecruiting": {
+    "email": {
+      "rejectionSubject": "Tu solicitud de Miyagi Partners",
+      "rejectionHeading": "Gracias por postularte, {name}",
+      "rejectionBody": "Revisamos tu solicitud de Founding Commerce Operator y por ahora no podemos incorporarla a la prueba de 90 días.",
+      "rejectionBoundary": "Esta decisión no crea acceso a tiendas ni contacta a ningún comercio nominado. Puedes volver a postularte si cambia tu situación operativa."
+    },
     "landing": {
       "switchLanguage": "View in English",
       "heroEyebrow": "Miyagi Partners · Prueba fundadora 01",
