@@ -54,6 +54,26 @@ const APPLICATION_STATUS_LABEL: Record<PromoterApplication['status'], string> = 
   rejected: 'Rechazada',
 }
 
+const INVITATION_PROVIDER_LABEL = {
+  pending: 'Confirmación del proveedor pendiente',
+  provider_accepted: 'Proveedor aceptó la solicitud de envío',
+  unconfirmed: 'Aceptación del proveedor no confirmada',
+} as const
+
+function invitationProviderLabel(value: unknown): string {
+  if (value === 'pending') return INVITATION_PROVIDER_LABEL.pending
+  if (value === 'provider_accepted') return INVITATION_PROVIDER_LABEL.provider_accepted
+  if (value === 'unconfirmed') return INVITATION_PROVIDER_LABEL.unconfirmed
+  return 'Estado del proveedor no disponible'
+}
+
+function applicationActionErrorLabel(value: unknown): string {
+  if (value === 'not_found') return 'La solicitud ya no está disponible.'
+  if (value === 'invalid_transition') return 'La solicitud cambió de estado. Actualiza la página e inténtalo de nuevo.'
+  if (value === 'unavailable') return 'No pudimos completar la operación en este momento. Inténtalo de nuevo.'
+  return 'No se pudo procesar la solicitud.'
+}
+
 function merchantAwarenessLabel(value: unknown): string {
   if (value === 'not_contacted') return 'Sin contactar sobre la nominación'
   if (value === 'aware_of_nomination') return 'Conoce la nominación'
@@ -95,6 +115,7 @@ export default function PromoterAdminClient({
   const [promoters, setPromoters] = useState<Promoter[]>(initialPromoters)
   const [applications, setApplications] = useState<PromoterApplication[]>(initialApplications)
   const [decidingId, setDecidingId] = useState<string | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
   const [settings, setSettings] = useState<PromoterSettings>(initialSettings)
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -291,14 +312,45 @@ export default function PromoterAdminClient({
       const res = await fetch(`/api/admin/promoter/applications/${encodeURIComponent(id)}/${action}`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
-        setMsg(data?.error ?? 'No se pudo procesar la solicitud.')
+        setMsg(applicationActionErrorLabel(data?.error))
         return
       }
       setApplications((list) => list.map((a) => (a.id === id ? data.application : a)))
       if (data.promoter) setPromoters((list) => [data.promoter, ...list])
-      setMsg(action === 'approve' ? 'Solicitud aprobada — se envió el código por correo.' : 'Solicitud rechazada.')
+      if (action === 'approve' && data.application?.program_track === 'founding_operator') {
+        setMsg(`Solicitud aprobada. ${invitationProviderLabel(data.invitation?.providerStatus)}.`)
+      } else {
+        setMsg(action === 'approve' ? 'Solicitud aprobada — se envió el código por correo.' : 'Solicitud rechazada.')
+      }
+    } catch {
+      setMsg('No se pudo procesar la solicitud.')
     } finally {
       setDecidingId(null)
+    }
+  }
+
+  async function resendInvitation(id: string) {
+    const application = applications.find((candidate) => candidate.id === id)
+    if (!application || application.program_track !== 'founding_operator'
+      || application.status !== 'approved' || application.activation_used_at != null) {
+      setMsg('La invitación ya no se puede rotar desde este estado.')
+      return
+    }
+    setResendingId(id)
+    setMsg(null)
+    try {
+      const res = await fetch(`/api/admin/promoter/applications/${encodeURIComponent(id)}/resend`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        setMsg(applicationActionErrorLabel(data?.error))
+        return
+      }
+      setApplications((list) => list.map((application) => application.id === id ? data.application : application))
+      setMsg(`Invitación rotada. ${invitationProviderLabel(data.invitation?.providerStatus)}.`)
+    } catch {
+      setMsg('No se pudo rotar la invitación.')
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -415,14 +467,21 @@ export default function PromoterAdminClient({
                       <div><dt className="font-semibold">Por qué ahora</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.why_now}</dd></div>
                     </dl>
                     <p className="bg-[var(--color-promo-soft)] px-3 py-2 text-xs">La nominación no equivale al consentimiento del comercio. Contacta únicamente a la persona solicitante.</p>
+                    {a.status === 'approved' && a.invitation_provider_status && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded bg-[var(--color-surface-alt)] px-2 py-1">
+                          {invitationProviderLabel(a.invitation_provider_status)}
+                        </span>
+                        {a.invitation_attempt_count != null && <span className="text-[var(--color-muted)]">Intentos registrados: {a.invitation_attempt_count}</span>}
+                      </div>
+                    )}
                   </div>
                 ) : a.motivation ? <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{a.motivation}&rdquo;</p> : null}
                 {a.status === 'pending' && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => decide(a.id, 'approve')}
-                      disabled={decidingId === a.id || a.program_track === 'founding_operator'}
-                      title={a.program_track === 'founding_operator' ? 'La aprobación neutral y la invitación del operador se habilitan en el Sprint 2.' : undefined}
+                      disabled={decidingId === a.id}
                       className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 text-sm font-semibold disabled:opacity-50"
                     >
                       {decidingId === a.id ? 'Procesando…' : 'Aprobar'}
@@ -440,6 +499,15 @@ export default function PromoterAdminClient({
                       Rechazar
                     </button>
                   </div>
+                )}
+                {a.program_track === 'founding_operator' && a.status === 'approved' && !a.activation_used_at && (
+                  <button
+                    onClick={() => resendInvitation(a.id)}
+                    disabled={resendingId === a.id}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
+                  >
+                    {resendingId === a.id ? 'Rotando…' : 'Rotar y reenviar invitación'}
+                  </button>
                 )}
               </li>
             ))}

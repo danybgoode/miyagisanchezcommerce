@@ -6,6 +6,7 @@ import { validateApplicationInput } from '../lib/promoter-applications'
 import { buildRecruitingAnalyticsPayload } from '../lib/recruiting-events'
 import { coarseRecruitingSource } from '../lib/recruiting-source'
 import { getPartnerIdentityByClerkId, isPromoterEconomicIdentity } from '../lib/promoter'
+import { isLegacyPartnerTrackSchemaError, resolvePartnerRecruitingPreflight } from '../lib/partner-recruiting-preflight'
 
 const ROOT = process.cwd()
 const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
@@ -108,6 +109,83 @@ test.describe('partners recruiting v3 · operator contract', () => {
   })
 })
 
+test.describe('partners recruiting v3 · partner MCP preflight', () => {
+  const operator = {
+    id: 'operator-1', code: 'MYP-TEST', name: 'Test Operator', program_track: 'founding_operator',
+    partner_token_hash: null, partner_connector_slug: null,
+  } as const
+
+  test('returns a reusable rolled-back identity result without consuming the MCP bucket', async () => {
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => operator,
+      partnerMcpEnabled: async () => true,
+      recruitingV3Enabled: async () => false,
+    })
+    expect(result).toEqual({ kind: 'operator_rolled_back', partner: operator })
+  })
+
+  test('adds no preflight identity read in normal recruiting-ON operation', async () => {
+    let identityReads = 0
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { identityReads += 1; return operator },
+      partnerMcpEnabled: async () => true,
+      recruitingV3Enabled: async () => true,
+    })
+    expect(result).toEqual({ kind: 'recruiting_enabled' })
+    expect(identityReads).toBe(0)
+  })
+
+  test('bounds OFF-path identity work and treats an exhausted lookup budget as generic denial', async () => {
+    let identityReads = 0
+    const result = await resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { identityReads += 1; return operator },
+      partnerMcpEnabled: async () => true,
+      recruitingV3Enabled: async () => false,
+      preflightAllowed: async () => false,
+    })
+    expect(result).toEqual({ kind: 'partner_preflight_limited' })
+    expect(identityReads).toBe(0)
+  })
+
+  test('preserves confirmed absence and storage unavailability as different states', async () => {
+    await expect(resolvePartnerRecruitingPreflight({
+      loadPartner: async () => null,
+      partnerMcpEnabled: async () => true,
+      recruitingV3Enabled: async () => false,
+    })).resolves.toEqual({ kind: 'partner_absent' })
+    await expect(resolvePartnerRecruitingPreflight({
+      loadPartner: async () => { throw new Error('partner_identity_unavailable') },
+      partnerMcpEnabled: async () => true,
+      recruitingV3Enabled: async () => false,
+    })).rejects.toThrow('partner_identity_unavailable')
+  })
+
+  test('denies a disabled partner MCP path before recruiting or identity storage reads', async () => {
+    const calls: string[] = []
+    const result = await resolvePartnerRecruitingPreflight({
+      partnerMcpEnabled: async () => { calls.push('partner-flag'); return false },
+      recruitingV3Enabled: async () => { calls.push('recruiting-flag'); return false },
+      loadPartner: async () => { calls.push('identity'); throw new Error('must not read identity') },
+      preflightAllowed: async () => { calls.push('preflight-rate'); return true },
+    })
+    expect(result).toEqual({ kind: 'partner_mcp_disabled' })
+    expect(calls).toEqual(['partner-flag', 'preflight-rate'])
+
+    await expect(resolvePartnerRecruitingPreflight({
+      partnerMcpEnabled: async () => false,
+      recruitingV3Enabled: async () => { throw new Error('must not read recruiting flag') },
+      loadPartner: async () => { throw new Error('must not read identity') },
+      preflightAllowed: async () => false,
+    })).resolves.toEqual({ kind: 'partner_preflight_limited' })
+  })
+
+  test('recognizes only the known pre-migration program_track schema gap', () => {
+    expect(isLegacyPartnerTrackSchemaError({ code: '42703', message: 'column marketplace_promoters.program_track does not exist' })).toBe(true)
+    expect(isLegacyPartnerTrackSchemaError({ code: '42703', message: 'column something_else does not exist' })).toBe(false)
+    expect(isLegacyPartnerTrackSchemaError({ code: '08006', message: 'connection failure' })).toBe(false)
+  })
+})
+
 test.describe('partners recruiting v3 · privacy-closed measurement', () => {
   test('builds only the fixed coarse vocabulary', () => {
     expect(buildRecruitingAnalyticsPayload({ event: 'application_submitted', track: 'founding_operator', source: 'campaign' })).toEqual({
@@ -190,6 +268,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const partnerPage = fs.readFileSync(path.join(ROOT, 'app/(shell)/partner/page.tsx'), 'utf8')
     const relationshipAccess = fs.readFileSync(path.join(ROOT, 'lib/relationship-access.ts'), 'utf8')
     const rejectRoute = fs.readFileSync(path.join(ROOT, 'app/api/admin/promoter/applications/[id]/reject/route.ts'), 'utf8')
+    const directMcp = fs.readFileSync(path.join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8')
+    const connectorMcp = fs.readFileSync(path.join(ROOT, 'app/api/ucp/mcp/p/[slug]/route.ts'), 'utf8')
     expect(resolver).toContain("isEnabled('partners.recruiting_v3_enabled')")
     expect(page).toContain('LegacyUnitedStatesPilotPage')
     expect(page).toContain('MiyagiPartnersRecruitingPage')
@@ -206,17 +286,55 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(partnerPage).toContain("import { recruitingV3Enabled } from '@/lib/recruiting-v3'")
     expect(partnerPage).toContain('recruitingV3Enabled()')
     expect(partnerPage).not.toContain("isEnabled('partners.recruiting_v3_enabled')")
-    expect(partnerPage).toContain("promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled")
-    expect(partnerPage).toContain("const foundingOperator = promoter?.program_track === 'founding_operator'")
-    expect(partnerPage).toContain('Operador fundador de comercio')
-    expect(partnerPage).toContain('La aprobación del programa no equivale al acceso')
+    expect(partnerPage).toContain("partnerWorkspaceAdmitted(promoter.program_track ?? 'promoter', partnerMcpEnabled, recruitingEnabled)")
+    expect(partnerPage).toContain("promoter.program_track === 'founding_operator'")
+    expect(partnerPage).toContain('operatorUi!.trackLabel')
+    expect(partnerPage).toContain('operatorUi!.zeroShops')
+    expect(partnerPage).toContain("let grantsState: 'available' | 'unavailable' = 'available'")
+    expect(partnerPage).toContain('grantError')
+    expect(partnerPage).toContain('shopError')
+    expect(partnerPage).toContain('missingShopIds')
+    expect(partnerPage).toContain("missingShopIds.length > 0")
+    expect(partnerPage).toContain("grantsState === 'unavailable'")
+    expect(partnerPage).toContain('operatorUi!.shopsUnavailable')
     expect(partnerPage).toContain('const showPortfolio = portfolioEnabled && !foundingOperator')
-    expect(partnerPage).toContain('{!foundingOperator && (')
+    expect(partnerPage).toContain('{!foundingOperator &&')
+    const legacyPartnerHeader = partnerPage.slice(partnerPage.indexOf('{!foundingOperator && promoter ?'), partnerPage.indexOf(') : !promoter ?', partnerPage.indexOf('{!foundingOperator && promoter ?')))
+    expect(legacyPartnerHeader).not.toContain('{foundingOperator ?')
     expect(partnerPage.indexOf('getPartnerIdentityByClerkId(user.id)')).toBeLessThan(partnerPage.indexOf(".from('partner_grants')"))
     expect(relationshipAccess).toContain("actor.programTrack === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(relationshipAccess.indexOf("actor.programTrack === 'founding_operator'")).toBeLessThan(relationshipAccess.indexOf("checkRateLimit('relationship'"))
     expect(rejectRoute).toContain("application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())")
     expect(rejectRoute.indexOf('getPromoterApplication(id)')).toBeLessThan(rejectRoute.indexOf('rejectPromoterApplication(id)'))
+    const ratePeek = directMcp.indexOf("await peekRateLimit('mcp'")
+    const bodyParse = directMcp.indexOf('await req.json()')
+    const directPreflight = directMcp.indexOf('await partnerRecruitingPreflight(')
+    const peekDenial = directMcp.indexOf('if (!ratePeek.allowed)')
+    const rateConsume = directMcp.indexOf("await checkRateLimit('mcp'")
+    expect(ratePeek).toBeGreaterThan(-1)
+    expect(bodyParse).toBeGreaterThan(-1)
+    expect(directPreflight).toBeGreaterThan(-1)
+    expect(rateConsume).toBeGreaterThan(-1)
+    expect(ratePeek).toBeLessThan(directPreflight)
+    expect(bodyParse).toBeLessThan(directPreflight)
+    expect(directPreflight).toBeLessThan(peekDenial)
+    expect(peekDenial).toBeLessThan(rateConsume)
+    expect(directPreflight).toBeLessThan(rateConsume)
+    expect(connectorMcp).not.toContain('checkRateLimit(')
+    expect(connectorMcp).not.toContain('partnerRecruitingPreflight(')
+    expect(connectorMcp).toContain('return baseMcpPost(forwarded)')
+    const partnerAuth = fs.readFileSync(path.join(ROOT, 'lib/partner-auth.ts'), 'utf8')
+    expect(partnerAuth).toContain('if (byHashError) throw new Error(\'partner_identity_unavailable\'')
+    expect(partnerAuth).toContain('if (bySlugError) throw new Error(\'partner_identity_unavailable\'')
+    expect(partnerAuth).toContain("program_track: 'promoter'")
+    expect(partnerAuth).toContain('isLegacyPartnerTrackSchemaError(byHashError)')
+    expect(partnerAuth).toContain('isLegacyPartnerTrackSchemaError(bySlugError)')
+    expect(directMcp).toContain("checkRateLimit('mcp_partner_preflight', ip)")
+    expect(directMcp).toContain("partnerPreflight.kind === 'partner_preflight_limited'")
+    expect(directMcp).not.toContain("partnerPreflight.kind === 'partner_mcp_disabled' ||")
+    expect(directMcp).toContain("partnerPreflight.kind !== 'partner_mcp_disabled'")
+    expect(directMcp).toContain('const partnerToolCall = requests.some(isPartnerSellerToolCall)')
+    expect(directMcp).toContain("partnerToolCall ? await partnerRecruitingPreflight(")
   })
 
   test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {
@@ -261,6 +379,9 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(admin).toContain('merchantAwarenessLabel(shop.merchant_awareness)')
     expect(admin).toContain('platformLabel(shop.platform)')
     expect(admin).not.toContain('{shop.platform} ·')
+    const resendInvitation = admin.slice(admin.indexOf('async function resendInvitation'), admin.indexOf('\n  }', admin.indexOf('async function resendInvitation')))
+    expect(resendInvitation).toContain('} catch {')
+    expect(resendInvitation).toContain('No se pudo rotar la invitación.')
     for (const hardcodedEnglish of ['Practice', 'Active shops', 'Confirmed', 'Request conversation', 'Nomination is not merchant consent.']) {
       expect(admin, hardcodedEnglish).not.toContain(hardcodedEnglish)
     }
@@ -276,7 +397,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
       .filter((match) => match[0].includes(".from('marketplace_promoters')"))
     expect(promoter.match(/\.from\('marketplace_promoters'\)/g) ?? []).toHaveLength(functionBlocks.length)
     expect(functionBlocks.map((match) => match[1]).sort()).toEqual([
-      'accrueCommissionForAttribution', 'bindPromoterClerkId', 'createPromoter', 'getPromoterByClerkId',
+      'accrueCommissionForAttribution', 'createPromoter', 'getPromoterByClerkId',
       'getPartnerIdentityByClerkId', 'getPartnerIdentityById', 'getPromoterByCode', 'getPromoterById', 'listPromoters',
     ].sort())
     for (const [name, body] of functionBlocks.map((match) => [match[1], match[0]] as const)) {
@@ -318,6 +439,13 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
       expect(source, file).toMatch(/\bgetPromoterById\s*\(/)
       expect(source, file).not.toMatch(/\bgetPartnerIdentityById\s*\(/)
     }
+    const bindBlock = promoter.slice(
+      promoter.indexOf('export async function bindPromoterClerkId'),
+      promoter.indexOf('/** All promoters', promoter.indexOf('export async function bindPromoterClerkId')),
+    )
+    expect(bindBlock).toContain('getPartnerIdentityByClerkId(clerkUserId)')
+    expect(bindBlock).toContain("db.rpc('miyagi_bind_partner_identity'")
+    expect(bindBlock).not.toContain('.update({ clerk_user_id:')
     expect(autoGrant).toContain(".eq('program_track', 'promoter')")
     expect(applications.indexOf("program_track === 'founding_operator'")).toBeLessThan(applications.indexOf('createPromoter(claimed.name)'))
     expect(applications).toContain("reason: 'operator_approval_unavailable'")

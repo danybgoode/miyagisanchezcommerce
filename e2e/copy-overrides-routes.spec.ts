@@ -48,6 +48,18 @@ test.describe('routeForKey / routeForNamespaceSection', () => {
     })
   })
 
+  test('partners recruiting fans out to activation, workspace and transactional email', () => {
+    expect(routeForNamespaceSection('partnersRecruiting', 'activation')).toEqual({
+      label: 'Miyagi Partners — activación', path: '/partner/activate/[token]',
+    })
+    expect(routeForNamespaceSection('partnersRecruiting', 'workspace')).toEqual({
+      label: 'Miyagi Partners — espacio de trabajo', path: '/partner',
+    })
+    expect(routeForNamespaceSection('partnersRecruiting', 'email')).toEqual({
+      label: 'Miyagi Partners — correos', path: '(correo transaccional, no es una página web)',
+    })
+  })
+
   test('every KNOWN no-single-page case (shared /vende/* copy, site-wide config, email templates) is a real RouteInfo, not null', () => {
     expect(routeForNamespaceSection('sellerAcquisition', 'shared')).not.toBeNull()
     expect(routeForNamespaceSection('platformTheme', 'toggle')).not.toBeNull()

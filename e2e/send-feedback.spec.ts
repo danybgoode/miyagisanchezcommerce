@@ -100,14 +100,19 @@ test.describe('send_feedback MCP tool', () => {
     expect(text).toContain('Unauthorized')
   })
 
-  test('a never-issued partner token is rejected the same way (partner shape reaches the same auth boundary)', async ({ request }) => {
+  test('a never-issued partner token is rejected generically or reports identity storage unavailable', async ({ request }) => {
     const res = await request.post('/api/ucp/mcp', {
       data: { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'send_feedback', arguments: { category: 'bug', message: 'something is broken' } } },
       headers: { Authorization: `Bearer ms_partner_${'0'.repeat(64)}` },
     })
-    expect(res.status()).toBeLessThan(500)
     const body = await res.json()
+    if (res.status() === 503) {
+      expect(body).toEqual({ jsonrpc: '2.0', id: null, error: { code: -32003, message: 'Service unavailable' } })
+      return
+    }
+    expect(res.status()).toBeLessThan(500)
     expect(body.result.isError).toBe(true)
+    expect(body.result.content[0].text).toContain('Unauthorized')
   })
 })
 

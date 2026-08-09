@@ -37,10 +37,15 @@ import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import { computeTrustScore } from '@/lib/ucp/identity'
 import { getCalAvailableSlots, createCalBooking } from '@/lib/calcom'
 import { ensureUrlProtocol } from '@/lib/url'
-import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { checkRateLimit, getClientIp, peekRateLimit } from '@/lib/ratelimit'
 import { revalidateTag } from 'next/cache'
 import type { AgentShop } from '@/lib/agent-auth'
-import { resolveToolShop } from '@/lib/partner-auth'
+import {
+  partnerRecruitingPreflight,
+  rememberPartnerRecruitingPreflight,
+  resolveToolShop,
+  type RoutePartnerPreflight,
+} from '@/lib/partner-auth'
 import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
 import { listSubmissionsForShop, getLaunchpadShopBySlug, transitionSubmission, publishSubmission } from '@/lib/launchpad'
@@ -4069,7 +4074,13 @@ async function handleCompareCosts(args: Record<string, unknown>) {
   return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(result, null, 2) }] }
 }
 
-async function handleMcpMethod(method: string, params: Record<string, unknown> | undefined, baseUrl: string, authHeader?: string | null) {
+async function handleMcpMethod(
+  method: string,
+  params: Record<string, unknown> | undefined,
+  baseUrl: string,
+  authHeader?: string | null,
+  partnerPreflight?: RoutePartnerPreflight,
+) {
   // Standard MCP lifecycle
   if (method === 'initialize') {
     return {
@@ -4105,7 +4116,13 @@ async function handleMcpMethod(method: string, params: Record<string, unknown> |
 
   if (method === 'tools/call') {
     const name = String((params?.name as string | undefined) ?? '')
-    const args = (params?.arguments as Record<string, unknown> | undefined) ?? {}
+    const rawArgs = params?.arguments
+    const args = rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+      ? rawArgs as Record<string, unknown>
+      : {}
+    if (partnerPreflight) {
+      rememberPartnerRecruitingPreflight(args, partnerPreflight)
+    }
 
     switch (name) {
       case 'search_listings':      { const r = await handleSearchListings(args, baseUrl); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
@@ -4199,20 +4216,20 @@ export async function GET(req: NextRequest) {
   )
 }
 
+function isPartnerSellerToolCall(request: JsonRpcRequest): boolean {
+  if (request.method !== 'tools/call') return false
+  const name = String((request.params?.name as string | undefined) ?? '')
+  return (MCP_SELLER_TOOLS as readonly string[]).includes(name)
+}
+
 // POST — JSON-RPC 2.0 dispatcher
 export async function POST(req: NextRequest) {
-  // ── Rate limiting ─────────────────────────────────────────────────────────
-  const rl = await checkRateLimit('mcp', getClientIp(req))
-  if (!rl.allowed) {
-    return NextResponse.json(
-      err(null, -32029, 'Rate limit exceeded — too many requests'),
-      { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
-    )
-  }
+  const ip = getClientIp(req)
 
-  const host    = req.headers.get('host') ?? 'miyagisanchez.com'
-  const proto   = host.includes('localhost') ? 'http' : 'https'
-  const baseUrl = `${proto}://${host}`
+  // Reject an already-exhausted caller without any pre-auth DB work. This read
+  // does not consume a token; the normal limiter call below remains the atomic
+  // consume/race check after the recruiting rollback decision.
+  const ratePeek = await peekRateLimit('mcp', ip)
 
   let body: JsonRpcRequest | JsonRpcRequest[]
   try {
@@ -4223,16 +4240,65 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: CORS }
     )
   }
+  const requests = Array.isArray(body) ? body : [body]
+  const partnerToolCall = requests.some(isPartnerSellerToolCall)
+
+  let partnerPreflight: RoutePartnerPreflight
+  try {
+    partnerPreflight = partnerToolCall ? await partnerRecruitingPreflight(
+        req.headers.get('authorization'),
+        async () => (await checkRateLimit('mcp_partner_preflight', ip)).allowed,
+      ) : { kind: 'not_partner' }
+  } catch (error) {
+    // Identity storage unavailable is not an absent token. Fail closed before
+    // consuming the shared bucket or dispatching a seller operation.
+    console.error('[partner-auth] MCP preflight unavailable:', error)
+    return NextResponse.json(
+      err(null, -32003, 'Service unavailable'),
+      { status: 503, headers: CORS },
+    )
+  }
+
+  if (partnerPreflight.kind === 'partner_preflight_limited') {
+    return NextResponse.json(
+      err(null, -32001, 'Unauthorized.'),
+      { status: 401, headers: CORS },
+    )
+  }
+
+  // ── Rate limiting ─────────────────────────────────────────────────────────
+  if (partnerPreflight.kind !== 'operator_rolled_back' && partnerPreflight.kind !== 'partner_mcp_disabled') {
+    // The read happens before any possible OFF-path identity query, but its
+    // denial is deferred until rollback is classified. Thus an exhausted OFF
+    // operator is still indistinguishable from a bad credential, never a 429.
+    if (!ratePeek.allowed) {
+      return NextResponse.json(
+        err(null, -32029, 'Rate limit exceeded — too many requests'),
+        { status: 429, headers: { ...CORS, 'Retry-After': String(ratePeek.retryAfter) } },
+      )
+    }
+    const rl = await checkRateLimit('mcp', ip)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        err(null, -32029, 'Rate limit exceeded — too many requests'),
+        { status: 429, headers: { ...CORS, 'Retry-After': String(rl.retryAfter) } },
+      )
+    }
+  }
+
+  const host    = req.headers.get('host') ?? 'miyagisanchez.com'
+  const proto   = host.includes('localhost') ? 'http' : 'https'
+  const baseUrl = `${proto}://${host}`
 
   // Support batch requests
   if (Array.isArray(body)) {
     const authHeader = req.headers.get('authorization')
-    const results = await Promise.all(body.map(r => dispatchOne(r, baseUrl, authHeader)))
+    const results = await Promise.all(body.map(r => dispatchOne(r, baseUrl, authHeader, partnerPreflight)))
     const responses = results.filter((r): r is JsonRpcResponse => r !== null)
     return NextResponse.json(responses, { headers: CORS })
   }
 
-  const response = await dispatchOne(body, baseUrl, req.headers.get('authorization'))
+  const response = await dispatchOne(body, baseUrl, req.headers.get('authorization'), partnerPreflight)
   if (response === null) {
     // Notification — no response per JSON-RPC spec
     return new Response(null, { status: 204, headers: CORS })
@@ -4240,7 +4306,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(response, { headers: CORS })
 }
 
-async function dispatchOne(req: JsonRpcRequest, baseUrl: string, authHeader?: string | null): Promise<JsonRpcResponse | null> {
+async function dispatchOne(
+  req: JsonRpcRequest,
+  baseUrl: string,
+  authHeader?: string | null,
+  partnerPreflight?: RoutePartnerPreflight,
+): Promise<JsonRpcResponse | null> {
   const id = req.id ?? null
 
   if (req.jsonrpc !== '2.0' || !req.method) {
@@ -4251,7 +4322,7 @@ async function dispatchOne(req: JsonRpcRequest, baseUrl: string, authHeader?: st
   const isNotification = req.id === undefined
 
   try {
-    const result = await handleMcpMethod(req.method, req.params, baseUrl, authHeader)
+    const result = await handleMcpMethod(req.method, req.params, baseUrl, authHeader, partnerPreflight)
     if (result === null) {
       if (isNotification) return null
       return err(id, -32601, `Method not found: ${req.method}`)
