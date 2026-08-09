@@ -55,6 +55,8 @@
         "duplicateShop": "Cada registro debe nombrar una tienda pública diferente.",
         "channels": "Elige al menos un canal operativo para cada tienda.",
         "checkpoint": "Confirma que puedes participar en un punto de control operativo de 90 días.",
+        "qualification": "Completa el perfil operativo y los registros de las tres tiendas.",
+        "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
         "receive": "No pudimos recibir la solicitud. Inténtalo de nuevo.",
         "network": "No pudimos recibir la solicitud. Tus respuestas siguen aquí; inténtalo de nuevo."
       },

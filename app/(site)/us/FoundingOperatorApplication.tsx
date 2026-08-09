@@ -95,7 +95,12 @@ export function FoundingOperatorApplication({ source = 'direct', copy }: { sourc
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
         const reason: RecruitingReason = res.status === 429 ? 'rate_limited' : (data.reason === 'shop_count' || data.reason === 'shop_url' || data.reason === 'qualification' ? data.reason : 'unknown')
-        disqualify(reason, data.error ?? copy.validation.receive)
+        const message = reason === 'rate_limited' ? copy.validation.rateLimited
+          : reason === 'shop_count' ? copy.validation.shopCount
+            : reason === 'shop_url' ? copy.validation.shopUrl
+              : reason === 'qualification' ? copy.validation.qualification
+                : copy.validation.receive
+        disqualify(reason, message)
         return
       }
       // New and idempotent retry results are intentionally indistinguishable so

@@ -55,6 +55,8 @@
         "duplicateShop": "Each ledger entry must name a different public shop URL.",
         "channels": "Choose at least one operating channel for every shop.",
         "checkpoint": "Confirm that you can participate in a 90-day operating checkpoint.",
+        "qualification": "Complete the operating profile and all three shop records.",
+        "rateLimited": "Too many attempts. Wait a moment and try again.",
         "receive": "We could not receive the application. Try again.",
         "network": "We could not receive the application. Your answers are still here; try again."
       },
