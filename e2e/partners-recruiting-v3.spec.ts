@@ -141,7 +141,7 @@ test.describe('partners recruiting v3 · partner MCP preflight', () => {
       loadPartner: async () => { identityReads += 1; return operator },
       partnerMcpEnabled: async () => true,
       recruitingV3Enabled: async () => false,
-      identityLookupAllowed: async () => false,
+      preflightAllowed: async () => false,
     })
     expect(result).toEqual({ kind: 'partner_preflight_limited' })
     expect(identityReads).toBe(0)
@@ -166,9 +166,17 @@ test.describe('partners recruiting v3 · partner MCP preflight', () => {
       partnerMcpEnabled: async () => { calls.push('partner-flag'); return false },
       recruitingV3Enabled: async () => { calls.push('recruiting-flag'); return false },
       loadPartner: async () => { calls.push('identity'); throw new Error('must not read identity') },
+      preflightAllowed: async () => { calls.push('preflight-rate'); return true },
     })
     expect(result).toEqual({ kind: 'partner_mcp_disabled' })
-    expect(calls).toEqual(['partner-flag'])
+    expect(calls).toEqual(['partner-flag', 'preflight-rate'])
+
+    await expect(resolvePartnerRecruitingPreflight({
+      partnerMcpEnabled: async () => false,
+      recruitingV3Enabled: async () => { throw new Error('must not read recruiting flag') },
+      loadPartner: async () => { throw new Error('must not read identity') },
+      preflightAllowed: async () => false,
+    })).resolves.toEqual({ kind: 'partner_preflight_limited' })
   })
 
   test('recognizes only the known pre-migration program_track schema gap', () => {
@@ -285,6 +293,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(partnerPage).toContain("let grantsState: 'available' | 'unavailable' = 'available'")
     expect(partnerPage).toContain('grantError')
     expect(partnerPage).toContain('shopError')
+    expect(partnerPage).toContain('missingShopIds')
+    expect(partnerPage).toContain("missingShopIds.length > 0")
     expect(partnerPage).toContain("grantsState === 'unavailable'")
     expect(partnerPage).toContain('operatorUi!.shopsUnavailable')
     expect(partnerPage).toContain('const showPortfolio = portfolioEnabled && !foundingOperator')
@@ -321,7 +331,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(partnerAuth).toContain('isLegacyPartnerTrackSchemaError(bySlugError)')
     expect(directMcp).toContain("checkRateLimit('mcp_partner_preflight', ip)")
     expect(directMcp).toContain("partnerPreflight.kind === 'partner_preflight_limited'")
-    expect(directMcp).toContain("partnerPreflight.kind === 'partner_mcp_disabled'")
+    expect(directMcp).not.toContain("partnerPreflight.kind === 'partner_mcp_disabled' ||")
+    expect(directMcp).toContain("partnerPreflight.kind !== 'partner_mcp_disabled'")
     expect(directMcp).toContain('const partnerToolCall = requests.some(isPartnerSellerToolCall)')
     expect(directMcp).toContain("partnerToolCall ? await partnerRecruitingPreflight(")
   })

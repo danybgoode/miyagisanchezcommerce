@@ -158,7 +158,7 @@ export async function resolvePartnerRow(token: string): Promise<PartnerRow | nul
  */
 export async function partnerRecruitingPreflight(
   authHeader: string | null | undefined,
-  identityLookupAllowed?: () => Promise<boolean>,
+  preflightAllowed?: () => Promise<boolean>,
 ): Promise<RoutePartnerPreflight> {
   const token = parseBearer(authHeader)
   if (!token || classifyAgentCredential(token) !== 'partner') return { kind: 'not_partner' }
@@ -167,7 +167,7 @@ export async function partnerRecruitingPreflight(
     loadPartner: () => resolvePartnerRow(token),
     partnerMcpEnabled: () => isEnabled('partners.mcp_enabled'),
     recruitingV3Enabled,
-    identityLookupAllowed,
+    preflightAllowed,
   })
 }
 

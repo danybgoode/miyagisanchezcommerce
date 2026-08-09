@@ -138,30 +138,39 @@ export default async function PartnerDashboardPage({
         grantsState = 'unavailable'
       } else {
         const rawShops = (shops ?? []) as Array<{ id: string; slug: string; name: string }>
-        // The grant/mirror supplies the membership and slug, never the operating
-        // market. Resolve that separately from Medusa's public seller projection.
-        const enriched = await Promise.all(rawShops.map(async (shop) => {
-          // `getShop` rejects (not returns null) on a network fault, and one rejection
-          // inside Promise.all would 500 the whole partner dashboard over a single
-          // unreachable shop. Degrade per-shop: an unreadable projection is the
-          // explicit unavailable state, not an assumed market.
-          let publicSeller = null
-          try {
-            publicSeller = shop.slug ? await getShop(shop.slug) : null
-          } catch (error) {
-            console.warn(`[partner] seller projection unavailable for ${shop.slug}:`, error)
-          }
-          const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
-          return [shop.id, { ...shop, ...visibility }] as const
-        }))
-        const shopById = new Map(enriched)
+        const mirroredShopIds = new Set(rawShops.map((shop) => shop.id))
+        const missingShopIds = shopIds.filter((shopId) => !mirroredShopIds.has(shopId))
+        if (missingShopIds.length > 0) {
+          // partner_grants intentionally has no FK to the asynchronously-built
+          // mirror. A confirmed grant with no mirror row is inconsistent, not zero.
+          console.error('[partner] granted shop mirrors unavailable:', missingShopIds)
+          grantsState = 'unavailable'
+        } else {
+          // The grant/mirror supplies the membership and slug, never the operating
+          // market. Resolve that separately from Medusa's public seller projection.
+          const enriched = await Promise.all(rawShops.map(async (shop) => {
+            // `getShop` rejects (not returns null) on a network fault, and one rejection
+            // inside Promise.all would 500 the whole partner dashboard over a single
+            // unreachable shop. Degrade per-shop: an unreadable projection is the
+            // explicit unavailable state, not an assumed market.
+            let publicSeller = null
+            try {
+              publicSeller = shop.slug ? await getShop(shop.slug) : null
+            } catch (error) {
+              console.warn(`[partner] seller projection unavailable for ${shop.slug}:`, error)
+            }
+            const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
+            return [shop.id, { ...shop, ...visibility }] as const
+          }))
+          const shopById = new Map(enriched)
 
-        grants = rows
-          .map((g) => {
-            const shop = shopById.get(g.shop_id)
-            return shop ? { grantId: g.id, role: g.role, grantedAt: g.created_at, shop } : null
-          })
-          .filter((g): g is GrantedShop => g !== null)
+          grants = rows.map((g) => ({
+            grantId: g.id,
+            role: g.role,
+            grantedAt: g.created_at,
+            shop: shopById.get(g.shop_id)!,
+          }))
+        }
       }
     }
   }

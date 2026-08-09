@@ -4259,7 +4259,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (partnerPreflight.kind === 'partner_mcp_disabled' || partnerPreflight.kind === 'partner_preflight_limited') {
+  if (partnerPreflight.kind === 'partner_preflight_limited') {
     return NextResponse.json(
       err(null, -32001, 'Unauthorized.'),
       { status: 401, headers: CORS },
@@ -4267,7 +4267,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
-  if (partnerPreflight.kind !== 'operator_rolled_back') {
+  if (partnerPreflight.kind !== 'operator_rolled_back' && partnerPreflight.kind !== 'partner_mcp_disabled') {
     // The read happens before any possible OFF-path identity query, but its
     // denial is deferred until rollback is classified. Thus an exhausted OFF
     // operator is still indistinguishable from a bad credential, never a 429.

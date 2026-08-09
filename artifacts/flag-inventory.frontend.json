@@ -370,12 +370,13 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:82",
+        "app/(shell)/partner/page.tsx:85",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:40",
         "app/api/ucp/mcp/p/[slug]/route.ts:48",
-        "lib/partner-auth.ts:228",
+        "lib/partner-auth.ts:168",
+        "lib/partner-auth.ts:229",
         "lib/partner-grant-server.ts:67",
         "lib/portfolio/partner-portfolio-auth.ts:109"
       ]
@@ -456,7 +457,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:84",
+        "app/(shell)/partner/page.tsx:87",
         "lib/portfolio/gate-server.ts:55",
         "lib/portfolio/partner-portfolio-auth.ts:108",
         "lib/portfolio/reminders-server.ts:220"

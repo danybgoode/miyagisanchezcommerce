@@ -28,17 +28,23 @@ export async function resolvePartnerRecruitingPreflight<T extends RecruitingPart
   loadPartner: () => Promise<T | null>
   partnerMcpEnabled: () => Promise<boolean>
   recruitingV3Enabled: () => Promise<boolean>
-  identityLookupAllowed?: () => Promise<boolean>
+  preflightAllowed?: () => Promise<boolean>
 }): Promise<PartnerRecruitingPreflight<T>> {
   // The independent MCP gate owns the outer boundary. When OFF, no recruiting
-  // flag or identity lookup may disclose whether the credential exists.
-  if (!(await deps.partnerMcpEnabled())) return { kind: 'partner_mcp_disabled' }
+  // flag or identity lookup may disclose whether the credential exists. The
+  // dedicated pre-auth bucket still bounds syntactically valid partner traffic.
+  if (!(await deps.partnerMcpEnabled())) {
+    if (deps.preflightAllowed && !(await deps.preflightAllowed())) {
+      return { kind: 'partner_preflight_limited' }
+    }
+    return { kind: 'partner_mcp_disabled' }
+  }
 
   // Normal ON operation adds no identity read. The authoritative resolver
   // still rechecks after parsing; only OFF needs the track to distinguish a
   // rolled-back operator from a Promotor whose existing path must continue.
   if (await deps.recruitingV3Enabled()) return { kind: 'recruiting_enabled' }
-  if (deps.identityLookupAllowed && !(await deps.identityLookupAllowed())) {
+  if (deps.preflightAllowed && !(await deps.preflightAllowed())) {
     return { kind: 'partner_preflight_limited' }
   }
   const partner = await deps.loadPartner()
