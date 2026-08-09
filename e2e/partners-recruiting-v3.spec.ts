@@ -223,6 +223,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const page = fs.readFileSync(path.join(ROOT, 'app/(site)/us/page.tsx'), 'utf8')
     const form = fs.readFileSync(path.join(ROOT, 'app/(site)/us/FoundingOperatorApplication.tsx'), 'utf8')
     const bilingual = fs.readFileSync(path.join(ROOT, 'lib/bilingual-namespaces.ts'), 'utf8')
+    const email = fs.readFileSync(path.join(ROOT, 'lib/email.ts'), 'utf8')
     const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8'))
     const es = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/es.json'), 'utf8'))
     expect(bilingual).toContain("'partnersRecruiting'")
@@ -235,6 +236,9 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(page).toContain("getDictionary(locale)")
     expect(page).toContain("lang: 'en' | 'es'")
     expect(form).toContain('copy: PartnersRecruitingCopy')
+    const rejectionEmail = email.slice(email.indexOf('export async function sendFoundingOperatorApplicationRejected'), email.indexOf('// ══', email.indexOf('export async function sendFoundingOperatorApplicationRejected')))
+    expect(rejectionEmail).toContain('Thank you for applying')
+    expect(rejectionEmail).toContain('Gracias por postularte')
     for (const hardcodedEnglish of [
       'Operate three shops. Prove one calmer practice.',
       'Four checkpoints, no forced migration.',
