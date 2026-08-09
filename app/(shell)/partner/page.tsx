@@ -61,7 +61,8 @@ function fmtDate(iso: string, locale = 'es-MX'): string {
  * STEWARDSHIP PORTFOLIO (merchant-partner-lifecycle S1.2): with
  * `promoter.partner_portfolio_enabled` ON, the `<PartnerPortfolio>` action queue
  * renders ABOVE the Promotor grant list. The founding-operator branch suppresses
- * that legacy es-MX-only component until it has a matching bilingual contract.
+ * that legacy es-MX-only component: founding operators have a bilingual,
+ * grant-only workspace and never inherit Promotor stewardship tooling.
  * With the flag OFF — its born state — the
  * expression below evaluates to `false`, React renders nothing for it, and this
  * page's markup is BYTE-IDENTICAL to what it serves today. That is the whole
@@ -114,44 +115,55 @@ export default async function PartnerDashboardPage({
   }
 
   let grants: GrantedShop[] = []
+  let grantsState: 'available' | 'unavailable' = 'available'
   if (promoter) {
-    const { data: grantRows } = await db
+    const { data: grantRows, error: grantError } = await db
       .from('partner_grants')
       .select('id, shop_id, role, created_at')
       .eq('promoter_id', promoter.id)
       .is('revoked_at', null)
       .order('created_at', { ascending: false })
-    const rows = (grantRows ?? []) as Array<{ id: string; shop_id: string; role: 'manager' | 'viewer'; created_at: string }>
+    if (grantError) {
+      console.error('[partner] grants unavailable:', grantError)
+      grantsState = 'unavailable'
+    } else {
+      const rows = (grantRows ?? []) as Array<{ id: string; shop_id: string; role: 'manager' | 'viewer'; created_at: string }>
+      const shopIds = [...new Set(rows.map((g) => g.shop_id))]
+      const { data: shops, error: shopError } = shopIds.length
+        ? await db.from('marketplace_shops').select('id, slug, name').in('id', shopIds)
+        : { data: [], error: null }
 
-    const shopIds = [...new Set(rows.map((g) => g.shop_id))]
-    const { data: shops } = shopIds.length
-      ? await db.from('marketplace_shops').select('id, slug, name').in('id', shopIds)
-      : { data: [] }
-    const rawShops = (shops ?? []) as Array<{ id: string; slug: string; name: string }>
-    // The grant/mirror supplies the membership and slug, never the operating
-    // market. Resolve that separately from Medusa's public seller projection.
-    const enriched = await Promise.all(rawShops.map(async (shop) => {
-      // `getShop` rejects (not returns null) on a network fault, and one rejection
-      // inside Promise.all would 500 the whole partner dashboard over a single
-      // unreachable shop. Degrade per-shop: an unreadable projection is the
-      // explicit unavailable state, not an assumed market.
-      let publicSeller = null
-      try {
-        publicSeller = shop.slug ? await getShop(shop.slug) : null
-      } catch (error) {
-        console.warn(`[partner] seller projection unavailable for ${shop.slug}:`, error)
+      if (shopError) {
+        console.error('[partner] granted shops unavailable:', shopError)
+        grantsState = 'unavailable'
+      } else {
+        const rawShops = (shops ?? []) as Array<{ id: string; slug: string; name: string }>
+        // The grant/mirror supplies the membership and slug, never the operating
+        // market. Resolve that separately from Medusa's public seller projection.
+        const enriched = await Promise.all(rawShops.map(async (shop) => {
+          // `getShop` rejects (not returns null) on a network fault, and one rejection
+          // inside Promise.all would 500 the whole partner dashboard over a single
+          // unreachable shop. Degrade per-shop: an unreadable projection is the
+          // explicit unavailable state, not an assumed market.
+          let publicSeller = null
+          try {
+            publicSeller = shop.slug ? await getShop(shop.slug) : null
+          } catch (error) {
+            console.warn(`[partner] seller projection unavailable for ${shop.slug}:`, error)
+          }
+          const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
+          return [shop.id, { ...shop, ...visibility }] as const
+        }))
+        const shopById = new Map(enriched)
+
+        grants = rows
+          .map((g) => {
+            const shop = shopById.get(g.shop_id)
+            return shop ? { grantId: g.id, role: g.role, grantedAt: g.created_at, shop } : null
+          })
+          .filter((g): g is GrantedShop => g !== null)
       }
-      const visibility = marketVisibility(readPublicSellerMarket(publicSeller))
-      return [shop.id, { ...shop, ...visibility }] as const
-    }))
-    const shopById = new Map(enriched)
-
-    grants = rows
-      .map((g) => {
-        const shop = shopById.get(g.shop_id)
-        return shop ? { grantId: g.id, role: g.role, grantedAt: g.created_at, shop } : null
-      })
-      .filter((g): g is GrantedShop => g !== null)
+    }
   }
 
   return (
@@ -192,7 +204,13 @@ export default async function PartnerDashboardPage({
         </div>
       )}
 
-      {promoter && grants.length === 0 && (
+      {promoter && grantsState === 'unavailable' && (
+        <div role="alert" className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
+          {foundingOperator ? operatorUi!.shopsUnavailable : 'No pudimos verificar tus tiendas asignadas en este momento. Inténtalo de nuevo.'}
+        </div>
+      )}
+
+      {promoter && grantsState === 'available' && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
           {foundingOperator ? (
             operatorUi!.zeroShops
@@ -206,7 +224,7 @@ export default async function PartnerDashboardPage({
         </div>
       )}
 
-      {grants.length > 0 && (
+      {grantsState === 'available' && grants.length > 0 && (
         <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
           {grants.map((g) => (
             <li key={g.grantId} className="p-4 flex items-center justify-between gap-3">

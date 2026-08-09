@@ -20,7 +20,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // and normalization; SQL independently rechecks the normalized match under lock.
   const result = await completeFoundingOperatorActivation(token, user.id, user.emailAddresses)
   if (!result.ok) {
-    const query = new URLSearchParams({ status: 'invalid' })
+    // Infrastructure failure is not a bad invitation or principal mismatch.
+    // Preserve the third state so the signed-in operator gets retry guidance.
+    const status = result.reason === 'unavailable' ? 'unavailable' : 'invalid'
+    const query = new URLSearchParams({ status })
     if (locale === 'es') query.set('lang', 'es')
     return NextResponse.redirect(new URL(`/partner/activate/${token}?${query}`, req.url), 303)
   }

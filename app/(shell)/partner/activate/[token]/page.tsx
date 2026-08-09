@@ -54,9 +54,9 @@ export default async function FoundingOperatorActivationPage({
         </div>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight">{ui.title}</h1>
         <p className="mt-5 leading-7 text-[var(--fg-muted)]">{ui.body}</p>
-        {status === 'invalid' && (
+        {(status === 'invalid' || status === 'unavailable') && (
           <p role="alert" className="mt-6 border-l-4 border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm">
-            {ui.mismatch}
+            {status === 'unavailable' ? ui.unavailable : ui.mismatch}
           </p>
         )}
         <form action={`/api/partner/activate/${token}?lang=${locale}`} method="post" className="mt-8">

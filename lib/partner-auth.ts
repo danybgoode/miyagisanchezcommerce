@@ -165,6 +165,7 @@ export async function partnerRecruitingPreflight(
 
   return resolvePartnerRecruitingPreflight({
     loadPartner: () => resolvePartnerRow(token),
+    partnerMcpEnabled: () => isEnabled('partners.mcp_enabled'),
     recruitingV3Enabled,
     identityLookupAllowed,
   })
@@ -228,6 +229,7 @@ export async function resolveToolShop(
   if (!(await isEnabled('partners.mcp_enabled'))) return { ok: false, message: null }
 
   const preflight = args ? routePreflightByArgs.get(args) : undefined
+  if (preflight?.kind === 'partner_mcp_disabled') return { ok: false, message: null }
   if (preflight?.kind === 'operator_rolled_back') return { ok: false, message: null }
   if (preflight?.kind === 'partner_preflight_limited') return { ok: false, message: null }
   if (preflight?.kind === 'partner_absent') return { ok: false, message: null }

@@ -112,6 +112,7 @@
       "heading": "Miyagi Partners",
       "trackLabel": "Founding Commerce Operator",
       "zeroShops": "Tu identidad de operador está activa y actualmente tiene cero tiendas. La aprobación del programa no es acceso a tiendas: una tienda aparece solo cuando un comercio o administrador de Miyagi la otorga. El siguiente paso es la revisión del fundador para la prueba acotada de 90 días.",
+      "shopsUnavailable": "No pudimos verificar tus tiendas asignadas en este momento. Inténtalo de nuevo en unos minutos.",
       "switchLanguage": "View in English",
       "roleManager": "Gestor",
       "roleViewer": "Solo lectura",

@@ -4259,7 +4259,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (partnerPreflight.kind === 'partner_preflight_limited') {
+  if (partnerPreflight.kind === 'partner_mcp_disabled' || partnerPreflight.kind === 'partner_preflight_limited') {
     return NextResponse.json(
       err(null, -32001, 'Unauthorized.'),
       { status: 401, headers: CORS },

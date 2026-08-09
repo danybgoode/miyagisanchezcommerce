@@ -67,6 +67,13 @@ function invitationProviderLabel(value: unknown): string {
   return 'Estado del proveedor no disponible'
 }
 
+function applicationActionErrorLabel(value: unknown): string {
+  if (value === 'not_found') return 'La solicitud ya no está disponible.'
+  if (value === 'invalid_transition') return 'La solicitud cambió de estado. Actualiza la página e inténtalo de nuevo.'
+  if (value === 'unavailable') return 'No pudimos completar la operación en este momento. Inténtalo de nuevo.'
+  return 'No se pudo procesar la solicitud.'
+}
+
 function merchantAwarenessLabel(value: unknown): string {
   if (value === 'not_contacted') return 'Sin contactar sobre la nominación'
   if (value === 'aware_of_nomination') return 'Conoce la nominación'
@@ -305,7 +312,7 @@ export default function PromoterAdminClient({
       const res = await fetch(`/api/admin/promoter/applications/${encodeURIComponent(id)}/${action}`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
-        setMsg(data?.error ?? 'No se pudo procesar la solicitud.')
+        setMsg(applicationActionErrorLabel(data?.error))
         return
       }
       setApplications((list) => list.map((a) => (a.id === id ? data.application : a)))
@@ -335,7 +342,7 @@ export default function PromoterAdminClient({
       const res = await fetch(`/api/admin/promoter/applications/${encodeURIComponent(id)}/resend`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
-        setMsg(data?.error ?? 'No se pudo rotar la invitación.')
+        setMsg(applicationActionErrorLabel(data?.error))
         return
       }
       setApplications((list) => list.map((application) => application.id === id ? data.application : application))

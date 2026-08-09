@@ -12,6 +12,7 @@ export function isLegacyPartnerTrackSchemaError(error: unknown): boolean {
 }
 
 export type PartnerRecruitingPreflight<T extends RecruitingPartnerIdentity> =
+  | { kind: 'partner_mcp_disabled' }
   | { kind: 'recruiting_enabled' }
   | { kind: 'partner_preflight_limited' }
   | { kind: 'partner_absent' }
@@ -25,9 +26,14 @@ export type PartnerRecruitingPreflight<T extends RecruitingPartnerIdentity> =
  */
 export async function resolvePartnerRecruitingPreflight<T extends RecruitingPartnerIdentity>(deps: {
   loadPartner: () => Promise<T | null>
+  partnerMcpEnabled: () => Promise<boolean>
   recruitingV3Enabled: () => Promise<boolean>
   identityLookupAllowed?: () => Promise<boolean>
 }): Promise<PartnerRecruitingPreflight<T>> {
+  // The independent MCP gate owns the outer boundary. When OFF, no recruiting
+  // flag or identity lookup may disclose whether the credential exists.
+  if (!(await deps.partnerMcpEnabled())) return { kind: 'partner_mcp_disabled' }
+
   // Normal ON operation adds no identity read. The authoritative resolver
   // still rechecks after parsing; only OFF needs the track to distinguish a
   // rolled-back operator from a Promotor whose existing path must continue.
