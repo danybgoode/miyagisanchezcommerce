@@ -315,6 +315,8 @@ export default function PromoterAdminClient({
       } else {
         setMsg(action === 'approve' ? 'Solicitud aprobada — se envió el código por correo.' : 'Solicitud rechazada.')
       }
+    } catch {
+      setMsg('No se pudo procesar la solicitud.')
     } finally {
       setDecidingId(null)
     }
@@ -338,6 +340,8 @@ export default function PromoterAdminClient({
       }
       setApplications((list) => list.map((application) => application.id === id ? data.application : application))
       setMsg(`Invitación rotada. ${invitationProviderLabel(data.invitation?.providerStatus)}.`)
+    } catch {
+      setMsg('No se pudo rotar la invitación.')
     } finally {
       setResendingId(null)
     }

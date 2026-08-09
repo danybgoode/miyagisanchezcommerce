@@ -172,11 +172,7 @@ export default async function PartnerDashboardPage({
         )}
         {!foundingOperator && promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
-            {foundingOperator ? (
-              <>Operador fundador de comercio</>
-            ) : (
-              <>Socio <span className="font-mono font-semibold">{promoter.code}</span></>
-            )}
+            <>Socio <span className="font-mono font-semibold">{promoter.code}</span></>
             {promoter.name && <span className="ml-2">· {promoter.name}</span>}
           </p>
         ) : !promoter ? (
