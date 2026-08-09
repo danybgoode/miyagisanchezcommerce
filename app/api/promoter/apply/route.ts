@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const result = validateApplicationInput(body)
   if (!result.ok) {
     // Honeypot tripped: pretend success so a bot never learns the trap exists.
-    if (result.reason === 'honeypot') return NextResponse.json({ ok: true })
+    if (result.reason === 'honeypot') return NextResponse.json(operatorTrack ? { ok: true, received: true } : { ok: true })
     return NextResponse.json({ error: applicationRefusalMessage(result.reason, operatorTrack ? 'founding_operator' : 'promoter'), reason: result.reason }, { status: 400 })
   }
 
