@@ -237,6 +237,12 @@ export const FLAG_CATALOG = {
     criticality: 'medium',
     enforcement: 'frontend',
   },
+  'partners.recruiting_v3_enabled': {
+    default: false,
+    polarity: 'enablement',
+    criticality: 'high',
+    enforcement: 'frontend',
+  },
   'promoter.private_preview_enabled': {
     default: false,
     polarity: 'enablement',

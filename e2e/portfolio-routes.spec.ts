@@ -117,7 +117,7 @@ test.describe('source · every new route runs the portfolio flag gate before any
     // 404 when OFF, indistinguishable from an absent route.
     expect(gate).toMatch(/isEnabled\(PORTFOLIO_FLAG\)/)
     expect(gate).toMatch(/status:\s*404/)
-    // Clerk before the rate limit before the actor resolution. Measured inside
+    // Clerk before actor resolution before the track gate before the rate limit. Measured inside
     // the FUNCTION BODY only — the import block mentions the same identifiers in
     // a different order, and matching those would make this assertion about
     // import style rather than about execution order.
@@ -125,12 +125,15 @@ test.describe('source · every new route runs the portfolio flag gate before any
     const clerkAt = body.indexOf('currentUser()')
     const rateAt = body.indexOf('checkRateLimit(')
     const actorAt = body.indexOf('resolveActor(')
+    const recruitingAt = body.indexOf("actor.programTrack === 'founding_operator'")
     const flagAt = body.indexOf('isEnabled(PORTFOLIO_FLAG)')
     expect(body.length).toBeGreaterThan(0)
     expect(flagAt).toBeGreaterThan(-1)
     expect(flagAt).toBeLessThan(clerkAt)
-    expect(clerkAt).toBeLessThan(rateAt)
-    expect(rateAt).toBeLessThan(actorAt)
+    expect(clerkAt).toBeLessThan(actorAt)
+    expect(actorAt).toBeLessThan(recruitingAt)
+    expect(recruitingAt).toBeLessThan(rateAt)
+    expect(body).toContain('!(await recruitingV3Enabled())')
   })
 
   test('the actor rule is IMPORTED from the shipped seam, never reimplemented (README D2)', () => {
@@ -201,10 +204,11 @@ test.describe('source · /partner is byte-identical with the flag OFF', () => {
   const page = read('app/(shell)/partner/page.tsx')
 
   test('the portfolio section is rendered ONLY inside a flag-conditional expression', () => {
-    // `{portfolioEnabled && <PartnerPortfolio …/>}` — React renders nothing for
-    // `false`, so the served markup is unchanged while the flag is OFF.
+    // `showPortfolio` combines the portfolio flag with the Promotor track, so
+    // OFF renders nothing and founding operators never inherit this surface.
     const body = page.slice(page.indexOf('export default async function'))
-    expect(body).toMatch(/\{portfolioEnabled\s*&&\s*<PartnerPortfolio/)
+    expect(body).toContain('const showPortfolio = portfolioEnabled && !foundingOperator')
+    expect(body).toMatch(/\{showPortfolio\s*&&\s*<PartnerPortfolio/)
     // And the component appears EXACTLY ONCE in the rendered tree, so it cannot
     // also be rendered somewhere unconditionally. Counted in the function body
     // only — the file header names it in prose.

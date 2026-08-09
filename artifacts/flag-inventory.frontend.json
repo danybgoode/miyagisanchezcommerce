@@ -370,14 +370,24 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:74",
+        "app/(shell)/partner/page.tsx:82",
         "app/api/sell/partner-grants/route.ts:48",
         "app/api/sell/partner-grants/route.ts:85",
         "app/api/ucp/mcp/p/[slug]/route.ts:41",
         "app/api/ucp/mcp/p/[slug]/route.ts:49",
-        "lib/partner-auth.ts:160",
+        "lib/partner-auth.ts:162",
         "lib/partner-grant-server.ts:67",
-        "lib/portfolio/partner-portfolio-auth.ts:108"
+        "lib/portfolio/partner-portfolio-auth.ts:109"
+      ]
+    },
+    {
+      "key": "partners.recruiting_v3_enabled",
+      "compileDefault": false,
+      "polarity": "enablement",
+      "criticality": "high",
+      "enforcement": "frontend",
+      "callsites": [
+        "lib/recruiting-v3.ts:6"
       ]
     },
     {
@@ -403,7 +413,7 @@
         "app/(shell)/promotor/cerrar/page.tsx:27",
         "app/(shell)/promotor/relaciones/page.tsx:19",
         "lib/merchant-lifecycle-sweep.ts:539",
-        "lib/relationship-access.ts:122"
+        "lib/relationship-access.ts:126"
       ]
     },
     {
@@ -446,9 +456,9 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/partner/page.tsx:79",
-        "lib/portfolio/gate-server.ts:54",
-        "lib/portfolio/partner-portfolio-auth.ts:107",
+        "app/(shell)/partner/page.tsx:84",
+        "lib/portfolio/gate-server.ts:55",
+        "lib/portfolio/partner-portfolio-auth.ts:108",
         "lib/portfolio/reminders-server.ts:220"
       ]
     },

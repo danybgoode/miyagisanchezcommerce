@@ -10,6 +10,96 @@
       "activeSeasonal": "Colaboración activa"
     }
   },
+  "partnersRecruiting": {
+    "email": {
+      "rejectionSubject": "Tu solicitud de Miyagi Partners",
+      "rejectionHeading": "Gracias por postularte, {name}",
+      "rejectionBody": "Revisamos tu solicitud de Founding Commerce Operator y por ahora no podemos incorporarla a la prueba de 90 días.",
+      "rejectionBoundary": "Esta decisión no crea acceso a tiendas ni contacta a ningún comercio nominado. Puedes volver a postularte si cambia tu situación operativa."
+    },
+    "landing": {
+      "switchLanguage": "View in English",
+      "heroEyebrow": "Miyagi Partners · Prueba fundadora 01",
+      "title": "Opera tres tiendas. Demuestra una práctica más tranquila.",
+      "body": "Una prueba de trabajo de 90 días, sin migración forzada, para operadores de comercio con experiencia en Estados Unidos. Conserva la tienda propia y los sistemas necesarios de cada comercio mientras probamos si el trabajo operativo repetido puede ser más seguro y legible.",
+      "primaryCta": "Postular con tres tiendas",
+      "promotorCta": "Promotor — México",
+      "truthEyebrow": "Lo que es cierto hoy",
+      "truthBody": "Miyagi opera infraestructura de marketplace y vendedores en México. Estados Unidos no tiene un marketplace abierto, catálogo público, checkout en dólares ni promesa de envíos o pagos. Este piloto existe para aprender qué debe demostrarse antes de hacer cualquiera de esas afirmaciones.",
+      "proofEyebrow": "Mecanismo de prueba paralela",
+      "proofTitle": "Cuatro puntos de control, sin migración forzada.",
+      "proofSteps": [
+        { "number": "01", "title": "Nombrar la evidencia", "detail": "Presenta tres tiendas públicas y los sistemas que deben permanecer." },
+        { "number": "02", "title": "Separar los permisos", "detail": "La nominación, el descubrimiento, la configuración paralela, los pedidos reales y una historia pública permanecen separados." },
+        { "number": "03", "title": "Trabajar en paralelo", "detail": "Opera durante una ventana acotada sin pedirle al comercio que migre." },
+        { "number": "04", "title": "Revisar la prueba", "detail": "A los 90 días, decide qué funcionó, qué no y si alguien debe continuar." }
+      ],
+      "fitEyebrow": "Un buen perfil",
+      "fitTitle": "Ya llevas la carga operativa.",
+      "fitItems": [
+        "Administras activamente al menos tres tiendas de productos independientes.",
+        "Puedes nombrar un problema operativo reciente y repetido, no solo funciones deseadas.",
+        "Puedes proteger el contexto del comercio y conservar los sistemas necesarios.",
+        "Puedes participar en puntos de control durante una ventana de 90 días."
+      ],
+      "notFitEyebrow": "Este programa no es",
+      "notFitTitle": "No ofrece prospectos, insignias, promesas de comisión ni acceso inmediato.",
+      "notFitItems": [
+        "No es un programa de reventa, marketplace de prospectos, certificación ni CRM para agencias.",
+        "La prueba de 90 días no cobra tarifa de plataforma ni migración de Miyagi; eso no es un precio permanente.",
+        "No se promete participación en los ingresos del operador.",
+        "La URL de una tienda nunca autoriza acceso ni contacto con el comercio."
+      ]
+    },
+    "application": {
+      "channelOptions": { "online_store": "Tienda en línea propia", "marketplace": "Marketplace", "social": "Comercio social", "wholesale": "Mayoreo", "other": "Otro" },
+      "awarenessOptions": { "not_contacted": "No ha sido contactado sobre esta nominación", "aware_of_nomination": "Sabe que estoy nominando la tienda", "interested_in_conversation": "Le interesa conversar con Miyagi" },
+      "otherPlatform": "Otra",
+      "validation": {
+        "shopCount": "Esta prueba requiere un operador que atienda activamente al menos tres tiendas.",
+        "shopUrl": "Cada registro necesita una URL pública http o https. No se aceptan URLs locales, privadas ni con credenciales.",
+        "duplicateShop": "Cada registro debe nombrar una tienda pública diferente.",
+        "channels": "Elige al menos un canal operativo para cada tienda.",
+        "checkpoint": "Confirma que puedes participar en un punto de control operativo de 90 días.",
+        "qualification": "Completa el perfil operativo y los registros de las tres tiendas.",
+        "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
+        "receive": "No pudimos recibir la solicitud. Inténtalo de nuevo.",
+        "network": "No pudimos recibir la solicitud. Tus respuestas siguen aquí; inténtalo de nuevo."
+      },
+      "successEyebrow": "Expediente recibido",
+      "successTitle": "Recibido para revisión; aún no está aceptado.",
+      "successBody": "Revisaremos el perfil operativo y te contactaremos directamente. Esta solicitud no creó acceso a tiendas, no contactó a ningún comercio y no otorgó permisos.",
+      "eyebrow": "Expediente de solicitud · versión 1",
+      "title": "Pon tres tiendas reales sobre la mesa.",
+      "body": "Pedimos evidencia pública y restricciones operativas, no contraseñas, tokens, datos de clientes, ingresos ni un compromiso de migración.",
+      "profileLegend": "Tu perfil operativo",
+      "fields": {
+        "name": "Tu nombre",
+        "email": "Correo de trabajo",
+        "phone": "WhatsApp o teléfono",
+        "company": "Empresa o práctica",
+        "role": "Tu función operativa",
+        "rolePlaceholder": "p. ej., responsable de agencia o líder de ecommerce",
+        "activeShops": "Tiendas activas que operas hoy"
+      },
+      "evidenceLegend": "Registro de evidencia de tres tiendas",
+      "evidenceBody": "Una nominación no es consentimiento del comercio. Miyagi no contactará a estas tiendas desde este formulario.",
+      "shopUrl": "URL pública de la tienda",
+      "shopUrlPlaceholder": "https://tienda.example",
+      "platform": "Plataforma",
+      "merchantAwareness": "Conocimiento del comercio",
+      "channels": "Canales que operas para esta tienda",
+      "constraintsLegend": "Restricciones operativas",
+      "recentProblem": "Un problema operativo reciente en estas tiendas",
+      "retainSystems": "Sistemas o prácticas del comercio que deben permanecer",
+      "whyNow": "¿Por qué vale la pena probar ahora una operación paralela de 90 días?",
+      "checkpoint": "Puedo participar en un punto de control de 90 días. Entiendo que esta es una prueba sin migración forzada, no una aceptación, acceso a tiendas, consentimiento del comercio, precio gratuito permanente ni participación en ingresos.",
+      "honeypot": "Campo adicional",
+      "sending": "Enviando expediente…",
+      "submit": "Enviar para revisión del fundador",
+      "boundary": "Éxito significa recibido para revisión. No crea una cuenta, no otorga una tienda ni contacta a un comercio nominado."
+    }
+  },
   "pwaSearch": {
     "title": "Buscar",
     "placeholder": "¿Qué estás buscando?",

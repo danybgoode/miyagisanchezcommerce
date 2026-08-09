@@ -7,8 +7,9 @@
  */
 import { NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/admin/guard'
-import { approvePromoterApplication } from '@/lib/promoter-applications'
+import { approvePromoterApplication, getPromoterApplication } from '@/lib/promoter-applications'
 import { sendPromoterApplicationApproved } from '@/lib/email'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,10 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 export const POST = withAdmin(async (_req: Request, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
+  const application = await getPromoterApplication(id)
+  if (application?.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  }
   const result = await approvePromoterApplication(id)
   if (!result.ok) {
     const status = result.reason === 'not_found' ? 404 : 409

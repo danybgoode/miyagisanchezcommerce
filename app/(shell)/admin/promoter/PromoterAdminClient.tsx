@@ -54,6 +54,20 @@ const APPLICATION_STATUS_LABEL: Record<PromoterApplication['status'], string> = 
   rejected: 'Rechazada',
 }
 
+function merchantAwarenessLabel(value: unknown): string {
+  if (value === 'not_contacted') return 'Sin contactar sobre la nominación'
+  if (value === 'aware_of_nomination') return 'Conoce la nominación'
+  if (value === 'interested_in_conversation') return 'Interés en conversar'
+  return 'Estado no disponible'
+}
+
+function platformLabel(value: unknown): string {
+  if (value === 'shopify') return 'Shopify'
+  if (value === 'woocommerce') return 'WooCommerce'
+  if (value === 'other') return 'Otra'
+  return 'Plataforma no disponible'
+}
+
 /** Build a tappable wa.me link from a stored WhatsApp number (digits only). */
 function whatsappLink(whatsapp: string): string {
   return `https://wa.me/${whatsapp.replace(/\D/g, '')}`
@@ -321,7 +335,7 @@ export default function PromoterAdminClient({
   const pendingTotalCents = pending.reduce((sum, c) => sum + (c.commission_cents ?? 0), 0)
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Promotores</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
@@ -353,7 +367,7 @@ export default function PromoterAdminClient({
         </div>
       </section>
 
-      {/* Sprint 2 · US-2.2 — self-serve applications */}
+      {/* One queue; qualification is structured while shop authority stays elsewhere. */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Solicitudes ({applications.filter((a) => a.status === 'pending').length} pendientes)</h2>
         {applications.length === 0 ? (
@@ -366,6 +380,7 @@ export default function PromoterAdminClient({
                   <div>
                     <span className="font-semibold">{a.name}</span>
                     {a.city && <span className="text-[var(--color-muted)] ml-2">· {a.city}</span>}
+                    {a.program_track === 'founding_operator' && <span className="ml-2 text-xs font-medium rounded bg-[var(--color-agent-soft)] text-[var(--color-agent)] px-1.5 py-0.5">Operador fundador de comercio · EE. UU.</span>}
                   </div>
                   <span className="text-xs rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5">
                     {APPLICATION_STATUS_LABEL[a.status]}
@@ -377,16 +392,46 @@ export default function PromoterAdminClient({
                     WhatsApp
                   </a>
                 </div>
-                {a.motivation && <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{a.motivation}&rdquo;</p>}
+                {a.program_track === 'founding_operator' && a.operator_details ? (
+                  <div className="space-y-3 border-l-2 border-[var(--color-agent)] pl-3">
+                    <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+                      <div><dt className="text-[var(--color-muted)]">Firma o práctica</dt><dd className="font-medium">{a.operator_details.company_name}</dd></div>
+                      <div><dt className="text-[var(--color-muted)]">Rol</dt><dd className="font-medium">{a.operator_details.operator_role}</dd></div>
+                      <div><dt className="text-[var(--color-muted)]">Tiendas activas</dt><dd className="font-medium">{a.operator_details.active_shop_count}</dd></div>
+                      <div><dt className="text-[var(--color-muted)]">Revisión a 90 días</dt><dd className="font-medium">Confirmada</dd></div>
+                    </dl>
+                    <ol className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
+                      {a.operator_details.candidate_shops.map((shop, index) => (
+                        <li key={`${a.id}-${index}`} className="grid gap-1 py-2 text-xs sm:grid-cols-[2rem_1fr_auto] sm:items-center">
+                          <span className="font-mono text-[var(--color-agent)]">0{index + 1}</span>
+                          <a href={shop.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{shop.url}</a>
+                          <span className="text-[var(--color-muted)]">{platformLabel(shop.platform)} · {merchantAwarenessLabel(shop.merchant_awareness)}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <dl className="space-y-2 text-xs">
+                      <div><dt className="font-semibold">Problema operativo reciente</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.recent_operating_problem}</dd></div>
+                      <div><dt className="font-semibold">Sistemas que deben permanecer</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.must_retain_systems}</dd></div>
+                      <div><dt className="font-semibold">Por qué ahora</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.why_now}</dd></div>
+                    </dl>
+                    <p className="bg-[var(--color-promo-soft)] px-3 py-2 text-xs">La nominación no equivale al consentimiento del comercio. Contacta únicamente a la persona solicitante.</p>
+                  </div>
+                ) : a.motivation ? <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{a.motivation}&rdquo;</p> : null}
                 {a.status === 'pending' && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => decide(a.id, 'approve')}
-                      disabled={decidingId === a.id}
+                      disabled={decidingId === a.id || a.program_track === 'founding_operator'}
+                      title={a.program_track === 'founding_operator' ? 'La aprobación neutral y la invitación del operador se habilitan en el Sprint 2.' : undefined}
                       className="rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 text-sm font-semibold disabled:opacity-50"
                     >
                       {decidingId === a.id ? 'Procesando…' : 'Aprobar'}
                     </button>
+                    {a.program_track === 'founding_operator' && (
+                      <a href={`mailto:${encodeURIComponent(a.email)}?subject=${encodeURIComponent('Miyagi Partners — conversación sobre solicitud')}`} className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-sm font-semibold hover:bg-[var(--color-surface)]">
+                        Solicitar conversación
+                      </a>
+                    )}
                     <button
                       onClick={() => decide(a.id, 'reject')}
                       disabled={decidingId === a.id}

@@ -629,7 +629,6 @@ export async function sendOfferAccepted(ctx: OfferEmailCtx & {
   sellerPhone?: string | null
 }): Promise<void> {
   const subject = `✓ Tu oferta fue aceptada — ${ctx.listingTitle}`
-  const savings = ctx.askingPrice // we'll show % saved
   const expiryStr = ctx.checkoutExpiresAt
     ? new Date(ctx.checkoutExpiresAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'medium', timeStyle: 'short' })
     : null
@@ -1785,6 +1784,20 @@ export async function sendPromoterApplicationReceivedToAdmin(ctx: {
   await send(ctx.adminEmail, subject, body)
 }
 
+/** Privacy-minimal operator alert: qualification stays in the Clerk-admin queue. */
+export async function sendFoundingOperatorApplicationReceivedToAdmin(ctx: {
+  adminEmail: string
+  adminUrl: string
+}): Promise<void> {
+  const subject = 'New Founding Commerce Operator application'
+  const body = [
+    h1('Founding Commerce Operator application received'),
+    p('A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.'),
+    cta('Review application', ctx.adminUrl),
+  ].join('')
+  await send(ctx.adminEmail, subject, body)
+}
+
 /** Applicant: approved — here's your PRM- code + how to finish signup. */
 export async function sendPromoterApplicationApproved(ctx: {
   to: string
@@ -1820,6 +1833,24 @@ export async function sendPromoterApplicationRejected(ctx: {
     p('Revisamos tu solicitud para ser promotor de Miyagi Sánchez y, por ahora, no podemos avanzar con ella.'),
     p('Puedes volver a aplicar más adelante si tu situación cambia. Gracias por el interés en el proyecto.'),
   ].join('')
+  await send(ctx.to, subject, body)
+}
+
+export async function sendFoundingOperatorApplicationRejected(ctx: {
+  to: string
+  name: string
+  locale?: Locale
+}): Promise<void> {
+  // Intake locale is deliberately not persisted with the qualification dossier,
+  // so an unspecified locale sends both dictionaries instead of guessing.
+  const locales: Locale[] = ctx.locale ? [ctx.locale] : ['en', 'es']
+  const messages = await Promise.all(locales.map(async (locale) => (await getDictionary(locale)).partnersRecruiting.email))
+  const subject = messages.map((ui) => ui.rejectionSubject).join(' / ')
+  const body = messages.flatMap((ui) => [
+    h1(ui.rejectionHeading.replace('{name}', ctx.name)),
+    p(ui.rejectionBody),
+    p(ui.rejectionBoundary),
+  ]).join('')
   await send(ctx.to, subject, body)
 }
 

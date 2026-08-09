@@ -111,7 +111,7 @@ test.describe('promoter applications · POST /api/promoter/apply (anonymous)', (
 
 const PENDING_APP: PromoterApplication = {
   id: 'app_1', name: 'Test', email: 't@example.com', whatsapp: '555', city: null, motivation: null,
-  status: 'pending', promoter_id: null,
+  status: 'pending', promoter_id: null, program_track: 'promoter', operator_details_version: null, operator_details: null,
 }
 
 test.describe('promoter applications · decideApplicationTransition (pure — US-2.2)', () => {

@@ -2,8 +2,9 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 import { db } from '@/lib/supabase'
-import { getPromoterByClerkId } from '@/lib/promoter'
+import { getPartnerIdentityByClerkId } from '@/lib/promoter'
 import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
@@ -50,13 +51,16 @@ function fmtDate(iso: string): string {
  * read-only, so it's offered alongside as the actually-useful "see it live"
  * deep link.
  *
- * Behind `partners.mcp_enabled` — flag off → `notFound()`. `force-dynamic` so
- * that 404 doesn't bake into the prerender (LEARNINGS: a flag flip must be
- * visible on the very next request, not held back by a cached static shell).
+ * Admission is track-aware: the existing Promotor path remains behind
+ * `partners.mcp_enabled`; a founding-operator identity is admitted only by
+ * `partners.recruiting_v3_enabled`. `force-dynamic` keeps either OFF result
+ * from baking into a cached static shell.
  *
  * STEWARDSHIP PORTFOLIO (merchant-partner-lifecycle S1.2): with
  * `promoter.partner_portfolio_enabled` ON, the `<PartnerPortfolio>` action queue
- * renders ABOVE the grant list. With the flag OFF — its born state — the
+ * renders ABOVE the grant list for the legacy Promotor track. Founding operators
+ * have a grant-only workspace and never inherit Promotor stewardship tooling.
+ * With the flag OFF — its born state — the
  * expression below evaluates to `false`, React renders nothing for it, and this
  * page's markup is BYTE-IDENTICAL to what it serves today. That is the whole
  * promise of the kill-switch, and it is why the portfolio is an ADDITIONAL
@@ -71,14 +75,26 @@ export default async function PartnerDashboardPage({
   // Next.js 16: a Promise, always awaited (AGENTS).
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  if (!(await isEnabled('partners.mcp_enabled'))) notFound()
-
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
-  const portfolioEnabled = await isEnabled(PORTFOLIO_FLAG)
+  const [partnerMcpEnabled, recruitingEnabled, portfolioEnabled, promoter] = await Promise.all([
+    isEnabled('partners.mcp_enabled'),
+    recruitingV3Enabled(),
+    isEnabled(PORTFOLIO_FLAG),
+    getPartnerIdentityByClerkId(user.id),
+  ])
+  if (promoter) {
+    if (!(promoter.program_track === 'founding_operator' ? recruitingEnabled : partnerMcpEnabled)) notFound()
+  } else if (!partnerMcpEnabled) {
+    // Preserve the existing PRM binding entry only under its existing flag.
+    notFound()
+  }
+  const foundingOperator = promoter?.program_track === 'founding_operator'
+  const showPortfolio = portfolioEnabled && !foundingOperator
+
   const params = new URLSearchParams()
-  if (portfolioEnabled) {
+  if (showPortfolio) {
     for (const [key, value] of Object.entries(await searchParams)) {
       if (typeof value === 'string') params.set(key, value)
       // An array-valued param (`?due=a&due=b`) keeps only the FIRST value —
@@ -87,8 +103,6 @@ export default async function PartnerDashboardPage({
       else if (Array.isArray(value) && value.length > 0) params.set(key, value[0])
     }
   }
-
-  const promoter = await getPromoterByClerkId(user.id)
 
   let grants: GrantedShop[] = []
   if (promoter) {
@@ -132,12 +146,16 @@ export default async function PartnerDashboardPage({
   }
 
   return (
-    <div className={portfolioEnabled ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
+    <div className={showPortfolio ? 'max-w-4xl mx-auto px-4 py-8 space-y-6' : 'max-w-2xl mx-auto px-4 py-8 space-y-6'}>
       <header>
         <h1 className="text-2xl font-bold">Mis tiendas</h1>
         {promoter ? (
           <p className="text-sm text-[var(--color-muted)] mt-1">
-            Socio <span className="font-mono font-semibold">{promoter.code}</span>
+            {foundingOperator ? (
+              <>Operador fundador de comercio</>
+            ) : (
+              <>Socio <span className="font-mono font-semibold">{promoter.code}</span></>
+            )}
             {promoter.name && <span className="ml-2">· {promoter.name}</span>}
           </p>
         ) : (
@@ -147,7 +165,7 @@ export default async function PartnerDashboardPage({
         )}
       </header>
 
-      {portfolioEnabled && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
+      {showPortfolio && <PartnerPortfolio clerkUserId={user.id} searchParams={params} />}
 
       {!promoter && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
@@ -159,9 +177,13 @@ export default async function PartnerDashboardPage({
 
       {promoter && grants.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] p-4 text-sm text-[var(--color-muted)]">
-          Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
-          en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
-          automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.
+          {foundingOperator ? (
+            <>Tu identidad de operador está activa y actualmente no tiene tiendas. La aprobación del programa no equivale al acceso: una tienda aparece solo después de que un comercio o un administrador de Miyagi te concede un permiso independiente.</>
+          ) : (
+            <>Todavía no tienes tiendas asignadas. Una tienda llega aquí en cuanto (a) la cierras tú mismo
+              en <Link href="/promotor/cerrar" className="underline">/promotor/cerrar</Link> — el acceso se otorga
+              automáticamente — o (b) un administrador de Miyagi te concede acceso a una tienda existente.</>
+          )}
         </div>
       )}
 
@@ -182,9 +204,11 @@ export default async function PartnerDashboardPage({
                 <Link href={shopUrlFor(SITE_ORIGIN, g.shop.slug)} target="_blank" rel="noreferrer" className="underline">
                   Ver tienda
                 </Link>
-                <Link href="/shop/manage" className="underline">
-                  Administrar
-                </Link>
+                {!foundingOperator && (
+                  <Link href="/shop/manage" className="underline">
+                    Administrar
+                  </Link>
+                )}
               </div>
             </li>
           ))}

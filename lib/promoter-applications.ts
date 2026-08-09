@@ -1,30 +1,37 @@
 /**
- * Promoter Funnel v2 · Sprint 2 — self-serve promoter applications (Supabase side).
- *
- * A pending REQUEST to become a promoter, distinct from `marketplace_promoters`
- * (lib/promoter.ts) — approving one calls the existing `createPromoter()` unchanged
- * and links the resulting row via `promoter_id`. Hand-minting (the admin "Nuevo
- * promotor" button) has no application and keeps working unchanged. Applications
- * are a concept Medusa has no notion of → Supabase (AGENTS rule #2).
- *
- * Pure + next-free so `validateApplicationInput` is directly unit-testable
- * (e2e/promoter-applications.spec.ts); the Supabase calls live here too, exactly
- * like lib/promoter.ts.
- *
- * Table (supabase/migrations/20260702130000_promoter_applications.sql):
- *   marketplace_promoter_applications
- *
- * Every function tolerates the table not existing yet (returns a safe default).
+ * One application seam for the legacy Mexican Promotor funnel and the versioned
+ * founding-operator intake. Program track is descriptive; it never grants shops.
  */
-
 import { db } from '@/lib/supabase'
 import { createPromoter, type Promoter } from '@/lib/promoter'
+import { canonicalCandidateShopUrl } from '@/lib/candidate-shop-url'
+export { canonicalCandidateShopUrl } from '@/lib/candidate-shop-url'
 
-// Dependency-free email shape check (deliberately NOT imported from lib/sweepstakes.ts —
-// that module pulls in 'server-only' + a direct locales/es.json import via lib/dictionary.ts,
-// which the Playwright api-project runner can't load when testing this pure seam).
 function isValidEmailShape(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase())
+}
+
+export type ProgramTrack = 'promoter' | 'founding_operator'
+export type MerchantAwareness = 'not_contacted' | 'aware_of_nomination' | 'interested_in_conversation'
+export type CandidatePlatform = 'shopify' | 'woocommerce' | 'other'
+export type CandidateChannel = 'online_store' | 'marketplace' | 'social' | 'wholesale' | 'other'
+
+export interface CandidateShopV1 {
+  url: string
+  platform: CandidatePlatform
+  channels: CandidateChannel[]
+  merchant_awareness: MerchantAwareness
+}
+
+export interface OperatorDetailsV1 {
+  company_name: string
+  operator_role: string
+  active_shop_count: number
+  candidate_shops: [CandidateShopV1, CandidateShopV1, CandidateShopV1]
+  recent_operating_problem: string
+  must_retain_systems: string
+  why_now: string
+  checkpoint_90_day: true
 }
 
 export interface PromoterApplication {
@@ -36,139 +43,224 @@ export interface PromoterApplication {
   motivation: string | null
   status: 'pending' | 'approved' | 'rejected'
   promoter_id: string | null
+  program_track: ProgramTrack
+  operator_details_version: 1 | null
+  operator_details: OperatorDetailsV1 | null
+  activation_expires_at?: string | null
+  activation_used_at?: string | null
+  invitation_provider_status?: 'pending' | 'provider_accepted' | 'unconfirmed' | null
+  invitation_attempt_count?: number | null
+  invitation_attempted_at?: string | null
+  invitation_provider_accepted_at?: string | null
   created_at?: string
   decided_at?: string | null
 }
 
 const APPLICATION_COLUMNS =
-  'id, name, email, whatsapp, city, motivation, status, promoter_id, created_at, decided_at'
-
-// ── Validation (pure — no network) ────────────────────────────────────────────
+  'id, name, email, whatsapp, city, motivation, status, promoter_id, program_track, operator_details_version, operator_details, created_at, decided_at'
 
 export type ApplicationInput = {
-  name?: string
-  email?: string
-  whatsapp?: string
-  city?: string
-  motivation?: string
-  /** Honeypot field — a real applicant never fills this. Non-empty ⇒ treat as spam. */
-  website?: string
+  name?: unknown
+  email?: unknown
+  whatsapp?: unknown
+  city?: unknown
+  motivation?: unknown
+  website?: unknown
+  program_track?: unknown
+  operator_details_version?: unknown
+  operator_details?: unknown
+  [key: string]: unknown
 }
 
+type PromoterClean = {
+  name: string
+  email: string
+  whatsapp: string
+  city: string | null
+  motivation: string | null
+}
+
+type OperatorClean = {
+  name: string
+  email: string
+  whatsapp: string
+  city: null
+  motivation: null
+  program_track: 'founding_operator'
+  operator_details_version: 1
+  operator_details: OperatorDetailsV1
+}
+
+export type ApplicationRefusalReason =
+  | 'honeypot' | 'missing_fields' | 'invalid_email' | 'too_long'
+  | 'invalid_payload' | 'shop_count' | 'shop_url' | 'qualification'
+
 export type ValidationResult =
-  | { ok: true; clean: { name: string; email: string; whatsapp: string; city: string | null; motivation: string | null } }
-  | { ok: false; reason: 'honeypot' | 'missing_fields' | 'invalid_email' | 'too_long' }
+  | { ok: true; clean: PromoterClean | OperatorClean }
+  | { ok: false; reason: ApplicationRefusalReason }
 
 const MAX_NAME_LEN = 100
 const MAX_WHATSAPP_LEN = 30
-const MAX_CITY_LEN = 100
-const MAX_MOTIVATION_LEN = 1000
+const MAX_SHORT_LEN = 160
+const MAX_LONG_LEN = 1200
+const OPERATOR_TOP_LEVEL_KEYS = new Set([
+  'name', 'email', 'whatsapp', 'website', 'program_track', 'operator_details_version', 'operator_details',
+])
+const OPERATOR_DETAIL_KEYS = new Set([
+  'company_name', 'operator_role', 'active_shop_count', 'candidate_shops',
+  'recent_operating_problem', 'must_retain_systems', 'why_now', 'checkpoint_90_day',
+])
+const SHOP_KEYS = new Set(['url', 'platform', 'channels', 'merchant_awareness'])
+const PLATFORMS = new Set<CandidatePlatform>(['shopify', 'woocommerce', 'other'])
+const CHANNELS = new Set<CandidateChannel>(['online_store', 'marketplace', 'social', 'wholesale', 'other'])
+const AWARENESS = new Set<MerchantAwareness>(['not_contacted', 'aware_of_nomination', 'interested_in_conversation'])
 
-/**
- * Validate a raw application submission. Checked in order: honeypot (silently
- * treated as spam, never surfaced as a distinct error to the caller — see the
- * route), required fields, email shape, then length caps so a malicious payload
- * can't blow up storage/notification copy.
- */
-export function validateApplicationInput(input: ApplicationInput): ValidationResult {
-  if ((input.website ?? '').trim().length > 0) return { ok: false, reason: 'honeypot' }
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
 
-  const name = (input.name ?? '').trim()
-  const email = (input.email ?? '').trim()
-  const whatsapp = (input.whatsapp ?? '').trim()
-  const city = (input.city ?? '').trim()
-  const motivation = (input.motivation ?? '').trim()
+function hasOnlyKeys(record: Record<string, unknown>, allowed: Set<string>): boolean {
+  return Object.keys(record).every((key) => allowed.has(key))
+}
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function validatePromoterInput(input: ApplicationInput): ValidationResult {
+  if (stringValue(input.website)) return { ok: false, reason: 'honeypot' }
+  const name = stringValue(input.name)
+  const email = stringValue(input.email)
+  const whatsapp = stringValue(input.whatsapp)
+  const city = stringValue(input.city)
+  const motivation = stringValue(input.motivation)
   if (!name || !email || !whatsapp) return { ok: false, reason: 'missing_fields' }
   if (!isValidEmailShape(email)) return { ok: false, reason: 'invalid_email' }
-  if (name.length > MAX_NAME_LEN || whatsapp.length > MAX_WHATSAPP_LEN || city.length > MAX_CITY_LEN || motivation.length > MAX_MOTIVATION_LEN) {
+  if (name.length > MAX_NAME_LEN || whatsapp.length > MAX_WHATSAPP_LEN || city.length > 100 || motivation.length > 1000) {
     return { ok: false, reason: 'too_long' }
   }
+  return { ok: true, clean: { name, email: email.toLowerCase(), whatsapp, city: city || null, motivation: motivation || null } }
+}
+
+function validateOperatorInput(input: ApplicationInput): ValidationResult {
+  if (input.website !== undefined && typeof input.website !== 'string') return { ok: false, reason: 'invalid_payload' }
+  if (stringValue(input.website)) return { ok: false, reason: 'honeypot' }
+  if (!hasOnlyKeys(input, OPERATOR_TOP_LEVEL_KEYS) || input.operator_details_version !== 1 || !isRecord(input.operator_details)) {
+    return { ok: false, reason: 'invalid_payload' }
+  }
+  const name = stringValue(input.name)
+  const email = stringValue(input.email)
+  const whatsapp = stringValue(input.whatsapp)
+  if (!name || !email || !whatsapp) return { ok: false, reason: 'missing_fields' }
+  if (!isValidEmailShape(email)) return { ok: false, reason: 'invalid_email' }
+  if (name.length > MAX_NAME_LEN || whatsapp.length > MAX_WHATSAPP_LEN) return { ok: false, reason: 'too_long' }
+
+  const details = input.operator_details
+  if (!hasOnlyKeys(details, OPERATOR_DETAIL_KEYS)) return { ok: false, reason: 'invalid_payload' }
+  const companyName = stringValue(details.company_name)
+  const operatorRole = stringValue(details.operator_role)
+  const activeShopCount = details.active_shop_count
+  const recentProblem = stringValue(details.recent_operating_problem)
+  const retainSystems = stringValue(details.must_retain_systems)
+  const whyNow = stringValue(details.why_now)
+  if (!companyName || !operatorRole || !Number.isInteger(activeShopCount) || (activeShopCount as number) < 3 || (activeShopCount as number) > 10000
+    || !recentProblem || !retainSystems || !whyNow || details.checkpoint_90_day !== true) {
+    return { ok: false, reason: Number(activeShopCount) < 3 ? 'shop_count' : 'qualification' }
+  }
+  if (companyName.length > MAX_SHORT_LEN || operatorRole.length > MAX_SHORT_LEN
+    || [recentProblem, retainSystems, whyNow].some((value) => value.length > MAX_LONG_LEN)) {
+    return { ok: false, reason: 'too_long' }
+  }
+  if (!Array.isArray(details.candidate_shops) || details.candidate_shops.length !== 3) return { ok: false, reason: 'shop_count' }
+
+  const shops: CandidateShopV1[] = []
+  for (const candidate of details.candidate_shops) {
+    if (!isRecord(candidate) || !hasOnlyKeys(candidate, SHOP_KEYS)) return { ok: false, reason: 'invalid_payload' }
+    const url = canonicalCandidateShopUrl(candidate.url)
+    const platform = candidate.platform
+    const channels = candidate.channels
+    const awareness = candidate.merchant_awareness
+    if (!url) return { ok: false, reason: 'shop_url' }
+    if (!PLATFORMS.has(platform as CandidatePlatform) || !Array.isArray(channels) || channels.length === 0
+      || channels.length > CHANNELS.size || !channels.every((channel) => CHANNELS.has(channel as CandidateChannel))
+      || new Set(channels).size !== channels.length || !AWARENESS.has(awareness as MerchantAwareness)) {
+      return { ok: false, reason: 'qualification' }
+    }
+    shops.push({ url, platform: platform as CandidatePlatform, channels: channels as CandidateChannel[], merchant_awareness: awareness as MerchantAwareness })
+  }
+  if (new Set(shops.map((shop) => shop.url)).size !== 3) return { ok: false, reason: 'shop_url' }
 
   return {
     ok: true,
     clean: {
-      name,
-      email: email.toLowerCase(),
-      whatsapp,
-      city: city || null,
-      motivation: motivation || null,
+      name, email: email.toLowerCase(), whatsapp, city: null, motivation: null,
+      program_track: 'founding_operator', operator_details_version: 1,
+      operator_details: {
+        company_name: companyName, operator_role: operatorRole, active_shop_count: activeShopCount as number,
+        candidate_shops: shops as [CandidateShopV1, CandidateShopV1, CandidateShopV1],
+        recent_operating_problem: recentProblem, must_retain_systems: retainSystems,
+        why_now: whyNow, checkpoint_90_day: true,
+      },
     },
   }
 }
 
-type RefusalReason = Extract<ValidationResult, { ok: false }>['reason']
-
-/** es-MX message for a refused application (mirrors promoterRefusalMessage). */
-export function applicationRefusalMessage(reason: RefusalReason): string {
-  switch (reason) {
-    case 'honeypot':
-      return 'No se pudo enviar la solicitud.' // never reveal the trap
-    case 'missing_fields':
-      return 'Completa tu nombre, correo y WhatsApp.'
-    case 'invalid_email':
-      return 'Ingresa un correo válido.'
-    case 'too_long':
-      return 'Alguno de los campos es demasiado largo.'
-  }
+export function validateApplicationInput(input: ApplicationInput): ValidationResult {
+  if (input.program_track === 'founding_operator') return validateOperatorInput(input)
+  if (input.program_track === undefined || input.program_track === 'promoter') return validatePromoterInput(input)
+  return { ok: false, reason: 'invalid_payload' }
 }
 
-// ── Application CRUD (Supabase) ───────────────────────────────────────────────
-
-/**
- * Insert a new pending application. Returns the row, or null on DB error /
- * missing table (the route surfaces a generic failure — never leaks the cause).
- */
-export async function createPromoterApplication(
-  clean: { name: string; email: string; whatsapp: string; city: string | null; motivation: string | null },
-): Promise<PromoterApplication | null> {
-  const { data, error } = await db
-    .from('marketplace_promoter_applications')
-    .insert({ ...clean, status: 'pending' })
-    .select(APPLICATION_COLUMNS)
-    .maybeSingle()
-  if (error || !data) {
-    if (error && !/does not exist|relation/i.test(error.message ?? '')) {
-      console.error('[promoter-applications] create failed:', error.message)
+export function applicationRefusalMessage(reason: ApplicationRefusalReason, track: ProgramTrack = 'promoter'): string {
+  if (track === 'founding_operator') {
+    const messages: Record<ApplicationRefusalReason, string> = {
+      honeypot: 'We could not receive the application.', missing_fields: 'Complete your contact details.',
+      invalid_email: 'Enter a valid email address.', too_long: 'One or more answers are too long.',
+      invalid_payload: 'Review the application fields and try again.', shop_count: 'Include exactly three shops and confirm that you actively operate at least three.',
+      shop_url: 'Each shop needs a public http or https URL.', qualification: 'Complete the operating profile and all three shop records.',
     }
-    return null
+    return messages[reason]
   }
-  return data as PromoterApplication
+  const messages: Record<ApplicationRefusalReason, string> = {
+    honeypot: 'No se pudo enviar la solicitud.', missing_fields: 'Completa tu nombre, correo y WhatsApp.',
+    invalid_email: 'Ingresa un correo válido.', too_long: 'Alguno de los campos es demasiado largo.',
+    invalid_payload: 'Revisa los campos de la solicitud.', shop_count: 'Revisa las tiendas indicadas.',
+    shop_url: 'Revisa las ligas indicadas.', qualification: 'Completa la solicitud.',
+  }
+  return messages[reason]
 }
 
-/** All applications, optionally filtered by status, newest first (admin console). */
+export type CreateApplicationResult = { application: PromoterApplication; created: boolean }
+
+export async function createPromoterApplication(clean: PromoterClean | OperatorClean): Promise<CreateApplicationResult | null> {
+  const { data, error } = await db.from('marketplace_promoter_applications')
+    .insert({ ...clean, status: 'pending' }).select(APPLICATION_COLUMNS).maybeSingle()
+  if (!error && data) return { application: data as PromoterApplication, created: true }
+
+  if ('program_track' in clean && clean.program_track === 'founding_operator' && error?.code === '23505') {
+    const { data: existing } = await db.from('marketplace_promoter_applications')
+      .select(APPLICATION_COLUMNS).eq('program_track', 'founding_operator').eq('email', clean.email)
+      .in('status', ['pending', 'approved']).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (existing) return { application: existing as PromoterApplication, created: false }
+  }
+  if (error && !/does not exist|relation/i.test(error.message ?? '')) console.error('[promoter-applications] create failed:', error.message)
+  return null
+}
+
 export async function listPromoterApplications(status?: PromoterApplication['status']): Promise<PromoterApplication[]> {
   let query = db.from('marketplace_promoter_applications').select(APPLICATION_COLUMNS).order('created_at', { ascending: false })
   if (status) query = query.eq('status', status)
   const { data, error } = await query
-  if (error || !data) return []
-  return data as PromoterApplication[]
+  return error || !data ? [] : data as PromoterApplication[]
 }
 
-/** Look up a single application by id. Null if not found / table missing. */
 export async function getPromoterApplication(id: string): Promise<PromoterApplication | null> {
   if (!id) return null
-  const { data, error } = await db
-    .from('marketplace_promoter_applications')
-    .select(APPLICATION_COLUMNS)
-    .eq('id', id)
-    .maybeSingle()
-  if (error || !data) return null
-  return data as PromoterApplication
+  const { data, error } = await db.from('marketplace_promoter_applications').select(APPLICATION_COLUMNS).eq('id', id).maybeSingle()
+  return error || !data ? null : data as PromoterApplication
 }
 
-// ── Approve / reject transition (epic 08 · S2 · US-2.2) ───────────────────────
-
-export type ApplicationTransitionDecision =
-  | { ok: true }
-  | { ok: false; reason: 'not_found' | 'invalid_transition' }
-
-/**
- * Pure transition guard — mirrors resolvePromoterDiscount's shape (the caller
- * looks the row up via DB and passes it in, so this stays unit-testable without
- * a network call). Only a `pending` application may transition; an unknown
- * (null) or already-decided application is refused (idempotency / no double-mint).
- */
+export type ApplicationTransitionDecision = { ok: true } | { ok: false; reason: 'not_found' | 'invalid_transition' }
 export function decideApplicationTransition(application: PromoterApplication | null): ApplicationTransitionDecision {
   if (!application) return { ok: false, reason: 'not_found' }
   if (application.status !== 'pending') return { ok: false, reason: 'invalid_transition' }
@@ -177,82 +269,38 @@ export function decideApplicationTransition(application: PromoterApplication | n
 
 export type DecideApplicationResult =
   | { ok: true; application: PromoterApplication; promoter?: Promoter }
-  | { ok: false; reason: 'not_found' | 'invalid_transition' | 'mint_failed' }
+  | { ok: false; reason: 'not_found' | 'invalid_transition' | 'mint_failed' | 'operator_approval_unavailable' }
 
-/**
- * Approve a pending application: claims the row FIRST via an atomic conditional
- * update (`.eq('status','pending')`), THEN mints the code — never the other way
- * around. Two concurrent approves (double-click, retry) racing the old
- * mint-then-claim order could both pass the pending check and both call
- * `createPromoter()`, leaving the loser's freshly-minted code orphaned in
- * `marketplace_promoters` even though its own claim failed (caught by cross-agent
- * review). Only one caller can win the claim; the loser mints nothing.
- * If minting fails after the claim, the claim is released back to `pending` so
- * the application can be retried instead of getting stuck "approved" with no code.
- */
 export async function approvePromoterApplication(id: string): Promise<DecideApplicationResult> {
   const application = await getPromoterApplication(id)
   const decision = decideApplicationTransition(application)
   if (!decision.ok) return decision
+  // Sprint 2 consumes the transactional SQL primitive. Never mint an MYP operator
+  // through the legacy PRM route while that neutral invitation path is absent.
+  if (application!.program_track === 'founding_operator') return { ok: false, reason: 'operator_approval_unavailable' }
 
-  const { data: claimed, error: claimError } = await db
-    .from('marketplace_promoter_applications')
-    .update({ status: 'approved', decided_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('status', 'pending')
-    .select(APPLICATION_COLUMNS)
-    .maybeSingle()
-  if (claimError || !claimed) {
-    if (claimError && !/does not exist|relation/i.test(claimError.message ?? '')) {
-      console.error('[promoter-applications] approve claim failed:', claimError.message)
-    }
-    return { ok: false, reason: 'invalid_transition' }
-  }
-
+  const { data: claimed, error: claimError } = await db.from('marketplace_promoter_applications')
+    .update({ status: 'approved', decided_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending')
+    .select(APPLICATION_COLUMNS).maybeSingle()
+  if (claimError || !claimed) return { ok: false, reason: 'invalid_transition' }
   const promoter = await createPromoter(claimed.name)
   if (!promoter) {
-    // Release the claim — mint_failed should be retryable, not a permanent dead end.
     await db.from('marketplace_promoter_applications').update({ status: 'pending', decided_at: null }).eq('id', id)
     return { ok: false, reason: 'mint_failed' }
   }
-
-  const { data, error } = await db
-    .from('marketplace_promoter_applications')
-    .update({ promoter_id: promoter.id })
-    .eq('id', id)
-    .select(APPLICATION_COLUMNS)
-    .maybeSingle()
-  if (error || !data) {
-    if (error) console.error('[promoter-applications] approve link failed:', error.message)
-    // The code minted fine and the row is already 'approved' — only the FK-back-reference
-    // write failed. Surface what we know rather than a false failure (the applicant's
-    // email still carries the real, valid code).
-    return { ok: true, application: { ...claimed, promoter_id: promoter.id }, promoter }
-  }
-  return { ok: true, application: data as PromoterApplication, promoter }
+  const { data, error } = await db.from('marketplace_promoter_applications').update({ promoter_id: promoter.id })
+    .eq('id', id).select(APPLICATION_COLUMNS).maybeSingle()
+  return error || !data
+    ? { ok: true, application: { ...(claimed as PromoterApplication), promoter_id: promoter.id }, promoter }
+    : { ok: true, application: data as PromoterApplication, promoter }
 }
 
-/**
- * Reject a pending application. Same pure transition guard as approve — no code
- * is ever minted on this path.
- */
 export async function rejectPromoterApplication(id: string): Promise<DecideApplicationResult> {
   const application = await getPromoterApplication(id)
   const decision = decideApplicationTransition(application)
   if (!decision.ok) return decision
-
-  const { data, error } = await db
-    .from('marketplace_promoter_applications')
-    .update({ status: 'rejected', decided_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('status', 'pending')
-    .select(APPLICATION_COLUMNS)
-    .maybeSingle()
-  if (error || !data) {
-    if (error && !/does not exist|relation/i.test(error.message ?? '')) {
-      console.error('[promoter-applications] reject update failed:', error.message)
-    }
-    return { ok: false, reason: 'invalid_transition' }
-  }
-  return { ok: true, application: data as PromoterApplication }
+  const { data, error } = await db.from('marketplace_promoter_applications')
+    .update({ status: 'rejected', decided_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending')
+    .select(APPLICATION_COLUMNS).maybeSingle()
+  return error || !data ? { ok: false, reason: 'invalid_transition' } : { ok: true, application: data as PromoterApplication }
 }

@@ -47,10 +47,11 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { PORTFOLIO_FLAG } from '@/lib/portfolio/gate-server'
-import { getPromoterById } from '@/lib/promoter'
+import { getPartnerIdentityById } from '@/lib/promoter'
 import { parseBearer, classifyAgentCredential } from '@/lib/agent-auth'
 import { resolvePartnerRow } from '@/lib/partner-auth'
 import type { RelationshipActor } from '@/lib/relationship-access'
+import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 
 export type PortfolioActorResult =
   | { ok: true; actor: RelationshipActor; partnerId: string; partnerCode: string }
@@ -109,6 +110,9 @@ export async function resolvePartnerPortfolioActor(
 
   const partner = await resolvePartnerRow(token)
   if (!partner) return { ok: false, message: null }
+  if (partner.program_track === 'founding_operator' && !(await recruitingV3Enabled())) {
+    return { ok: false, message: null }
+  }
 
   // Grants are checked PER CALL — a revoke denies the very next call, same
   // discipline as `resolveToolShop`. Fetch revoked rows too so the audit
@@ -139,7 +143,7 @@ export async function resolvePartnerPortfolioActor(
   // "UI and tool results agree" was simply not true, and the build contract's
   // required row-set parity spec had not been written either.
   //
-  // Read through the SHIPPED `getPromoterById` helper (`lib/promoter.ts`) rather
+  // Read through the track-aware `getPartnerIdentityById` helper (`lib/promoter.ts`) rather
   // than a raw query here — two reasons, and the second one is the interesting one:
   //   1. `PARTNER_COLS` in `lib/partner-auth.ts` feeds every seller tool's
   //      credential resolution; this epic does not need to widen a shared seam to
@@ -156,7 +160,7 @@ export async function resolvePartnerPortfolioActor(
   // FAIL-CLOSED on absence: an unbound promoter (no `clerk_user_id`) keeps the
   // synthetic identity, which resolves to strictly FEWER rows (no steward mirror)
   // rather than more. A null must never widen access, and `.eq(null)` would.
-  const bound = await getPromoterById(partner.id)
+  const bound = await getPartnerIdentityById(partner.id)
   const boundClerkId =
     typeof bound?.clerk_user_id === 'string' && bound.clerk_user_id ? bound.clerk_user_id : null
 
@@ -168,6 +172,7 @@ export async function resolvePartnerPortfolioActor(
       clerkUserId: boundClerkId ?? `partner:${partner.id}`,
       promoterId: partner.id,
       promoterCode: partner.code,
+      programTrack: partner.program_track,
       // `isAdmin` is an inline literal with no variable, no branch and no spread —
       // an MCP credential is never a Clerk admin session, and that must be
       // structurally impossible to set rather than merely defaulted (D2).
