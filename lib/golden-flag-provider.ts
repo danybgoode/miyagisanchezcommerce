@@ -129,21 +129,27 @@ function getProvider(flagKey: string):
     GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY:
       process.env.GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY,
   })
-  if (!baseUrl || !route.flagReadKey || !environment) {
-    // Runtime configuration is normally immutable, but releasing the timer
-    // makes a removed credential fail closed even in an unusual dynamic setup.
-    if (route.providerSlot === 'partners-recruiting-v3') {
-      resetProviderState(partnersRecruitingProviderState)
-    } else {
-      resetProviderState(primaryProviderState)
-    }
+  if (!baseUrl || !environment) {
+    // The URL and environment are shared prerequisites. If either disappears,
+    // neither provider can refresh safely, so release both timers and snapshots.
+    resetProviderState(primaryProviderState)
+    resetProviderState(partnersRecruitingProviderState)
     return undefined
   }
 
-  if (route.resetScopedProvider) {
+  if (
+    route.resetScopedProvider &&
+    partnersRecruitingProviderState.configuration
+  ) {
     // Removing the scoped credential must also release its refresh timer. The
+    // reset applies even when later traffic checks only primary flags; the
     // partner flag immediately falls back to the established primary provider.
     resetProviderState(partnersRecruitingProviderState)
+  }
+
+  if (!route.flagReadKey) {
+    resetProviderState(primaryProviderState)
+    return undefined
   }
 
   const state = route.providerSlot === 'partners-recruiting-v3'

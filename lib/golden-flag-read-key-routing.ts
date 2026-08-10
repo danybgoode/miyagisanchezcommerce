@@ -55,6 +55,6 @@ export function routeGoldenFlagReadKey(
     flagReadKey: primary,
     providerSlot: 'primary',
     persistToDurableMirror: true,
-    resetScopedProvider: flagKey === PARTNERS_RECRUITING_V3_FLAG_KEY,
+    resetScopedProvider: !partnersRecruiting,
   }
 }
