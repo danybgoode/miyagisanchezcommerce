@@ -12,10 +12,17 @@ import {
   type FlagProvider,
   type FlagResolutionReason,
 } from '@golden-beans/sdk'
-import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
+import {
+  parseGoldenFlagEnvironment,
+  type GoldenFlagEnvironment,
+} from '@/lib/flag-provider-mode'
 import { createFlagProviderRequestRefreshGate } from '@/lib/flag-provider-request-refresh'
 import { scheduleDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { trackGoldenFlagEvaluation } from '@/lib/growth-engine'
+import {
+  routeGoldenFlagReadKey,
+  type GoldenFlagReadKeyRoute,
+} from '@/lib/golden-flag-read-key-routing'
 
 export type GoldenBooleanEvaluation = {
   value: boolean
@@ -25,85 +32,131 @@ export type GoldenBooleanEvaluation = {
   reason: FlagResolutionReason
 }
 
-let provider: FlagProvider | undefined
-let started = false
-const requestRefreshGate = createFlagProviderRequestRefreshGate()
-let configuration:
-  | {
-      baseUrl: string
-      flagReadKey: string
-      environment: string
-    }
-  | undefined
+type ProviderState = {
+  provider: FlagProvider | undefined
+  started: boolean
+  requestRefreshGate: ReturnType<typeof createFlagProviderRequestRefreshGate>
+  configuration:
+    | {
+        baseUrl: string
+        flagReadKey: string
+        environment: string
+      }
+    | undefined
+}
 
-function getProvider(): FlagProvider | undefined {
-  // Read configuration lazily. This keeps the adapter safe for runtimes that
-  // load env after module evaluation and for isolated test setup.
-  const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
-  const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY
-  const environment = parseGoldenFlagEnvironment(
-    process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT,
-  )
-  if (!baseUrl || !flagReadKey || !environment) {
-    // Runtime configuration is normally immutable, but releasing the timer
-    // makes a removed credential fail closed even in an unusual dynamic setup.
-    try {
-      provider?.shutdown()
-    } catch {
-      // A flag check must never fail because cleanup did.
-    }
-    provider = undefined
-    started = false
-    requestRefreshGate.reset()
-    configuration = undefined
-    return undefined
+function createProviderState(): ProviderState {
+  return {
+    provider: undefined,
+    started: false,
+    requestRefreshGate: createFlagProviderRequestRefreshGate(),
+    configuration: undefined,
   }
+}
 
+const primaryProviderState = createProviderState()
+const partnersRecruitingProviderState = createProviderState()
+
+function resetProviderState(state: ProviderState): void {
+  try {
+    state.provider?.shutdown()
+  } catch {
+    // A flag check must never fail because cleanup did.
+  }
+  state.provider = undefined
+  state.started = false
+  state.requestRefreshGate.reset()
+  state.configuration = undefined
+}
+
+function configuredProvider(
+  state: ProviderState,
+  configuration: {
+    baseUrl: string
+    flagReadKey: string
+    environment: GoldenFlagEnvironment
+  },
+): FlagProvider {
   if (
-    provider &&
-    (configuration?.baseUrl !== baseUrl ||
-      configuration.flagReadKey !== flagReadKey ||
-      configuration.environment !== environment)
+    state.provider &&
+    (state.configuration?.baseUrl !== configuration.baseUrl ||
+      state.configuration.flagReadKey !== configuration.flagReadKey ||
+      state.configuration.environment !== configuration.environment)
   ) {
-    try {
-      provider.shutdown()
-    } catch {
-      // Replacing a rotated credential must not affect a flag decision.
-    }
-    provider = undefined
-    started = false
-    requestRefreshGate.reset()
+    resetProviderState(state)
   }
 
-  if (!provider) {
-    provider = createFlagProvider({
-      baseUrl,
-      flagReadKey,
-      environment,
+  if (!state.provider) {
+    state.provider = createFlagProvider({
+      ...configuration,
       refreshIntervalMs: 60_000,
       maxStaleMs: 300_000,
       refreshTimeoutMs: 2_000,
     })
-    configuration = { baseUrl, flagReadKey, environment }
+    state.configuration = configuration
   }
 
-  if (!started) {
-    started = true
-    requestRefreshGate.markAttempt()
+  if (!state.started) {
+    state.started = true
+    state.requestRefreshGate.markAttempt()
     // A snapshot is an optimisation only. Never make a request wait for it and
     // never allow an unexpected transport failure to become an unhandled reject.
     // SDK initialize arms its own bounded periodic refresh before attempting
     // the first fetch, so a failed cold fetch recovers on that timer. Keeping
     // `started` true prevents every request from creating a retry storm.
-    void provider.initialize().catch(() => undefined)
-  } else if (requestRefreshGate.takeIfDue()) {
+    void state.provider.initialize().catch(() => undefined)
+  } else if (state.requestRefreshGate.takeIfDue()) {
     // Cloud Run can throttle the SDK's periodic timer between requests. Kick
     // the same deduplicated refresh from live traffic, but never await it: this
     // request keeps resolving synchronously from the accepted snapshot/LKG.
-    void provider.refresh().catch(() => undefined)
+    void state.provider.refresh().catch(() => undefined)
   }
 
-  return provider
+  return state.provider
+}
+
+function getProvider(flagKey: string):
+  | { provider: FlagProvider; route: GoldenFlagReadKeyRoute }
+  | undefined {
+  // Read configuration lazily. This keeps the adapter safe for runtimes that
+  // load env after module evaluation and for isolated test setup.
+  const baseUrl = process.env.GROWTH_ENGINE_URL?.replace(/\/+$/, '')
+  const environment = parseGoldenFlagEnvironment(
+    process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT,
+  )
+  const route = routeGoldenFlagReadKey(flagKey, {
+    GOLDEN_BEANS_FLAG_READ_KEY: process.env.GOLDEN_BEANS_FLAG_READ_KEY,
+    GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY:
+      process.env.GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY,
+  })
+  if (!baseUrl || !route.flagReadKey || !environment) {
+    // Runtime configuration is normally immutable, but releasing the timer
+    // makes a removed credential fail closed even in an unusual dynamic setup.
+    if (route.providerSlot === 'partners-recruiting-v3') {
+      resetProviderState(partnersRecruitingProviderState)
+    } else {
+      resetProviderState(primaryProviderState)
+    }
+    return undefined
+  }
+
+  if (route.resetScopedProvider) {
+    // Removing the scoped credential must also release its refresh timer. The
+    // partner flag immediately falls back to the established primary provider.
+    resetProviderState(partnersRecruitingProviderState)
+  }
+
+  const state = route.providerSlot === 'partners-recruiting-v3'
+    ? partnersRecruitingProviderState
+    : primaryProviderState
+  return {
+    provider: configuredProvider(state, {
+      baseUrl,
+      flagReadKey: route.flagReadKey,
+      environment,
+    }),
+    route,
+  }
 }
 
 /**
@@ -116,14 +169,16 @@ export function evaluateGoldenBooleanFlag(
   defaultValue: boolean,
 ): GoldenBooleanEvaluation | undefined {
   try {
-    const currentProvider = getProvider()
-    if (!currentProvider) return undefined
+    const selected = getProvider(flagKey)
+    if (!selected) return undefined
 
-    const snapshot = currentProvider.getSnapshot()
+    const snapshot = selected.provider.getSnapshot()
     if (!snapshot) return undefined
-    scheduleDurableGoldenSnapshot(snapshot)
+    if (selected.route.persistToDurableMirror) {
+      scheduleDurableGoldenSnapshot(snapshot)
+    }
 
-    const details = currentProvider.resolveBooleanEvaluation(
+    const details = selected.provider.resolveBooleanEvaluation(
       flagKey,
       defaultValue,
     )
