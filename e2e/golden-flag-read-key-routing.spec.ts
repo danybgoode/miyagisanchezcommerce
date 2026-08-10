@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { FLAG_KEYS } from '../lib/flag-catalog'
 import {
   PARTNERS_RECRUITING_V3_FLAG_KEY,
   routeGoldenFlagReadKey,
@@ -18,15 +19,22 @@ test.describe('Golden read-key routing', () => {
   })
 
   test('every existing flag keeps the established production catalog', () => {
-    expect(routeGoldenFlagReadKey('checkout.stripe_enabled', {
-      GOLDEN_BEANS_FLAG_READ_KEY: 'legacy-read',
-      GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY: 'owner-read',
-    })).toEqual({
-      flagReadKey: 'legacy-read',
-      providerSlot: 'primary',
-      persistToDurableMirror: true,
-      resetScopedProvider: false,
-    })
+    const existingKeys = FLAG_KEYS.filter(
+      (key) => key !== PARTNERS_RECRUITING_V3_FLAG_KEY,
+    )
+    expect(existingKeys).toHaveLength(41)
+
+    for (const flagKey of existingKeys) {
+      expect(routeGoldenFlagReadKey(flagKey, {
+        GOLDEN_BEANS_FLAG_READ_KEY: 'legacy-read',
+        GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY: 'owner-read',
+      }), flagKey).toEqual({
+        flagReadKey: 'legacy-read',
+        providerSlot: 'primary',
+        persistToDurableMirror: true,
+        resetScopedProvider: false,
+      })
+    }
   })
 
   test('an absent or blank scoped credential preserves the primary fallback', () => {
