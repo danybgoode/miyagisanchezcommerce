@@ -30,6 +30,16 @@ import { test, expect } from '@playwright/test'
  */
 test.describe('Cross-channel trust parity (Epic D)', () => {
   test('embed grid + white-label shell render trust signals', async ({ page, request }) => {
+    // The default 30s test budget covers one network round trip comfortably, but
+    // this test makes TWO sequential ones against prod (a catalog API call, then a
+    // full page navigation) — and the catalog endpoint has observed real latency
+    // spikes into the 15-35s range independent of any code change (confirmed via
+    // direct reproduction: the 2026-08-10 nightly failure recurred against the SAME
+    // commit that passed the prior night's run). test.slow() triples the effective
+    // timeout so a genuine prod latency spike doesn't masquerade as a broken build;
+    // it changes no assertion below.
+    test.slow()
+
     const cat = await request.get('/api/ucp/catalog?limit=20')
     expect(cat.ok()).toBeTruthy()
     const items = (await cat.json())?.items as Array<{ actions?: { buy_now?: boolean }; shop?: { slug?: string } }> | undefined
