@@ -96,7 +96,7 @@ export async function ListingsPage({
 
       {marketUnavailable ? (
         <div className="card-panel my-8 px-5 py-10 text-center" data-testid="market-catalog-unavailable" role="status">
-          <i className="iconoir-cloud-error" style={{ fontSize: 40, color: 'var(--fg-subtle)' }} aria-hidden />
+          <i className="iconoir-cloud-xmark" style={{ fontSize: 40, color: 'var(--fg-subtle)' }} aria-hidden />
           <p style={{ fontWeight: 600, color: 'var(--fg)', marginTop: 12 }}><BuyerCopyText copyKey="market.catalogUnavailableHeading" /></p>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 5 }}><BuyerCopyText copyKey="market.catalogUnavailableBody" /></p>
         </div>

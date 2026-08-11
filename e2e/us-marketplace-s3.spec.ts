@@ -30,7 +30,12 @@ test.describe('US marketplace Sprint 3 contract', () => {
     expect(layout).toContain('<MarketDocument market="us">')
     expect(layout).toContain('<PlatformShell market="us"')
     expect(browse).toContain("market: 'us'")
-    expect(source('app/(us-site)/us/FoundingOperatorApplication.tsx')).toContain('export function FoundingOperatorApplication')
+    // Recruiting kept its own reachable ROUTE, not merely a surviving component file:
+    // opening `/us` as the marketplace displaced the flag gate that used to live there,
+    // and a spec that only asserts the form file exists cannot see that happen.
+    expect(source('app/(us-site)/us/operators/FoundingOperatorApplication.tsx')).toContain('export function FoundingOperatorApplication')
+    expect(source('app/(us-site)/us/operators/page.tsx')).toContain('MiyagiPartnersRecruitingPage')
+    expect(source('app/(us-site)/us/page.tsx')).not.toContain('recruitingV3Enabled')
     expect(source('app/(shell)/partner/page.tsx')).toContain('export default async function PartnerDashboardPage')
     expect(source('app/(shell)/partner/page.tsx')).toContain('partnerWorkspaceAdmitted')
   })

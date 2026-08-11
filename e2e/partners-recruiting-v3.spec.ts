@@ -260,18 +260,21 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     expect(sql).toContain('REVOKE ALL ON FUNCTION miyagi_activate_founding_operator(TEXT, TEXT, TEXT[]) FROM PUBLIC, anon, authenticated')
   })
 
-  test('one server resolver gates the public page and operator intake while legacy page remains present', () => {
+  test('one server resolver gates the recruiting route and operator intake, 404ing while the program is closed', () => {
     const resolver = fs.readFileSync(path.join(ROOT, 'lib/recruiting-v3.ts'), 'utf8')
-    const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/page.tsx'), 'utf8')
+    const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/page.tsx'), 'utf8')
     const route = fs.readFileSync(path.join(ROOT, 'app/api/promoter/apply/route.ts'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/FoundingOperatorApplication.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
     const partnerPage = fs.readFileSync(path.join(ROOT, 'app/(shell)/partner/page.tsx'), 'utf8')
     const relationshipAccess = fs.readFileSync(path.join(ROOT, 'lib/relationship-access.ts'), 'utf8')
     const rejectRoute = fs.readFileSync(path.join(ROOT, 'app/api/admin/promoter/applications/[id]/reject/route.ts'), 'utf8')
     const directMcp = fs.readFileSync(path.join(ROOT, 'app/api/ucp/mcp/route.ts'), 'utf8')
     const connectorMcp = fs.readFileSync(path.join(ROOT, 'app/api/ucp/mcp/p/[slug]/route.ts'), 'utf8')
     expect(resolver).toContain("isEnabled('partners.recruiting_v3_enabled')")
-    expect(page).toContain('LegacyUnitedStatesPilotPage')
+    // Recruiting lives at /us/operators, not /us: the market root is the US marketplace home
+    // and flipping this flag must never close it. Flag off is a 404 — the program has not
+    // opened — never a page implying the marketplace itself is unavailable.
+    expect(page).toContain('if (!(await recruitingV3Enabled())) notFound()')
     expect(page).toContain('MiyagiPartnersRecruitingPage')
     expect(page).toContain("export const dynamic = 'force-dynamic'")
     expect(route).toContain('if (operatorTrack && !(await recruitingV3Enabled()))')
@@ -338,8 +341,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
   })
 
   test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {
-    const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/page.tsx'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/FoundingOperatorApplication.tsx'), 'utf8')
+    const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/page.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
     const bilingual = fs.readFileSync(path.join(ROOT, 'lib/bilingual-namespaces.ts'), 'utf8')
     const email = fs.readFileSync(path.join(ROOT, 'lib/email.ts'), 'utf8')
     const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8'))
@@ -372,7 +375,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
   test('operator intake and review cannot create grants/consent or expose activation hashes', () => {
     const intake = fs.readFileSync(path.join(ROOT, 'lib/promoter-applications.ts'), 'utf8')
     const admin = fs.readFileSync(path.join(ROOT, 'app/(shell)/admin/promoter/PromoterAdminClient.tsx'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/FoundingOperatorApplication.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
     expect(intake).not.toContain("from('partner_grants')")
     expect(intake).not.toMatch(/relationship|consent/i)
     expect(admin).toContain('rel="noopener noreferrer"')
