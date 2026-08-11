@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { MARKETS, MARKET_CODES, marketBasePath } from '@/lib/markets'
@@ -106,14 +107,9 @@ export default function MarketSelectorPage() {
             margin: '0 0 12px',
           }}
         >
-          Tu tienda es tuya. El mercado es por país.
-        </h1>
+          <BuyerCopyText copyKey="page.5b78d70c" /></h1>
         <p style={{ fontSize: 15, color: 'var(--fg-muted)', lineHeight: 1.5, margin: 0 }}>
-          Con Miyagi abres una tienda propia —tu dominio, tu marca, tus reglas— y no necesitas permiso
-          de ningún marketplace para venderle a tu gente. Los <strong style={{ color: 'var(--fg)' }}>Miyagi
-          Markets</strong> son distintos: cada uno es un mercado de un país, con su moneda, sus pagos y
-          sus envíos. Elige por cuál quieres entrar.
-        </p>
+          <BuyerCopyText copyKey="page.bf77921b" /><strong style={{ color: 'var(--fg)' }}><BuyerCopyText copyKey="page.881db298" /></strong> <BuyerCopyText copyKey="page.ac4888c2" /></p>
       </section>
 
       <section
@@ -141,7 +137,7 @@ export default function MarketSelectorPage() {
                   data-testid={`market-status-${code}`}
                   style={{ fontSize: 11 }}
                 >
-                  {open ? 'Mercado activo' : 'Por invitación'}
+                  {open ? <BuyerCopyText copyKey="page.89b515ec" /> : <BuyerCopyText copyKey="page.7aa89a8b" />}
                 </span>
                 <MarketRecommendation market={code} />
               </span>
@@ -158,17 +154,11 @@ export default function MarketSelectorPage() {
 
       <section className="card-panel" style={{ padding: 18 }}>
         <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 8 }}>
-          ¿Tienda propia o Miyagi Market?
-        </h2>
+          <BuyerCopyText copyKey="page.7b6fe1dd" /></h2>
         <p style={{ fontSize: 13.5, color: 'var(--fg-muted)', lineHeight: 1.5, marginBottom: 12 }}>
-          Son dos cosas distintas y puedes tener las dos. Tu tienda vive en tu propio dominio o
-          subdominio y no depende de que ningún mercado te admita. Publicar en un Miyagi Market es un
-          paso aparte: ahí entras al catálogo de ese país, con la moneda y los métodos de pago de ese
-          país.
-        </p>
+          <BuyerCopyText copyKey="page.3cc39e5f" /></p>
         <Link href="/vende" className="btn btn-primary btn-sm" data-testid="market-selector-sell-cta">
-          Abrir mi tienda
-        </Link>
+          <BuyerCopyText copyKey="page.b5f692e9" /></Link>
       </section>
     </div>
   )

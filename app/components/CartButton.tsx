@@ -2,14 +2,15 @@
 
 import { useCart } from './CartContext'
 
-export default function CartButton() {
+export default function CartButton({ label }: { label: string }) {
   const { openCart, totalItems } = useCart()
 
   return (
     <button
       type="button"
       onClick={openCart}
-      title="Ver carrito"
+      title={label}
+      aria-label={label}
       style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

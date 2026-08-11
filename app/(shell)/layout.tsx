@@ -1,4 +1,6 @@
+import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
+import MarketDocument, { ROOT_METADATA, ROOT_VIEWPORT } from '@/app/components/MarketDocument'
 import ChannelLayout from '@/app/(shell)/s/[slug]/ChannelLayout'
 import TrustSignals from '@/app/components/TrustSignals'
 import PlatformShell from '@/app/components/PlatformShell'
@@ -12,6 +14,11 @@ import { isPlatformThemeEligiblePath } from '@/lib/platform-theme'
 import { isSellerModePath } from '@/lib/seller-mode'
 import { sellShellEligible } from '@/lib/seller-shell-gate'
 import { isOnboardingPath } from '@/lib/onboarding-path'
+import '@/app/globals.css'
+import '@/app/iconoir-subset.css'
+
+export const metadata: Metadata = ROOT_METADATA
+export const viewport: Viewport = ROOT_VIEWPORT
 
 /**
  * Dynamic `(shell)` shell — holds the per-request chrome decision that used to live in
@@ -91,11 +98,12 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const platformThemeEligible = !whiteLabel && isPlatformThemeEligiblePath(platformPath)
 
   return (
-    // AgentContextProvider wraps both the chrome (where AIAgentButton's card lives) and
-    // {children} (where a server page's <SetAgentContext> pushes its details) so the
-    // hand-off prompt can name the actual product/shop. It wraps all three branches; on
-    // white-label/seller-mode the AIAgentButton consumer isn't rendered, so any details a
-    // page sets are simply never read (harmless).
+    <MarketDocument market="mx">
+    {/* AgentContextProvider wraps both the chrome (where AIAgentButton's card lives) and
+        children (where a server page's SetAgentContext pushes its details) so the
+        hand-off prompt can name the actual product/shop. It wraps all three branches; on
+        white-label/seller-mode the AIAgentButton consumer isn't rendered, so any details a
+        page sets are simply never read (harmless). */}
     <AgentContextProvider>
       {/* Seasonal-theme boot script (beforeInteractive) — only on eligible platform
           pages (`/l*`, `/agent`), never white-label/embed/ineligible. The static root
@@ -122,7 +130,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
           {children}
         </ChannelLayout>
       ) : showBuyerChrome ? (
-        <PlatformShell platformThemeEligible={platformThemeEligible}>
+        <PlatformShell market="mx" platformThemeEligible={platformThemeEligible}>
           {children}
         </PlatformShell>
       ) : (
@@ -130,5 +138,6 @@ export default async function ShellLayout({ children }: { children: React.ReactN
       )}
       <ReferralAttribution />
     </AgentContextProvider>
+    </MarketDocument>
   )
 }

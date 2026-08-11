@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { eventHeroModel } from '@/lib/event-hero'
 import type { ListingEventDetails } from '@/lib/event-listing'
@@ -28,7 +29,7 @@ export default function EventHero({
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--info)', marginTop: 1, flexShrink: 0 }} />
           <div>
-            <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginBottom: 6 }}>Evento</p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginBottom: 6 }}><BuyerCopyText copyKey="l.id.EventHero.1f4155b7" /></p>
             {eventDetails.formatted_date && (
               <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>
                 {eventDetails.formatted_date}
@@ -53,8 +54,7 @@ export default function EventHero({
         style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-muted)', textDecoration: 'underline' }}
       >
         <i className="iconoir-qr-code" style={{ fontSize: 14 }} />
-        ¿Ya compraste? Ver mi boleto
-      </Link>
+        <BuyerCopyText copyKey="l.id.EventHero.f2e49368" /></Link>
     </div>
   )
 }

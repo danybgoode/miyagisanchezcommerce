@@ -18,7 +18,11 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 test.describe('offer-copy consistency · MakeOfferButton', () => {
   test('no "menos de 24 h" lie; the honest 48h window is stated', async () => {
     const src = await readFile(path.join(repoRoot, 'app/components/MakeOfferButton.tsx'), 'utf8')
+    const es = JSON.parse(await readFile(path.join(repoRoot, 'locales/es.json'), 'utf8'))
+    const en = JSON.parse(await readFile(path.join(repoRoot, 'locales/en.json'), 'utf8'))
     expect(src).not.toContain('menos de 24 h')
-    expect(src).toContain('48 horas')
+    expect(src).toContain('components.MakeOfferButton.f25d9676')
+    expect(es.buyerCopy['components.MakeOfferButton.f25d9676']).toBe('48 horas')
+    expect(en.buyerCopy['components.MakeOfferButton.f25d9676']).toBe('48 hours')
   })
 })

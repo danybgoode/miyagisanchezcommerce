@@ -22,16 +22,22 @@ function source(relPath: string): string {
 
 test.describe('static-shell split · static invariant', () => {
   test('the static `(site)` + root layout chain reads no request headers', () => {
-    const rootLayout = source('app/layout.tsx')
-    const siteLayout = source('app/(site)/layout.tsx')
+    const rootLayout = source('app/components/MarketDocument.tsx')
+    const siteLayouts = [
+      source('app/(site)/layout.tsx'),
+      source('app/(mx-site)/layout.tsx'),
+      source('app/(us-site)/layout.tsx'),
+    ]
 
     // Static-able: no per-request header/auth read anywhere in the homepage's chain.
     expect(rootLayout).not.toContain('next/headers')
     expect(rootLayout).not.toMatch(/\bheaders\(/)
     expect(rootLayout).not.toContain('x-miyagi')
-    expect(siteLayout).not.toContain('next/headers')
-    expect(siteLayout).not.toMatch(/\bheaders\(/)
-    expect(siteLayout).not.toContain('x-miyagi')
+    for (const siteLayout of siteLayouts) {
+      expect(siteLayout).not.toContain('next/headers')
+      expect(siteLayout).not.toMatch(/\bheaders\(/)
+      expect(siteLayout).not.toContain('x-miyagi')
+    }
   })
 
   test('the dynamic `(shell)` layout still reads the channel headers', () => {
@@ -56,10 +62,14 @@ test.describe('static-shell split · static invariant', () => {
   // culprits on the two shared layout files (page-level prose can't be regex-matched
   // reliably, hence checking layouts only here — they carry no such comments).
   test('the shared (site) layout chain still imports neither headers nor the copy-override reader', () => {
-    const rootLayout = source('app/layout.tsx')
-    const siteLayout = source('app/(site)/layout.tsx')
+    const rootLayout = source('app/components/MarketDocument.tsx')
+    const siteLayouts = [
+      source('app/(site)/layout.tsx'),
+      source('app/(mx-site)/layout.tsx'),
+      source('app/(us-site)/layout.tsx'),
+    ]
 
-    for (const file of [rootLayout, siteLayout]) {
+    for (const file of [rootLayout, ...siteLayouts]) {
       expect(file).not.toContain('next/headers')
       expect(file).not.toMatch(/\bheaders\(/)
       expect(file).not.toContain('lib/copy-overrides')

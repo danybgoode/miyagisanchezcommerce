@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect -- the existing poller clears stale auth state in its subscription effect. */
+
+import { useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 
@@ -8,6 +11,7 @@ import { useUser } from '@clerk/nextjs'
 // a hidden/backgrounded tab generates no invocations (in-conversation delivery is
 // realtime; this is just the global nav badge for users not currently in a chat).
 export default function DesktopUnreadBadge() {
+  const copy = useBuyerCopy()
   const { isSignedIn } = useUser()
   const [unread, setUnread] = useState(0)
 
@@ -42,7 +46,7 @@ export default function DesktopUnreadBadge() {
 
   return (
     <span
-      aria-label={`${unread} sin leer`}
+      aria-label={copy('components.DesktopUnreadBadge.0622ef8d', [unread]) as string}
       style={{
         position: 'absolute',
         top: -5,

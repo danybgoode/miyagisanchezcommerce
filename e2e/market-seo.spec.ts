@@ -14,9 +14,8 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 test.describe('market SEO contract', () => {
   test('landing alternates name only real pages and keep locale separate from market', () => {
     expect(MARKET_LANDING_PAGES).toEqual(['mx', 'us'])
-    for (const market of MARKET_LANDING_PAGES) {
-      expect(existsSync(path.join(ROOT, `app/(site)/${market}/page.tsx`)), market).toBe(true)
-    }
+    expect(existsSync(path.join(ROOT, 'app/(mx-site)/mx/page.tsx')), 'mx').toBe(true)
+    expect(existsSync(path.join(ROOT, 'app/(us-site)/us/page.tsx')), 'us').toBe(true)
 
     const root = selectorMetadata().alternates
     expect(root?.canonical).toBe('https://miyagisanchez.com/')
@@ -27,7 +26,7 @@ test.describe('market SEO contract', () => {
     })
     expect(marketLandingMetadata('mx').alternates?.canonical).toBe('https://miyagisanchez.com/mx')
     expect(marketLandingMetadata('us').alternates?.canonical).toBe('https://miyagisanchez.com/us')
-    expect(existsSync(path.join(ROOT, 'app/(site)/us-eng'))).toBe(false)
+    expect(existsSync(path.join(ROOT, 'app/(us-site)/us-eng'))).toBe(false)
   })
 
   test('catalog pages self-canonicalize without inventing a US alternate', () => {

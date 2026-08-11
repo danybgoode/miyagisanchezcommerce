@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import { autoHeroModel, repuveDisplay } from '@/lib/auto-hero'
 import { financingDisplay, warrantyDisplay, inspectionDisplay } from '@/lib/auto-financing'
@@ -91,8 +92,7 @@ export default function AutoHero({
               style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)', background: 'var(--success-soft)', borderRadius: 'var(--r-pill)', padding: '6px 10px' }}
             >
               <i className="iconoir-page-search" style={{ fontSize: 14 }} />
-              Inspeccionado — ver reporte
-            </a>
+              <BuyerCopyText copyKey="l.id.AutoHero.5f2cd923" /></a>
           )}
           {warranty && (
             <span

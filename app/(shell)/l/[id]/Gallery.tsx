@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect, @next/next/no-img-element -- S2 preserves the existing portal mount seam and arbitrary seller-hosted gallery images byte-for-byte. */
+
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState, useRef, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { wrapIndex, indexFromScroll } from '@/lib/gallery'
@@ -69,6 +72,7 @@ export default function Gallery({
   title: string
   overlay?: ReactNode
 }) {
+  const copy = useBuyerCopy()
   const count = images.length
   const [active, setActive] = useState(0)
   const [lightbox, setLightbox] = useState(false)
@@ -124,10 +128,10 @@ export default function Gallery({
           <i className="iconoir-package" style={{ fontSize: 64, color: 'var(--fg-subtle)' }} />
         </div>
         <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6, zIndex: 6 }}>
-          <button type="button" aria-label="Volver" data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
+          <button type="button" aria-label={copy('l.id.Gallery.12a783d7')} data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
             <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
           </button>
-          <button type="button" aria-label="Compartir" data-testid="gallery-share" onClick={share} style={cornerBtn}>
+          <button type="button" aria-label={copy('l.id.Gallery.4fe93603')} data-testid="gallery-share" onClick={share} style={cornerBtn}>
             <i className={copied ? 'iconoir-check' : 'iconoir-share-android'} style={{ fontSize: 18 }} />
           </button>
           {copied && (
@@ -135,8 +139,7 @@ export default function Gallery({
               data-testid="gallery-copied"
               style={{ alignSelf: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)', whiteSpace: 'nowrap' }}
             >
-              Enlace copiado
-            </span>
+              <BuyerCopyText copyKey="l.id.Gallery.674b5ee1" /></span>
           )}
         </div>
         {overlay}
@@ -159,7 +162,7 @@ export default function Gallery({
     <div
       data-testid="pdp-gallery"
       role="group"
-      aria-label="Galería de imágenes"
+      aria-label={copy('l.id.Gallery.78287235')}
       tabIndex={0}
       onKeyDown={onKeyDown}
       style={{ outline: 'none' }}
@@ -208,10 +211,10 @@ export default function Gallery({
         {/* DESKTOP — prev / next arrows (nothing to navigate with just 1 image) */}
         {count > 1 && (
           <>
-            <button type="button" aria-label="Imagen anterior" onClick={() => go(active - 1)} className="hidden md:flex" style={arrowStyle('left')}>
+            <button type="button" aria-label={copy('l.id.Gallery.736ba2c1')} onClick={() => go(active - 1)} className="hidden md:flex" style={arrowStyle('left')}>
               <i className="iconoir-nav-arrow-left" style={{ fontSize: 22 }} />
             </button>
-            <button type="button" aria-label="Imagen siguiente" onClick={() => go(active + 1)} className="hidden md:flex" style={arrowStyle('right')}>
+            <button type="button" aria-label={copy('l.id.Gallery.1b9ee2cb')} onClick={() => go(active + 1)} className="hidden md:flex" style={arrowStyle('right')}>
               <i className="iconoir-nav-arrow-right" style={{ fontSize: 22 }} />
             </button>
           </>
@@ -227,7 +230,7 @@ export default function Gallery({
               <button
                 key={i}
                 type="button"
-                aria-label={`Ir a la imagen ${i + 1} de ${count}`}
+                aria-label={copy('l.id.Gallery.bf4e9ed5', [i + 1, count]) as string}
                 aria-current={i === active}
                 onClick={() => scrollToSlide(i)}
                 style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', pointerEvents: 'auto', lineHeight: 0 }}
@@ -251,10 +254,10 @@ export default function Gallery({
         {/* S2.3 — back + share (top-left). Top-right / bottom-left stay free for the
             page's `overlay` (favorite + views). Glass chrome reuses `cornerBtn`. */}
         <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6, zIndex: 6 }}>
-          <button type="button" aria-label="Volver" data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
+          <button type="button" aria-label={copy('l.id.Gallery.12a783d7')} data-testid="gallery-back" onClick={() => window.history.back()} style={cornerBtn}>
             <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
           </button>
-          <button type="button" aria-label="Compartir" data-testid="gallery-share" onClick={share} style={cornerBtn}>
+          <button type="button" aria-label={copy('l.id.Gallery.4fe93603')} data-testid="gallery-share" onClick={share} style={cornerBtn}>
             <i className={copied ? 'iconoir-check' : 'iconoir-share-android'} style={{ fontSize: 18 }} />
           </button>
           {copied && (
@@ -262,8 +265,7 @@ export default function Gallery({
               data-testid="gallery-copied"
               style={{ alignSelf: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--fg-inverse)', whiteSpace: 'nowrap' }}
             >
-              Enlace copiado
-            </span>
+              <BuyerCopyText copyKey="l.id.Gallery.674b5ee1" /></span>
           )}
         </div>
 
@@ -287,7 +289,7 @@ export default function Gallery({
             <button
               key={i}
               type="button"
-              aria-label={`Ver imagen ${i + 1} de ${count}`}
+              aria-label={copy('l.id.Gallery.3dd94eb6', [i + 1, count]) as string}
               aria-current={i === active}
               onClick={() => setActive(i)}
               data-testid="gallery-thumb"
@@ -362,6 +364,7 @@ function Lightbox({
   setIndex: (i: number) => void
   onClose: () => void
 }) {
+  const copy = useBuyerCopy()
   const count = images.length
   const touchX = useRef<number | null>(null)
 
@@ -391,7 +394,7 @@ function Lightbox({
       data-testid="gallery-lightbox"
       role="dialog"
       aria-modal="true"
-      aria-label={`Imagen ${index + 1} de ${count}`}
+      aria-label={copy('l.id.Gallery.efcbc025', [index + 1, count]) as string}
       onClick={onClose}
       onTouchStart={(e) => {
         touchX.current = e.touches[0].clientX
@@ -404,7 +407,7 @@ function Lightbox({
       }}
       style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-overlay)', background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
-      <button type="button" aria-label="Cerrar" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--fg-inverse)', cursor: 'pointer', zIndex: 2 }}>
+      <button type="button" aria-label={copy('l.id.Gallery.1cd9e7df')} onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--fg-inverse)', cursor: 'pointer', zIndex: 2 }}>
         <i className="iconoir-xmark" style={{ fontSize: 24 }} />
       </button>
 
@@ -419,7 +422,7 @@ function Lightbox({
         <>
           <button
             type="button"
-            aria-label="Imagen anterior"
+            aria-label={copy('l.id.Gallery.736ba2c1')}
             onClick={(e) => {
               e.stopPropagation()
               setIndex(index - 1)
@@ -430,7 +433,7 @@ function Lightbox({
           </button>
           <button
             type="button"
-            aria-label="Imagen siguiente"
+            aria-label={copy('l.id.Gallery.1b9ee2cb')}
             onClick={(e) => {
               e.stopPropagation()
               setIndex(index + 1)

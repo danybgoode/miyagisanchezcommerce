@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- checkout previews preserve arbitrary seller-hosted image URLs */
 
 import Link from 'next/link'
@@ -12,10 +13,6 @@ import { SITE_ORIGIN } from '@/lib/market-seo'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 //
 // A bundle is just a multi-line-item cart for one seller. It renders the SAME
@@ -23,6 +20,9 @@ function fmt(cents: number, currency: string) {
 // count. All delivery + payment options come from Medusa via checkout-options.
 
 export default function BundleCheckoutClient() {
+  const copy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
+  const fmt = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
   const searchParams = useSearchParams()
   const requestedSellerId = searchParams.get('sellerId')
   const { isSignedIn } = useUser()
@@ -42,13 +42,12 @@ export default function BundleCheckoutClient() {
   if (!isSignedIn) {
     return (
       <main className="max-w-[640px] mx-auto px-4 py-8">
-        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
+        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.85a85a02" /></Link>
         <section style={{ marginTop: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 20, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800 }}>Inicia sesión para comprar tu paquete</h1>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}>Guardamos tu selección y te regresamos aquí para revisar antes de pagar.</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.44d46dbc" /></h1>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.0b9c7211" /></p>
           <Link href={`/sign-in?redirect_url=${encodeURIComponent(returnPath)}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>
-            Iniciar sesión
-          </Link>
+            <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.9f639269" /></Link>
         </section>
       </main>
     )
@@ -57,11 +56,11 @@ export default function BundleCheckoutClient() {
   if (items.length === 0) {
     return (
       <main className="max-w-[640px] mx-auto px-4 py-8">
-        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>← Explorar</Link>
+        <Link href={browseUrlFor(SITE_ORIGIN)} style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.85a85a02" /></Link>
         <section style={{ marginTop: 18, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 20, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800 }}>Tu paquete está vacío</h1>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}>Agrega artículos de una misma tienda para revisar el paquete.</p>
-          <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>Ver anuncios</Link>
+          <h1 style={{ fontSize: 22, fontWeight: 800 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.f9b6f375" /></h1>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 6 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.1a07fb8a" /></p>
+          <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.9d50fe38" /></Link>
         </section>
       </main>
     )
@@ -72,15 +71,14 @@ export default function BundleCheckoutClient() {
       <div style={{ marginBottom: 18 }}>
         <Link href={shopUrlFor(SITE_ORIGIN, seller.sellerSlug)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
-          Volver a la tienda
-        </Link>
+          <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.9abe48f4" /></Link>
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
         {/* Multi-seller switcher */}
         {sellerIds.length > 1 && (
           <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 12 }}>
-            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 8 }}>Tienes paquetes de varias tiendas. Elige uno para pagar.</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 8 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.4eb2dcb0" /></p>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
               {sellerIds.map(id => {
                 const group = itemsBySeller.get(id) ?? []
@@ -91,8 +89,8 @@ export default function BundleCheckoutClient() {
                     style={{ flexShrink: 0, minWidth: 160, padding: 10, borderRadius: 'var(--r-md)',
                       border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
                       background: active ? 'var(--accent-soft)' : 'var(--bg-sunk)', color: 'var(--fg)' }}>
-                    <p style={{ fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group[0]?.sellerName ?? 'Tienda'}</p>
-                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{group.length} artículo{group.length === 1 ? '' : 's'} · {fmt(total, group[0]?.currency ?? 'MXN')}</p>
+                    <p style={{ fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group[0]?.sellerName ?? <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.19be576b" />}</p>
+                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{group.length} <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.12741ace" />{group.length === 1 ? '' : <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.c8d7ae98" />} · {fmt(total, group[0]?.currency ?? 'MXN')}</p>
                   </Link>
                 )
               })}
@@ -103,9 +101,9 @@ export default function BundleCheckoutClient() {
         {/* Item list */}
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
           <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
-            <p style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>Paquete de {seller.sellerName}</p>
-            <h1 style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>Revisar paquete</h1>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>Compra varios artículos del mismo vendedor en un solo pago.</p>
+            <p style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.c115cf6b" />{' '}{seller.sellerName}</p>
+            <h1 style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.c8c8aab2" /></h1>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}><BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.4625a8b5" /></p>
           </div>
 
           <div style={{ display: 'grid' }}>
@@ -118,7 +116,7 @@ export default function BundleCheckoutClient() {
                   <p style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>{item.title}</p>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 3 }}>{fmt(item.price_cents, item.currency)}</p>
                 </div>
-                <button type="button" onClick={() => removeItem(item.productId)} aria-label="Quitar del paquete"
+                <button type="button" onClick={() => removeItem(item.productId)} aria-label={copy('checkout.bundle.BundleCheckoutClient.e2376a62')}
                   style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <i className="iconoir-xmark" style={{ fontSize: 'var(--t-base)' }} />
                 </button>
@@ -131,8 +129,7 @@ export default function BundleCheckoutClient() {
         {currencyMismatch ? (
           <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
             <p style={{ fontSize: 13, color: 'var(--danger)' }}>
-              Este paquete mezcla monedas. Quita artículos hasta que todos tengan la misma moneda.
-            </p>
+              <BuyerCopyText copyKey="checkout.bundle.BundleCheckoutClient.3e72d62b" /></p>
           </section>
         ) : (
           sellerId && (

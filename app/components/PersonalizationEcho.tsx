@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { isRenderableArtworkUrl, isImageLikeArtworkUrl } from '@/lib/personalization'
 
 /**
@@ -46,8 +47,7 @@ export default function PersonalizationEcho({
           <i className="iconoir-page" aria-hidden />
         )}
         <a href={value} target="_blank" rel="noopener noreferrer" style={{ ...valueStyle, textDecoration: 'underline' }}>
-          Descargar original
-        </a>
+          <BuyerCopyText copyKey="components.PersonalizationEcho.bbb5183f" /></a>
       </div>
     )
   }

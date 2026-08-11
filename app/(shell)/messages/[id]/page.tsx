@@ -1,3 +1,4 @@
+import { BuyerCopyText, BuyerPresentationProvider } from '@/app/components/BuyerPresentationContext'
 import { redirect, notFound } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
@@ -6,9 +7,11 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
-import { resolveConversationLedger, type ConversationLedger } from '@/lib/conversation-ledger'
+import { resolveConversationLedger } from '@/lib/conversation-ledger'
 import type { LedgerOffer } from '@/lib/transaction-ledger'
 import { returnsWindowLabel } from '@/lib/trust-signals'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { getDictionary } from '@/lib/dictionary'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -33,7 +36,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id, medusa_order_id,
       marketplace_listings ( id, medusa_product_id, title, price_cents, currency, images, status, condition, location, listing_type ),
-      marketplace_shops ( id, name, slug, logo_url, verified, metadata, mp_enabled )
+      marketplace_shops ( id, name, slug, logo_url, verified, metadata, mp_enabled, market_code )
     `)
     .eq('id', id)
     .maybeSingle()
@@ -75,7 +78,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     verified?: boolean | null
     metadata?: Record<string, unknown> | null
     mp_enabled?: boolean | null
+    market_code?: string | null
   } | null
+  const presentation = resolveMarketPresentation(shopRaw?.market_code ?? 'mx')
+  const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
   const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
   const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
@@ -121,13 +127,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const initialTransaction = await resolveConversationLedger(ledgerOffer, offerId, role, medusaOrderIdHint)
 
   return (
+    <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}>
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 72px)' }}>
       {/* Back nav */}
       <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-elevated)', flexShrink: 0 }}>
         <Link href="/messages" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
           <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
-          Mensajes
-        </Link>
+          <BuyerCopyText copyKey="messages.id.page.a13f054b" /></Link>
       </div>
 
       <ConversationClient
@@ -141,5 +147,6 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         trustCapsule={trustCapsule}
       />
     </div>
+    </BuyerPresentationProvider>
   )
 }

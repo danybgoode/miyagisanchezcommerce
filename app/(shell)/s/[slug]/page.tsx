@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import {
@@ -28,6 +29,8 @@ import type { Metadata } from 'next'
 import type { MarketCode } from '@/lib/markets'
 import { marketCatalogCanonical } from '@/lib/market-seo'
 import { readPublicSellerMarket } from '@/lib/owned-market'
+import { getDictionary } from '@/lib/dictionary'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -112,6 +115,8 @@ export async function ShopPage({
     notFound()
   }
   if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
+  const presentationMarket = market ?? readPublicSellerMarket(shop)?.market_code ?? 'mx'
+  const buyerCopy = (await getDictionary(resolveMarketPresentation(presentationMarket).language)).buyerCopy
 
   // Consent-safe preview leak guard (founding-merchant-consent-previews S1.2): a
   // shop with a non-activated preview anchor is private across every public
@@ -199,9 +204,9 @@ export async function ShopPage({
   const hasDimo = paymentAvailability.dimo
   const hasPickup = !!shipping.local_pickup
   const hasScheduling = !!(calcom.connected && calcom.booking_url) || !!scheduling.links?.some(link => link.url)
-  const returnsLabel = returnsPolicy?.window === '7d' ? '7 días'
-    : returnsPolicy?.window === '14d' ? '14 días'
-    : returnsPolicy?.window === '30d' ? '30 días'
+  const returnsLabel = returnsPolicy?.window === '7d' ? buyerCopy['listing.returnWindow7']
+    : returnsPolicy?.window === '14d' ? buyerCopy['listing.returnWindow14']
+    : returnsPolicy?.window === '30d' ? buyerCopy['listing.returnWindow30']
     : null
   const visibleWhatsapp = checkout.whatsapp_cta ? (theme.social?.whatsapp ?? checkout.phone ?? null) : null
   const visiblePhone = checkout.show_phone ? checkout.phone ?? null : null
@@ -260,11 +265,10 @@ export async function ShopPage({
                 <h1 className="text-xl font-bold leading-tight">{shop.name}</h1>
                 {shop.verified && (
                   <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium inline-flex items-center gap-1" style={{ backgroundColor: accent }}>
-                    <i className="iconoir-badge-check" aria-hidden /> Verificado
-                  </span>
+                    <i className="iconoir-badge-check" aria-hidden /> <BuyerCopyText copyKey="s.slug.page.b71696d5" /></span>
                 )}
                 {!shop.clerk_user_id && (
-                  <span className="text-xs border border-amber-300 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Sin reclamar</span>
+                  <span className="text-xs border border-amber-300 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><BuyerCopyText copyKey="s.slug.page.ef1e1e62" /></span>
                 )}
               </div>
               {theme.tagline && (
@@ -278,7 +282,7 @@ export async function ShopPage({
             {/* Listing count (top-right) */}
             <div className="hidden sm:block text-right pb-1 flex-shrink-0">
               <span className="text-sm font-semibold">{listings.length}</span>
-              <span className="text-xs text-[var(--color-muted)] ml-1">anuncios</span>
+              <span className="text-xs text-[var(--color-muted)] ml-1"><BuyerCopyText copyKey="s.slug.page.7789bbbe" /></span>
             </div>
           </div>
 
@@ -305,23 +309,23 @@ export async function ShopPage({
                   {visibleWhatsapp && (
                     <a href={`https://wa.me/${visibleWhatsapp}`} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors no-underline">
-                      <i className="iconoir-chat-bubble" aria-hidden /><span>WhatsApp</span>
+                      <i className="iconoir-chat-bubble" aria-hidden /><span><BuyerCopyText copyKey="s.slug.page.75ff89ed" /></span>
                     </a>
                   )}
                   {visiblePhone && (
                     <a href={`tel:${visiblePhone}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <i className="iconoir-phone" aria-hidden /><span>Teléfono</span>
+                      <i className="iconoir-phone" aria-hidden /><span><BuyerCopyText copyKey="s.slug.page.2933e939" /></span>
                     </a>
                   )}
                   {checkout.show_email && checkout.contact_email && (
                     <a href={`mailto:${checkout.contact_email}`} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <i className="iconoir-mail" aria-hidden /><span>Email</span>
+                      <i className="iconoir-mail" aria-hidden /><span><BuyerCopyText copyKey="s.slug.page.9cb8b4c7" /></span>
                     </a>
                   )}
                   {theme.social?.facebook && (
                     <a href={theme.social.facebook} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors no-underline">
-                      <i className="iconoir-community" aria-hidden /><span>Facebook</span>
+                      <i className="iconoir-community" aria-hidden /><span><BuyerCopyText copyKey="s.slug.page.f8cccf3d" /></span>
                     </a>
                   )}
                 </div>
@@ -366,23 +370,23 @@ export async function ShopPage({
       <div className="max-w-6xl mx-auto px-4 pb-12">
         {(sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo || hasPickup || hasScheduling || returnsLabel) && (
           <div className="flex flex-wrap gap-2 mb-5">
-            {sellerHasMp && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Mercado Pago</span>}
-            {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Tarjeta</span>}
-            {hasBankTransfer && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">SPEI</span>}
-            {hasDimo && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">DiMo</span>}
-            {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">Pickup{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
-            {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? 'Agenda disponible'}</span>}
-            {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700">Devoluciones {returnsLabel}</span>}
+            {sellerHasMp && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.85cbb14f" /></span>}
+            {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.15146f83" /></span>}
+            {hasBankTransfer && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.9bc19390" /></span>}
+            {hasDimo && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.4df902a1" /></span>}
+            {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.ad1b2858" />{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
+            {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? <BuyerCopyText copyKey="s.slug.page.a762f91d" />}</span>}
+            {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700"><BuyerCopyText copyKey="s.slug.page.b4c1603f" />{' '}{returnsLabel}</span>}
           </div>
         )}
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
             <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
-            <p className="font-medium">Esta tienda aún no tiene anuncios.</p>
+            <p className="font-medium"><BuyerCopyText copyKey="s.slug.page.f62ef63c" /></p>
           </div>
         ) : (
           <>
-            <p className="text-xs text-[var(--color-muted)] mb-3 sm:hidden">{listings.length} anuncios</p>
+            <p className="text-xs text-[var(--color-muted)] mb-3 sm:hidden">{listings.length} <BuyerCopyText copyKey="s.slug.page.7789bbbe" /></p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {listings.map(listing => (
                 <ClosetListingCard

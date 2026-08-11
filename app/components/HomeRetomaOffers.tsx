@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useHomePersonalization } from './HomePersonalizationProvider'
@@ -130,12 +131,10 @@ export default function HomeRetomaOffers() {
               <div className="skeleton" style={{ width: 150, height: 15, borderRadius: 4 }} />
             ) : (
               <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
-                Retoma donde te quedaste
-              </h2>
+                <BuyerCopyText copyKey="components.HomeRetomaOffers.f770e542" /></h2>
             )}
             <Link href="/account/favorites" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              Favoritos →
-            </Link>
+              <BuyerCopyText copyKey="components.HomeRetomaOffers.01d87486" /></Link>
           </div>
           <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
             {showRailSkeleton
@@ -172,7 +171,7 @@ export default function HomeRetomaOffers() {
                           className="badge badge-danger"
                           style={{ position: 'absolute', top: 6, left: 6, fontSize: 10, fontWeight: 700 }}
                         >
-                          ↓ Bajó {priceLabel(card.priceDrop.dropAmountCents, card.currency)}
+                          <BuyerCopyText copyKey="components.HomeRetomaOffers.d96b1742" />{' '}{priceLabel(card.priceDrop.dropAmountCents, card.currency)}
                         </span>
                       ) : (
                         <span
@@ -235,7 +234,7 @@ export default function HomeRetomaOffers() {
                   {alert.subtitle}
                 </p>
               </div>
-              <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>Ver →</span>
+              <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}><BuyerCopyText copyKey="components.HomeRetomaOffers.e212f03a" /></span>
             </Link>
           ))}
         </section>

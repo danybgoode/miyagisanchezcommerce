@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- marketplace media hosts are seller-controlled and not finitely allow-listable */
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
@@ -92,26 +93,23 @@ export async function ListingsPage({
       {/* Result count */}
       <div className="flex items-center justify-between mb-4">
         <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-          <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{total}</span> resultados
-          {params.q && <> para <em>&ldquo;{params.q}&rdquo;</em></>}
+          <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{total}</span> <BuyerCopyText copyKey="l.page.9a0dd489" />{params.q && <> <BuyerCopyText copyKey="l.page.e5404318" />{' '}<em>&ldquo;{params.q}&rdquo;</em></>}
         </p>
         {Object.values(params).some(Boolean) && (
           <Link href={`${marketBasePath}/l`} style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
             className="hover:text-[var(--fg)]">
-            × Limpiar filtros
-          </Link>
+            <BuyerCopyText copyKey="l.page.ee06f64a" /></Link>
         )}
       </div>
 
       {listings.length === 0 ? (
         <div className="py-16 text-center" style={{ color: 'var(--fg-muted)' }}>
           <i className="iconoir-search" style={{ fontSize: 40, display: 'block', marginBottom: 12, color: 'var(--fg-subtle)' }} />
-          <p style={{ fontWeight: 500, color: 'var(--fg)', marginBottom: 4 }}>Sin resultados</p>
-          <p style={{ fontSize: 13 }}>Intenta con otros términos o revisa los filtros.</p>
+          <p style={{ fontWeight: 500, color: 'var(--fg)', marginBottom: 4 }}><BuyerCopyText copyKey="l.page.a9d00802" /></p>
+          <p style={{ fontSize: 13 }}><BuyerCopyText copyKey="l.page.102a7871" /></p>
           {Object.values(params).some(Boolean) && (
             <Link href={`${marketBasePath}/l`} className="btn btn-secondary btn-sm no-underline" style={{ marginTop: 12, display: 'inline-block' }}>
-              Limpiar filtros
-            </Link>
+              <BuyerCopyText copyKey="l.page.1da7c9e1" /></Link>
           )}
         </div>
       ) : (
@@ -131,8 +129,7 @@ export async function ListingsPage({
                 )}
                 {listing.in_stock === false && (
                   <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, color: 'var(--fg-inverse)', background: 'var(--danger)', borderRadius: 'var(--r-pill)', padding: '3px 8px' }}>
-                    Agotado
-                  </span>
+                    <BuyerCopyText copyKey="l.page.61907ecb" /></span>
                 )}
                 </div>
                 <div className="p-3">
@@ -192,8 +189,7 @@ export async function ListingsPage({
             <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
               {page > 1 && (
                 <Link href={pageUrl(page - 1)} className="btn btn-secondary btn-sm no-underline">
-                  ← Anterior
-                </Link>
+                  <BuyerCopyText copyKey="l.page.0defb179" /></Link>
               )}
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const p = Math.max(1, page - 2) + i
@@ -209,8 +205,7 @@ export async function ListingsPage({
               })}
               {page < totalPages && (
                 <Link href={pageUrl(page + 1)} className="btn btn-secondary btn-sm no-underline">
-                  Siguiente →
-                </Link>
+                  <BuyerCopyText copyKey="l.page.10c5b69a" /></Link>
               )}
             </div>
           )}

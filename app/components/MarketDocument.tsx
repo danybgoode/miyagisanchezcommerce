@@ -1,15 +1,14 @@
+import { BuyerPresentationProvider } from '@/app/components/BuyerPresentationContext'
 import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { esMX } from '@clerk/localizations'
+import { enUS, esMX } from '@clerk/localizations'
 import { CartProvider } from '@/app/components/CartContext'
 import CartDrawer from '@/app/components/CartDrawer'
 import SiteAnalytics from '@/app/components/SiteAnalytics'
-import './globals.css'
-// hyper-performant-website S2 · Story 2.1 — replaces the old render-blocking
-// `<link>` to cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main (204 KiB,
-// unpinned @main — see lib/iconoir-subset.ts's header comment). GENERATED —
-// regenerate with `npm run build:iconoir`, never hand-edit.
-import './iconoir-subset.css'
+import { getDictionary } from '@/lib/dictionary'
+import { DEFAULT_MARKET, isMarketplaceOpen, marketBasePath, type MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { PLATFORM_OG_COLORS } from '@/lib/platform-theme'
 
 const BASE_URL = 'https://miyagisanchez.com'
 
@@ -37,7 +36,7 @@ const SPLASH_SCREENS = [
   { dw: 430, dh: 932, dpr: 3, pw: 1290, ph: 2796 },
 ] as const
 
-export const metadata: Metadata = {
+const MX_ROOT_METADATA: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
     default: 'Miyagi Sánchez — Abre tu tienda, compra y vende',
@@ -75,8 +74,37 @@ export const metadata: Metadata = {
   },
 }
 
-export const viewport: Viewport = {
-  themeColor: '#1d6f42',
+const US_ROOT_METADATA: Metadata = {
+  ...MX_ROOT_METADATA,
+  title: {
+    default: 'Miyagi Sánchez — Independent shops in the United States',
+    template: '%s | Miyagi Sánchez',
+  },
+  description: 'Discover and buy from independent shops in the United States with Miyagi Sánchez.',
+  keywords: ['independent shops', 'United States marketplace', 'buy and sell', 'AI commerce'],
+  openGraph: {
+    ...MX_ROOT_METADATA.openGraph,
+    locale: 'en_US',
+    url: `${BASE_URL}/us`,
+    title: 'Miyagi Sánchez — Independent shops in the United States',
+    description: 'Discover and buy from independent shops in the United States with Miyagi Sánchez.',
+  },
+  twitter: {
+    ...MX_ROOT_METADATA.twitter,
+    title: 'Miyagi Sánchez — Independent shops in the United States',
+    description: 'Discover and buy from independent shops in the United States with Miyagi Sánchez.',
+  },
+}
+
+export function marketRootMetadata(market: MarketCode): Metadata {
+  return market === 'us' ? US_ROOT_METADATA : MX_ROOT_METADATA
+}
+
+/** Backward-compatible export for current default/MX roots. */
+export const ROOT_METADATA: Metadata = marketRootMetadata('mx')
+
+export const ROOT_VIEWPORT: Viewport = {
+  themeColor: PLATFORM_OG_COLORS.accent,
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -115,16 +143,24 @@ export const viewport: Viewport = {
  * hop from checkout still returns to checkout — `forceRedirectUrl` would hijack
  * the money path.
  */
-const POST_AUTH_HOME = '/mx'
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function MarketDocument({
+  market,
+  children,
+}: {
+  market: MarketCode
+  children: React.ReactNode
+}) {
+  const presentation = resolveMarketPresentation(market)
+  const dictionary = await getDictionary(presentation.language)
+  const postAuthHome = marketBasePath(isMarketplaceOpen(market) ? market : DEFAULT_MARKET)
+  const clerkLocalization = presentation.language === 'en' ? enUS : esMX
   return (
     <ClerkProvider
-      localization={esMX}
-      signInFallbackRedirectUrl={POST_AUTH_HOME}
-      signUpFallbackRedirectUrl={POST_AUTH_HOME}
+      localization={clerkLocalization}
+      signInFallbackRedirectUrl={postAuthHome}
+      signUpFallbackRedirectUrl={postAuthHome}
     >
-      <html lang="es" suppressHydrationWarning>
+      <html lang={presentation.htmlLang} suppressHydrationWarning>
         <head>
           {/* Space Grotesk — display + body */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -160,10 +196,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Site-wide GTM container (GA4 + Clarity as tags inside GTM). Client-gated
               on hostname/path so the static root layout reads no headers. */}
           <SiteAnalytics />
-          <CartProvider>
-            {children}
-            <CartDrawer />
-          </CartProvider>
+          <BuyerPresentationProvider presentation={presentation} copy={dictionary.buyerCopy}>
+            <CartProvider>
+              {children}
+              <CartDrawer />
+            </CartProvider>
+          </BuyerPresentationProvider>
         </body>
       </html>
     </ClerkProvider>

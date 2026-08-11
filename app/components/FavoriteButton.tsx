@@ -1,5 +1,6 @@
 'use client'
 
+import { useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
@@ -24,6 +25,7 @@ export default function FavoriteButton({
   size = 'md',
   className = '',
 }: FavoriteButtonProps) {
+  const copy = useBuyerCopy()
   const pathname = usePathname()
   const router = useRouter()
   const { isSignedIn: clerkSignedIn } = useAuth()
@@ -86,7 +88,7 @@ export default function FavoriteButton({
       type="button"
       onClick={toggle}
       disabled={loading}
-      aria-label={favorited ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+      aria-label={favorited ? copy('components.FavoriteButton.4c2662f8') : copy('components.FavoriteButton.68c7c406')}
       aria-pressed={favorited}
       className={`flex items-center justify-center rounded-full transition-all disabled:opacity-60 ${className}`}
       style={{

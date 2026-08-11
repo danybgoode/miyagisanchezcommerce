@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useMemo, useState } from 'react'
 import { groupTiersByPlan, hasBothIntervals, tierAnnualSaving } from '@/lib/subscription-pricing'
 
@@ -27,15 +28,6 @@ interface SubscriptionSectionProps {
   redesign?: boolean   // S4.4 — gate the mensual/anual toggle on the pdp_redesign kill-switch
 }
 
-function formatPrice(cents: number, currency: string): string {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
-}
-
 export default function SubscriptionSection({
   listingId,
   tiers,
@@ -48,6 +40,8 @@ export default function SubscriptionSection({
   buyerUserEmail,
   redesign,
 }: SubscriptionSectionProps) {
+  const copy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
   const [selectedTierId, setSelectedTierId] = useState(
     tiers.find(t => t.is_highlighted)?.id ?? tiers[0]?.id ?? '',
   )
@@ -89,7 +83,7 @@ export default function SubscriptionSection({
   const currency = 'MXN'
 
   function tierLabel(tier: SubscriptionTier) {
-    return `${formatPrice(tier.price_cents, currency)}/${tier.interval === 'year' ? 'año' : 'mes'}`
+    return `${formatters.currency(tier.price_cents, currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/${tier.interval === 'year' ? 'año' : 'mes'}`
   }
 
   async function handleStripeSubscribe() {
@@ -150,23 +144,23 @@ export default function SubscriptionSection({
       <div className="border border-green-200 bg-green-50 rounded-[var(--r-lg)] p-5 space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-2xl"><i className="iconoir-check-circle" aria-hidden /></span>
-          <p className="font-semibold text-green-800">¡Suscripción registrada!</p>
+          <p className="font-semibold text-green-800"><BuyerCopyText copyKey="l.id.SubscriptionSection.7a3a6c6a" /></p>
         </div>
         <p className="text-sm text-green-700">{speiResult.message}</p>
         {speiResult.clabe && (
           <div className="bg-white border border-green-200 rounded-[var(--r-md)] p-3 space-y-1.5">
-            <p className="text-xs text-green-600 font-medium">CLABE interbancaria del vendedor:</p>
+            <p className="text-xs text-green-600 font-medium"><BuyerCopyText copyKey="l.id.SubscriptionSection.7c975176" /></p>
             <p className="font-mono text-lg font-bold text-green-900 tracking-wider">{speiResult.clabe}</p>
             {speiResult.bank_name && (
-              <p className="text-xs text-green-700">Banco: <strong>{speiResult.bank_name}</strong></p>
+              <p className="text-xs text-green-700"><BuyerCopyText copyKey="l.id.SubscriptionSection.14819236" />{' '}<strong>{speiResult.bank_name}</strong></p>
             )}
             {speiResult.account_holder && (
-              <p className="text-xs text-green-700">Beneficiario: <strong>{speiResult.account_holder}</strong></p>
+              <p className="text-xs text-green-700"><BuyerCopyText copyKey="l.id.SubscriptionSection.9f37252a" />{' '}<strong>{speiResult.account_holder}</strong></p>
             )}
-            <p className="text-xs text-green-600">Monto: <strong>{selectedTier ? tierLabel(selectedTier) : ''}</strong></p>
+            <p className="text-xs text-green-600"><BuyerCopyText copyKey="l.id.SubscriptionSection.55ced880" />{' '}<strong>{selectedTier ? tierLabel(selectedTier) : ''}</strong></p>
           </div>
         )}
-        <p className="text-xs text-green-600">El vendedor activará tu suscripción al confirmar el pago.</p>
+        <p className="text-xs text-green-600"><BuyerCopyText copyKey="l.id.SubscriptionSection.b6aadb46" /></p>
       </div>
     )
   }
@@ -176,7 +170,7 @@ export default function SubscriptionSection({
       {/* Header */}
       <div className="px-5 pt-5 pb-3">
         <p className="text-xs uppercase tracking-wide text-[var(--color-muted)] font-medium mb-1">
-          Suscripción a {shopName}
+          <BuyerCopyText copyKey="l.id.SubscriptionSection.99928b0f" />{' '}{shopName}
         </p>
       </div>
 
@@ -189,19 +183,17 @@ export default function SubscriptionSection({
               onClick={() => switchInterval('month')}
               className={`px-3 py-1.5 rounded-[var(--r-sm)] text-xs font-semibold transition-colors ${billingInterval === 'month' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
             >
-              Mensual
-            </button>
+              <BuyerCopyText copyKey="l.id.SubscriptionSection.c5cce3cc" /></button>
             <button
               type="button"
               onClick={() => switchInterval('year')}
               className={`px-3 py-1.5 rounded-[var(--r-sm)] text-xs font-semibold transition-colors ${billingInterval === 'year' ? 'bg-white text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)]'}`}
             >
-              Anual
-            </button>
+              <BuyerCopyText copyKey="l.id.SubscriptionSection.73e6f1e1" /></button>
           </div>
           {billingInterval === 'year' && selectedSaving && (
             <p data-testid="subscription-annual-saving" className="text-xs text-green-600 font-medium mt-2">
-              Ahorras {formatPrice(selectedSaving.savingCents, currency)} al año ({selectedSaving.savingPct}%)
+              <BuyerCopyText copyKey="l.id.SubscriptionSection.f9707b4d" />{' '}{formatters.currency(selectedSaving.savingCents, currency, { maximumFractionDigits: 0 })} <BuyerCopyText copyKey="l.id.SubscriptionSection.1c0eaf73" />{selectedSaving.savingPct}%)
             </p>
           )}
         </div>
@@ -225,18 +217,16 @@ export default function SubscriptionSection({
               >
                 {tier.is_highlighted && (
                   <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[var(--color-accent)] text-white text-[10px] font-bold px-2 py-0.5 rounded-[var(--r-pill)] whitespace-nowrap">
-                    Popular
-                  </span>
+                    <BuyerCopyText copyKey="l.id.SubscriptionSection.6bc2fd9f" /></span>
                 )}
-                <p className="font-semibold text-sm text-[var(--color-text)] leading-tight">{tier.label || `Plan ${tiers.indexOf(tier) + 1}`}</p>
+                <p className="font-semibold text-sm text-[var(--color-text)] leading-tight">{tier.label || <BuyerCopyText copyKey="l.id.SubscriptionSection.f6dc46ed" values={[tiers.indexOf(tier) + 1]} />}</p>
                 <p className="text-lg font-bold text-[var(--color-accent)] mt-1 leading-tight">
-                  {formatPrice(tier.price_cents, currency)}
-                  <span className="text-xs font-normal text-[var(--color-muted)]">/{tier.interval === 'year' ? 'año' : 'mes'}</span>
+                  {formatters.currency(tier.price_cents, currency, { maximumFractionDigits: 0 })}
+                  <span className="text-xs font-normal text-[var(--color-muted)]">/{tier.interval === 'year' ? <BuyerCopyText copyKey="l.id.SubscriptionSection.bb33d5d9" /> : <BuyerCopyText copyKey="l.id.SubscriptionSection.fa2d2ba6" />}</span>
                 </p>
                 {tier.interval === 'year' && (
                   <p className="text-[10px] text-green-600 mt-0.5">
-                    ≈ {formatPrice(Math.round(tier.price_cents / 12), currency)}/mes
-                  </p>
+                    ≈ {formatters.currency(Math.round(tier.price_cents / 12), currency, { maximumFractionDigits: 0 })}<BuyerCopyText copyKey="l.id.SubscriptionSection.77429ab3" /></p>
                 )}
                 {tier.features.length > 0 && (
                   <ul className="mt-2 space-y-1">
@@ -247,7 +237,7 @@ export default function SubscriptionSection({
                       </li>
                     ))}
                     {tier.features.length > 4 && (
-                      <li className="text-xs text-[var(--color-muted)]">+{tier.features.length - 4} más…</li>
+                      <li className="text-xs text-[var(--color-muted)]">+{tier.features.length - 4} <BuyerCopyText copyKey="l.id.SubscriptionSection.ce6fef60" /></li>
                     )}
                   </ul>
                 )}
@@ -274,7 +264,7 @@ export default function SubscriptionSection({
                 disabled={loading}
                 className="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-semibold py-3 rounded-[var(--r-md)] text-sm transition-colors disabled:opacity-60"
               >
-                {loading ? 'Cargando…' : `Suscribirme — ${selectedTier ? tierLabel(selectedTier) : ''}`}
+                {loading ? <BuyerCopyText copyKey="l.id.SubscriptionSection.02c78d1d" /> : <BuyerCopyText copyKey="l.id.SubscriptionSection.171aa769" values={[selectedTier ? tierLabel(selectedTier) : '']} />}
               </button>
             )}
 
@@ -288,7 +278,7 @@ export default function SubscriptionSection({
                 <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor">
                   <path d="M28 16a12 12 0 1 1-24 0 12 12 0 0 1 24 0zm-14.7 4.4 7.6-4.4-7.6-4.4v8.8z"/>
                 </svg>
-                {loading ? 'Cargando…' : 'Suscribirme con MercadoPago'}
+                {loading ? <BuyerCopyText copyKey="l.id.SubscriptionSection.02c78d1d" /> : <BuyerCopyText copyKey="l.id.SubscriptionSection.3df7878b" />}
               </button>
             )}
 
@@ -298,21 +288,20 @@ export default function SubscriptionSection({
                 onClick={() => setShowSpei(true)}
                 className="w-full border border-[var(--color-border)] text-[var(--color-text)] font-medium py-2.5 rounded-[var(--r-md)] text-sm hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
               >
-                <i className="iconoir-credit-card" aria-hidden /> Pagar con SPEI / transferencia bancaria
-              </button>
+                <i className="iconoir-credit-card" aria-hidden /> <BuyerCopyText copyKey="l.id.SubscriptionSection.3fa0f36c" /></button>
             )}
 
             {!hasStripe && !hasMp && !hasBankTransfer && (
               <div className="text-center py-2">
-                <p className="text-sm text-[var(--color-muted)]">El vendedor aún no ha configurado los pagos en línea.</p>
+                <p className="text-sm text-[var(--color-muted)]"><BuyerCopyText copyKey="l.id.SubscriptionSection.470e00b4" /></p>
               </div>
             )}
 
-            <p className="text-xs text-center text-[var(--color-muted)]">Cancela cuando quieras · Sin compromisos</p>
+            <p className="text-xs text-center text-[var(--color-muted)]"><BuyerCopyText copyKey="l.id.SubscriptionSection.af9a6cc1" /></p>
           </>
         ) : (
           <form onSubmit={handleSpeiSubscribe} className="space-y-3">
-            <p className="text-sm font-medium text-[var(--color-text)]">Registra tu suscripción SPEI</p>
+            <p className="text-sm font-medium text-[var(--color-text)]"><BuyerCopyText copyKey="l.id.SubscriptionSection.7238e34c" /></p>
             {isSignedIn && buyerDisplayName && buyerUserEmail ? (
               <div className="bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-md)] px-3 py-2.5 text-sm text-[var(--color-muted)] space-y-0.5">
                 <p className="font-medium text-[var(--color-text)]">{buyerDisplayName}</p>
@@ -321,21 +310,20 @@ export default function SubscriptionSection({
             ) : (
               <>
                 <input type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
-                  placeholder="Tu nombre completo" required minLength={2}
+                  placeholder={copy('l.id.SubscriptionSection.44ce295d')} required minLength={2}
                   className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
                 <input type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
-                  placeholder="Tu correo electrónico" required
+                  placeholder={copy('l.id.SubscriptionSection.bbf81f25')} required
                   className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]" />
               </>
             )}
             <div className="flex gap-2">
               <button type="button" onClick={() => { setShowSpei(false); setError(null) }}
                 className="flex-1 border border-[var(--color-border)] text-[var(--color-text)] py-2.5 rounded-[var(--r-md)] text-sm font-medium hover:bg-[var(--color-background)] transition-colors">
-                ← Atrás
-              </button>
+                <BuyerCopyText copyKey="l.id.SubscriptionSection.75a259c5" /></button>
               <button type="submit" disabled={loading}
                 className="flex-1 bg-[var(--color-accent)] text-white font-semibold py-2.5 rounded-[var(--r-md)] text-sm transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-60">
-                {loading ? 'Registrando…' : 'Confirmar'}
+                {loading ? <BuyerCopyText copyKey="l.id.SubscriptionSection.37147334" /> : <BuyerCopyText copyKey="l.id.SubscriptionSection.c8c2d04b" />}
               </button>
             </div>
           </form>

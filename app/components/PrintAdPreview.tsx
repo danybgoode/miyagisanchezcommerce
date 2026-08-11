@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import type { PrintAdContent } from '@/lib/print'
 
 /**
@@ -16,7 +17,7 @@ export default function PrintAdPreview({ content, tierLabel }: { content: PrintA
         <span className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
           {tierLabel}
         </span>
-        <span className="text-[10px] uppercase tracking-widest opacity-80">Edición impresa</span>
+        <span className="text-[10px] uppercase tracking-widest opacity-80"><BuyerCopyText copyKey="components.PrintAdPreview.46b68692" /></span>
       </div>
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -26,7 +27,7 @@ export default function PrintAdPreview({ content, tierLabel }: { content: PrintA
           )}
           <div className="flex-1">
             <h3 className="text-xl leading-none font-black uppercase" style={{ fontFamily: 'Arial Black, Impact, sans-serif' }}>
-              {content.headline || '(sin titular)'}
+              {content.headline || <BuyerCopyText copyKey="components.PrintAdPreview.5d25a2ea" />}
             </h3>
             {content.subhead && <p className="text-sm italic text-[#a3331f] mt-1">{content.subhead}</p>}
           </div>
@@ -41,7 +42,7 @@ export default function PrintAdPreview({ content, tierLabel }: { content: PrintA
 
         <div className="flex items-end justify-between mt-4 pt-3 border-t-2 border-dashed border-[#0a4d2e]/40">
           <div className="text-xs leading-relaxed">
-            {wa && <div><i className="iconoir-smartphone-device" aria-hidden /> WhatsApp: <strong>{wa}</strong></div>}
+            {wa && <div><i className="iconoir-smartphone-device" aria-hidden /> <BuyerCopyText copyKey="components.PrintAdPreview.61d2f0a0" />{' '}<strong>{wa}</strong></div>}
             {content.contact?.phone && <div><i className="iconoir-phone" aria-hidden /> {content.contact.phone}</div>}
             {content.cta_target?.url && (
               <div className="text-[#0a4d2e] break-all mt-1">{content.cta_target.url.replace(/^https?:\/\//, '')}</div>
@@ -51,7 +52,7 @@ export default function PrintAdPreview({ content, tierLabel }: { content: PrintA
             // eslint-disable-next-line @next/next/no-img-element
             <img src={content.qr_url} alt="QR" className="h-16 w-16 flex-shrink-0" />
           ) : (
-            <div className="h-16 w-16 flex-shrink-0 grid place-items-center border border-dashed border-[#0a4d2e]/40 text-[9px] text-[#0a4d2e]/60 text-center">QR al aprobar</div>
+            <div className="h-16 w-16 flex-shrink-0 grid place-items-center border border-dashed border-[#0a4d2e]/40 text-[9px] text-[#0a4d2e]/60 text-center"><BuyerCopyText copyKey="components.PrintAdPreview.e8f0bdd5" /></div>
           )}
         </div>
       </div>

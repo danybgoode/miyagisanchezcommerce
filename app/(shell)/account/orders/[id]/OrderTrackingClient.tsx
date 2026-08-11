@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
 
 import { useState, useCallback } from 'react'
@@ -171,17 +172,6 @@ const DELIVERY_METHOD_CHIP: Record<string, { icon: string; label: string }> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-MX', {
-    day: 'numeric', month: 'long', year: 'numeric',
-    timeZone: 'America/Mexico_City',
-  })
-}
-
 // ── Status stepper ────────────────────────────────────────────────────────────
 
 function StatusStepper({ status, steps }: { status: string; steps: ReturnType<typeof getStatusSteps> }) {
@@ -267,6 +257,10 @@ const RETURN_STATUS_META: Record<string, { label: string; color: string }> = {
 }
 
 export default function OrderTrackingClient({ order }: OrderTrackingProps) {
+  const copy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
+  const formatPrice = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
+  const formatDate = (iso: string) => formatters.date(iso, { day: 'numeric', month: 'long', year: 'numeric' })
   const router = useRouter()
   const meta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!meta.escrow_mode
@@ -493,7 +487,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
 
       {/* Breadcrumb */}
       <nav className="text-xs text-[var(--color-muted)] mb-6 flex items-center gap-1.5">
-        <Link href="/account/orders" className="hover:text-[var(--color-text)] no-underline">Mis compras</Link>
+        <Link href="/account/orders" className="hover:text-[var(--color-text)] no-underline"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.2713eddf" /></Link>
         <span>›</span>
         <span className="font-mono text-[10px]">{order.id.slice(0, 8)}…</span>
       </nav>
@@ -522,42 +516,41 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         <section className="border-2 border-green-300 bg-green-50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg"><i className="iconoir-check-circle" aria-hidden /></span>
-            <h2 className="text-sm font-bold text-green-900">Pedido reservado — completa tu pago</h2>
+            <h2 className="text-sm font-bold text-green-900"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.869c70fa" /></h2>
           </div>
           <p className="text-xs text-green-800 mb-3">
-            Paga <strong>{formatPrice(order.amount_cents, order.currency)}</strong> con cualquiera de estas opciones. El vendedor confirmará tu pago y procesará el pedido. Puedes pagar como prefieras.
-          </p>
+            <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.7a9254b7" />{' '}<strong>{formatPrice(order.amount_cents, order.currency)}</strong> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.483c463f" /></p>
           <div className="space-y-2">
             {order.manual_payment.spei?.clabe && (
               <div className="bg-white border border-green-200 rounded-lg p-3">
-                <p className="text-[10px] uppercase font-semibold text-gray-500">Transferencia SPEI</p>
+                <p className="text-[10px] uppercase font-semibold text-gray-500"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.c3419958" /></p>
                 <div className="flex items-center justify-between gap-2 mt-1">
                   <p className="font-mono text-base font-bold tracking-wide">{order.manual_payment.spei.clabe}</p>
                   <button type="button" onClick={() => { navigator.clipboard?.writeText(order.manual_payment!.spei!.clabe); showToast('CLABE copiada', 'success') }}
-                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0">Copiar</button>
+                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.1761f55c" /></button>
                 </div>
-                {order.manual_payment.spei.bank_name && <p className="text-xs text-gray-600">Banco: <strong>{order.manual_payment.spei.bank_name}</strong></p>}
-                {order.manual_payment.spei.account_holder && <p className="text-xs text-gray-600">Titular: <strong>{order.manual_payment.spei.account_holder}</strong></p>}
+                {order.manual_payment.spei.bank_name && <p className="text-xs text-gray-600"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.7467d017" />{' '}<strong>{order.manual_payment.spei.bank_name}</strong></p>}
+                {order.manual_payment.spei.account_holder && <p className="text-xs text-gray-600"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.20236aa6" />{' '}<strong>{order.manual_payment.spei.account_holder}</strong></p>}
               </div>
             )}
             {order.manual_payment.dimo?.phone && (
               <div className="bg-white border border-green-200 rounded-lg p-3">
-                <p className="text-[10px] uppercase font-semibold text-gray-500">DiMo — transfiere a este teléfono</p>
+                <p className="text-[10px] uppercase font-semibold text-gray-500"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.8661983b" /></p>
                 <div className="flex items-center justify-between gap-2 mt-1">
                   <p className="font-mono text-base font-bold tracking-wide">{order.manual_payment.dimo.phone}</p>
                   <button type="button" onClick={() => { navigator.clipboard?.writeText(order.manual_payment!.dimo!.phone); showToast('Teléfono copiado', 'success') }}
-                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0">Copiar</button>
+                    className="text-xs font-semibold text-green-700 hover:underline flex-shrink-0"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.1761f55c" /></button>
                 </div>
               </div>
             )}
             {order.manual_payment.cash && (
               <div className="bg-white border border-green-200 rounded-lg p-3">
-                <p className="text-[10px] uppercase font-semibold text-gray-500">Efectivo al recoger</p>
-                <p className="text-xs text-gray-700 mt-1">{order.manual_payment.cash.note || 'Paga en efectivo cuando recojas tu pedido.'}</p>
+                <p className="text-[10px] uppercase font-semibold text-gray-500"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.648dcf95" /></p>
+                <p className="text-xs text-gray-700 mt-1">{order.manual_payment.cash.note || <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.ec7c6212" />}</p>
               </div>
             )}
           </div>
-          <p className="text-[11px] text-green-700 mt-3">Te enviamos estos datos por correo. El vendedor confirmará en cuanto reciba el pago.</p>
+          <p className="text-[11px] text-green-700 mt-3"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.7132d09d" /></p>
         </section>
       )}
 
@@ -585,7 +578,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         {/* Personalization the buyer entered — echoed back for peace of mind. */}
         {(order.personalization ?? []).length > 0 && (
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Personalización</h3>
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.bd695be8" /></h3>
             <div className="space-y-2">
               {(order.personalization ?? []).map((block, bi) => (
                 <div key={bi}>
@@ -611,12 +604,12 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             sees it here even if they never open the chat. */}
         {order.proof_sent && (
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Prueba de impresión</h3>
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.032501de" /></h3>
             {order.proof_image_url && (
               <img src={order.proof_image_url} alt="Prueba de impresión" className="w-full max-w-[240px] rounded-lg mb-2" />
             )}
             <p className="text-sm">
-              {order.proof_approved ? <><i className="iconoir-check" aria-hidden /> Aprobaste esta prueba.</> : 'El vendedor envió una prueba — revísala en tu conversación para aprobarla.'}
+              {order.proof_approved ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.15df18e3" /></> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.45514168" />}
             </p>
           </div>
         )}
@@ -631,21 +624,21 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               disabled={reordering}
               className="w-full py-2.5 rounded-lg border border-[var(--color-border)] text-sm font-medium disabled:opacity-60"
             >
-              {reordering ? 'Preparando…' : 'Volver a pedir'}
+              {reordering ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.aa3fa1ff" /> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.495c9005" />}
             </button>
           </div>
         )}
         {(order.event_tickets ?? []).length > 0 && (
           <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2">Boleto de entrada</h3>
+            <h3 className="font-semibold text-xs text-[var(--color-accent)] uppercase tracking-wide mb-2"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.dadfe6e0" /></h3>
             <div className="space-y-3">
               {(order.event_tickets ?? []).map((ticket, index) => (
                 <div key={ticket.token} className="rounded-lg border border-[var(--color-border)] p-3">
                   <div className="flex items-start gap-3">
                     <img src={ticketQrPath(ticket.token)} alt="QR del boleto" className="w-24 h-24 rounded-lg border border-[var(--color-border)]" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">Boleto {index + 1}</p>
-                      <p className="text-xs text-[var(--color-muted)] mt-1">{ticket.state === 'redeemed' ? 'Usado en puerta' : 'Listo para presentar en puerta'}</p>
+                      <p className="text-sm font-semibold"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.1dd39d51" />{' '}{index + 1}</p>
+                      <p className="text-xs text-[var(--color-muted)] mt-1">{ticket.state === 'redeemed' ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.ec7cb006" /> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.5c231914" />}</p>
                       <code className="mt-2 block text-xs break-all bg-[var(--color-surface-alt)] rounded px-2 py-1">{ticket.token}</code>
                     </div>
                   </div>
@@ -655,7 +648,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           </div>
         )}
         <div className="mt-3 pt-3 border-t border-[var(--color-border)] flex items-center justify-between text-xs text-[var(--color-muted)]">
-          <span>Comprado el {formatDate(order.created_at)}</span>
+          <span><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.7cff56df" />{' '}{formatDate(order.created_at)}</span>
           <span className="font-mono text-[10px]">#{order.id.slice(0, 8)}</span>
         </div>
       </section>
@@ -663,7 +656,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {/* Tracking card — only shown for shipping method orders with a real shipment */}
       {shipment && shipment.tracking_number && (
         <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
-          <h2 className="font-semibold text-sm mb-3">Seguimiento de envío</h2>
+          <h2 className="font-semibold text-sm mb-3"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.4ad58411" /></h2>
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-xl flex-shrink-0"><i className="iconoir-delivery-truck" aria-hidden /></div>
             <div>
@@ -675,9 +668,9 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           </div>
           {shipment.estimated_delivery_date && (
             <div className="flex items-center justify-between bg-[var(--color-surface-alt)] rounded-lg px-3 py-2 mb-3">
-              <span className="text-xs text-[var(--color-muted)]">Entrega estimada</span>
+              <span className="text-xs text-[var(--color-muted)]"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.a34496bd" /></span>
               <span className="text-sm font-semibold">
-                {new Date(shipment.estimated_delivery_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                {formatters.date(shipment.estimated_delivery_date, { day: 'numeric', month: 'long' })}
               </span>
             </div>
           )}
@@ -688,7 +681,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] no-underline transition-colors text-[var(--color-text)]"
             >
-              <i className="iconoir-map-pin" aria-hidden /> Rastrear en {carrierLabel(shipment.carrier)}
+              <i className="iconoir-map-pin" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.bce4e8d1" />{' '}{carrierLabel(shipment.carrier)}
             </a>
           )}
         </section>
@@ -697,7 +690,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {/* Status timeline */}
       {!['refunded', 'fulfilled'].includes(currentStatus) && (
         <section className="border border-[var(--color-border)] rounded-xl p-5 mb-5">
-          <h2 className="font-semibold text-sm mb-4">Estado del pedido</h2>
+          <h2 className="font-semibold text-sm mb-4"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.b6e27cea" /></h2>
           <StatusStepper status={currentStatus} steps={statusSteps} />
         </section>
       )}
@@ -708,13 +701,13 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-amber-700"><i className="iconoir-bank" aria-hidden /></span>
             <p className="text-sm font-semibold text-amber-800">
-              {buyerReportedPaid ? 'Pago reportado — en verificación' : 'Pago pendiente de verificación'}
+              {buyerReportedPaid ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.d11d8d43" /> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.a5b56948" />}
             </p>
           </div>
           <p className="text-xs text-amber-700 mb-3">
             {buyerReportedPaid
-              ? 'Avisaste al vendedor que ya pagaste. En cuanto verifique el depósito, confirmará tu pago.'
-              : 'Tu pago directo está en proceso. El vendedor confirmará cuando reciba el depósito. Si ya transferiste, avísale para agilizar.'}
+              ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.2cfe51e1" />
+              : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.5bab4898" />}
           </p>
           <ReportPaymentButton orderId={order.id} initialReported={buyerReportedPaid} />
         </section>
@@ -723,7 +716,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2">
             <i className="iconoir-check" aria-hidden />
-            <p className="text-sm font-semibold text-green-800">Pago confirmado por el vendedor</p>
+            <p className="text-sm font-semibold text-green-800"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.f656554e" /></p>
           </div>
         </section>
       )}
@@ -733,15 +726,14 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
           {isEscrowOrder ? (
             <>
-              <p className="text-sm font-medium text-green-800 mb-1">¿Ya recibiste tu pedido en buen estado?</p>
+              <p className="text-sm font-medium text-green-800 mb-1"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.383dafe5" /></p>
               <p className="text-xs text-green-700 mb-3">
-                Al confirmar, el pago en custodia se libera al vendedor. Si hay un problema, solicita devolución antes de confirmar.
-              </p>
+                <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.d73ca2f3" /></p>
             </>
           ) : (
             <>
-              <p className="text-sm font-medium text-green-800 mb-1">¿Ya recibiste tu pedido?</p>
-              <p className="text-xs text-green-700 mb-3">Confirmar ayuda a que el vendedor reciba su pago completo.</p>
+              <p className="text-sm font-medium text-green-800 mb-1"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.7b0217ba" /></p>
+              <p className="text-xs text-green-700 mb-3"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.6032fb4f" /></p>
             </>
           )}
           <button
@@ -750,7 +742,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
             disabled={confirming}
             className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
-            {confirming ? 'Confirmando…' : isEscrowOrder ? <><i className="iconoir-check" aria-hidden /> Sí, lo recibí — liberar pago</> : <><i className="iconoir-check" aria-hidden /> Sí, lo recibí — todo bien</>}
+            {confirming ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.2d951c11" /> : isEscrowOrder ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.332145cd" /></> : <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.704a59a8" /></>}
           </button>
         </section>
       )}
@@ -760,9 +752,9 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         <section className="border border-green-200 bg-green-50/50 rounded-xl p-4 mb-5">
           <div className="flex items-center gap-2">
             <i className="iconoir-check" aria-hidden />
-            <p className="text-sm font-semibold text-green-800">Pago liberado al vendedor</p>
+            <p className="text-sm font-semibold text-green-800"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.ad0d2ae8" /></p>
           </div>
-          <p className="text-xs text-green-700 mt-1">El vendedor ya recibió el pago. ¡Gracias por tu compra!</p>
+          <p className="text-xs text-green-700 mt-1"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.a0f1705e" /></p>
         </section>
       )}
 
@@ -774,7 +766,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         return (
           <section className={`border rounded-xl p-4 mb-5 ${confirmed ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className={`font-semibold text-sm ${confirmed ? 'text-green-900' : 'text-amber-900'}`}><i className="iconoir-calendar" aria-hidden /> Cita de recolección</h2>
+              <h2 className={`font-semibold text-sm ${confirmed ? 'text-green-900' : 'text-amber-900'}`}><i className="iconoir-calendar" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.76c1456a" /></h2>
               <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 ${confirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                 {pickupAppointmentBadge(paState)}
               </span>
@@ -788,7 +780,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
                 disabled={confirmingPickup}
                 className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {confirmingPickup ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Confirmar esta hora</>}
+                {confirmingPickup ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.2d951c11" /> : <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.4a3398f0" /></>}
               </button>
             )}
           </section>
@@ -802,11 +794,11 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
         const lines = formatRentalBookingLines(order.rental_booking, order.currency)
         return (
           <section className="border rounded-xl p-4 mb-5 border-[var(--border)] bg-[var(--bg-sunk)]">
-            <h2 className="font-semibold text-sm mb-1"><i className="iconoir-calendar" aria-hidden /> Reserva de renta</h2>
+            <h2 className="font-semibold text-sm mb-1"><i className="iconoir-calendar" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.c6cb8e77" /></h2>
             <p className="text-sm font-semibold">{lines.dates}</p>
             <p className="text-xs text-[var(--fg-muted)] mt-1">{lines.breakdown}</p>
             {lines.deposit && <p className="text-xs text-[var(--fg-muted)]">{lines.deposit}</p>}
-            <p className="text-sm font-bold mt-2">Total: {lines.total}</p>
+            <p className="text-sm font-bold mt-2"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.a49ab04f" />{' '}{lines.total}</p>
           </section>
         )
       })()}
@@ -834,7 +826,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               disabled={confirmingRefund}
               className="mt-3 w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
-              {confirmingRefund ? 'Confirmando…' : <><i className="iconoir-check" aria-hidden /> Recibí el reembolso</>}
+              {confirmingRefund ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.2d951c11" /> : <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.572f6ce5" /></>}
             </button>
           )}
         </section>
@@ -844,25 +836,25 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {returnRequest && (
         <section className={`border rounded-xl p-4 mb-5 ${RETURN_STATUS_META[returnRequest.status]?.color.includes('green') ? 'border-green-200 bg-green-50/50' : returnRequest.status === 'declined' ? 'border-red-200 bg-red-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold text-sm">Solicitud de devolución</h2>
+            <h2 className="font-semibold text-sm"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.1bf7c0ac" /></h2>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${RETURN_STATUS_META[returnRequest.status]?.color}`}>
               {RETURN_STATUS_META[returnRequest.status]?.label ?? returnRequest.status}
             </span>
           </div>
           <p className="text-xs text-[var(--color-muted)] mb-1">
-            <strong>Motivo:</strong> {RETURN_REASON_LABELS[returnRequest.reason] ?? returnRequest.reason}
+            <strong><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.51e7079c" /></strong> {RETURN_REASON_LABELS[returnRequest.reason] ?? returnRequest.reason}
           </p>
           {returnRequest.description && (
             <p className="text-xs text-[var(--color-muted)] mb-1 italic">&ldquo;{returnRequest.description}&rdquo;</p>
           )}
           {returnRequest.seller_note && (
             <div className="mt-2 pt-2 border-t border-current/20">
-              <p className="text-xs font-medium mb-0.5">Respuesta del vendedor:</p>
+              <p className="text-xs font-medium mb-0.5"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.faaaf1df" /></p>
               <p className="text-xs text-[var(--color-muted)] italic">&ldquo;{returnRequest.seller_note}&rdquo;</p>
             </div>
           )}
           {returnRequest.status === 'pending' && (
-            <p className="text-xs text-[var(--color-muted)] mt-2">El vendedor tiene 3 días hábiles para responder.</p>
+            <p className="text-xs text-[var(--color-muted)] mt-2"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.4df07b67" /></p>
           )}
         </section>
       )}
@@ -875,15 +867,15 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           className="w-full text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-left flex items-center gap-2 mb-5 transition-colors hover:bg-[var(--color-surface-alt)]"
         >
           <span><i className="iconoir-undo" aria-hidden /></span>
-          <span>¿Hay un problema con tu pedido? Solicitar devolución</span>
+          <span><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.965cc2ea" /></span>
         </button>
       )}
 
       {canRequestReturn && showReturnForm && (
         <section className="border border-[var(--color-border)] rounded-xl p-4 mb-5">
-          <h2 className="font-semibold text-sm mb-3">Solicitar devolución</h2>
+          <h2 className="font-semibold text-sm mb-3"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.c1346f44" /></h2>
           <div className="mb-3">
-            <label className="text-xs font-medium text-[var(--color-muted)] block mb-1.5">¿Cuál es el motivo?</label>
+            <label className="text-xs font-medium text-[var(--color-muted)] block mb-1.5"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.d181c902" /></label>
             <div className="space-y-1.5">
               {Object.entries(RETURN_REASON_LABELS).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-2.5 cursor-pointer">
@@ -902,13 +894,13 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           </div>
           <div className="mb-4">
             <label className="text-xs font-medium text-[var(--color-muted)] block mb-1.5">
-              Descripción <span className="font-normal">(opcional)</span>
+              <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.049a14eb" />{' '}<span className="font-normal"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.5d150757" /></span>
             </label>
             <textarea
               value={returnDesc}
               onChange={e => setReturnDesc(e.target.value)}
               rows={2}
-              placeholder="Describe el problema con más detalle…"
+              placeholder={copy('account.orders.id.OrderTrackingClient.5dfeaf6f')}
               className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
             />
           </div>
@@ -916,7 +908,7 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
           {/* AI agent handoff — let an agent open and follow up on the refund */}
           <div className="mb-4">
             <AgentHandoff
-              title="¿Prefieres que un agente lo haga por ti?"
+              title={copy('account.orders.id.OrderTrackingClient.387771b6')}
               subtitle="Un agente IA puede abrir tu devolución, dar seguimiento al vendedor y gestionar el reembolso. Copia el prompt y ábrelo en Claude."
               prompt={`Ayúdame a iniciar y dar seguimiento a una devolución/reembolso en Miyagi Sánchez para mi pedido ${order.id}${listing?.title ? ` ("${listing.title}")` : ''}.\n\nPrimero lee la ficha del marketplace en https://miyagisanchez.com/agent y conéctate al servidor MCP. Luego propón un plan (motivo de la devolución, evidencia y monto a reembolsar) y ejecútalo por mí.\n\nMi pedido: https://miyagisanchez.com/account/orders/${order.id}`}
             />
@@ -929,15 +921,14 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
               disabled={submittingReturn}
               className="flex-1 bg-[var(--color-accent)] text-white py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
-              {submittingReturn ? 'Enviando…' : 'Enviar solicitud'}
+              {submittingReturn ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.fc2acd62" /> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.fad2f44c" />}
             </button>
             <button
               type="button"
               onClick={() => setShowReturnForm(false)}
               className="px-4 py-2.5 border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-muted)] hover:bg-[var(--color-surface-alt)] transition-colors"
             >
-              Cancelar
-            </button>
+              <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.1f99cff1" /></button>
           </div>
         </section>
       )}
@@ -946,15 +937,14 @@ export default function OrderTrackingClient({ order }: OrderTrackingProps) {
       {shop && currentStatus !== 'completed' && currentStatus !== 'refunded' && (
         <div className="flex items-center justify-between bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3">
           <div>
-            <p className="text-sm font-medium">¿Necesitas ayuda?</p>
-            <p className="text-xs text-[var(--color-muted)] mt-0.5">Contacta al vendedor si tienes dudas sobre tu pedido.</p>
+            <p className="text-sm font-medium"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.e3869add" /></p>
+            <p className="text-xs text-[var(--color-muted)] mt-0.5"><BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.ff354787" /></p>
           </div>
           <Link
             href={shopUrlFor(SITE_ORIGIN, shop.slug)}
             className="flex-shrink-0 text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline ml-3"
           >
-            Ir a la tienda →
-          </Link>
+            <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.e961af94" /></Link>
         </div>
       )}
 
@@ -981,7 +971,7 @@ function ReportPaymentButton({ orderId, initialReported = false }: { orderId: st
       disabled={state !== 'idle'}
       className="text-xs font-semibold bg-amber-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60"
     >
-      {state === 'done' ? <><i className="iconoir-check" aria-hidden /> Avisaste al vendedor</> : state === 'sending' ? 'Avisando…' : 'Ya hice el pago'}
+      {state === 'done' ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.3d87e7a2" /></> : state === 'sending' ? <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.0e5d0348" /> : <BuyerCopyText copyKey="account.orders.id.OrderTrackingClient.be3b10ac" />}
     </button>
   )
 }

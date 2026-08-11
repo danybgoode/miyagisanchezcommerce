@@ -1,6 +1,8 @@
 'use client'
 
+import { BuyerCopyText, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface Subscription {
   id: string
@@ -35,16 +37,6 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending_confirmation: { label: 'Pendiente SPEI',  color: 'bg-purple-100 text-purple-800' },
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function formatPrice(cents: number | null, currency: string): string {
-  if (!cents) return '—'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
-}
-
 export default function AccountSubscriptionsClient({
   subscriptions,
   content,
@@ -52,6 +44,9 @@ export default function AccountSubscriptionsClient({
   subscriptions: Subscription[]
   content: ContentItem[]
 }) {
+  const formatters = useBuyerFormatters()
+  const formatDate = (iso: string | null) => iso ? formatters.date(iso, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  const formatPrice = (cents: number | null, currency: string) => cents ? formatters.currency(cents, currency) : '—'
   const [canceling, setCanceling] = useState<string | null>(null)
   const [subs, setSubs] = useState(subscriptions)
   const [error, setError] = useState<string | null>(null)
@@ -109,8 +104,8 @@ export default function AccountSubscriptionsClient({
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">Mis suscripciones</h1>
-          <p className="text-[var(--color-muted)] text-sm mt-1">{subs.length} suscripciones</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text)]"><BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.5ae69916" /></h1>
+          <p className="text-[var(--color-muted)] text-sm mt-1">{subs.length} <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.bbd12ab9" /></p>
         </div>
         {subs.some(s => s.payment_method === 'stripe' && (s.status === 'active' || s.status === 'trialing')) && (
           <button
@@ -119,7 +114,7 @@ export default function AccountSubscriptionsClient({
             disabled={portalLoading}
             className="shrink-0 text-sm border border-[var(--color-border)] px-4 py-2 rounded-lg hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-60"
           >
-            {portalLoading ? 'Cargando…' : <><i className="iconoir-settings" aria-hidden /> Gestionar pagos</>}
+            {portalLoading ? <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.4ab8f2af" /> : <><i className="iconoir-settings" aria-hidden /> <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.48bdaaa2" /></>}
           </button>
         )}
       </div>
@@ -147,8 +142,8 @@ export default function AccountSubscriptionsClient({
                 {sub.current_period_end && (
                   <p className="text-xs text-[var(--color-muted)] mt-0.5">
                     {sub.cancel_at_period_end
-                      ? `Cancela el ${formatDate(sub.current_period_end)}`
-                      : `Próximo cobro: ${formatDate(sub.current_period_end)}`}
+                      ? <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.0fa8d533" values={[formatDate(sub.current_period_end)]} />
+                      : <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.974c7a98" values={[formatDate(sub.current_period_end)]} />}
                   </p>
                 )}
               </div>
@@ -161,7 +156,7 @@ export default function AccountSubscriptionsClient({
                     disabled={canceling === sub.id}
                     className="text-xs text-red-600 hover:underline disabled:opacity-60"
                   >
-                    {canceling === sub.id ? 'Cancelando…' : 'Cancelar'}
+                    {canceling === sub.id ? <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.506ebd68" /> : <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.4c0d1e8d" />}
                   </button>
                 )}
               </div>
@@ -183,8 +178,7 @@ export default function AccountSubscriptionsClient({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-sm text-[var(--color-accent)] mt-2 hover:underline"
                       >
-                        <i className="iconoir-attachment" aria-hidden /> Ver archivo
-                      </a>
+                        <i className="iconoir-attachment" aria-hidden /> <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.091720fb" /></a>
                     )}
                     <p className="text-xs text-[var(--color-muted)] mt-2">{formatDate(item.created_at)}</p>
                   </div>
@@ -192,7 +186,7 @@ export default function AccountSubscriptionsClient({
               </div>
             ) : (
               <div className="px-5 py-8 text-center text-[var(--color-muted)]">
-                <p className="text-sm">El creador aún no ha publicado contenido exclusivo.</p>
+                <p className="text-sm"><BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.a1258f7d" /></p>
               </div>
             )}
           </section>
@@ -218,11 +212,10 @@ export default function AccountSubscriptionsClient({
       {subs.length === 0 && (
         <div className="text-center py-16 text-[var(--color-muted)]">
           <p className="text-4xl mb-3"><i className="iconoir-bell" aria-hidden /></p>
-          <p className="font-medium">No tienes suscripciones activas</p>
-          <p className="text-sm mt-1">Explora anuncios de tipo Suscripción para acceder a contenido exclusivo.</p>
-          <a href="/" className="inline-block mt-4 text-sm text-[var(--color-accent)] hover:underline">
-            Explorar →
-          </a>
+          <p className="font-medium"><BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.fd78b621" /></p>
+          <p className="text-sm mt-1"><BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.ab86837c" /></p>
+          <Link href="/" className="inline-block mt-4 text-sm text-[var(--color-accent)] hover:underline">
+            <BuyerCopyText copyKey="account.subscriptions.AccountSubscriptionsClient.9f376f68" /></Link>
         </div>
       )}
     </div>

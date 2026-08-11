@@ -8,7 +8,7 @@ import type { RecruitingSource } from '@/lib/recruiting-events'
 import { getDictionary, type Dictionary } from '@/lib/dictionary'
 
 /**
- * The US market exists as an invitation surface, not as a catalog.
+ * The US market exists under an en-US root document as an invitation surface, not as a catalog.
  *
  * There are deliberately no child routes under this directory. That makes a
  * Mexico product id under `/us/l/...` an ordinary structural 404, and keeps the

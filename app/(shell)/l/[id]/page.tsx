@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
@@ -8,7 +9,6 @@ import {
   getOwnedShopPriceGrid,
   getShopListings,
   getPriceGrid,
-  formatPrice,
   conditionLabel,
 } from '@/lib/listings'
 import ConfiguratorBuyBox from './ConfiguratorBuyBox'
@@ -52,7 +52,6 @@ import ExcerptPanel from './ExcerptPanel'
 import { excerptModel } from '@/lib/excerpt'
 import { db } from '@/lib/supabase'
 import { getActiveDealForBuyer } from '@/lib/active-deal'
-import { formatOfferAmount } from '@/lib/offers'
 import { resolveOwnedPriceGridForPdp } from '@/lib/owned-market'
 import { readPriceGrid, type PriceGrid } from '@/lib/price-grid'
 import { shouldShowSaveCount, saveCountLabel, isNewListing } from '@/lib/pdp-liveness'
@@ -64,6 +63,8 @@ import { deriveInventoryMode, deriveBuyBoxBehavior } from '@/lib/inventory-mode'
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { Metadata } from 'next'
 import type { MarketCode } from '@/lib/markets'
+import { getDictionary } from '@/lib/dictionary'
+import { formatPresentationCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
 import { marketCatalogCanonical } from '@/lib/market-seo'
 
 export async function generateListingMetadata({
@@ -125,14 +126,6 @@ function timeAgo(dateStr: string): string {
   return `Hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? 's' : ''}`
 }
 
-function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
-}
-
 export async function ListingPage({
   params,
   market = 'mx',
@@ -160,6 +153,10 @@ export async function ListingPage({
     isEnabled('configurator.enabled'),
   ])
   if (!listing) notFound()
+  const presentation = resolveMarketPresentation(market)
+  const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
+  const formatCents = (cents: number, currency: string) =>
+    formatPresentationCurrency(presentation, cents, currency, { maximumFractionDigits: 0 })
   const priceGrid: PriceGrid | null = channelSlug
     ? resolveOwnedPriceGridForPdp(priceGridResult, listing.shop?.market_code)
     : readPriceGrid(priceGridResult)
@@ -306,9 +303,9 @@ export async function ListingPage({
   // Only show a positive return window as a trust signal — "no returns" is never surfaced
   // on the PDP (it's the implicit default and negative framing; disputes still apply via
   // platform protection regardless of seller policy).
-  const returnsLabel = returnsPolicySettings?.window === '7d'  ? '7 días'
-    : returnsPolicySettings?.window === '14d' ? '14 días'
-    : returnsPolicySettings?.window === '30d' ? '30 días'
+  const returnsLabel = returnsPolicySettings?.window === '7d'  ? buyerCopy['listing.returnWindow7']
+    : returnsPolicySettings?.window === '14d' ? buyerCopy['listing.returnWindow14']
+    : returnsPolicySettings?.window === '30d' ? buyerCopy['listing.returnWindow30']
     : null
   const isSubscription = (listing.listing_type as string) === 'subscription'
   type StoredTier = { id: string; label: string; price_cents: number; interval: 'month' | 'year'; features: string[]; is_highlighted: boolean; stripe_price_id?: string; mp_preapproval_plan_id?: string }
@@ -369,8 +366,8 @@ export async function ListingPage({
   const agreedDealCents = activeDeal?.status === 'accepted_unpaid' && activeDeal.dealPriceCents ? activeDeal.dealPriceCents : null
   const activeDealCurrency = activeDeal?.currency ?? listing.currency
   const effectivePrice = agreedDealCents
-    ? formatOfferAmount(agreedDealCents, activeDealCurrency)
-    : formatPrice(listing)
+    ? formatCents(agreedDealCents, activeDealCurrency)
+    : listing.price_cents ? formatCents(listing.price_cents, listing.currency) : buyerCopy['l.id.page.46ee2987']
   const showBuyerActions = isClaimed && !isOwnListing
   // Inventory modes (catalog-management epic, Sprint 2 · Story 2.1) — a
   // "sobre pedido" (backorder) listing never blocks the buy box even at
@@ -461,8 +458,10 @@ export async function ListingPage({
   const ticketCap = eventModel
     ? ticketQuantityCap({ available: listing.available_quantity, enabled: ticketQtyEnabled })
     : 1
-  const buyNowLabel = eventModel ? `${eventModel.buyLabel} — ${effectivePrice}` : `Comprar ahora — ${effectivePrice}`
-  const signInBuyLabel = eventModel ? eventModel.signInLabel : 'Inicia sesión para comprar'
+  const buyNowLabel = eventModel
+    ? `${eventModel.buyLabel} — ${effectivePrice}`
+    : buyerCopy['listing.buyNowWithPrice'].replace('{0}', effectivePrice)
+  const signInBuyLabel = eventModel ? eventModel.signInLabel : buyerCopy['listing.signInToBuy']
   // Unclaimed (S5.4) — gem-imported shop with no owner. Buy/Offer/Cart already
   // suppressed via isShopClaimed (no gating change); this only leads the page with
   // an honest "aún no reclamada" notice. SellerTrustCard already carries the
@@ -519,24 +518,24 @@ export async function ListingPage({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {activeDeal?.status === 'accepted_unpaid' && agreedDealCents && (
         <div style={{ padding: 12, background: 'var(--success-soft)', border: '1.5px solid var(--success)', borderRadius: 'var(--r-lg)' }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}>Tu precio acordado</p>
-          <p style={{ fontSize: 22, fontWeight: 800 }}>{formatOfferAmount(agreedDealCents, activeDeal.currency)}</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}><BuyerCopyText copyKey="l.id.page.6252ff7c" /></p>
+          <p style={{ fontSize: 22, fontWeight: 800 }}>{formatCents(agreedDealCents, activeDeal.currency)}</p>
           {listing.price_cents && (
-            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.page.c5d76f70" />{' '}<span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
           )}
         </div>
       )}
       {activeDeal?.status === 'pending' && (
         <div style={{ padding: 12, background: 'var(--warning-soft)', border: '1.5px solid var(--warning)', borderRadius: 'var(--r-lg)' }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}>Tu oferta está pendiente</p>
-          {activeDeal.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Oferta enviada: {formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}><BuyerCopyText copyKey="l.id.page.db5f23a5" /></p>
+          {activeDeal.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}><BuyerCopyText copyKey="l.id.page.e6b6652f" />{' '}{formatCents(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
         </div>
       )}
       {activeDeal?.status === 'countered' && (
         <div style={{ padding: 12, background: 'var(--info-soft)', border: '1.5px solid var(--info)', borderRadius: 'var(--r-lg)' }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}>El vendedor hizo una contraoferta</p>
-          {activeDeal.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
-          {activeDeal.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}><BuyerCopyText copyKey="l.id.page.7ee28bbf" /></p>
+          {activeDeal.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatCents(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+          {activeDeal.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}><BuyerCopyText copyKey="l.id.page.9338c26f" /></Link>}
         </div>
       )}
       {/* Print-ad placement → funnel into the ad builder (captures ad content),
@@ -547,8 +546,7 @@ export async function ListingPage({
           className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
-          <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
-        </Link>
+          <i className="iconoir-journal" aria-hidden /> <BuyerCopyText copyKey="l.id.page.4b20055a" /></Link>
       )}
       {/* Single "Comprar ahora" → unified checkout, where the buyer picks the
           payment method among the ones the seller has enabled. No provider is
@@ -594,17 +592,15 @@ export async function ListingPage({
             />
           ) : isSignedIn ? (
             <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-              Comprar ahora — {effectivePrice}
+              <BuyerCopyText copyKey="l.id.page.fb109676" />{' '}{effectivePrice}
             </Link>
           ) : (
             <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
-              Inicia sesión para comprar
-            </Link>
+              <BuyerCopyText copyKey="l.id.page.4b2e7723" /></Link>
           )
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-            Contacta al vendedor para pagar
-          </div>
+            <BuyerCopyText copyKey="l.id.page.e0984f2d" /></div>
         )
       )}
       {/* Negotiation doesn't compose with the configurator this sprint
@@ -621,15 +617,13 @@ export async function ListingPage({
       {activeDeal?.status === 'accepted_unpaid' && activeDeal.conversationId && (
         <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
           <i className="iconoir-message-text" style={{ fontSize: 16 }} />
-          Ver conversación
-        </Link>
+          <BuyerCopyText copyKey="l.id.page.fb1415fb" /></Link>
       )}
       <AskSellerButton listingId={listing.id} isSignedIn={isSignedIn} marketBasePath={marketBasePath} />
     </div>
   ) : isOwnListing ? (
     <Link href={`/sell/edit/${listing.id}`} className="btn btn-dark btn-lg no-underline" style={{ width: '100%', justifyContent: 'center' }}>
-      Editar anuncio
-    </Link>
+      <BuyerCopyText copyKey="l.id.page.ba97b5b0" /></Link>
   ) : null
 
   // ══ PDP redesign · action region (S1.1 + S1.3) ══════════════════════════════
@@ -697,8 +691,7 @@ export async function ListingPage({
     )
   ) : (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-      Contacta al vendedor para pagar
-    </div>
+      <BuyerCopyText copyKey="l.id.page.e0984f2d" /></div>
   )
 
   // "Preguntar" demoted to a light text link below the primary/secondary actions (S1.3).
@@ -710,10 +703,10 @@ export async function ListingPage({
         <>
           {agreedDealCents && (
             <div style={{ padding: 12, background: 'var(--success-soft)', border: '1.5px solid var(--success)', borderRadius: 'var(--r-lg)' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}>Tu precio acordado</p>
-              <p style={{ fontSize: 22, fontWeight: 800 }}>{formatOfferAmount(agreedDealCents, activeDealCurrency)}</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}><BuyerCopyText copyKey="l.id.page.6252ff7c" /></p>
+              <p style={{ fontSize: 22, fontWeight: 800 }}>{formatCents(agreedDealCents, activeDealCurrency)}</p>
               {listing.price_cents && (
-                <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
+                <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.page.c5d76f70" />{' '}<span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>
               )}
             </div>
           )}
@@ -721,8 +714,7 @@ export async function ListingPage({
           {activeDeal?.conversationId && (
             <Link href={`/messages/${activeDeal.conversationId}`} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ border: '1.5px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}>
               <i className="iconoir-message-text" style={{ fontSize: 16 }} />
-              Ver conversación
-            </Link>
+              <BuyerCopyText copyKey="l.id.page.fb1415fb" /></Link>
           )}
           {redesignAskLink}
         </>
@@ -730,8 +722,8 @@ export async function ListingPage({
       {barMode === 'offer_pending' && (
         <>
           <div style={{ padding: 12, background: 'var(--warning-soft)', border: '1.5px solid var(--warning)', borderRadius: 'var(--r-lg)' }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}>Tu oferta está pendiente</p>
-            {activeDeal?.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Oferta enviada: {formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)' }}><BuyerCopyText copyKey="l.id.page.db5f23a5" /></p>
+            {activeDeal?.dealPriceCents && <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}><BuyerCopyText copyKey="l.id.page.e6b6652f" />{' '}{formatCents(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
           </div>
           {redesignAskLink}
         </>
@@ -739,9 +731,9 @@ export async function ListingPage({
       {barMode === 'offer_countered' && (
         <>
           <div style={{ padding: 12, background: 'var(--info-soft)', border: '1.5px solid var(--info)', borderRadius: 'var(--r-lg)' }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}>El vendedor hizo una contraoferta</p>
-            {activeDeal?.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatOfferAmount(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
-            {activeDeal?.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}>Responder en mensajes</Link>}
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--info)' }}><BuyerCopyText copyKey="l.id.page.7ee28bbf" /></p>
+            {activeDeal?.dealPriceCents && <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--info)', marginTop: 2 }}>{formatCents(activeDeal.dealPriceCents, activeDeal.currency)}</p>}
+            {activeDeal?.conversationId && <Link href={`/messages/${activeDeal.conversationId}`} style={{ fontSize: 12, color: 'var(--info)', textDecoration: 'underline' }}><BuyerCopyText copyKey="l.id.page.9338c26f" /></Link>}
           </div>
           {redesignAskLink}
         </>
@@ -753,8 +745,7 @@ export async function ListingPage({
             className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
             style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
           >
-            <i className="iconoir-journal" aria-hidden /> Diseña tu anuncio impreso
-          </Link>
+            <i className="iconoir-journal" aria-hidden /> <BuyerCopyText copyKey="l.id.page.4b20055a" /></Link>
           {redesignAskLink}
         </>
       )}
@@ -856,9 +847,9 @@ export async function ListingPage({
 
         {/* Breadcrumbs */}
         <nav style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <Link href={marketBasePath || '/'} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Inicio</Link>
+          <Link href={marketBasePath || '/'} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]"><BuyerCopyText copyKey="l.id.page.c7e0bcc5" /></Link>
           <span>›</span>
-          <Link href={`${marketBasePath}/l`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
+          <Link href={`${marketBasePath}/l`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)]"><BuyerCopyText copyKey="l.id.page.a3a95d56" /></Link>
           {listing.category && (<><span>›</span><Link href={`${marketBasePath}/l?category=${listing.category}`} style={{ color: 'var(--fg-subtle)', textDecoration: 'none' }} className="hover:text-[var(--fg)] capitalize">{listing.category}</Link></>)}
         </nav>
 
@@ -868,8 +859,7 @@ export async function ListingPage({
           {/* S2.2 liveness — "Nuevo" badge for the first 48h (redesign-gated). */}
           {redesign && isNewListing(listing.created_at) && (
             <span data-testid="pdp-new-badge" style={{ fontSize: 12, fontWeight: 700, background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
-              Nuevo
-            </span>
+              <BuyerCopyText copyKey="l.id.page.a3b675cf" /></span>
           )}
           {listing.condition && (
             <span style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
@@ -909,24 +899,23 @@ export async function ListingPage({
         {/* Price */}
         <div style={{ marginBottom: (processingLabel || returnsLabel) ? 10 : 16 }}>
           {agreedDealCents && (
-            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 3 }}>Tu precio acordado</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', marginBottom: 3 }}><BuyerCopyText copyKey="l.id.page.6252ff7c" /></p>
           )}
           <p style={{ fontWeight: 800, fontSize: 28, color: 'var(--fg)', lineHeight: 1 }}>{effectivePrice}</p>
           {buyBoxBehavior.showAgotado && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--danger)', background: 'var(--danger-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
               <i className="iconoir-xmark" style={{ fontSize: 12 }} />
-              Agotado
-            </span>
+              <BuyerCopyText copyKey="l.id.page.c5b8956d" /></span>
           )}
           {buyBoxBehavior.showDispatchNote && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--info)', background: 'var(--info-soft)', borderRadius: 'var(--r-pill)', padding: '4px 10px' }}>
               <i className="iconoir-clock" style={{ fontSize: 12 }} />
-              Sobre pedido{dispatchEstimateLabel ? ` — envío estimado ${dispatchEstimateLabel}` : ''}
+              <BuyerCopyText copyKey="l.id.page.d798e59e" />{dispatchEstimateLabel ? <BuyerCopyText copyKey="l.id.page.e33be664" values={[dispatchEstimateLabel]} /> : ''}
             </span>
           )}
           {agreedDealCents && listing.price_cents && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>
-              Precio original: <span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span>
+              <BuyerCopyText copyKey="l.id.page.c5d76f70" />{' '}<span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span>
             </p>
           )}
           {listing.currency && listing.currency !== 'MXN' && (
@@ -1008,10 +997,9 @@ export async function ListingPage({
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--agent-soft)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: digitalSpecRows.length ? 12 : 0 }}>
               <i className="iconoir-flash" style={{ fontSize: 22, color: 'var(--agent)', flexShrink: 0, marginTop: 1 }} />
               <div className="min-w-0">
-                <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--agent)' }}>Entrega al instante</p>
+                <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--agent)' }}><BuyerCopyText copyKey="l.id.page.335e062b" /></p>
                 <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-                  Recibes el archivo en cuanto se confirma el pago.
-                </p>
+                  <BuyerCopyText copyKey="l.id.page.a9730fa9" /></p>
                 {digitalInfo?.name && (
                   <p style={{ fontSize: 12, color: 'var(--fg)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <i className="iconoir-page" style={{ fontSize: 12, marginRight: 4 }} />
@@ -1088,7 +1076,7 @@ export async function ListingPage({
         )}
         {redesign && !serviceLed && listing.description && (
           <div className="md:hidden" data-testid="pdp-description-mobile" style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Descripción</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}><BuyerCopyText copyKey="l.id.page.77d22286" /></h2>
             <CollapsibleDescription text={listing.description} />
           </div>
         )}
@@ -1115,9 +1103,9 @@ export async function ListingPage({
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: paymentMethods.length || fulfillmentMethods.length ? 12 : 0 }}>
                 <i className="iconoir-message-text" style={{ fontSize: 18, color: 'var(--accent)', marginTop: 1 }} />
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 700 }}>Precio a consultar</p>
+                  <p style={{ fontSize: 13, fontWeight: 700 }}><BuyerCopyText copyKey="l.id.page.46ee2987" /></p>
                   <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-                    {hasDirectContact ? 'Usa las opciones de contacto de la tienda para confirmar precio, pago y entrega.' : 'La tienda no publicó un precio para compra en línea.'}
+                    {hasDirectContact ? <BuyerCopyText copyKey="l.id.page.fd7e59c2" /> : <BuyerCopyText copyKey="l.id.page.8e75b890" />}
                   </p>
                 </div>
               </div>
@@ -1135,10 +1123,10 @@ export async function ListingPage({
           <div className="flex items-center gap-2" style={{ background: 'var(--agent-soft)', borderRadius: 'var(--r-md)', padding: '10px 12px', marginBottom: 12 }}>
             <i className="iconoir-pc-mouse" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Producto digital — entrega automática</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}><BuyerCopyText copyKey="l.id.page.fe8e69a9" /></div>
               <div style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {digitalFile.label} · {digitalFile.name}
-                {digitalFile.size && ` · ${(digitalFile.size / 1024 / 1024).toFixed(1)} MB`}
+                {digitalFile.size && <BuyerCopyText copyKey="l.id.page.9683a783" values={[(digitalFile.size / 1024 / 1024).toFixed(1)]} />}
               </div>
             </div>
           </div>
@@ -1149,9 +1137,9 @@ export async function ListingPage({
             <i className={repuve!.status === 'sin_reporte' ? 'iconoir-check-circle' : 'iconoir-warning-triangle'} style={{ fontSize: 18, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)', flexShrink: 0 }} />
             <div>
               <span style={{ fontSize: 13, fontWeight: 600, color: repuve!.status === 'sin_reporte' ? 'var(--success)' : 'var(--danger)' }}>
-                {repuve!.status === 'sin_reporte' ? 'Sin reporte REPUVE' : 'Con reporte REPUVE'}
+                {repuve!.status === 'sin_reporte' ? <BuyerCopyText copyKey="l.id.page.886f08a2" /> : <BuyerCopyText copyKey="l.id.page.fecd222b" />}
               </span>
-              {repuve!.folio && <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)', opacity: 0.7 }}>Folio: {repuve!.folio}</span>}
+              {repuve!.folio && <span style={{ marginLeft: 8, fontSize: 11, fontFamily: 'var(--font-mono)', opacity: 0.7 }}><BuyerCopyText copyKey="l.id.page.9932184a" />{' '}{repuve!.folio}</span>}
             </div>
           </div>
         )}
@@ -1161,7 +1149,7 @@ export async function ListingPage({
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--info)', marginTop: 1, flexShrink: 0 }} />
               <div>
-                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginBottom: 6 }}>Evento</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--info)', marginBottom: 6 }}><BuyerCopyText copyKey="l.id.page.714d1bed" /></p>
                 {eventDetails.formatted_date && (
                   <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>
                     {eventDetails.formatted_date}
@@ -1190,8 +1178,8 @@ export async function ListingPage({
         {buyBoxBehavior.showAgotado && showBuyerActions && !isDigital && !isSubscription && hasBuyablePrice && (
           <div style={{ marginBottom: 20, padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', textAlign: 'center' }}>
             <i className="iconoir-xmark" style={{ fontSize: 22, color: 'var(--danger)' }} />
-            <p style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>Artículo agotado</p>
-            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Este artículo ya se vendió y no está disponible.</p>
+            <p style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}><BuyerCopyText copyKey="l.id.page.69a778b6" /></p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}><BuyerCopyText copyKey="l.id.page.1a2c9cef" /></p>
           </div>
         )}
 
@@ -1219,11 +1207,11 @@ export async function ListingPage({
             <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
               <i className="iconoir-download-circle-solid" style={{ fontSize: 22, color: 'var(--agent)' }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}>Entrega automática al instante</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Recibirás el archivo al completar el pago.</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--agent)' }}><BuyerCopyText copyKey="l.id.page.2e49ff91" /></div>
+                <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.page.edf5a7c6" /></div>
               </div>
             </div>
-            <BuyButton listingId={listing.id} price={formatPrice(listing)} isDigital sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} customDomain={customDomain} />
+            <BuyButton listingId={listing.id} price={effectivePrice} isDigital sellerHasStripe={sellerHasStripe} isSignedIn={isSignedIn} customDomain={customDomain} />
           </div>
         )}
 
@@ -1256,7 +1244,7 @@ export async function ListingPage({
             "Qué incluye" block instead. */}
         {listing.description && !serviceLed && (
           <div className={redesign ? 'hidden md:block' : undefined} style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Descripción</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}><BuyerCopyText copyKey="l.id.page.77d22286" /></h2>
             <p style={{ fontSize: 'var(--t-sm)', color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{listing.description}</p>
           </div>
         )}
@@ -1264,12 +1252,12 @@ export async function ListingPage({
         {/* Digital goods have no returns surface (S4.3 — no envío/devoluciones). */}
         {returnsLabel && !digitalLed && (
           <div style={{ marginBottom: 20 }}>
-            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Política de devoluciones</h2>
+            <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}><BuyerCopyText copyKey="l.id.page.df30f883" /></h2>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-              Acepta devoluciones durante {returnsLabel.toLowerCase()}
-              {returnsPolicySettings?.conditions === 'unopened' ? ' si el producto sigue cerrado' : ''}
-              {returnsPolicySettings?.conditions === 'original' ? ' si se entrega en su estado original' : ''}
-              {returnsPolicySettings?.shipping_paid_by === 'seller' ? '. El vendedor cubre el envío de devolución.' : '. El comprador cubre el envío de devolución.'}
+              <BuyerCopyText copyKey="l.id.page.1b48b9a5" />{' '}{returnsLabel.toLowerCase()}
+              {returnsPolicySettings?.conditions === 'unopened' ? <BuyerCopyText copyKey="l.id.page.43081700" /> : ''}
+              {returnsPolicySettings?.conditions === 'original' ? <BuyerCopyText copyKey="l.id.page.77a53a2f" /> : ''}
+              {returnsPolicySettings?.shipping_paid_by === 'seller' ? <BuyerCopyText copyKey="l.id.page.7e4e92b4" /> : <BuyerCopyText copyKey="l.id.page.c4d977f0" />}
             </p>
             {returnsPolicySettings?.custom_note && (
               <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.5, marginTop: 6 }}>{returnsPolicySettings.custom_note}</p>
@@ -1281,8 +1269,7 @@ export async function ListingPage({
         {listing.source_url && (
           <div style={{ marginBottom: 20 }}>
             <a href={listing.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              Ver anuncio original
-              <i className="iconoir-arrow-up-right" style={{ fontSize: 12 }} />
+              <BuyerCopyText copyKey="l.id.page.93d35159" /><i className="iconoir-arrow-up-right" style={{ fontSize: 12 }} />
               {listing.source_platform && <span style={{ fontSize: 11, background: 'var(--bg-sunk)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: 4, textTransform: 'capitalize' }}>{listing.source_platform.replace('_', ' ')}</span>}
             </a>
           </div>

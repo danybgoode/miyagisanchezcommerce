@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 /**
  * ConfiguratorBuyBox — the buy box for a print-configurator (multi-variant,
  * tiered-price) listing (custom-print-products epic, Sprint 2 Story 2.3):
@@ -51,6 +52,7 @@ export default function ConfiguratorBuyBox({
   currency: string
   customFields?: CustomFieldDef[]
 }) {
+  const copy = useBuyerCopy()
   const router = useRouter()
   const fieldsRef = useRef<PersonalizationFieldsHandle>(null)
 
@@ -167,13 +169,13 @@ export default function ConfiguratorBuyBox({
       ))}
 
       <div style={rowStyle}>
-        <span style={labelStyle}>Cantidad</span>
-        <div role="group" aria-label="Cantidad" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={labelStyle}><BuyerCopyText copyKey="l.id.ConfiguratorBuyBox.8b45d2d3" /></span>
+        <div role="group" aria-label={copy('l.id.ConfiguratorBuyBox.8b45d2d3')} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
             onClick={() => setQty((q) => Math.max(1, q - 1))}
             disabled={qty <= 1}
-            aria-label="Restar"
+            aria-label={copy('l.id.ConfiguratorBuyBox.7ebd101f')}
             style={{ ...stepBtn, opacity: qty <= 1 ? 0.4 : 1, cursor: qty <= 1 ? 'not-allowed' : 'pointer' }}
           >
             −
@@ -181,7 +183,7 @@ export default function ConfiguratorBuyBox({
           <span data-testid="configurator-qty" style={{ minWidth: 32, textAlign: 'center', fontSize: 16, fontWeight: 800 }}>
             {qty}
           </span>
-          <button type="button" onClick={() => setQty((q) => q + 1)} aria-label="Sumar" style={stepBtn}>
+          <button type="button" onClick={() => setQty((q) => q + 1)} aria-label={copy('l.id.ConfiguratorBuyBox.080e2611')} style={stepBtn}>
             +
           </button>
         </div>
@@ -189,8 +191,7 @@ export default function ConfiguratorBuyBox({
 
       {unitCents != null && (
         <p style={{ fontSize: 12, color: 'var(--fg-muted)', textAlign: 'right' }}>
-          {formatPriceGridAmount(unitCents, currency)} c/u
-        </p>
+          {formatPriceGridAmount(unitCents, currency)} <BuyerCopyText copyKey="l.id.ConfiguratorBuyBox.a654c236" /></p>
       )}
 
       {customFields.length > 0 && (
@@ -217,15 +218,14 @@ export default function ConfiguratorBuyBox({
           {loading ? (
             <span className="animate-spin inline-block">⟳</span>
           ) : isSignedIn ? (
-            `Comprar ahora — ${formatPriceGridAmount(totalCents!, currency)}`
+            <BuyerCopyText copyKey="l.id.ConfiguratorBuyBox.eb0e2f24" values={[formatPriceGridAmount(totalCents!, currency)]} />
           ) : (
-            'Inicia sesión para comprar'
+            <BuyerCopyText copyKey="l.id.ConfiguratorBuyBox.0656438f" />
           )}
         </button>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-          Selecciona una combinación disponible
-        </div>
+          <BuyerCopyText copyKey="l.id.ConfiguratorBuyBox.9f7c850b" /></div>
       )}
     </div>
   )

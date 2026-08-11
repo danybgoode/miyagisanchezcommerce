@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useState } from 'react'
 import {
   BUYER_EVENT_GROUPS,
@@ -168,13 +169,12 @@ export default function BuyerNotificationPreferences() {
 
   return (
     <section className="border border-[var(--color-border)] rounded-xl p-5">
-      <div className="mb-1 text-base font-semibold">¿Qué te avisamos y por dónde?</div>
+      <div className="mb-1 text-base font-semibold"><BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.24b8a46a" /></div>
       <p className="mb-4 text-xs text-[var(--color-muted)]">
-        Elige los canales por tipo de evento. Lo que apagues deja de llegarte.
-      </p>
+        <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.25f90266" /></p>
 
       {loading ? (
-        <div className="py-6 text-sm text-[var(--color-muted)]">Cargando…</div>
+        <div className="py-6 text-sm text-[var(--color-muted)]"><BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.af919900" /></div>
       ) : prefs ? (
         <NotificationPreferencesGrid
           groups={BUYER_EVENT_GROUPS}
@@ -200,11 +200,11 @@ export default function BuyerNotificationPreferences() {
       {/* Telegram connection — links the person's single chat (shared with the
           seller portal). The grid's Telegram column activates once connected. */}
       <div className="mt-4 border-t border-[var(--color-border)] pt-4">
-        <div className="mb-1 text-sm font-medium">Telegram</div>
+        <div className="mb-1 text-sm font-medium"><BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.1fcf3617" /></div>
         {linked ? (
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1 text-sm text-[var(--color-accent)]">
-              Conectado <i className="iconoir-check" aria-hidden />
+              <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.ce7749a9" />{' '}<i className="iconoir-check" aria-hidden />
             </span>
             <button
               type="button"
@@ -212,39 +212,33 @@ export default function BuyerNotificationPreferences() {
               disabled={tgBusy}
               className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:opacity-50"
             >
-              Enviar prueba
-            </button>
+              <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.7df788e8" /></button>
             <button
               type="button"
               onClick={disconnectTelegram}
               disabled={tgBusy}
               className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-danger)] hover:bg-black/5 disabled:opacity-50"
             >
-              Desconectar
-            </button>
+              <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.2910e1ae" /></button>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-[var(--color-muted)]">
-              Conecta Telegram para recibir avisos de tus compras al instante. Luego activa los que quieras
-              arriba.
-            </p>
+              <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.43215ee6" /></p>
             <button
               type="button"
               onClick={connectTelegram}
               disabled={tgBusy}
               className="self-start rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              Conecta Telegram
-            </button>
+              <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.3b02bc6e" /></button>
           </div>
         )}
         {tgMsg && <div className="mt-2 text-xs text-[var(--color-muted)]">{tgMsg}</div>}
       </div>
 
       <p className="mt-4 border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-muted)]">
-        El recibo de tu compra y pago siempre llega por correo (no se puede apagar).
-      </p>
+        <BuyerCopyText copyKey="account.notificaciones.BuyerNotificationPreferences.e926a28f" /></p>
     </section>
   )
 }

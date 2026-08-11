@@ -31,7 +31,7 @@ import { marketBasePath } from '@/lib/market-url'
 import { marketLandingMetadata } from '@/lib/market-seo'
 import type { Metadata } from 'next'
 
-// Prerender `/mx` as a static CDN asset, revalidated on the curated-content window
+// Prerender `/mx` under its es-MX root document as a static CDN asset, revalidated on the curated-content window
 // (= CACHE.LISTING, lib/cache-policy.ts SSOT — kept a literal because Next requires
 // `revalidate` to be statically analyzable). This is what turns the homepage from a
 // per-request function (~30 s cold-start) into an ISR-prerendered static page.

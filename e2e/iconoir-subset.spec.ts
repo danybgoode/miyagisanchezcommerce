@@ -14,8 +14,8 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const read = (p: string) => readFileSync(join(repoRoot, p), 'utf8')
 
 test.describe('iconoir subset · CI guard (hyper-performant-website S2 · Story 2.1)', () => {
-  test('app/layout.tsx no longer <link>s the jsDelivr CDN (the 204 KiB render-blocking request)', () => {
-    const layout = read('app/layout.tsx')
+  test('MarketDocument no longer <link>s the jsDelivr CDN (the 204 KiB render-blocking request)', () => {
+    const layout = read('app/components/MarketDocument.tsx')
     // Scoped to an actual <link ... href="...jsdelivr..."> tag, not a bare
     // substring — the file keeps a doc-comment explaining what this replaced
     // (which itself mentions the old domain), and a bare substring check
@@ -24,9 +24,10 @@ test.describe('iconoir subset · CI guard (hyper-performant-website S2 · Story 
     expect(layout).not.toMatch(/<link[^>]*jsdelivr\.net[^>]*>/)
   })
 
-  test('app/layout.tsx imports the generated same-origin subset stylesheet', () => {
-    const layout = read('app/layout.tsx')
-    expect(layout).toMatch(/import\s+'\.\/iconoir-subset\.css'/)
+  test('every root route-group layout imports the generated same-origin subset stylesheet', () => {
+    for (const file of ['app/(site)/layout.tsx', 'app/(mx-site)/layout.tsx', 'app/(us-site)/layout.tsx', 'app/(shell)/layout.tsx']) {
+      expect(read(file), file).toMatch(/import\s+'@\/app\/iconoir-subset\.css'/)
+    }
   })
 
   // THE hard gate: red the moment a new `iconoir-*` class is used anywhere in

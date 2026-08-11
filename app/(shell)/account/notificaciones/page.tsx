@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
@@ -19,12 +20,10 @@ export default async function NotificacionesPage() {
           href="/account"
           className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]"
         >
-          ← Mi cuenta
-        </Link>
-        <h1 className="mt-2 text-xl font-bold">Notificaciones</h1>
+          <BuyerCopyText copyKey="account.notificaciones.page.b2cbd5da" /></Link>
+        <h1 className="mt-2 text-xl font-bold"><BuyerCopyText copyKey="account.notificaciones.page.6d60adc4" /></h1>
         <p className="text-sm text-[var(--color-muted)]">
-          Controla qué te avisamos sobre tus compras y por qué canal.
-        </p>
+          <BuyerCopyText copyKey="account.notificaciones.page.07d982a7" /></p>
       </header>
 
       <BuyerNotificationPreferences />

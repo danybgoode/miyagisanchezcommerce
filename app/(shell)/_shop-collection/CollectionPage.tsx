@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -116,7 +117,7 @@ export default async function CollectionPage({
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
             <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
-            <p className="font-medium">Esta colección todavía no tiene anuncios.</p>
+            <p className="font-medium"><BuyerCopyText copyKey="shop.collection.CollectionPage.22fbd5c9" /></p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

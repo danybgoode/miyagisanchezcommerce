@@ -1,13 +1,9 @@
 'use client'
 
+import { BuyerCopyText, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 import Link from 'next/link'
 import type { ReferralStats } from '@/lib/referrals'
-
-function formatMXN(cents: number | null): string {
-  if (cents == null) return ''
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
-}
 
 export default function ReferralsClient({
   code,
@@ -18,6 +14,7 @@ export default function ReferralsClient({
   stats: ReferralStats
   siteUrl: string
 }) {
+  const formatters = useBuyerFormatters()
   const link = code ? `${siteUrl}/?ref=${code}` : ''
   const [copied, setCopied] = useState(false)
 
@@ -52,32 +49,29 @@ export default function ReferralsClient({
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
       <div className="flex items-center gap-2 mb-1 text-xs text-[var(--color-muted)]">
-        <Link href="/account" className="hover:underline no-underline">Mi cuenta</Link>
+        <Link href="/account" className="hover:underline no-underline"><BuyerCopyText copyKey="account.referrals.ReferralsClient.02eea7e4" /></Link>
         <span>/</span>
-        <span>Invita y gana</span>
+        <span><BuyerCopyText copyKey="account.referrals.ReferralsClient.7dc48d64" /></span>
       </div>
-      <h1 className="text-2xl font-bold mb-1">Invita y gana</h1>
+      <h1 className="text-2xl font-bold mb-1"><BuyerCopyText copyKey="account.referrals.ReferralsClient.7dc48d64" /></h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
-        Comparte tu enlace. Cuando un amigo se registra y hace su primera compra, ganas crédito para
-        tu próximo anuncio en la edición impresa.
-      </p>
+        <BuyerCopyText copyKey="account.referrals.ReferralsClient.76f3feb0" /></p>
 
       {code ? (
         <>
           {/* Share card */}
           <div className="border border-[var(--color-border)] rounded-xl p-5 mb-6">
-            <label className="block text-xs font-medium text-[var(--color-muted)] mb-2">Tu enlace de invitación</label>
+            <label className="block text-xs font-medium text-[var(--color-muted)] mb-2"><BuyerCopyText copyKey="account.referrals.ReferralsClient.3110e898" /></label>
             <div className="flex items-center gap-2">
               <code className="flex-1 min-w-0 truncate text-sm bg-[var(--surface-muted)] rounded-lg px-3 py-2">{link}</code>
               <button onClick={copy} className="px-3 py-2 text-sm font-medium rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-alt)] whitespace-nowrap">
-                {copied ? '¡Copiado!' : 'Copiar'}
+                {copied ? <BuyerCopyText copyKey="account.referrals.ReferralsClient.3f84f875" /> : <BuyerCopyText copyKey="account.referrals.ReferralsClient.a86e8047" />}
               </button>
             </div>
             <button onClick={share} className="btn btn-primary mt-3 w-full">
-              Compartir
-            </button>
+              <BuyerCopyText copyKey="account.referrals.ReferralsClient.895ce2c6" /></button>
             <p className="text-xs text-[var(--color-muted)] mt-3">
-              Tu código: <strong className="font-mono">{code}</strong>
+              <BuyerCopyText copyKey="account.referrals.ReferralsClient.e5665fb9" />{' '}<strong className="font-mono">{code}</strong>
             </p>
           </div>
 
@@ -91,27 +85,25 @@ export default function ReferralsClient({
           {/* Earned credits */}
           {stats.credits.length > 0 && (
             <div>
-              <h2 className="font-semibold mb-2">Tus créditos</h2>
+              <h2 className="font-semibold mb-2"><BuyerCopyText copyKey="account.referrals.ReferralsClient.0d142b0c" /></h2>
               <ul className="space-y-2">
                 {stats.credits.map((c) => (
                   <li key={c.code} className="flex items-center justify-between gap-3 border border-[var(--color-border)] rounded-xl px-4 py-3">
                     <span className="min-w-0">
                       <span className="font-mono font-semibold tracking-wide">{c.code}</span>
-                      {c.amount_cents != null && <span className="text-sm text-[var(--color-muted)]"> · {formatMXN(c.amount_cents)} de crédito</span>}
+                      {c.amount_cents != null && <span className="text-sm text-[var(--color-muted)]"> · {formatters.currency(c.amount_cents, 'MXN', { maximumFractionDigits: 0 })} <BuyerCopyText copyKey="account.referrals.ReferralsClient.0c39e9af" /></span>}
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="text-xs text-[var(--color-muted)] mt-3">
-                Úsalo en tu próximo <Link href="/account/print-ads" className="underline">anuncio impreso</Link>: ingresa el código al pagar.
-              </p>
+                <BuyerCopyText copyKey="account.referrals.ReferralsClient.594bff46" />{' '}<Link href="/account/print-ads" className="underline"><BuyerCopyText copyKey="account.referrals.ReferralsClient.9a749d4d" /></Link><BuyerCopyText copyKey="account.referrals.ReferralsClient.c428734c" /></p>
             </div>
           )}
         </>
       ) : (
         <div className="border border-[var(--color-border)] rounded-xl p-5 text-sm text-[var(--color-muted)]">
-          El programa de referidos estará disponible muy pronto. Vuelve en un momento.
-        </div>
+          <BuyerCopyText copyKey="account.referrals.ReferralsClient.fdcf1343" /></div>
       )}
     </div>
   )
