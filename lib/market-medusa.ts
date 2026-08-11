@@ -15,13 +15,12 @@
  *
  * Fail-closed contract:
  *   · unknown market            ⇒ THROWS `UnknownMarketError` (from the registry).
- *   · `us`                      ⇒ `null`. Not "empty", not "the Mexico one":
- *                                 there is exactly ONE Medusa Region live and it is
- *                                 Mexico's, and exactly one marketplace Sales
- *                                 Channel, also Mexico's (epic decision D0). A US
- *                                 checkout is fail-closed by construction.
- *   · `mx`                      ⇒ the env value, with the legacy fallback preserved
- *                                 byte-for-byte (see `resolveRegionIdForMarket`).
+ *   · configured market        ⇒ only that market's Region, Sales Channel, and
+ *                                 publishable key. Cross-market fallback is forbidden.
+ *   · unconfigured market      ⇒ the resolver's named empty/unconfigured result;
+ *                                 callers must surface unavailability, never retry MX.
+ *   · `mx`                      ⇒ its legacy env ordering and empty-string Region
+ *                                 behavior remain byte-compatible.
  */
 
 import { requireMarket, type MarketCode } from './markets'
@@ -36,10 +35,7 @@ export interface MarketMedusaEnv {
  * an explicitly empty string, which is what `??` does and what `lib/cart.ts` did
  * before this seam existed).
  *
- * A market with an EMPTY list has no Region at all, and that is a fact about the
- * live platform rather than a missing config: `us` is `marketplace_status:
- * invitation` and US commerce is an explicit non-goal of this epic. Written as a
- * total table over `MarketCode` on purpose — adding a market to the registry makes
+ * Written as a total table over `MarketCode` on purpose — adding a market makes
  * this object fail to type-check until someone decides what its Region is, instead
  * of silently inheriting Mexico's.
  */
@@ -49,7 +45,7 @@ const REGION_ENV_VARS: Readonly<Record<MarketCode, readonly string[]>> = Object.
   // server var is the fallback for server-side callers. This order is the one
   // that shipped; changing it would change MX cart behaviour.
   mx: Object.freeze(['NEXT_PUBLIC_MEDUSA_MXN_REGION_ID', 'MEDUSA_MXN_REGION_ID']),
-  us: Object.freeze([]),
+  us: Object.freeze(['MEDUSA_US_REGION_ID']),
 })
 
 /**
@@ -58,8 +54,47 @@ const REGION_ENV_VARS: Readonly<Record<MarketCode, readonly string[]>> = Object.
  */
 const CHANNEL_ENV_VARS: Readonly<Record<MarketCode, readonly string[]>> = Object.freeze({
   mx: Object.freeze(['MEDUSA_SALES_CHANNEL_ID']),
-  us: Object.freeze([]),
+  us: Object.freeze(['MEDUSA_US_MARKETPLACE_CHANNEL_ID']),
 })
+
+const PUBLISHABLE_KEY_ENV_VARS: Readonly<Record<MarketCode, readonly string[]>> = Object.freeze({
+  // Preserve the browser-visible legacy name first. Server deployments may also
+  // carry the backend spelling, and `??` semantics below keep an explicitly empty
+  // browser value visible instead of silently selecting a different market key.
+  mx: Object.freeze(['NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY', 'MEDUSA_PUBLISHABLE_KEY']),
+  us: Object.freeze(['MEDUSA_US_PUBLISHABLE_KEY']),
+})
+
+export type PublishableKeyResolution =
+  | { readonly status: 'resolved'; readonly market: MarketCode; readonly kind: 'publishable_key_token'; readonly token: string }
+  | { readonly status: 'unconfigured'; readonly market: MarketCode; readonly kind: 'publishable_key_token'; readonly env_var: string; readonly reason: string }
+
+/**
+ * Resolve the Store API token selected by authoritative market context. This is
+ * deliberately a named result: "US has no key configured" is an outage, not an
+ * empty catalog and never permission to retry with Mexico's key.
+ */
+export function resolvePublishableKeyForMarket(
+  market: unknown,
+  env: MarketMedusaEnv,
+): PublishableKeyResolution {
+  const record = requireMarket(market)
+  const names = PUBLISHABLE_KEY_ENV_VARS[record.code]
+  const token = firstDefined(env, names)?.trim() ?? ''
+  if (token) return { status: 'resolved', market: record.code, kind: 'publishable_key_token', token }
+  return {
+    status: 'unconfigured',
+    market: record.code,
+    kind: 'publishable_key_token',
+    env_var: names[0],
+    reason: `Market "${record.code}" expects a publishable key token but ${names[0]} is unset.`,
+  }
+}
+
+export function resolvePublishableKey(market: unknown, env: MarketMedusaEnv): string | null {
+  const resolution = resolvePublishableKeyForMarket(market, env)
+  return resolution.status === 'resolved' ? resolution.token : null
+}
 
 /** First defined value across `names`, or `undefined` when none is set. */
 function firstDefined(env: MarketMedusaEnv, names: readonly string[]): string | undefined {
@@ -73,8 +108,9 @@ function firstDefined(env: MarketMedusaEnv, names: readonly string[]): string | 
 /**
  * The Medusa Region id a market's carts and prices belong to.
  *
- * `null` means "this market has no Region" — the caller must not fall back to
- * another market's. Today only `us` answers `null`.
+ * `null` means "this market has no Region mapping"; an expected mapping whose env
+ * value is unset keeps the legacy empty-string wire value. Neither case permits
+ * fallback to another market's Region.
  *
  * The `?? ''` for a configured-but-unset `mx` is NOT laziness: `lib/cart.ts` sent
  * `region_id: ''` in exactly that case before this seam existed, and the backend
@@ -92,8 +128,7 @@ export function resolveRegionIdForMarket(market: unknown, env: MarketMedusaEnv):
 /**
  * The Medusa Sales Channel id that represents a market's marketplace.
  *
- * `null` means "this market publishes to no marketplace channel" — for `us`
- * because none exists, and for a market whose env var is simply unset. Unlike the
+ * `null` means "this market has no resolvable marketplace channel". Unlike the
  * Region there is no legacy empty-string caller to preserve here (the old
  * `DEFAULT_SALES_CHANNEL_ID` export had no consumer at all), so an unresolvable
  * channel answers `null` rather than a string that would silently match nothing.
@@ -120,4 +155,9 @@ export const PROCESS_MARKET_ENV: MarketMedusaEnv = {
   NEXT_PUBLIC_MEDUSA_MXN_REGION_ID: process.env.NEXT_PUBLIC_MEDUSA_MXN_REGION_ID,
   MEDUSA_MXN_REGION_ID: process.env.MEDUSA_MXN_REGION_ID,
   MEDUSA_SALES_CHANNEL_ID: process.env.MEDUSA_SALES_CHANNEL_ID,
+  NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY,
+  MEDUSA_PUBLISHABLE_KEY: process.env.MEDUSA_PUBLISHABLE_KEY,
+  MEDUSA_US_REGION_ID: process.env.MEDUSA_US_REGION_ID,
+  MEDUSA_US_MARKETPLACE_CHANNEL_ID: process.env.MEDUSA_US_MARKETPLACE_CHANNEL_ID,
+  MEDUSA_US_PUBLISHABLE_KEY: process.env.MEDUSA_US_PUBLISHABLE_KEY,
 }

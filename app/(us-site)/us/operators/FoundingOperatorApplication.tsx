@@ -1,6 +1,6 @@
 'use client'
 
-// Colocated with the en-US market root; language-switch copy remains dictionary data.
+// Colocated with the founding-operator recruiting route; language-switch copy remains dictionary data.
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'

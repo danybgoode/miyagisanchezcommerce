@@ -48,7 +48,7 @@ export async function generateShopMetadata({
   const { slug } = await params
   const requestHeaders = await headers()
   if (!isLikelyShopSlug(slug)) return { title: 'Tienda no encontrada' }
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) return { title: 'Tienda no encontrada' }
   if (market && readPublicSellerMarket(shop)?.market_code !== market) {
     return { title: 'Tienda no encontrada' }
@@ -106,7 +106,7 @@ export async function ShopPage({
   // cleanly below. On platform hosts middleware 404s these (with a cache header)
   // before the function is invoked; this guard is defense-in-depth.
   if (!isLikelyShopSlug(slug)) notFound()
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) {
     // The shop may have been renamed — 301 a retired slug to its current one for
     // 90 days so old links/business cards keep working (US-4).
@@ -151,7 +151,7 @@ export async function ShopPage({
           market_code: null,
           market_unavailable: null,
         })),
-    getShopCollections(shop.slug),
+    getShopCollections(shop.slug, market),
   ])
   // A refused/mismatched catalog is unavailable, not an empty successful shop.
   // Rendering the latter would cache and index a confident falsehood.
@@ -192,10 +192,11 @@ export async function ShopPage({
   // links. Unauthored pages are simply omitted (never a dead link).
   const about = settings.about as { body?: string } | null | undefined
   const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
+  const english = resolveMarketPresentation(presentationMarket).language === 'en'
   const contentPages = [
-    authoredAboutBody(about) && { href: '/acerca', label: 'Acerca' },
-    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: 'Preguntas frecuentes' },
-    returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: 'Políticas' },
+    authoredAboutBody(about) && { href: '/acerca', label: english ? 'About' : 'Acerca' },
+    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: english ? 'Frequently asked questions' : 'Preguntas frecuentes' },
+    returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: english ? 'Policies' : 'Políticas' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
   const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
   const sellerHasStripe = paymentAvailability.stripe
@@ -405,7 +406,7 @@ export async function ShopPage({
                     listing_type: listing.listing_type ?? 'product',
                     paymentMethods: { stripe: sellerHasStripe, mp: sellerHasMp, spei: hasBankTransfer },
                     href: `${marketBasePath}/l/${listing.id}`,
-                    formattedPrice: formatPrice(listing),
+                    formattedPrice: formatPrice(listing, resolveMarketPresentation(presentationMarket).htmlLang),
                     status: listing.status,
                     hasExcerpt: hasExcerpt(listing.metadata),
                   }}

@@ -44,16 +44,11 @@ const LISTING = {
 } as unknown as Listing
 
 test.describe('UCP/MCP country-market contract', () => {
-  test('invitation and unknown markets are structured unavailable, never empty success', () => {
+  test('US is open while unknown markets stay structured unavailable', () => {
     const us = planMarketCatalogRead('us')
-    expect(isMarketUnavailable(us)).toBe(true)
-    if (!isMarketUnavailable(us)) throw new Error('expected unavailable')
-    expect(us).toEqual({
-      unavailable: true,
-      market_code: 'us',
-      marketplace_status: 'invitation',
-      reason: 'marketplace_not_open',
-    })
+    expect(isMarketUnavailable(us)).toBe(false)
+    if (isMarketUnavailable(us)) throw new Error('expected open US market')
+    expect(us.query).toBe('market=us')
 
     const unknown = planMarketCatalogRead('es-MX')
     expect(isMarketUnavailable(unknown)).toBe(true)
@@ -68,6 +63,32 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(item.url).toBe('https://miyagisanchez.com/mx/l/prod_123')
     expect(item.shop.url).toBe('https://miyagisanchez.com/mx/s/taller')
     expect(item.schema_org.url).toBe(item.url)
+  })
+
+  test('US listings format USD in en-US and suppress buy_now with a permanent named readiness result', () => {
+    const usListing = {
+      ...LISTING,
+      title: 'Hand-thrown mug',
+      currency: 'USD',
+      price_cents: 10_000,
+      location: 'Brooklyn',
+      state: 'New York',
+      shop: {
+        ...LISTING.shop,
+        name: 'North Clay',
+        slug: 'north-clay',
+        location: 'Brooklyn',
+        metadata: { stripe_account_id: 'acct_us' },
+      },
+    } as Listing
+    const item = toUcpListing(usListing, 'https://miyagisanchez.com', null, false, 'us')
+    expect(item.market_code).toBe('us')
+    expect(item.price?.currency).toBe('USD')
+    expect(item.price?.formatted).toMatch(/^\$/)
+    expect(item.url).toBe('https://miyagisanchez.com/us/l/prod_123')
+    expect(item.actions.buy_now).toBe(false)
+    expect(item.checkout_urls).toEqual({})
+    expect(item.commerce_readiness).toEqual({ ready: false, market_code: 'us', reason: 'checkout_not_available' })
   })
 
   test('the temporary default is MX and remains explicit in the read plan', () => {
@@ -141,6 +162,7 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(shopHandler).toContain("params.set('market', marketDecision.market.code)")
     expect(shopHandler).toContain('verifyMarketFilter(marketDecision.market, data)')
     expect(shopHandler).toContain('marketDecision.market.code')
+    expect(shopHandler).toContain('marketMedusaHeaders(marketDecision.market.code)')
 
     const offerTool = source.slice(
       source.indexOf("name: 'make_offer'"),

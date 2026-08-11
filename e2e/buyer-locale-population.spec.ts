@@ -13,7 +13,7 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 test.describe('buyer locale population · generated, never hand-counted', () => {
   test('the direct buyer population is re-derived and remains non-empty', () => {
     const population = deriveBuyerLocalePopulation(ROOT)
-    expect(population.direct.length).toBe(67)
+    expect(population.direct.length).toBe(76)
     expect(population.direct).toContain('app/(shell)/mx/l/page.tsx')
     expect(population.direct).toContain('app/(shell)/checkout/CheckoutExperience.tsx')
   })
@@ -24,10 +24,14 @@ test.describe('buyer locale population · generated, never hand-counted', () => 
     expect(checked).toBe(expected)
   })
 
-  test('the invitation page is named separately and cannot masquerade as an open buyer route', () => {
+  test('both active marketplace roots and the literal US adapters are in the buyer population', () => {
     const population = deriveBuyerLocalePopulation(ROOT)
-    expect(population.invitation).toEqual(['app/(us-site)/us/page.tsx'])
-    expect(population.direct.some((file) => file.includes('/us/'))).toBe(false)
+    expect(population.marketRoots).toEqual([
+      'app/(mx-site)/mx/page.tsx',
+      'app/(us-site)/us/page.tsx',
+    ])
+    expect(population.direct).toContain('app/(us-shell)/us/l/page.tsx')
+    expect(population.direct).toContain('app/(us-shell)/us/s/[slug]/page.tsx')
   })
 
   test('every render-closure file is classified exactly once', () => {

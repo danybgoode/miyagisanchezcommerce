@@ -477,6 +477,10 @@ test.describe('population guard · NEXT_PUBLIC inlining cannot be defeated by th
     expect(stripped).toContain('process.env.NEXT_PUBLIC_MEDUSA_MXN_REGION_ID')
     expect(stripped).toContain('process.env.MEDUSA_MXN_REGION_ID')
     expect(stripped).toContain('process.env.MEDUSA_SALES_CHANNEL_ID')
+    expect(stripped).toContain('process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY')
+    expect(stripped).toContain('process.env.MEDUSA_US_REGION_ID')
+    expect(stripped).toContain('process.env.MEDUSA_US_MARKETPLACE_CHANNEL_ID')
+    expect(stripped).toContain('process.env.MEDUSA_US_PUBLISHABLE_KEY')
   })
 
   test('no single-market region/channel constant survives outside the resolver', () => {

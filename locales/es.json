@@ -790,7 +790,12 @@
     "components.SellerBundleSection.884f5ce3": "Agregar al paquete",
     "components.SellerBundleSection.79d7ef22": "s",
     "components.SellerBundleSection.42574adf": "artículos",
-    "components.SellerTrustCard.c6fc5b53": "Punto {0}"
+    "components.SellerTrustCard.c6fc5b53": "Punto {0}",
+    "market.catalogUnavailableHeading": "El catálogo no está disponible temporalmente",
+    "market.catalogUnavailableBody": "No pudimos confirmar los recursos del mercado. Intenta de nuevo en un momento; no mostramos publicaciones de otro país.",
+    "market.browseCatalog": "Explorar el catálogo",
+    "market.statePlaceholder": "Estado",
+    "market.checkoutComingSoon": "El checkout para este mercado estará disponible pronto. Puedes explorar el artículo sin entrar a un checkout que aún no está listo."
   },
   "partnersRecruiting": {
     "landing": {

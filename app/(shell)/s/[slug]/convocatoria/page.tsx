@@ -25,7 +25,7 @@ export async function generateConvocatoriaMetadata({
   marketBasePath?: string
 }): Promise<Metadata> {
   const { slug } = await params
-  const [launchpadShop, shop] = await Promise.all([getLaunchpadShopBySlug(slug), getShop(slug)])
+  const [launchpadShop, shop] = await Promise.all([getLaunchpadShopBySlug(slug), getShop(slug, market)])
   if (market && readPublicSellerMarket(shop)?.market_code !== market) {
     return { title: 'Convocatoria', robots: { index: false } }
   }
@@ -63,7 +63,7 @@ export async function ConvocatoriaPage({
   const [enabled, shop, seller] = await Promise.all([
     isEnabled('launchpad.enabled'),
     getLaunchpadShopBySlug(slug),
-    getShop(slug),
+    getShop(slug, market),
   ])
   const presentationMarket = market ?? readPublicSellerMarket(seller)?.market_code ?? 'mx'
   const copy = (await getDictionary(resolveMarketPresentation(presentationMarket).language)).buyerCopy

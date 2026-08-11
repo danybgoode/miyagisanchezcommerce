@@ -13,9 +13,9 @@ import { getPriceGrid } from '@/lib/listings'
 import { isEnabled } from '@/lib/flags'
 import type { Listing } from '@/lib/types'
 import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +37,15 @@ export async function GET(
   if (isMarketUnavailable(marketDecision)) {
     return NextResponse.json(marketDecision, { headers: CORS })
   }
+  const publishableKey = resolvePublishableKeyForMarket(marketDecision.market.code, PROCESS_MARKET_ENV)
+  if (publishableKey.status !== 'resolved') {
+    return NextResponse.json({
+      unavailable: true,
+      market_code: marketDecision.market.code,
+      marketplace_status: marketDecision.market.marketplace_status,
+      reason: 'market_filter_unavailable',
+    }, { status: 503, headers: CORS })
+  }
 
   // Widget traffic is rate-limited; agents/marketplace are not. No-op w/o Redis.
   if (isEmbedRequest(req)) {
@@ -54,7 +63,7 @@ export async function GET(
   }
 
   const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, {
-    headers: { 'x-publishable-api-key': PUB_KEY },
+    headers: { 'x-publishable-api-key': publishableKey.token },
     next: { revalidate: 60 } as RequestInit['next'],
   })
 

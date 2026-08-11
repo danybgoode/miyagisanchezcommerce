@@ -27,9 +27,12 @@ import {
 } from '@/lib/neighborhood-pulse'
 import { getNeighborhoodPulseItems } from '@/lib/neighborhood-pulse-server'
 import { getActiveAnnouncement } from '@/lib/announcements'
-import { marketBasePath } from '@/lib/market-url'
+import { marketBasePath, type MarketCode } from '@/lib/markets'
 import { marketLandingMetadata } from '@/lib/market-seo'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 import type { Metadata } from 'next'
+import { categoryLabel } from '@/lib/market-vocabulary'
 
 // Prerender `/mx` under its es-MX root document as a static CDN asset, revalidated on the curated-content window
 // (= CACHE.LISTING, lib/cache-policy.ts SSOT — kept a literal because Next requires
@@ -50,8 +53,6 @@ export const revalidate = 60
  * market is known statically and nothing here has to resolve it per request.
  * That is also what keeps the page prerenderable.
  */
-const MX = marketBasePath('mx')
-
 export const metadata: Metadata = marketLandingMetadata('mx')
 
 // S3.2 — Recién llegado al barrio: how many cards to show once Selección overlaps
@@ -59,13 +60,13 @@ export const metadata: Metadata = marketLandingMetadata('mx')
 const RECIEN_LLEGADO_SIZE = 4
 const RECIEN_LLEGADO_FETCH_LIMIT = 12
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, language: 'es' | 'en'): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 2) return 'Ahora mismo'
-  if (mins < 60) return `Hace ${mins} min`
+  if (mins < 2) return language === 'en' ? 'Just now' : 'Ahora mismo'
+  if (mins < 60) return language === 'en' ? `${mins} min ago` : `Hace ${mins} min`
   const hrs = Math.floor(mins / 60)
-  return `Hace ${hrs} h`
+  return language === 'en' ? `${hrs}h ago` : `Hace ${hrs} h`
 }
 
 /**
@@ -77,7 +78,15 @@ function timeAgo(dateStr: string): string {
  * client islands (S3 Cloud Run endpoint + S4). Heart-states hydrate client-side via the
  * FavoritesProvider wrapping the curated grid.
  */
-export default async function HomePage() {
+export default function HomePage() {
+  return MarketHomePage({ market: 'mx' })
+}
+
+/** One marketplace home implementation; literal market roots provide context. */
+export async function MarketHomePage({ market }: { market: MarketCode }) {
+  const presentation = resolveMarketPresentation(market)
+  const marketPath = marketBasePath(market)
+  const publishableKey = resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV)
   // One timestamp for both the featured pick and the grid so their selection is
   // atomic (no 14-day-cutoff divergence between the two reads).
   // This is a server-render snapshot shared by all reads, not client render state.
@@ -88,13 +97,13 @@ export default async function HomePage() {
   // backend hiccup during the Vercel build) would otherwise fail the whole deploy. Here
   // it just prerenders the empty-state and self-heals on the next ISR revalidation.
   const [featured, grid, categories, pulse, dict, buyerAnnouncement, recentPool] = await Promise.all([
-    getFeaturedListing(now, 'mx').catch(() => null),
-    getCuratedListings(now, 'mx').catch(() => []),
-    getCategoryCounts('mx').catch(() => []),
-    getNeighborhoodPulseItems(2).catch(() => []), // S3.4 live strip — same approved source as /vecindario
-    getOverriddenDictionary('es'),
-    getActiveAnnouncement('buyer').catch(() => null), // S3.3 — understated homepage card, ISR-safe read
-    getRecentListings(RECIEN_LLEGADO_FETCH_LIMIT, 'mx').catch(() => []), // S3.2 — Recién llegado al barrio
+    getFeaturedListing(now, market).catch(() => null),
+    getCuratedListings(now, market).catch(() => []),
+    getCategoryCounts(market).catch(() => []),
+    market === 'mx' ? getNeighborhoodPulseItems(2).catch(() => []) : Promise.resolve([]),
+    getOverriddenDictionary(presentation.language),
+    market === 'mx' ? getActiveAnnouncement('buyer').catch(() => null) : Promise.resolve(null),
+    getRecentListings(RECIEN_LLEGADO_FETCH_LIMIT, market).catch(() => []),
   ])
   const home = dict.home
 
@@ -107,7 +116,7 @@ export default async function HomePage() {
   return (
     <HomePersonalizationProvider
       storeUrl={process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'}
-      publishableApiKey={process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''}
+      publishableApiKey={publishableKey.status === 'resolved' ? publishableKey.token : ''}
     >
     <div className="max-w-6xl mx-auto px-4 py-4">
       {/* Hero + trust badges — signed-out first-visit orientation (S3.1). Supersedes the
@@ -171,7 +180,7 @@ export default async function HomePage() {
           public /comparador tool. A CLIENT island (ComparadorTeaserCard) so this static
           page's own server render is untouched — no new dynamic API, `/` stays a
           prerendered CDN asset (asserted in e2e/home-static.spec.ts). */}
-      <ComparadorTeaserCard />
+      {market === 'mx' && <ComparadorTeaserCard />}
 
       {/* S3.2 — Recién llegado al barrio: newest-first, deduped against Selección so no
           listing appears twice. Same card visual language as the Selección grid below. */}
@@ -182,14 +191,14 @@ export default async function HomePage() {
               <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
                 {home.recienLlegado.heading}
               </h2>
-              <Link href={`${MX}/l?sort=reciente`} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
+              <Link href={`${marketPath}/l?sort=reciente`} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
                 {home.recienLlegado.cta}
               </Link>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {recienLlegado.map(listing => (
                 <div key={listing.id} style={{ position: 'relative' }}>
-                  <Link href={`${MX}/l/${listing.id}`} className="card-tile no-underline block">
+                  <Link href={`${marketPath}/l/${listing.id}`} className="card-tile no-underline block">
                     <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                       {listing.images?.[0] ? (
                         // Not the measured LCP element (that's the Selección featured
@@ -217,13 +226,13 @@ export default async function HomePage() {
                       )}
                     </div>
                     <div className="p-2">
-                      <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing)}</p>
+                      <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing, presentation.htmlLang)}</p>
                       <p style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '3px 0' }}>
                         {listing.title}
                       </p>
                       {(listing.location || listing.condition) && (
                         <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {[listing.location, conditionLabel(listing.condition)].filter(Boolean).join(' · ')}
+                          {[listing.location, conditionLabel(listing.condition, presentation.language)].filter(Boolean).join(' · ')}
                         </p>
                       )}
                     </div>
@@ -238,12 +247,12 @@ export default async function HomePage() {
         </FavoritesProvider>
       )}
 
-      <CategoryChips className="mb-6" counts={categories} />
+      <CategoryChips className="mb-6" counts={categories} marketBasePath={marketPath} language={presentation.language} />
 
       {/* S3.4 — Vecindario live strip: 1–2 real approved pulse items from the same source as
           /vecindario. Empty → the original banner. The "Ver vecindario →" link keeps the
           data-testid so the nav-entry-points spec stays green. */}
-      {pulse.length > 0 ? (
+      {market === 'mx' && (pulse.length > 0 ? (
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -290,7 +299,7 @@ export default async function HomePage() {
                     {item.caption || item.body}
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {[publicSubmitterLabel(item), item.zone, timeAgo(item.created_at)].filter(Boolean).join(' · ')}
+                    {[publicSubmitterLabel(item), item.zone, timeAgo(item.created_at, presentation.language)].filter(Boolean).join(' · ')}
                   </p>
                 </div>
               </div>
@@ -333,7 +342,7 @@ export default async function HomePage() {
             {NEIGHBORHOOD_PULSE_COPY.viewFeedCta} →
           </span>
         </Link>
-      )}
+      ))}
 
       {/* Selección de la semana — a curated pick + grid, price as the loudest element.
           Wrapped in FavoritesProvider: hearts hydrate client-side (one /api/favorites
@@ -345,7 +354,7 @@ export default async function HomePage() {
               <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)' }}>
                 {home.selection.heading}
               </h2>
-              <Link href={`${MX}/l`} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
+              <Link href={`${marketPath}/l`} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none' }}>
                 {home.selection.cta}
               </Link>
             </div>
@@ -353,7 +362,7 @@ export default async function HomePage() {
             {/* Featured card — full-width 16:9, price 18px loudest */}
             {featured && (
               <div style={{ position: 'relative', marginBottom: 12 }}>
-                <Link href={`${MX}/l/${featured.id}`} className="card-tile no-underline block">
+                <Link href={`${marketPath}/l/${featured.id}`} className="card-tile no-underline block">
                   <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                     {featured.images?.[0] ? (
                       // This is the confirmed LCP element (validated PageSpeed run,
@@ -382,7 +391,7 @@ export default async function HomePage() {
                     </span>
                   </div>
                   <div className="p-3">
-                    <p className="t-price" style={{ fontSize: 18, fontWeight: 600 }}>{formatPrice(featured)}</p>
+                    <p className="t-price" style={{ fontSize: 18, fontWeight: 600 }}>{formatPrice(featured, presentation.htmlLang)}</p>
                     <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '4px 0' }}>
                       {featured.title}
                     </p>
@@ -409,7 +418,7 @@ export default async function HomePage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {grid.map((listing, idx) => (
                   <div key={listing.id} style={{ position: 'relative' }}>
-                    <Link href={`${MX}/l/${listing.id}`} className="card-tile no-underline block">
+                    <Link href={`${marketPath}/l/${listing.id}`} className="card-tile no-underline block">
                       <div style={{ position: 'relative', aspectRatio: '1 / 1', overflow: 'hidden', background: 'var(--bg-sunk)' }}>
                         {listing.images?.[0] ? (
                           // First row on mobile (grid-cols-2, the measured viewport) is
@@ -433,18 +442,18 @@ export default async function HomePage() {
                             className="badge badge-soft"
                             style={{ position: 'absolute', bottom: 6, left: 6, fontSize: 10 }}
                           >
-                            {timeAgo(listing.created_at)}
+                            {timeAgo(listing.created_at, presentation.language)}
                           </span>
                         )}
                       </div>
                       <div className="p-2">
-                        <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing)}</p>
+                        <p className="t-price" style={{ fontSize: 16, fontWeight: 600 }}>{formatPrice(listing, presentation.htmlLang)}</p>
                         <p style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '3px 0' }}>
                           {listing.title}
                         </p>
                         {(listing.location || listing.condition) && (
                           <p style={{ fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {[listing.location, conditionLabel(listing.condition)].filter(Boolean).join(' · ')}
+                            {[listing.location, conditionLabel(listing.condition, presentation.language)].filter(Boolean).join(' · ')}
                           </p>
                         )}
                       </div>
@@ -470,7 +479,7 @@ export default async function HomePage() {
             {categories.map((cat, i) => (
               <Link
                 key={cat.key}
-                href={`${MX}/l?category=${cat.key}`}
+                href={`${marketPath}/l?category=${cat.key}`}
                 className="no-underline cat-row"
                 style={{
                   display: 'flex',
@@ -481,7 +490,7 @@ export default async function HomePage() {
                 }}
               >
                 <i className={`iconoir-${cat.icon}`} style={{ fontSize: 'var(--t-md)', color: 'var(--accent)', flexShrink: 0 }} aria-hidden />
-                <span style={{ flex: 1, fontSize: 13.5, color: 'var(--fg)' }}>{cat.label}</span>
+                <span style={{ flex: 1, fontSize: 13.5, color: 'var(--fg)' }}>{categoryLabel(cat.key, presentation.language)}</span>
                 <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{cat.count}</span>
                 <i className="iconoir-arrow-right" style={{ fontSize: 'var(--t-base)', color: 'var(--fg-subtle)', flexShrink: 0 }} aria-hidden />
               </Link>
@@ -499,20 +508,24 @@ export default async function HomePage() {
             {/* Recruit CTA is auth-aware: signed-out → /vende pitch (prerenders into the
                 static HTML), signed-in → /sell publish wizard. Both via the client AuthShow,
                 so no headers() and / stays static. (Empty-state path — marketplace non-empty today.) */}
-            <AuthShow when="signed-out">
+            {market === 'mx' && <AuthShow when="signed-out">
               <Link href="/vende" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
-            </AuthShow>
-            <AuthShow when="signed-in">
+            </AuthShow>}
+            {market === 'mx' && <AuthShow when="signed-in">
               <Link href="/sell" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
-            </AuthShow>
-            <Link href="/vecindario" className="btn btn-secondary btn-sm">{home.emptyState.secondaryCta}</Link>
+            </AuthShow>}
+            {market === 'mx' ? (
+              <Link href="/vecindario" className="btn btn-secondary btn-sm">{home.emptyState.secondaryCta}</Link>
+            ) : (
+              <Link href={`${marketPath}/l`} className="btn btn-secondary btn-sm">{dict.buyerCopy['market.browseCatalog']}</Link>
+            )}
           </div>
         </div>
       )}
 
       {/* S4 — signed-in personalization island (bottom slot): seller snapshot or recruit.
           Same client-island hydration; nothing for signed-out/loading visitors. */}
-      <HomeSellerModule />
+      {market === 'mx' && <HomeSellerModule />}
 
       {/* Terminal CTA — a clear next action so the bottom isn't a dead end. Signed-out
           only: gated by the client AuthShow (no headers(), so / stays static) — the
@@ -521,7 +534,7 @@ export default async function HomePage() {
           This IS the closing CTA (the separate "Únete a la comunidad" signup row was
           removed as redundant once this card shipped — the CTA below goes straight to
           /sign-up so there's exactly one bottom-of-page ask, not two). */}
-      {seleccion.length > 0 && (
+      {market === 'mx' && seleccion.length > 0 && (
         <AuthShow when="signed-out">
           <section
             data-testid="home-seller-block"

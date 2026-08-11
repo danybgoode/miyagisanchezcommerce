@@ -42,6 +42,7 @@ test.describe('market SEO contract', () => {
     expect(urls).toContain('https://miyagisanchez.com/mx')
     expect(urls).toContain('https://miyagisanchez.com/mx/l')
     expect(urls).toContain('https://miyagisanchez.com/us')
+    expect(urls).toContain('https://miyagisanchez.com/us/l')
     expect(urls).not.toContain('https://miyagisanchez.com/l')
     expect(urls.some((url) => /^https:\/\/miyagisanchez\.com\/s(?:\/|$)/.test(url))).toBe(false)
   })

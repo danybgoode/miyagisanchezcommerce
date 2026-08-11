@@ -5,7 +5,7 @@
  *
  *   /     the master-brand market selector → `x-default`, self-canonical
  *   /mx   the Mexico marketplace           → self-canonical, `es-MX`
- *   /us   the US invitation page (Sprint 3) → self-canonical, `en-US`
+ *   /us   the US marketplace (Sprint 3)     → self-canonical, `en-US`
  *
  * ── Two rules that are easy to get wrong, so they are encoded rather than
  *    remembered ───────────────────────────────────────────────────────────────
@@ -19,12 +19,9 @@
  *    The list is therefore mechanically checked, not hand-trusted, and Sprint 3
  *    adding `/us` is a one-word change that its own spec verifies.
  *
- * 2. A CATALOG PAGE EMITS NO LANGUAGE ALTERNATES AT ALL. A product, browse or
- *    shop page under `/mx` has no `/us` counterpart and never will while the US
- *    marketplace is `invitation` — there is no `/us/l/<id>` route, by design
- *    (D9: `/us` has zero children, so a US catalog URL is a structural 404).
- *    Claiming an alternate there would advertise a page that cannot exist. Those
- *    pages get a self-canonical and nothing else.
+ * 2. A CATALOG PAGE EMITS NO LANGUAGE ALTERNATES AT ALL. Market catalogs contain
+ *    different inventories, so `/mx/l/<id>` and `/us/l/<id>` are not translations
+ *    of one resource. Those pages get a self-canonical and nothing else.
  *
  * `/us-eng` (or any language-in-the-market-segment spelling) is not produced by
  * anything here: locale is a FIELD ON a market record, never a URL segment

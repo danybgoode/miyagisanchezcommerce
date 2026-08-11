@@ -1,7 +1,8 @@
-import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
+import { BuyerCopyText, useBuyerPresentation } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { LISTING_TYPE_FILTERS } from '@/lib/listing-query'
 import type { SearchParams } from '@/lib/types'
+import { listingTypeLabel } from '@/lib/market-vocabulary'
 
 type Props = {
   params: SearchParams
@@ -24,6 +25,7 @@ function hrefFor(params: SearchParams, value: string | null, marketBasePath: str
 }
 
 export default function ListingTypeChips({ params, className, marketBasePath = '' }: Props) {
+  const presentation = useBuyerPresentation()
   const active = params.listing_type ?? ''
   return (
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
@@ -38,7 +40,7 @@ export default function ListingTypeChips({ params, className, marketBasePath = '
           href={hrefFor(params, t.value, marketBasePath)}
           className={`chip${t.value === active ? ' is-selected' : ''}`}
         >
-          <span>{t.label}</span>
+          <span>{listingTypeLabel(t.value, t.label, presentation.language)}</span>
         </Link>
       ))}
     </div>

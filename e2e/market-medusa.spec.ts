@@ -3,6 +3,7 @@ import { UnknownMarketError } from '../lib/markets'
 import {
   PROCESS_MARKET_ENV,
   resolveMarketplaceChannelId,
+  resolvePublishableKeyForMarket,
   resolveRegionIdForMarket,
   type MarketMedusaEnv,
 } from '../lib/market-medusa'
@@ -17,6 +18,10 @@ const FULL: MarketMedusaEnv = {
   NEXT_PUBLIC_MEDUSA_MXN_REGION_ID: 'reg_public',
   MEDUSA_MXN_REGION_ID: 'reg_server',
   MEDUSA_SALES_CHANNEL_ID: 'sc_marketplace',
+  NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: 'pk_mx',
+  MEDUSA_US_REGION_ID: 'reg_us',
+  MEDUSA_US_MARKETPLACE_CHANNEL_ID: 'sc_us_marketplace',
+  MEDUSA_US_PUBLISHABLE_KEY: 'pk_us',
 }
 
 test.describe('resolveRegionIdForMarket', () => {
@@ -42,10 +47,10 @@ test.describe('resolveRegionIdForMarket', () => {
     expect(resolveRegionIdForMarket('mx', {})).toBe('')
   })
 
-  test('us answers null — there is NO US Region, and it must not borrow Mexico\'s (D0)', () => {
-    expect(resolveRegionIdForMarket('us', FULL)).toBeNull()
-    // Even with every Mexico variable populated. This is the fail-closed assertion.
-    expect(resolveRegionIdForMarket('US', FULL)).toBeNull()
+  test('us resolves only its own Region and never borrows Mexico\'s', () => {
+    expect(resolveRegionIdForMarket('us', FULL)).toBe('reg_us')
+    expect(resolveRegionIdForMarket('US', FULL)).toBe('reg_us')
+    expect(resolveRegionIdForMarket('us', { MEDUSA_MXN_REGION_ID: 'reg_mx' })).toBe('')
   })
 
   test('an unknown market throws instead of resolving anything', () => {
@@ -65,8 +70,9 @@ test.describe('resolveMarketplaceChannelId', () => {
     expect(resolveMarketplaceChannelId('mx', {})).toBeNull()
   })
 
-  test('us answers null — no US marketplace channel exists (D0)', () => {
-    expect(resolveMarketplaceChannelId('us', FULL)).toBeNull()
+  test('us resolves only its own marketplace channel', () => {
+    expect(resolveMarketplaceChannelId('us', FULL)).toBe('sc_us_marketplace')
+    expect(resolveMarketplaceChannelId('us', { MEDUSA_SALES_CHANNEL_ID: 'sc_mx' })).toBeNull()
   })
 
   test('an unknown market throws', () => {
@@ -74,19 +80,39 @@ test.describe('resolveMarketplaceChannelId', () => {
   })
 })
 
+test.describe('resolvePublishableKeyForMarket', () => {
+  test('selects exactly one market-owned key', () => {
+    expect(resolvePublishableKeyForMarket('mx', FULL)).toMatchObject({ status: 'resolved', market: 'mx', token: 'pk_mx' })
+    expect(resolvePublishableKeyForMarket('us', FULL)).toMatchObject({ status: 'resolved', market: 'us', token: 'pk_us' })
+  })
+
+  test('missing US configuration is named and never falls back to MX', () => {
+    expect(resolvePublishableKeyForMarket('us', { NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: 'pk_mx' })).toEqual({
+      status: 'unconfigured', market: 'us', kind: 'publishable_key_token',
+      env_var: 'MEDUSA_US_PUBLISHABLE_KEY',
+      reason: 'Market "us" expects a publishable key token but MEDUSA_US_PUBLISHABLE_KEY is unset.',
+    })
+  })
+})
+
 test.describe('PROCESS_MARKET_ENV', () => {
-  test('exposes exactly the three variables the resolvers read, and nothing else', () => {
+  test('exposes every literal market variable the resolvers read', () => {
     // Pinned because this object exists to keep Next\'s NEXT_PUBLIC_ inlining
     // working (literal member access); a wildcard spread would silently break it.
     expect(Object.keys(PROCESS_MARKET_ENV).sort()).toEqual([
       'MEDUSA_MXN_REGION_ID',
+      'MEDUSA_PUBLISHABLE_KEY',
       'MEDUSA_SALES_CHANNEL_ID',
+      'MEDUSA_US_MARKETPLACE_CHANNEL_ID',
+      'MEDUSA_US_PUBLISHABLE_KEY',
+      'MEDUSA_US_REGION_ID',
       'NEXT_PUBLIC_MEDUSA_MXN_REGION_ID',
+      'NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY',
     ])
   })
 
   test('resolving through it never throws for a supported market', () => {
     expect(() => resolveRegionIdForMarket('mx', PROCESS_MARKET_ENV)).not.toThrow()
-    expect(resolveRegionIdForMarket('us', PROCESS_MARKET_ENV)).toBeNull()
+    expect(() => resolveRegionIdForMarket('us', PROCESS_MARKET_ENV)).not.toThrow()
   })
 })

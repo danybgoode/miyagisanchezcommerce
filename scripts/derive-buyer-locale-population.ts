@@ -12,6 +12,7 @@ const DIRECT_BUYER_DIRS = [
   'app/(shell)/s',
   'app/(shell)/payment',
   'app/(shell)/c',
+  'app/(us-shell)/us',
 ] as const
 
 const BUYER_ENTRYPOINTS = [
@@ -21,12 +22,15 @@ const BUYER_ENTRYPOINTS = [
   'app/(site)/page.tsx',
   'app/(mx-site)/layout.tsx',
   'app/(mx-site)/mx/page.tsx',
+  'app/(us-site)/layout.tsx',
+  'app/(us-site)/us/page.tsx',
+  'app/(us-shell)/layout.tsx',
 ] as const
 
 export interface BuyerLocalePopulation {
   readonly generatedBy: 'scripts/derive-buyer-locale-population.ts'
   readonly direct: string[]
-  readonly invitation: string[]
+  readonly marketRoots: string[]
   /** TSX render closure only. Pure/server TS modules do not contain UI chrome. */
   readonly closure: string[]
   readonly copyClassification: {
@@ -239,10 +243,10 @@ export function deriveBuyerLocalePopulation(root: string): BuyerLocalePopulation
     .map((file) => relative(root, file))
     .sort()
 
-  const invitation = filesBelow(path.join(root, 'app'))
-    .filter((file) => file.endsWith(`${path.sep}us${path.sep}page.tsx`))
-    .map((file) => relative(root, file))
-    .sort()
+  const marketRoots = [
+    'app/(mx-site)/mx/page.tsx',
+    'app/(us-site)/us/page.tsx',
+  ].filter((file) => existsSync(path.join(root, file)))
 
   const closure = appTsxClosure(root, [...direct, ...BUYER_ENTRYPOINTS])
   const dictionaryConsuming: string[] = []
@@ -273,7 +277,7 @@ export function deriveBuyerLocalePopulation(root: string): BuyerLocalePopulation
   return {
     generatedBy: 'scripts/derive-buyer-locale-population.ts',
     direct,
-    invitation,
+    marketRoots,
     closure,
     copyClassification: { dictionaryConsuming, noLiteralUiCopy, explicitExemptions, needsExtraction },
     presentationFormatting: { explicitExemptions: [], hardcoded },

@@ -27,14 +27,10 @@ import MarketRecommendation from './MarketRecommendation'
  * `@/lib/{listings,medusa,supabase}` import) is the part that actually gates.
  *
  * ── What the copy may and may not claim ──────────────────────────────────────
- * Mexico is an operating marketplace. The United States is an invitation-only
- * private pilot (`lib/markets.ts` → `marketplace_status: 'invitation'`), and
- * there is no US Medusa Region, no USD price, no US payment or shipping
- * capability (D0). The copy therefore describes what a shop is (borderless,
- * yours, no marketplace admission needed) and what a Miyagi Market is
- * (country-specific, currently Mexico), and claims no worldwide operational
- * readiness anywhere. The US card says "por invitación" in its own label so the
- * status is legible before the click, not after it.
+ * Mexico and the United States are operating marketplaces. Country context still
+ * matters: inventory, prices and fulfillment are market-owned, and US direct
+ * checkout remains unavailable until its separate rail ships. The selector says
+ * exactly that instead of collapsing catalog availability into payment readiness.
  *
  * The Spanish copy is deliberate: `AGENTS.md` rule 5 — es-MX is the default and
  * this surface is not on the bilingual allow-list. Sprint 3's `/us` page is the
@@ -65,7 +61,7 @@ export const revalidate = 60
 export const metadata: Metadata = {
   title: 'Miyagi Sánchez — Tu tienda propia y los mercados por país',
   description:
-    'Abre tu propia tienda con Miyagi y véndele a quien quieras. Los Miyagi Markets son por país: México está activo; Estados Unidos es un piloto por invitación.',
+    'Explora los mercados Miyagi de México y Estados Unidos, o abre tu propia tienda y véndele a quien quieras.',
   ...selectorMetadata(),
 }
 
@@ -87,8 +83,8 @@ const MARKET_CARDS: Record<(typeof MARKET_CODES)[number], {
   us: {
     flag: '🇺🇸',
     name: 'Estados Unidos',
-    lede: 'Piloto privado por invitación. Todavía no hay mercado abierto ni checkout en dólares.',
-    cta: 'Conocer el piloto',
+    lede: 'Mercado abierto para explorar tiendas y productos en dólares. El checkout directo llegará pronto.',
+    cta: 'Entrar a Miyagi Estados Unidos',
     href: marketBasePath('us'),
   },
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
+import { BuyerCopyText, useBuyerCopy, useBuyerPresentation } from '@/app/components/BuyerPresentationContext'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
@@ -8,6 +8,7 @@ import { ESTADOS } from '@/lib/mx-locations'
 import { buildQuery, resultCountLabel } from '@/lib/listing-query'
 import type { SearchParams, SortOption } from '@/lib/types'
 import type { CarFacets } from '@/lib/car-facets'
+import { categoryLabel, conditionFilterLabel, propertyTypeLabel, sortLabel } from '@/lib/market-vocabulary'
 
 type SearchBarProps = {
   initialQ?: string
@@ -67,6 +68,7 @@ function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNo
 
 export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets, marketBasePath = '' }: SearchBarProps) {
   const copy = useBuyerCopy()
+  const presentation = useBuyerPresentation()
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
@@ -229,12 +231,13 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           >
             <option value=""><BuyerCopyText copyKey="l.SearchBar.5b5412a0" /></option>
             {CATEGORIES.map(cat => (
-              <option key={cat.key} value={cat.key}>{cat.label}</option>
+              <option key={cat.key} value={cat.key}>{categoryLabel(cat.key, presentation.language)}</option>
             ))}
           </select>
         </div>
 
         <div className="sm:w-40">
+          {presentation.market === 'mx' ? (
           <select
             name="state"
             value={selectedState}
@@ -246,9 +249,18 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
               <option key={e.inegi_code} value={e.name}>{e.name}</option>
             ))}
           </select>
+          ) : (
+            <input
+              name="state"
+              value={selectedState}
+              onChange={e => setSelectedState(e.target.value)}
+              placeholder={copy('market.statePlaceholder')}
+              className={inputClass}
+            />
+          )}
         </div>
 
-        {selectedState && (
+        {selectedState && presentation.market === 'mx' && (
           <div className="sm:w-40">
             <select
               name="municipio"
@@ -270,7 +282,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             className={selectClass}
           >
             {(category === 'autos' ? [...SORT_OPTIONS, ...AUTO_SORT_OPTIONS] : SORT_OPTIONS).map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
+              <option key={s.value} value={s.value}>{sortLabel(s.value, s.label, presentation.language)}</option>
             ))}
           </select>
         </div>
@@ -422,7 +434,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
                     onChange={() => togglePropertyType(pt.value)}
                     className="rounded-[var(--r-xs)]"
                   />
-                  {pt.label}
+                  {propertyTypeLabel(pt.value, pt.label, presentation.language)}
                 </label>
               ))}
             </div>
@@ -448,7 +460,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             <div className="w-40">
               <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.da9dff7b" /></label>
               <select name="condition" defaultValue={params.condition ?? ''} className={selectClass}>
-                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{conditionFilterLabel(c.value, c.label, presentation.language)}</option>)}
               </select>
             </div>
           </div>
@@ -470,7 +482,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             <div className="w-40">
               <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.da9dff7b" /></label>
               <select name="condition" defaultValue={params.condition ?? ''} className={selectClass}>
-                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{conditionFilterLabel(c.value, c.label, presentation.language)}</option>)}
               </select>
             </div>
           </div>
