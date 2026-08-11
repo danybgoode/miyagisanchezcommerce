@@ -17,9 +17,13 @@ import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
 export default function CuentaMenu({
   themeSlot,
   themeEligible,
+  accountLabel,
+  itemLabels,
   hideFavoritesInPwa = false,
 }: {
   themeSlot: React.ReactNode
+  accountLabel: string
+  itemLabels: Record<string, string>
   /**
    * Whether the platform theme toggle applies on this surface. When false the
    * toggle itself renders `null`, so we skip the whole Tema row rather than
@@ -63,8 +67,8 @@ export default function CuentaMenu({
         className="icon-btn"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Cuenta"
-        title="Cuenta"
+        aria-label={accountLabel}
+        title={accountLabel}
         onClick={() => setOpen(v => !v)}
         style={{ gap: 2 }}
       >
@@ -83,7 +87,7 @@ export default function CuentaMenu({
       {open && (
         <div
           role="menu"
-          aria-label="Cuenta"
+          aria-label={accountLabel}
           className="glass"
           style={{
             position: 'absolute',
@@ -118,7 +122,7 @@ export default function CuentaMenu({
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <i className={item.icon} style={{ fontSize: 18, color: 'var(--fg-muted)' }} aria-hidden />
-                    <span style={{ fontSize: 14, color: 'var(--fg)' }}>{item.label}</span>
+                    <span style={{ fontSize: 14, color: 'var(--fg)' }}>{itemLabels[item.key]}</span>
                   </span>
                   {themeSlot}
                 </div>
@@ -146,7 +150,7 @@ export default function CuentaMenu({
                 }}
               >
                 <i className={item.icon} style={{ fontSize: 18, color: 'var(--fg-muted)' }} aria-hidden />
-                {item.label}
+                {itemLabels[item.key]}
               </Link>
             )
           })}

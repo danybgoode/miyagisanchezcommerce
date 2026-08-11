@@ -10,6 +10,788 @@
       "activeSeasonal": "Collaboration active"
     }
   },
+  "buyerShell": {
+    "brandHome": "Miyagi Sánchez United States - home",
+    "searchPlaceholder": "What are you looking for?",
+    "publishListingTitle": "Post a listing",
+    "sell": "Sell",
+    "neighborhood": "Neighborhood",
+    "messages": "Messages",
+    "publish": "Post",
+    "publishFree": "Post for free",
+    "signIn": "Sign in",
+    "cart": "View cart",
+    "account": "Account",
+    "accountItems": {
+      "account-home": "My account",
+      "favorites": "Favorites",
+      "orders": "Orders",
+      "subscriptions": "Subscriptions",
+      "referrals": "Referrals",
+      "notifications": "Notifications",
+      "theme": "Theme",
+      "seller-mode": "Switch to seller mode"
+    },
+    "tabs": {
+      "home": "Home",
+      "messages": "Messages",
+      "sell": "Sell",
+      "favorites": "Favorites",
+      "profile": "Profile",
+      "search": "Search"
+    },
+    "agent": {
+      "title": "Shop with your AI agent",
+      "description": "Copy this prompt into Claude, ChatGPT, or Gemini.",
+      "copy": "Copy prompt",
+      "copied": "Copied!",
+      "openClaude": "Open in Claude",
+      "marketplaceCard": "Marketplace card",
+      "buyWithAi": "Shop with AI",
+      "agentLabel": "AI agent"
+    },
+    "footer": {
+      "copyright": "© 2026 Miyagi Sánchez",
+      "listings": "Listings",
+      "neighborhood": "Neighborhood",
+      "sellFree": "Sell for free",
+      "createAccount": "Create account",
+      "agentApi": "Agent API",
+      "about": "About",
+      "terms": "Terms"
+    }
+  },
+  "buyerCopy": {
+    "account.fallbackName": "your account",
+    "listing.buyNowWithPrice": "Buy now — {0}",
+    "listing.signInToBuy": "Sign in to buy",
+    "listing.returnWindow7": "7 days",
+    "listing.returnWindow14": "14 days",
+    "listing.returnWindow30": "30 days",
+    "messages.contactForPrice": "Contact for price",
+    "messages.buyer": "Buyer",
+    "messages.seller": "Seller",
+    "payment.purchaseFallback": "your purchase",
+    "shop.manuscriptTerms": "By submitting your work, you confirm that you are its author or have the right to share it.\n\nYou retain the copyright to your manuscript. By submitting it, you grant the bookshop and Miyagi Sánchez a non-exclusive license to read and review it and—only if it is approved and published—to offer it as a digital or printed book.\n\nYou may ask us to remove your work at any time. The bookshop may also remove a work at its discretion or in response to a rights claim.",
+    "shop.submissionsUnavailableBody": "This feature is unavailable right now.",
+    "shop.checkLinkBody": "Check the link and try again.",
+    "shop.noOpenSubmissionsBody": "This shop is not accepting manuscripts right now. Check back later.",
+    "offers.qualityReasonable": "Reasonable offer",
+    "offers.qualityBelow": "A little below asking",
+    "offers.qualityLow": "Low offer",
+    "shop.collection.CollectionPage.22fbd5c9": "This collection has no listings yet.",
+    "shop.content.AcercaBody.1a7485f9": "About",
+    "shop.content.FaqBody.8ff896c4": "Frequently asked questions",
+    "shop.content.PoliticasBody.9fc9fbd4": "Policies",
+    "shop.content.PoliticasBody.3467fca9": "Returns",
+    "shop.content.PoliticasBody.0376bca7": "Returns accepted for",
+    "account.favorites.page.37f173c0": "Favorites",
+    "account.favorites.page.34e5da88": "item",
+    "account.favorites.page.afa23718": "saved",
+    "account.favorites.page.24b1d09e": "You don't have favorites yet",
+    "account.favorites.page.3e66f729": "Tap the heart to save items, follow their prices, and find them again.",
+    "account.favorites.page.538c0c2f": "Browse listings",
+    "account.favorites.page.4ebc1327": "less",
+    "account.favorites.page.26d3f078": "No longer available (",
+    "account.notificaciones.BuyerNotificationPreferences.24b8a46a": "Which updates do you want, and where?",
+    "account.notificaciones.BuyerNotificationPreferences.25f90266": "Choose a channel for each type of update. Turn one off to stop receiving it.",
+    "account.notificaciones.BuyerNotificationPreferences.af919900": "Loading…",
+    "account.notificaciones.BuyerNotificationPreferences.1fcf3617": "Telegram",
+    "account.notificaciones.BuyerNotificationPreferences.ce7749a9": "Connected",
+    "account.notificaciones.BuyerNotificationPreferences.7df788e8": "Send test notification",
+    "account.notificaciones.BuyerNotificationPreferences.2910e1ae": "Disconnect",
+    "account.notificaciones.BuyerNotificationPreferences.43215ee6": "Connect Telegram for instant order updates, then choose which updates you want above.",
+    "account.notificaciones.BuyerNotificationPreferences.3b02bc6e": "Connect Telegram",
+    "account.notificaciones.BuyerNotificationPreferences.e926a28f": "Your order and payment receipt always arrives by email and cannot be turned off.",
+    "account.notificaciones.page.b2cbd5da": "← My account",
+    "account.notificaciones.page.6d60adc4": "Notifications",
+    "account.notificaciones.page.07d982a7": "Choose which order updates you receive and where.",
+    "account.orders.AccountOrdersClient.5e8a8a2c": "Paid",
+    "account.orders.AccountOrdersClient.027d2723": "Sent",
+    "account.orders.AccountOrdersClient.bdfb6283": "delivered",
+    "account.orders.AccountOrdersClient.80296a52": "My orders",
+    "account.orders.AccountOrdersClient.d3f906d9": "purchase",
+    "account.orders.AccountOrdersClient.7443abbe": "in total",
+    "account.orders.AccountOrdersClient.3a392235": "you have",
+    "account.orders.AccountOrdersClient.919cdc19": "order",
+    "account.orders.AccountOrdersClient.2f356b3d": "in progress.",
+    "account.orders.AccountOrdersClient.e2a71b67": "No active orders",
+    "account.orders.AccountOrdersClient.921c6364": "All your orders have been delivered.",
+    "account.orders.AccountOrdersClient.c4c58f42": "View history",
+    "account.orders.AccountOrdersClient.e14d2f53": "You have not placed an order yet",
+    "account.orders.AccountOrdersClient.35fee0a5": "Browse thousands of products from local sellers.",
+    "account.orders.AccountOrdersClient.8342d5bd": "Explore products",
+    "account.orders.AccountOrdersClient.0b43695f": "My subscriptions",
+    "account.orders.AccountOrdersClient.6e57e7f7": "Saved",
+    "account.orders.id.OrderTrackingClient.2713eddf": "My orders",
+    "account.orders.id.OrderTrackingClient.869c70fa": "Reserved order — complete your payment",
+    "account.orders.id.OrderTrackingClient.7a9254b7": "Pay",
+    "account.orders.id.OrderTrackingClient.483c463f": "with any of these options. The seller will confirm your payment and process the order. You can pay as you prefer.",
+    "account.orders.id.OrderTrackingClient.c3419958": "SPEI transfer",
+    "account.orders.id.OrderTrackingClient.1761f55c": "Copy",
+    "account.orders.id.OrderTrackingClient.7467d017": "Bank:",
+    "account.orders.id.OrderTrackingClient.20236aa6": "Account holder:",
+    "account.orders.id.OrderTrackingClient.8661983b": "DiMo — transfer to this phone",
+    "account.orders.id.OrderTrackingClient.648dcf95": "Cash upon pickup",
+    "account.orders.id.OrderTrackingClient.7132d09d": "We emailed these details to you. The seller will confirm your order when the payment arrives.",
+    "account.orders.id.OrderTrackingClient.bd695be8": "Personalization",
+    "account.orders.id.OrderTrackingClient.032501de": "Print proof",
+    "account.orders.id.OrderTrackingClient.15df18e3": "You approved this proof.",
+    "account.orders.id.OrderTrackingClient.dadfe6e0": "Entrance ticket",
+    "account.orders.id.OrderTrackingClient.1dd39d51": "Ticket",
+    "account.orders.id.OrderTrackingClient.7cff56df": "Purchased on",
+    "account.orders.id.OrderTrackingClient.4ad58411": "Shipment tracking",
+    "account.orders.id.OrderTrackingClient.a34496bd": "Estimated delivery",
+    "account.orders.id.OrderTrackingClient.bce4e8d1": "Track on",
+    "account.orders.id.OrderTrackingClient.b6e27cea": "Order Status",
+    "account.orders.id.OrderTrackingClient.f656554e": "Payment confirmed by the seller",
+    "account.orders.id.OrderTrackingClient.383dafe5": "Have you already received your order in good condition?",
+    "account.orders.id.OrderTrackingClient.d73ca2f3": "Upon confirmation, the escrow payment is released to the seller. If there is a problem, request a return before confirming.",
+    "account.orders.id.OrderTrackingClient.7b0217ba": "Have you already received your order?",
+    "account.orders.id.OrderTrackingClient.6032fb4f": "Confirming helps the seller receive their full payment.",
+    "account.orders.id.OrderTrackingClient.332145cd": "Yes, I received it — release payment",
+    "account.orders.id.OrderTrackingClient.704a59a8": "Yes, I received it — all good",
+    "account.orders.id.OrderTrackingClient.ad0d2ae8": "Payment released to seller",
+    "account.orders.id.OrderTrackingClient.a0f1705e": "The seller has already received the payment. Thank you for your purchase!",
+    "account.orders.id.OrderTrackingClient.76c1456a": "Pickup appointment",
+    "account.orders.id.OrderTrackingClient.4a3398f0": "Confirm this time",
+    "account.orders.id.OrderTrackingClient.c6cb8e77": "Rental reservation",
+    "account.orders.id.OrderTrackingClient.a49ab04f": "Total:",
+    "account.orders.id.OrderTrackingClient.572f6ce5": "I received the refund",
+    "account.orders.id.OrderTrackingClient.1bf7c0ac": "Return request",
+    "account.orders.id.OrderTrackingClient.51e7079c": "Reason:",
+    "account.orders.id.OrderTrackingClient.faaaf1df": "Seller response:",
+    "account.orders.id.OrderTrackingClient.4df07b67": "The seller has 3 business days to respond.",
+    "account.orders.id.OrderTrackingClient.965cc2ea": "Is there a problem with your order? Request return",
+    "account.orders.id.OrderTrackingClient.c1346f44": "Request return",
+    "account.orders.id.OrderTrackingClient.d181c902": "What is the reason?",
+    "account.orders.id.OrderTrackingClient.049a14eb": "Description",
+    "account.orders.id.OrderTrackingClient.5d150757": "(optional)",
+    "account.orders.id.OrderTrackingClient.5dfeaf6f": "Describe the problem in more detail…",
+    "account.orders.id.OrderTrackingClient.387771b6": "Do you prefer to have an agent do it for you?",
+    "account.orders.id.OrderTrackingClient.1f99cff1": "Cancel",
+    "account.orders.id.OrderTrackingClient.e3869add": "Do you need help?",
+    "account.orders.id.OrderTrackingClient.ff354787": "Contact the seller if you have questions about your order.",
+    "account.orders.id.OrderTrackingClient.e961af94": "Go to shop →",
+    "account.orders.id.OrderTrackingClient.3d87e7a2": "You notified the seller",
+    "account.page.9a62ab6f": "Hello,",
+    "account.page.f1134fb1": "Post a listing →",
+    "account.print.ads.AccountPrintAdsClient.44aa66ee": "Loading…",
+    "account.print.ads.AccountPrintAdsClient.36c80352": "My print ads",
+    "account.print.ads.AccountPrintAdsClient.276d3216": "Status, preview and payments of your ads in the print edition.",
+    "account.print.ads.AccountPrintAdsClient.07fc12f3": "You don't have print ads yet.",
+    "account.print.ads.AccountPrintAdsClient.c56f35f9": "Create my ad",
+    "account.print.ads.AccountPrintAdsClient.f662bc83": "Continue my ad",
+    "account.print.ads.AccountPrintAdsClient.6a1c03e4": "Payment is missing",
+    "account.print.ads.AccountPrintAdsClient.af040adc": "SPEI · CLABE:",
+    "account.print.ads.AccountPrintAdsClient.7b05c4b0": "Bank:",
+    "account.print.ads.AccountPrintAdsClient.22fe0cf1": "Account holder:",
+    "account.print.ads.AccountPrintAdsClient.60c55210": "DiMo:",
+    "account.print.ads.AccountPrintAdsClient.811a0c2a": "We'll share the payment information with you.",
+    "account.print.ads.AccountPrintAdsClient.c71c9700": "Reported payment",
+    "account.print.ads.AccountPrintAdsClient.7415d99e": "⏳ Being reviewed by Miyagi. We'll let you know when it's approved.",
+    "account.print.ads.AccountPrintAdsClient.6615fba0": "Approved",
+    "account.print.ads.AccountPrintAdsClient.6064530a": "Published in the print edition.",
+    "account.print.ads.AccountPrintAdsClient.36532191": "Need changes",
+    "account.print.ads.AccountPrintAdsClient.4e4ccd5b": "Edit and resubmit",
+    "account.print.ads.AccountPrintAdsClient.5d0087bd": "Request changes",
+    "account.referrals.ReferralsClient.02eea7e4": "My account",
+    "account.referrals.ReferralsClient.7dc48d64": "Invite and win",
+    "account.referrals.ReferralsClient.76f3feb0": "Share your link. When a friend signs up and makes their first purchase, you earn credit toward your next ad in the print edition.",
+    "account.referrals.ReferralsClient.3110e898": "Your invitation link",
+    "account.referrals.ReferralsClient.895ce2c6": "Share",
+    "account.referrals.ReferralsClient.e5665fb9": "Your code:",
+    "account.referrals.ReferralsClient.0d142b0c": "Your credits",
+    "account.referrals.ReferralsClient.0c39e9af": "credit",
+    "account.referrals.ReferralsClient.594bff46": "Use it in your next",
+    "account.referrals.ReferralsClient.9a749d4d": "print ad",
+    "account.referrals.ReferralsClient.c428734c": "- Enter the code at checkout.",
+    "account.referrals.ReferralsClient.fdcf1343": "The referral program will be available very soon. Come back in a moment.",
+    "account.subscriptions.AccountSubscriptionsClient.5ae69916": "My subscriptions",
+    "account.subscriptions.AccountSubscriptionsClient.bbd12ab9": "subscriptions",
+    "account.subscriptions.AccountSubscriptionsClient.48bdaaa2": "Manage payments",
+    "account.subscriptions.AccountSubscriptionsClient.091720fb": "View file",
+    "account.subscriptions.AccountSubscriptionsClient.a1258f7d": "The creator has not yet published exclusive content.",
+    "account.subscriptions.AccountSubscriptionsClient.fd78b621": "You have no active subscriptions",
+    "account.subscriptions.AccountSubscriptionsClient.ab86837c": "Browse subscription listings to access exclusive content.",
+    "account.subscriptions.AccountSubscriptionsClient.9f376f68": "Explore →",
+    "checkout.CheckoutExperience.f44e2af5": "This seller has not set up delivery yet",
+    "checkout.CheckoutExperience.40981279": "No shipping or pickup option is available for this item yet. Check back later or message the seller.",
+    "checkout.CheckoutExperience.f966c4ce": "Choose delivery",
+    "checkout.CheckoutExperience.2ce52737": "Where do you want to pick it up?",
+    "checkout.CheckoutExperience.f6c423f5": "Schedule a time →",
+    "checkout.CheckoutExperience.86b7aa9f": "When do you want to pick it up?",
+    "checkout.CheckoutExperience.95b7fbaa": "Suggest a time. The seller can confirm it or suggest another.",
+    "checkout.CheckoutExperience.5a3a6431": "ZIP code",
+    "checkout.CheckoutExperience.ce529c42": "Start with your ZIP code and we'll fill in your state, city, and neighborhood.",
+    "checkout.CheckoutExperience.6493099f": "Name of recipient",
+    "checkout.CheckoutExperience.e0dc125a": "Phone",
+    "checkout.CheckoutExperience.451e916f": "Status",
+    "checkout.CheckoutExperience.a2751ff1": "City or county",
+    "checkout.CheckoutExperience.a5f5ec3a": "Select a neighborhood",
+    "checkout.CheckoutExperience.ac32dc77": "Street address",
+    "checkout.CheckoutExperience.862d2c75": "Street number",
+    "checkout.CheckoutExperience.8fd9c87c": "Apartment or suite (optional)",
+    "checkout.CheckoutExperience.e08e0036": "Shipping options",
+    "checkout.CheckoutExperience.065c6061": "Getting rates…",
+    "checkout.CheckoutExperience.3dd0e30b": "You can also coordinate delivery directly with the seller.",
+    "checkout.CheckoutExperience.3b2c5986": "Agreed delivery",
+    "checkout.CheckoutExperience.4692ee2e": "Arrange delivery directly with the seller. No shipping charge.",
+    "checkout.CheckoutExperience.9cca4011": "Preparation time:",
+    "checkout.CheckoutExperience.e04fb7d1": "Choose payment",
+    "checkout.CheckoutExperience.c1ade5f3": "Message the seller to arrange payment and delivery before completing the order.",
+    "checkout.CheckoutExperience.7d779f09": "This seller arranges delivery directly. Agree on payment with the seller (SPEI or cash).",
+    "checkout.CheckoutExperience.c343b18c": "Your order will show the exact payment details (CLABE and phone number) immediately after you confirm it.",
+    "checkout.CheckoutExperience.c6e967ad": "Summary",
+    "checkout.CheckoutExperience.674b5195": "Delivery",
+    "checkout.CheckoutExperience.c98c769a": "Shipping",
+    "checkout.CheckoutExperience.ab0e974f": "Payment",
+    "checkout.CheckoutExperience.e2c77520": "Miyagi fee",
+    "checkout.CheckoutExperience.32e6e589": "Personalization",
+    "checkout.CheckoutExperience.0d2cfcfb": "Coupon",
+    "checkout.CheckoutExperience.db971e8f": "Remove",
+    "checkout.CheckoutExperience.aafeaa30": "Discount code",
+    "checkout.CheckoutExperience.c6da623f": "Total",
+    "checkout.CheckoutExperience.182b86ba": "This seller has not enabled online payments yet.",
+    "checkout.bundle.BundleCheckoutClient.85a85a02": "← Explore",
+    "checkout.bundle.BundleCheckoutClient.44d46dbc": "Sign in to buy your bundle",
+    "checkout.bundle.BundleCheckoutClient.0b9c7211": "We save your selection and return you here to review before paying.",
+    "checkout.bundle.BundleCheckoutClient.9f639269": "Sign in",
+    "checkout.bundle.BundleCheckoutClient.f9b6f375": "Your bundle is empty",
+    "checkout.bundle.BundleCheckoutClient.1a07fb8a": "Add items from one shop to review the bundle.",
+    "checkout.bundle.BundleCheckoutClient.9d50fe38": "View listings",
+    "checkout.bundle.BundleCheckoutClient.9abe48f4": "Back to the shop",
+    "checkout.bundle.BundleCheckoutClient.4eb2dcb0": "You have bundles from multiple shops. Choose one to check out.",
+    "checkout.bundle.BundleCheckoutClient.12741ace": "item",
+    "checkout.bundle.BundleCheckoutClient.c115cf6b": "Bundle from",
+    "checkout.bundle.BundleCheckoutClient.c8c8aab2": "Review bundle",
+    "checkout.bundle.BundleCheckoutClient.4625a8b5": "Buy several items from the same seller in one payment.",
+    "checkout.bundle.BundleCheckoutClient.e2376a62": "Remove from bundle",
+    "checkout.bundle.BundleCheckoutClient.3e72d62b": "This bundle contains multiple currencies. Remove items until they all use the same currency.",
+    "checkout.bundle.page.339c45f3": "Loading bundle…",
+    "checkout.page.d94b0842": "Back to the listing",
+    "checkout.page.93682cf2": "Review purchase",
+    "checkout.page.403c8753": "Confirm the price, delivery and payment method before continuing.",
+    "checkout.page.fd7fe0e5": "Rental reservation",
+    "checkout.page.64c10dc6": "Refundable deposit:",
+    "checkout.page.2bca536c": "Agreed price",
+    "checkout.page.78f3647e": "Original:",
+    "l.SearchBar.88f86b8f": "Filter and sort",
+    "l.SearchBar.2fa5f285": "Filters",
+    "l.SearchBar.48e5db9f": "Close filters",
+    "l.SearchBar.b47430e0": "What are you looking for?",
+    "l.SearchBar.5b5412a0": "All categories",
+    "l.SearchBar.637b2fb5": "Nationwide",
+    "l.SearchBar.89730cbf": "All municipalities",
+    "l.SearchBar.e4c94833": "Search",
+    "l.SearchBar.e327d56a": "Tip: use - to exclude words:",
+    "l.SearchBar.99d2505e": "guitar -broken",
+    "l.SearchBar.e7a09d7d": "Brand",
+    "l.SearchBar.22f692e8": "All brands",
+    "l.SearchBar.635c0f43": "Toyota, Honda...",
+    "l.SearchBar.64453d17": "Model",
+    "l.SearchBar.8ae193f9": "Min. price",
+    "l.SearchBar.86fcc169": "Max. price",
+    "l.SearchBar.dbbb0625": "Year from",
+    "l.SearchBar.72d587f2": "Year to",
+    "l.SearchBar.ec8aa63b": "Mileage from",
+    "l.SearchBar.6960b615": "Mileage to",
+    "l.SearchBar.a9a3d267": "Transmission",
+    "l.SearchBar.dc595838": "Any",
+    "l.SearchBar.cbfa4ef4": "Manual",
+    "l.SearchBar.608ec59f": "Automatic",
+    "l.SearchBar.aa16adc4": "CVT",
+    "l.SearchBar.e1292953": "Fuel",
+    "l.SearchBar.5877318e": "Gasoline",
+    "l.SearchBar.cc5ab61c": "diesel",
+    "l.SearchBar.70931de3": "Electric",
+    "l.SearchBar.a5638636": "Hybrid",
+    "l.SearchBar.68912874": "LP Gas",
+    "l.SearchBar.43fb3712": "Min. beds",
+    "l.SearchBar.dbcfcb47": "Max. beds",
+    "l.SearchBar.98891781": "Min. area (m²)",
+    "l.SearchBar.b8078514": "Max. area (m²)",
+    "l.SearchBar.80f06d38": "Property type",
+    "l.SearchBar.6505e4ed": "Apple, Samsung...",
+    "l.SearchBar.da9dff7b": "Condition",
+    "l.SearchBar.0dd9823c": "Clear",
+    "l.id.AutoHero.5f2cd923": "Inspected — see report",
+    "l.id.ConfiguratorBuyBox.8b45d2d3": "Quantity",
+    "l.id.ConfiguratorBuyBox.7ebd101f": "Decrease",
+    "l.id.ConfiguratorBuyBox.080e2611": "Increase",
+    "l.id.ConfiguratorBuyBox.a654c236": "each",
+    "l.id.ConfiguratorBuyBox.9f7c850b": "Select an available combination",
+    "l.id.EventBuyBox.8a69c60e": "Tickets",
+    "l.id.EventBuyBox.ceae5f30": "Number of tickets",
+    "l.id.EventBuyBox.b5aee5f8": "Remove a ticket",
+    "l.id.EventBuyBox.33d1fff5": "Add a ticket",
+    "l.id.EventHero.1f4155b7": "Event",
+    "l.id.EventHero.f2e49368": "Already purchased? View my ticket",
+    "l.id.ExcerptPanel.1a9b4f90": "Read a preview",
+    "l.id.ExcerptPanel.a0be0648": "A free snippet before you buy",
+    "l.id.Gallery.12a783d7": "Back",
+    "l.id.Gallery.4fe93603": "Share",
+    "l.id.Gallery.674b5ee1": "Link copied",
+    "l.id.Gallery.78287235": "Image gallery",
+    "l.id.Gallery.736ba2c1": "Previous image",
+    "l.id.Gallery.1b9ee2cb": "Next image",
+    "l.id.Gallery.1cd9e7df": "Close",
+    "l.id.InmuebleHero.28e02f2e": "Approximate area",
+    "l.id.InmuebleHero.1cb17074": "· the exact address is shared when scheduling the visit",
+    "l.id.RentalBooking.f4eff161": "Choose your dates",
+    "l.id.RentalBooking.9587ef43": "· deposit",
+    "l.id.RentalBooking.d5250dea": "Check-in",
+    "l.id.RentalBooking.3e39719e": "Check-out",
+    "l.id.RentalBooking.cec46bd7": "Refundable deposit",
+    "l.id.RentalBooking.de76d847": "Estimated total",
+    "l.id.RentalBooking.7b1ec463": "Reserve these dates",
+    "l.id.RentalBooking.e6cac2b2": "The deposit is charged with the rental.",
+    "l.id.RentalBooking.17e79e6e": "Arrange payment and the deposit directly with the seller.",
+    "l.id.RentalBooking.c8f49c5f": "Choose dates to reserve",
+    "l.id.RentalBooking.efe56842": "See availability",
+    "l.id.ServiceHero.07125a17": "What's included",
+    "l.id.SpecsTable.9bdf343d": "Specifications",
+    "l.id.SubscriptionSection.7a3a6c6a": "Subscription registered!",
+    "l.id.SubscriptionSection.7c975176": "Seller's interbank CLABE:",
+    "l.id.SubscriptionSection.14819236": "Bank:",
+    "l.id.SubscriptionSection.9f37252a": "Beneficiary:",
+    "l.id.SubscriptionSection.55ced880": "Amount:",
+    "l.id.SubscriptionSection.b6aadb46": "The seller will activate your subscription upon confirming payment.",
+    "l.id.SubscriptionSection.99928b0f": "Subscription to",
+    "l.id.SubscriptionSection.c5cce3cc": "Monthly",
+    "l.id.SubscriptionSection.73e6f1e1": "Annual",
+    "l.id.SubscriptionSection.f9707b4d": "You save",
+    "l.id.SubscriptionSection.1c0eaf73": "per year (",
+    "l.id.SubscriptionSection.6bc2fd9f": "Popular",
+    "l.id.SubscriptionSection.77429ab3": "/month",
+    "l.id.SubscriptionSection.ce6fef60": "more…",
+    "l.id.SubscriptionSection.3fa0f36c": "Pay with SPEI / bank transfer",
+    "l.id.SubscriptionSection.470e00b4": "The seller has not set up online payments yet.",
+    "l.id.SubscriptionSection.af9a6cc1": "Cancel anytime · No commitment",
+    "l.id.SubscriptionSection.7238e34c": "Register your SPEI subscription",
+    "l.id.SubscriptionSection.44ce295d": "Your full name",
+    "l.id.SubscriptionSection.bbf81f25": "Your email",
+    "l.id.SubscriptionSection.75a259c5": "← Back",
+    "l.id.page.6252ff7c": "Your agreed price",
+    "l.id.page.c5d76f70": "Original price:",
+    "l.id.page.db5f23a5": "Your offer is pending",
+    "l.id.page.e6b6652f": "Offer sent:",
+    "l.id.page.7ee28bbf": "The seller made a counteroffer",
+    "l.id.page.9338c26f": "Reply in messages",
+    "l.id.page.4b20055a": "Design your print ad",
+    "l.id.page.fb109676": "Buy now —",
+    "l.id.page.4b2e7723": "Sign in to buy",
+    "l.id.page.e0984f2d": "Contact the seller to pay",
+    "l.id.page.fb1415fb": "View conversation",
+    "l.id.page.ba97b5b0": "Edit listing",
+    "l.id.page.c7e0bcc5": "Home",
+    "l.id.page.a3a95d56": "Listings",
+    "l.id.page.a3b675cf": "New",
+    "l.id.page.c5b8956d": "Out of stock",
+    "l.id.page.d798e59e": "Made to order",
+    "l.id.page.335e062b": "Instant delivery",
+    "l.id.page.a9730fa9": "You receive the file as soon as payment is confirmed.",
+    "l.id.page.77d22286": "Description",
+    "l.id.page.46ee2987": "Contact for price",
+    "l.id.page.fe8e69a9": "Digital product — automatic delivery",
+    "l.id.page.9932184a": "Reference:",
+    "l.id.page.714d1bed": "Event",
+    "l.id.page.69a778b6": "Item sold out",
+    "l.id.page.1a2c9cef": "This item has been sold and is no longer available.",
+    "l.id.page.2e49ff91": "Instant automatic delivery",
+    "l.id.page.edf5a7c6": "You will receive the file upon completing payment.",
+    "l.id.page.df30f883": "Return policy",
+    "l.id.page.1b48b9a5": "Returns accepted for",
+    "l.id.page.93d35159": "View original listing",
+    "l.page.9a0dd489": "results",
+    "l.page.e5404318": "for",
+    "l.page.ee06f64a": "× Clear filters",
+    "l.page.a9d00802": "No results",
+    "l.page.102a7871": "Try other terms or check the filters.",
+    "l.page.1da7c9e1": "Clear filters",
+    "l.page.61907ecb": "Out of stock",
+    "l.page.0defb179": "← Previous",
+    "l.page.10c5b69a": "Next →",
+    "messages.id.ConversationClient.c0f8fdb9": "Offer",
+    "messages.id.ConversationClient.f51328ca": "Counteroffer",
+    "messages.id.ConversationClient.0b6dd4dd": "Print proof",
+    "messages.id.ConversationClient.f089f82b": "Size:",
+    "messages.id.ConversationClient.8a333b9e": "Quantity:",
+    "messages.id.ConversationClient.745c0c5f": "Price:",
+    "messages.id.ConversationClient.6dbe35cb": "Approved",
+    "messages.id.ConversationClient.b62363d1": "Proof approved",
+    "messages.id.ConversationClient.7d24f9b6": "· Expires in",
+    "messages.id.ConversationClient.ac030cd8": "Purchase complete",
+    "messages.id.ConversationClient.96a212da": "Offer rejected",
+    "messages.id.ConversationClient.dd9579c0": "Offer withdrawn",
+    "messages.id.ConversationClient.c06b8c1a": "Expired deal",
+    "messages.id.ConversationClient.8d534684": "Withdraw offer",
+    "messages.id.ConversationClient.62143c02": "Accept deal",
+    "messages.id.ConversationClient.f6e4b918": "Reject",
+    "messages.id.ConversationClient.877119b5": "Deal accepted. Buy at the agreed price.",
+    "messages.id.ConversationClient.f8aac9a2": "⏰ Expires in",
+    "messages.id.ConversationClient.923ac08f": "The seller has not enabled online payments yet. Message them to arrange payment.",
+    "messages.id.ConversationClient.5bd1ad33": "Deal accepted",
+    "messages.id.ConversationClient.a4a35822": "Your counteroffer",
+    "messages.id.ConversationClient.979befbf": "Optional note to buyer…",
+    "messages.id.ConversationClient.ba0dd174": "Send counteroffer —",
+    "messages.id.ConversationClient.2f225435": "Offer received:",
+    "messages.id.ConversationClient.56561b70": "Accept",
+    "messages.id.ConversationClient.cb9182ae": "Counteroffer",
+    "messages.id.ConversationClient.0c937c2e": "Message",
+    "messages.id.ConversationClient.339ec659": "Quick messages",
+    "messages.id.ConversationClient.824c257f": "There are no events yet.",
+    "messages.id.ConversationClient.152dc9f0": "Use structured messages — no free text",
+    "messages.id.ConversationClient.6f93ffef": "This conversation is closed.",
+    "messages.id.page.a13f054b": "Messages",
+    "messages.page.9ac46f17": "Messages",
+    "messages.page.8e777de8": "No messages yet",
+    "messages.page.7641a7f4": "When you make or receive an offer, the conversation will appear here.",
+    "messages.page.5e800fd1": "Browse listings",
+    "messages.page.bdda231f": "Buying",
+    "messages.page.f647ffca": "Selling",
+    "payment.success.page.fc2b2d84": "You paid",
+    "payment.success.page.2c829972": "by",
+    "payment.success.page.bd7c6765": "Digital delivery",
+    "payment.success.page.36194349": "Your file is ready. We also emailed it to you.",
+    "payment.success.page.31b67fea": "Download now",
+    "payment.success.page.63b04269": "Link valid until",
+    "payment.success.page.b1340a7f": "Your download is being prepared. It will arrive by email in the next few minutes.",
+    "payment.success.page.36a9055f": "The seller will receive a notification and will contact you to coordinate delivery.",
+    "payment.success.page.d792b667": "View listing",
+    "payment.success.page.eddd7461": "Continue exploring →",
+    "payment.success.page.6796e062": "Secure payment with Stripe ·",
+    "payment.success.page.b73f5c69": "No platform fees",
+    "payment.success.page.4ab5d378": "Thanks for supporting",
+    "payment.success.page.d436a8bb": "Your contribution of",
+    "payment.success.page.f5e6da86": "was received.",
+    "payment.success.page.1dc0583f": "Concept",
+    "payment.success.page.1bf16dba": "Support/contribution",
+    "payment.success.page.7bce59f7": "Paid",
+    "payment.success.page.a9f5de98": "View shop",
+    "payment.success.page.dd6c672d": "Back to Miyagi Sánchez",
+    "payment.success.page.57cfb669": "We received your ad!",
+    "payment.success.page.35722f4b": "Our team will design your ad in the México 86 style and include it in the print edition. We'll email you when it's ready.",
+    "payment.success.page.636d6ac0": "View my listings",
+    "payment.success.page.533331e0": "We are confirming your order",
+    "payment.success.page.2de144c5": "Your payment is being processed. This may take a few seconds.",
+    "payment.success.page.65d88d5b": "Do not pay again",
+    "payment.success.page.6dfefb2a": "— as soon as it is confirmed your order will appear.",
+    "payment.success.page.6a7b440b": "Check again",
+    "payment.success.page.110acfcd": "View my orders",
+    "payment.success.page.b1c92855": "If it doesn't appear after a few minutes, contact us and we'll help.",
+    "payment.success.page.0f704c90": "Order",
+    "payment.success.page.39534106": "Item",
+    "payment.success.page.0e698b7e": "Seller",
+    "payment.success.page.31cf0958": "Secure payment with Mercado Pago ·",
+    "s.slug.ChannelLayout.607fd824": "Secure payment · Protected purchase",
+    "s.slug.ChannelLayout.bb1173f1": "Powered by Miyagi Sánchez",
+    "s.slug.ClaimButton.a91cf3b7": "Is this your shop? Claim it →",
+    "s.slug.ClaimForm.db24adc4": "Done. Check your email to continue.",
+    "s.slug.ClaimForm.8d47ed51": "We sent a link to",
+    "s.slug.ClaimForm.14ba9f00": ". Click to continue.",
+    "s.slug.ClaimForm.d7366520": "Continue now →",
+    "s.slug.ClaimForm.43c30262": "Your email",
+    "s.slug.ClaimForm.9aa2427a": "you@email.com",
+    "s.slug.ClaimForm.10e241c5": "Message (optional)",
+    "s.slug.ClaimForm.d36f280a": "I am the owner of this business…",
+    "s.slug.ClosetListingCard.3def2049": "Preview",
+    "s.slug.ClosetListingCard.ee7138da": "In bundle",
+    "s.slug.claim.page.9d65fc41": "Claim shop",
+    "s.slug.claim.page.7b23458e": "miyagisanchez.com",
+    "s.slug.claim.page.3c747a4a": "/s/",
+    "s.slug.claim.page.1d7a0f48": "Claimed",
+    "s.slug.claim.page.9d497a0a": "Do you already have an account and were you the one who claimed it?",
+    "s.slug.claim.page.afb27b70": "Go directly to your seller dashboard to manage this shop.",
+    "s.slug.claim.page.bf32221c": "Go to my seller dashboard →",
+    "s.slug.claim.page.a448fe6f": "Are you the real owner but it wasn't you?",
+    "s.slug.claim.page.073db7eb": "Message us and we'll help you recover your shop within 24 hours.",
+    "s.slug.claim.page.dbdc2f7f": "miyagi@despachobonsai.com",
+    "s.slug.claim.page.9004ef36": "← View shop",
+    "s.slug.claim.page.a55f87d9": "Is this your shop?",
+    "s.slug.claim.page.753ab0d9": "Claim it to access a free seller dashboard where you can manage listings, receive orders, and publish to other channels. All you need is your email.",
+    "s.slug.convocatoria.ConvocatoriaClient.bcffad2e": "Received!",
+    "s.slug.convocatoria.ConvocatoriaClient.f80e01f3": "received your manuscript",
+    "s.slug.convocatoria.ConvocatoriaClient.82737e99": ". We'll email",
+    "s.slug.convocatoria.ConvocatoriaClient.7632d4f3": "when they review it.",
+    "s.slug.convocatoria.ConvocatoriaClient.8b70030b": "Submit your manuscript",
+    "s.slug.convocatoria.ConvocatoriaClient.b4e5a39b": "No account required. Just confirm your email with a code.",
+    "s.slug.convocatoria.ConvocatoriaClient.05c8558c": "Title of your work *",
+    "s.slug.convocatoria.ConvocatoriaClient.ba4f7fab": "Your name *",
+    "s.slug.convocatoria.ConvocatoriaClient.5691e360": "Genre (optional)",
+    "s.slug.convocatoria.ConvocatoriaClient.cf40fd4c": "Novel, short story, poetry…",
+    "s.slug.convocatoria.ConvocatoriaClient.6ae84ee8": "Synopsis (optional)",
+    "s.slug.convocatoria.ConvocatoriaClient.1b6a87b8": "Tell us what it's about in a few lines.",
+    "s.slug.convocatoria.ConvocatoriaClient.b2dba380": "Manuscript (PDF, EPUB, or DOCX · max.",
+    "s.slug.convocatoria.ConvocatoriaClient.fb43f467": "MB) *",
+    "s.slug.convocatoria.ConvocatoriaClient.d95ea8d6": "MB",
+    "s.slug.convocatoria.ConvocatoriaClient.cb1b2ae0": "The file exceeds",
+    "s.slug.convocatoria.ConvocatoriaClient.32b609eb": "MB. Choose a smaller one.",
+    "s.slug.convocatoria.ConvocatoriaClient.a033d5f9": "Your email *",
+    "s.slug.convocatoria.ConvocatoriaClient.b1f5b90f": "We sent a code to",
+    "s.slug.convocatoria.ConvocatoriaClient.7e893aca": ". Check your email.",
+    "s.slug.convocatoria.ConvocatoriaClient.d80e309d": "Confirmation code *",
+    "s.slug.convocatoria.ConvocatoriaClient.0531285c": "I confirm that I wrote this work or have the right to share it, and I accept the submission terms below.",
+    "s.slug.convocatoria.ConvocatoriaClient.5c6369f5": "Submission guidelines from",
+    "s.slug.convocatoria.page.d51591f3": "miyagisanchez.com",
+    "s.slug.convocatoria.page.d8d969db": "Submissions unavailable",
+    "s.slug.convocatoria.page.22c71655": "We could not find this shop",
+    "s.slug.convocatoria.page.1194d92b": "Manuscript submissions",
+    "s.slug.convocatoria.page.b9c06d3a": "accepts work from writers. Submit yours for review and, if approved, it will be published as a digital book.",
+    "s.slug.convocatoria.page.fd1018d4": "Submission terms",
+    "s.slug.convocatoria.page.49e2830e": "Also see the",
+    "s.slug.convocatoria.page.a9e527dd": "general terms",
+    "s.slug.page.b71696d5": "Verified",
+    "s.slug.page.ef1e1e62": "Unclaimed",
+    "s.slug.page.7789bbbe": "listings",
+    "s.slug.page.75ff89ed": "WhatsApp",
+    "s.slug.page.2933e939": "Phone",
+    "s.slug.page.9cb8b4c7": "Email",
+    "s.slug.page.f8cccf3d": "Facebook",
+    "s.slug.page.85cbb14f": "Mercado Pago",
+    "s.slug.page.15146f83": "Card",
+    "s.slug.page.9bc19390": "SPEI",
+    "s.slug.page.4df902a1": "DiMo",
+    "s.slug.page.ad1b2858": "Pickup",
+    "s.slug.page.b4c1603f": "Returns",
+    "s.slug.page.f62ef63c": "This shop has no listings yet.",
+    "MarketRecommendation.95e68536": "Suggested by your browser",
+    "page.5b78d70c": "Your shop is yours. Each market belongs to one country.",
+    "page.bf77921b": "With Miyagi, you open your own shop—your domain, your brand, your rules—and you do not need a marketplace’s permission to sell to your audience. The",
+    "page.881db298": "Miyagi Markets",
+    "page.ac4888c2": "are separate country markets, each with its own currency, payments, and shipping. Choose the one you want to enter.",
+    "page.7b6fe1dd": "Own shop or Miyagi Market?",
+    "page.3cc39e5f": "They are different, and you can have both. Your shop lives on your own domain or subdomain and does not depend on admission to a marketplace. Publishing in a Miyagi Market is a separate step that puts you in that country’s catalog, currency, and payment system.",
+    "page.b5f692e9": "Open my shop",
+    "components.AgentHandoff.a90b41fb": "Copied!",
+    "components.AgentHandoff.7d387f68": "Copy prompt",
+    "components.AgentHandoff.d7052502": "What can my agent do? · Marketplace listing →",
+    "components.ArtworkFileInput.1e3e04ad": "Uploading…",
+    "components.ArtworkFileInput.6ac12f70": "Upload file (",
+    "components.ArtworkFileInput.b8a7ad8f": "· max.",
+    "components.ArtworkFileInput.49e8f09e": "MB)",
+    "components.ArtworkFileInput.443562d5": "Remove",
+    "components.BuyButton.1911d825": "The seller has not enabled online payments yet.",
+    "components.BuyButton.f9a773d9": "Sign in to buy",
+    "components.BuyButton.2227a53f": "Secure payment with Stripe · 0% platform fee",
+    "components.CartDrawer.c3047eea": "Remove",
+    "components.CartDrawer.305da0c9": "Subtotal",
+    "components.CartDrawer.06f61a45": "Review bundle",
+    "components.CartDrawer.12a36b68": "This seller has not enabled online payments.",
+    "components.CartDrawer.291ba7f1": "Your cart is empty",
+    "components.CartDrawer.25af231b": "Add items from any listing and check out in one place.",
+    "components.CartDrawer.bc86891d": "Browse listings",
+    "components.CartDrawer.9a222c42": "Shopping cart",
+    "components.CartDrawer.45d54548": "Your cart",
+    "components.CartDrawer.df32289e": "Close cart",
+    "components.CartDrawer.b2aa522e": "You have items from",
+    "components.CartDrawer.4e660159": "sellers. Each one is paid separately and arrives in its own shipment.",
+    "components.ComparadorTeaserCard.4d535d23": "Cost comparison",
+    "components.ComparadorTeaserCard.c1f239c6": "What do you pay today compared with Miyagi?",
+    "components.ComparadorTeaserCard.348a35be": "Compare Shopify, Mercado Libre, WooCommerce or Tiendanube with your own numbers.",
+    "components.ComparadorTeaserCard.2a858063": "Compare →",
+    "components.CopyButton.ebf7f2a9": "Copy",
+    "components.CopyButton.7d0cba93": "Copied",
+    "components.HomeAnnouncementCard.757d84de": "Discard",
+    "components.HomeRetomaOffers.f770e542": "Pick up where you left off",
+    "components.HomeRetomaOffers.01d87486": "Favorites →",
+    "components.HomeRetomaOffers.d96b1742": "↓ Price dropped",
+    "components.HomeRetomaOffers.e212f03a": "View →",
+    "components.HomeSellerModule.b649cb90": "Your shop this week",
+    "components.HomeSellerModule.6abadc8f": "visit",
+    "components.HomeSellerModule.22bf0008": "offer",
+    "components.HomeSellerModule.60ba8371": "new",
+    "components.HomeSellerModule.530036b0": "Post another",
+    "components.HomeSellerModule.08fb47c3": "Do you sell anything?",
+    "components.HomeSellerModule.4348dc4e": "Open your shop for free and start selling in minutes.",
+    "components.HomeSellerModule.dc4b6d05": "Open your shop",
+    "components.ListingTypeChips.6609e719": "all",
+    "components.MakeOfferButton.6512eb2a": "% of price",
+    "components.MakeOfferButton.690978c1": "View conversation →",
+    "components.MakeOfferButton.502009eb": "Offer sent",
+    "components.MakeOfferButton.ef2d5f17": "Your offer of",
+    "components.MakeOfferButton.addf75b4": "Wait for the seller's response.",
+    "components.MakeOfferButton.e5589288": "Expires in",
+    "components.MakeOfferButton.99c4887a": "Withdraw offer",
+    "components.MakeOfferButton.414d2431": "The seller counteroffers",
+    "components.MakeOfferButton.ce2afb99": "Your offer:",
+    "components.MakeOfferButton.dd84aa06": "Price:",
+    "components.MakeOfferButton.96c1f6ce": "⏰ Expires in",
+    "components.MakeOfferButton.2a6ea9c8": "Accept deal",
+    "components.MakeOfferButton.72d9ce8e": "Reject",
+    "components.MakeOfferButton.1d132262": "Offer accepted!",
+    "components.MakeOfferButton.8593ee9f": "You can now complete the purchase at the agreed price:",
+    "components.MakeOfferButton.63530bbc": "Sign in to make an offer",
+    "components.MakeOfferButton.669a6bcc": "Make offer",
+    "components.MakeOfferButton.3b3b1379": "Close",
+    "components.MakeOfferButton.559234fa": "Offer sent!",
+    "components.MakeOfferButton.da7fc46b": "The seller has 48 hours to respond. We'll notify you by email.",
+    "components.MakeOfferButton.081e6d07": "Got it",
+    "components.MakeOfferButton.415ec45c": "Something went wrong",
+    "components.MakeOfferButton.d47b212e": "Try again",
+    "components.MakeOfferButton.a516a735": "Quick selection",
+    "components.MakeOfferButton.56e11373": "you save",
+    "components.MakeOfferButton.a84c2713": "Or enter your offer",
+    "components.MakeOfferButton.dcac319c": "Your offer expires in",
+    "components.MakeOfferButton.f25d9676": "48 hours",
+    "components.MakeOfferButton.7da616d7": "if the seller does not respond. If they accept, you will receive a payment link.",
+    "components.MakeOfferButton.ac57b623": "Sending offer…",
+    "components.MakeOfferButton.90ad3be0": "Send offer —",
+    "components.MakeOfferButton.95effd72": "No commissions · The seller has 48 hours to respond",
+    "components.NotificationPreferencesGrid.93f6b5a0": "Event",
+    "components.OfferCheckoutButton.12b95163": "Sign in to buy",
+    "components.PersonalizationEcho.bbb5183f": "Download original",
+    "components.PersonalizationFields.0d9efafd": "(optional)",
+    "components.PersonalizationFields.37c217cb": "Complete this field to continue.",
+    "components.PrintAdPreview.46b68692": "Printed edition",
+    "components.PrintAdPreview.61d2f0a0": "WhatsApp:",
+    "components.PrintAdPreview.e8f0bdd5": "QR upon approval",
+    "components.SellerBundleSection.87d3c9ec": "Build a bundle",
+    "components.SellerBundleSection.6a64ce45": "Combine items from",
+    "components.SellerBundleSection.92cc22da": "and check everything before paying.",
+    "components.SellerBundleSection.88600a82": "Review",
+    "components.SellerBundleSection.2e2665d8": "Add",
+    "components.SellerBundleSection.fdedb1d1": "item",
+    "components.SellerBundleSection.680b9e74": "more and get",
+    "components.SellerBundleSection.ea58a729": "% discount",
+    "components.SellerBundleSection.0a7462b7": "in bundle",
+    "components.SellerBundleSection.9b9aac5b": "% discount applied",
+    "components.SellerBundleSection.0a748c29": "Buy bundle",
+    "components.SellerTrustCard.c0851756": "Contact by WhatsApp",
+    "components.SellerTrustCard.598970d5": "Call the seller",
+    "components.SellerTrustCard.5d61ddad": "Send email",
+    "components.SellerTrustCard.7ac10c4e": "Pick up at the shop",
+    "components.SellerTrustCard.6ed89bba": "Is this your shop? Claim it for free →",
+    "components.TrustSignals.e37469f5": "Listed in",
+    "components.TrustSignals.5f3c217b": "Returns:",
+    "shop.content.PoliticasBody.b6b14aaa": "if the product remains unopened",
+    "shop.content.PoliticasBody.c41d95bc": "if returned in its original condition",
+    "shop.content.PoliticasBody.bd851b88": ". The seller covers return shipping.",
+    "shop.content.PoliticasBody.9b918784": ". Buyer covers return shipping.",
+    "account.favorites.page.b9377647": "s",
+    "account.favorites.page.51137e79": "Ad removed",
+    "account.favorites.page.da07975a": "Sold or removed",
+    "account.favorites.page.baaf23d1": "Old favorite not available",
+    "account.orders.AccountOrdersClient.9e99b095": "s",
+    "account.orders.id.OrderTrackingClient.ec7c6212": "Pay in cash when you pick up your order.",
+    "account.orders.id.OrderTrackingClient.45514168": "The seller sent a proof. Review it in your conversation before approving it.",
+    "account.orders.id.OrderTrackingClient.aa3fa1ff": "Preparing…",
+    "account.orders.id.OrderTrackingClient.495c9005": "Order again",
+    "account.orders.id.OrderTrackingClient.ec7cb006": "Scanned at the door",
+    "account.orders.id.OrderTrackingClient.5c231914": "Ready to show at the door",
+    "account.orders.id.OrderTrackingClient.d11d8d43": "Payment reported — being verified",
+    "account.orders.id.OrderTrackingClient.a5b56948": "Payment pending verification",
+    "account.orders.id.OrderTrackingClient.2cfe51e1": "You told the seller you paid. They will confirm your payment after verifying the deposit.",
+    "account.orders.id.OrderTrackingClient.5bab4898": "Your direct payment is pending. The seller will confirm it after the deposit arrives. If you already transferred it, let the seller know.",
+    "account.orders.id.OrderTrackingClient.2d951c11": "Confirming…",
+    "account.orders.id.OrderTrackingClient.fc2acd62": "Sending…",
+    "account.orders.id.OrderTrackingClient.fad2f44c": "Send request",
+    "account.orders.id.OrderTrackingClient.0e5d0348": "Notifying…",
+    "account.orders.id.OrderTrackingClient.be3b10ac": "I already made the payment",
+    "account.print.ads.AccountPrintAdsClient.5ac61180": "Printed edition",
+    "account.print.ads.AccountPrintAdsClient.84d366f8": "· Distribution: {0}",
+    "account.print.ads.AccountPrintAdsClient.733d88c4": "· before {0}",
+    "account.print.ads.AccountPrintAdsClient.54338100": "I already made the payment",
+    "account.print.ads.AccountPrintAdsClient.4061edb3": "· will appear in the edition of {0}",
+    "account.referrals.ReferralsClient.3f84f875": "Copied!",
+    "account.referrals.ReferralsClient.a86e8047": "Copy",
+    "account.subscriptions.AccountSubscriptionsClient.4ab8f2af": "Loading…",
+    "account.subscriptions.AccountSubscriptionsClient.0fa8d533": "Cancel the {0}",
+    "account.subscriptions.AccountSubscriptionsClient.974c7a98": "Next payment: {0}",
+    "account.subscriptions.AccountSubscriptionsClient.506ebd68": "Canceling…",
+    "account.subscriptions.AccountSubscriptionsClient.4c0d1e8d": "Cancel",
+    "checkout.CheckoutExperience.8ac686ce": "Delivery point",
+    "checkout.CheckoutExperience.5a116d9d": "Estimated delivery: {0}",
+    "checkout.CheckoutExperience.aa650f82": "Estimated carrier delivery",
+    "checkout.CheckoutExperience.5104dad5": "Arranged delivery uses direct payment (SPEI or cash), so we changed your payment method.",
+    "checkout.CheckoutExperience.71322f2f": "This seller has not set up direct payment. Message them to arrange payment and delivery.",
+    "checkout.CheckoutExperience.5e428788": "This seller arranges payment and delivery directly",
+    "checkout.CheckoutExperience.99c8151f": "Online payment unavailable",
+    "checkout.CheckoutExperience.07b3ef16": "Protected by Miyagi",
+    "checkout.CheckoutExperience.c5ec516b": "Arrange directly",
+    "checkout.CheckoutExperience.f0cc03dd": "Items ({0})",
+    "checkout.CheckoutExperience.d217bfe5": "Tickets ({0})",
+    "checkout.CheckoutExperience.7bd49bef": "Product",
+    "checkout.CheckoutExperience.376cf3ff": "To be arranged",
+    "checkout.CheckoutExperience.8cf23a2c": "Select a rate",
+    "checkout.CheckoutExperience.ef50e1d9": "Not available",
+    "checkout.CheckoutExperience.d3ef0dd2": "Apply",
+    "checkout.bundle.BundleCheckoutClient.19be576b": "Shop",
+    "checkout.bundle.BundleCheckoutClient.c8d7ae98": "s",
+    "l.SearchBar.b1acd91e": "Choose or type",
+    "l.SearchBar.af5a241f": "Corolla, Jetta...",
+    "l.id.CollapsibleDescription.d587022f": "Show less",
+    "l.id.CollapsibleDescription.32e540cb": "Show more",
+    "l.id.ConfiguratorBuyBox.eb0e2f24": "Buy now — {0}",
+    "l.id.ConfiguratorBuyBox.0656438f": "Sign in to buy",
+    "l.id.Gallery.bf4e9ed5": "Go to image {0} of {1}",
+    "l.id.Gallery.3dd94eb6": "See image {0} of {1}",
+    "l.id.Gallery.efcbc025": "Image {0} of {1}",
+    "l.id.SubscriptionSection.f6dc46ed": "Plan {0}",
+    "l.id.SubscriptionSection.bb33d5d9": "year",
+    "l.id.SubscriptionSection.fa2d2ba6": "month",
+    "l.id.SubscriptionSection.02c78d1d": "Loading…",
+    "l.id.SubscriptionSection.171aa769": "Subscribe — {0}",
+    "l.id.SubscriptionSection.3df7878b": "Subscribe with MercadoPago",
+    "l.id.SubscriptionSection.37147334": "Registering…",
+    "l.id.SubscriptionSection.c8c2d04b": "Confirm",
+    "l.id.page.e33be664": "— estimated shipping {0}",
+    "l.id.page.fd7e59c2": "Use the shop contact options to confirm price, payment, and delivery.",
+    "l.id.page.8e75b890": "This shop did not publish an online purchase price.",
+    "l.id.page.9683a783": "· {0} MB",
+    "l.id.page.886f08a2": "No REPUVE report",
+    "l.id.page.fecd222b": "With REPUVE report",
+    "l.id.page.43081700": "if the product remains unopened",
+    "l.id.page.77a53a2f": "if returned in its original condition",
+    "l.id.page.7e4e92b4": ". The seller covers return shipping.",
+    "l.id.page.c4d977f0": ". Buyer covers return shipping.",
+    "messages.id.ConversationClient.edc5e014": "Approve proof",
+    "messages.id.ConversationClient.9c4e09c6": "Agreed price:",
+    "messages.id.ConversationClient.78f7321a": "Your agent can negotiate for you automatically.",
+    "messages.id.ConversationClient.5a463fba": "Turn on automatic negotiation in settings.",
+    "messages.id.ConversationClient.6bc07191": "Send my agent",
+    "messages.id.ConversationClient.354fb2a2": "Settings",
+    "payment.success.page.8343240b": "Thanks, {0}!",
+    "payment.success.page.10a06ee0": "Payment complete!",
+    "payment.success.page.edbdb02f": "We received your contribution.",
+    "payment.success.page.d019aee8": "Secure payment with Mercado Pago",
+    "payment.success.page.8233441b": "Secure payment with Stripe",
+    "s.slug.ClaimForm.3c77c9c9": "Sending…",
+    "s.slug.ClaimForm.f2f2fc2f": "Send claim link",
+    "s.slug.ClosetListingCard.b9f3829e": "Remove from bundle",
+    "s.slug.ClosetListingCard.6a22e5f0": "Add to bundle",
+    "s.slug.ClosetListingCard.ce395d34": "+ Add to bundle",
+    "s.slug.convocatoria.ConvocatoriaClient.4b69ae82": "Sending…",
+    "s.slug.convocatoria.ConvocatoriaClient.d9ba1536": "Resend",
+    "s.slug.convocatoria.ConvocatoriaClient.cba247f1": "Send code",
+    "s.slug.convocatoria.ConvocatoriaClient.5af63f84": "Submit manuscript",
+    "s.slug.convocatoria.page.45829866": "{0} is not accepting manuscripts",
+    "s.slug.page.a762f91d": "Appointments available",
+    "page.89b515ec": "Open market",
+    "page.7aa89a8b": "Invitation only",
+    "components.ArtworkFileInput.b4f625c6": "File uploaded",
+    "components.AskSellerButton.218613b5": "Opening...",
+    "components.BuyButton.00b6bbc3": "Buy and download",
+    "components.BuyButton.df3233ef": "Buy now",
+    "components.CartDrawer.6e55e396": "item",
+    "components.CartDrawer.1a260e8b": "items",
+    "components.CartDrawer.bd74dde7": "Attached art",
+    "components.CartDrawer.e716b4a8": "({0} items)",
+    "components.CategoryChips.4a7768e0": "All →",
+    "components.CategoryChips.02948176": "everything",
+    "components.DesktopUnreadBadge.0622ef8d": "{0} unread",
+    "components.FavoriteButton.4c2662f8": "Remove from favorites",
+    "components.FavoriteButton.68c7c406": "Save to favorites",
+    "components.HomeSellerModule.28b22a64": "s",
+    "components.PersonalizationFields.78fe101f": "Choose an option…",
+    "components.PrintAdPreview.5d25a2ea": "(untitled)",
+    "components.SellerBundleSection.b53f5897": "This item ·",
+    "components.SellerBundleSection.fbbe16aa": "Remove from bundle",
+    "components.SellerBundleSection.884f5ce3": "Add to bundle",
+    "components.SellerBundleSection.79d7ef22": "s",
+    "components.SellerBundleSection.42574adf": "items",
+    "components.SellerTrustCard.c6fc5b53": "Location {0}"
+  },
   "partnersRecruiting": {
     "landing": {
       "switchLanguage": "Ver en español",
@@ -23,10 +805,26 @@
       "proofEyebrow": "Parallel-proof mechanism",
       "proofTitle": "Four checkpoints, no forced migration.",
       "proofSteps": [
-        { "number": "01", "title": "Name the evidence", "detail": "Submit three public shops and the systems that must remain." },
-        { "number": "02", "title": "Separate permissions", "detail": "Nomination, discovery, parallel setup, real orders, and a public story stay distinct." },
-        { "number": "03", "title": "Work in parallel", "detail": "Run a bounded operating window without asking a merchant to cut over." },
-        { "number": "04", "title": "Review the proof", "detail": "At 90 days, decide what worked, what did not, and whether anyone should continue." }
+        {
+          "number": "01",
+          "title": "Name the evidence",
+          "detail": "Submit three public shops and the systems that must remain."
+        },
+        {
+          "number": "02",
+          "title": "Separate permissions",
+          "detail": "Nomination, discovery, parallel setup, real orders, and a public story stay distinct."
+        },
+        {
+          "number": "03",
+          "title": "Work in parallel",
+          "detail": "Run a bounded operating window without asking a merchant to cut over."
+        },
+        {
+          "number": "04",
+          "title": "Review the proof",
+          "detail": "At 90 days, decide what worked, what did not, and whether anyone should continue."
+        }
       ],
       "fitEyebrow": "A strong fit",
       "fitTitle": "You already carry the operating burden.",
@@ -46,8 +844,18 @@
       ]
     },
     "application": {
-      "channelOptions": { "online_store": "Owned online store", "marketplace": "Marketplace", "social": "Social commerce", "wholesale": "Wholesale", "other": "Other" },
-      "awarenessOptions": { "not_contacted": "Not contacted about this nomination", "aware_of_nomination": "Aware that I am nominating the shop", "interested_in_conversation": "Interested in a conversation with Miyagi" },
+      "channelOptions": {
+        "online_store": "Owned online store",
+        "marketplace": "Marketplace",
+        "social": "Social commerce",
+        "wholesale": "Wholesale",
+        "other": "Other"
+      },
+      "awarenessOptions": {
+        "not_contacted": "Not contacted about this nomination",
+        "aware_of_nomination": "Aware that I am nominating the shop",
+        "interested_in_conversation": "Interested in a conversation with Miyagi"
+      },
       "otherPlatform": "Other",
       "validation": {
         "shopCount": "This proof requires an operator who actively supports at least three shops.",
@@ -321,6 +1129,10 @@
         {
           "title": "How do I get paid?",
           "body": "Directly to your account: card, MercadoPago, SPEI, or cash, depending on what you enable in your shop."
+        },
+        {
+          "title": "What if it is not for me?",
+          "body": "Ask your own AI to read the page and compare the offer with what you pay today. If it is not a fit, do not use it. Opening your shop costs nothing and does not lock you in."
         }
       ]
     },
@@ -1000,9 +1812,18 @@
       "primaryCta": "Upload my catalog",
       "secondaryCta": "I'd rather someone else did it",
       "heroStats": [
-        { "value": "Free", "label": "up to 500 products, to start on your own" },
-        { "value": "4", "label": "platforms with a step-by-step guide" },
-        { "value": "0", "label": "products you re-type by hand" }
+        {
+          "value": "Free",
+          "label": "up to 500 products, to start on your own"
+        },
+        {
+          "value": "4",
+          "label": "platforms with a step-by-step guide"
+        },
+        {
+          "value": "0",
+          "label": "products you re-type by hand"
+        }
       ],
       "proofTitle": "Three ways to bring your catalog",
       "proofLead": "Pick whichever fits best — all three end up in the same place: your catalog, reviewed by you and published on Miyagi Sánchez.",
@@ -1073,9 +1894,18 @@
       "socialTitle": "For any catalog, big or small",
       "socialBody": "Nothing publishes on its own: you (or your consultant) review every product before it goes on sale.",
       "socialStats": [
-        { "value": "0%", "label": "platform commission" },
-        { "value": "Review", "label": "nothing publishes without your confirmation" },
-        { "value": "AI", "label": "you can also paste your catalog and let AI organize it" }
+        {
+          "value": "0%",
+          "label": "platform commission"
+        },
+        {
+          "value": "Review",
+          "label": "nothing publishes without your confirmation"
+        },
+        {
+          "value": "AI",
+          "label": "you can also paste your catalog and let AI organize it"
+        }
       ],
       "closingTitle": "Your catalog already exists — you just need to bring it over.",
       "closingBody": "Pick your current platform above and follow the guide. If you'd rather someone else did it, ask for a Miyagi Sánchez consultant.",
@@ -1094,9 +1924,18 @@
       "primaryCta": "Bring my Shopify catalog",
       "secondaryCta": "See the full migration guide",
       "heroStats": [
-        { "value": "1", "label": "thing you need: your Shopify domain" },
-        { "value": "~1 min", "label": "to bring your whole catalog" },
-        { "value": "0", "label": "installs or access you have to grant" }
+        {
+          "value": "1",
+          "label": "thing you need: your Shopify domain"
+        },
+        {
+          "value": "~1 min",
+          "label": "to bring your whole catalog"
+        },
+        {
+          "value": "0",
+          "label": "installs or access you have to grant"
+        }
       ],
       "proofTitle": "What the connector brings — and what it doesn't",
       "proofLead": "It's honest about its limits: it brings your catalog and your policies as text; your shop's design you build yourself with Miyagi Sánchez's templates.",
@@ -1144,9 +1983,18 @@
       "socialTitle": "For Shopify shops of any size",
       "socialBody": "Large catalogs can be brought over too — if yours is very custom, a Miyagi Sánchez consultant will contact you directly before charging anything.",
       "socialStats": [
-        { "value": "Automatic", "label": "no exporting files by hand" },
-        { "value": "Draft", "label": "you review before publishing" },
-        { "value": "Consultant", "label": "available if you'd rather someone else did it" }
+        {
+          "value": "Automatic",
+          "label": "no exporting files by hand"
+        },
+        {
+          "value": "Draft",
+          "label": "you review before publishing"
+        },
+        {
+          "value": "Consultant",
+          "label": "available if you'd rather someone else did it"
+        }
       ],
       "closingTitle": "Your Shopify catalog could be on Miyagi Sánchez today.",
       "closingBody": "You just need your domain. The rest — variants, prices, photos — arrives on its own, ready for you to review.",
@@ -1165,9 +2013,18 @@
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
-        { "value": "CSV", "label": "the same file Tiendanube already exports" },
-        { "value": "3", "label": "clicks inside your Tiendanube dashboard" },
-        { "value": "0", "label": "products you re-type" }
+        {
+          "value": "CSV",
+          "label": "the same file Tiendanube already exports"
+        },
+        {
+          "value": "3",
+          "label": "clicks inside your Tiendanube dashboard"
+        },
+        {
+          "value": "0",
+          "label": "products you re-type"
+        }
       ],
       "proofTitle": "From your Tiendanube dashboard to Miyagi Sánchez's catalog",
       "proofLead": "Tiendanube exports a CSV compatible with Excel and Google Sheets — Miyagi Sánchez's importer recognizes its columns (name, price, category, stock) automatically.",
@@ -1210,9 +2067,18 @@
       "socialTitle": "Works the same regardless of your Tiendanube plan",
       "socialBody": "Product export isn't available on Tiendanube's free Inicial plan — if that's you, you can copy and paste your catalog straight into Miyagi Sánchez's importer and let the AI organize it.",
       "socialStats": [
-        { "value": "CSV", "label": "or copy-paste if your plan can't export" },
-        { "value": "Review", "label": "nothing publishes without your confirmation" },
-        { "value": "0%", "label": "platform commission on Miyagi Sánchez" }
+        {
+          "value": "CSV",
+          "label": "or copy-paste if your plan can't export"
+        },
+        {
+          "value": "Review",
+          "label": "nothing publishes without your confirmation"
+        },
+        {
+          "value": "0%",
+          "label": "platform commission on Miyagi Sánchez"
+        }
       ],
       "closingTitle": "Your Tiendanube catalog is already ready to export.",
       "closingBody": "Download your CSV from your dashboard and upload it to Miyagi Sánchez's importer — most columns recognize themselves.",
@@ -1231,9 +2097,18 @@
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
-        { "value": "CSV", "label": "with the exporter WooCommerce already has" },
-        { "value": "0", "label": "plugins to install" },
-        { "value": "0", "label": "products you re-type" }
+        {
+          "value": "CSV",
+          "label": "with the exporter WooCommerce already has"
+        },
+        {
+          "value": "0",
+          "label": "plugins to install"
+        },
+        {
+          "value": "0",
+          "label": "products you re-type"
+        }
       ],
       "proofTitle": "From your WordPress to Miyagi Sánchez's catalog",
       "proofLead": "WooCommerce's exporter has been built-in since version 3.1 — you don't need any extra plugin to get your catalog out.",
@@ -1276,9 +2151,18 @@
       "socialTitle": "Works with any WooCommerce shop",
       "socialBody": "If your catalog is too large for one file, split it into parts — Miyagi Sánchez's importer accepts several uploads in a row without duplicating products.",
       "socialStats": [
-        { "value": "Variations", "label": "included in the same export" },
-        { "value": "Review", "label": "nothing publishes without your confirmation" },
-        { "value": "0%", "label": "platform commission on Miyagi Sánchez" }
+        {
+          "value": "Variations",
+          "label": "included in the same export"
+        },
+        {
+          "value": "Review",
+          "label": "nothing publishes without your confirmation"
+        },
+        {
+          "value": "0%",
+          "label": "platform commission on Miyagi Sánchez"
+        }
       ],
       "closingTitle": "Your WooCommerce catalog is already ready to export.",
       "closingBody": "Use the exporter WordPress already has and upload it to Miyagi Sánchez — no plugins, no extra steps.",
@@ -1297,9 +2181,18 @@
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
-        { "value": "0", "label": "export button in Big Cartel's dashboard" },
-        { "value": "1", "label": "public page you CAN download" },
-        { "value": "AI", "label": "organizes your catalog for you, no column mapping" }
+        {
+          "value": "0",
+          "label": "export button in Big Cartel's dashboard"
+        },
+        {
+          "value": "1",
+          "label": "public page you CAN download"
+        },
+        {
+          "value": "AI",
+          "label": "organizes your catalog for you, no column mapping"
+        }
       ],
       "proofTitle": "The honest path for Big Cartel",
       "proofLead": "Unlike Tiendanube or WooCommerce, Big Cartel doesn't offer a ready-to-import CSV — so the path here is different, and we tell you plainly.",
@@ -1342,9 +2235,18 @@
       "socialTitle": "For Big Cartel shops of any size",
       "socialBody": "If your catalog is large or has many variants, a Miyagi Sánchez consultant can run this process for you — ask for one from the migration guide.",
       "socialStats": [
-        { "value": "JSON", "label": "your public catalog, no password" },
-        { "value": "AI", "label": "organizes the file for you" },
-        { "value": "Review", "label": "nothing publishes without your confirmation" }
+        {
+          "value": "JSON",
+          "label": "your public catalog, no password"
+        },
+        {
+          "value": "AI",
+          "label": "organizes the file for you"
+        },
+        {
+          "value": "Review",
+          "label": "nothing publishes without your confirmation"
+        }
       ],
       "closingTitle": "No export button, but your catalog can still be brought over.",
       "closingBody": "Copy your public catalog as JSON and paste it into Miyagi Sánchez's importer — the AI does the work of organizing it.",
@@ -1450,19 +2352,49 @@
       "handbookLead": "The full close checklist, start to finish, so you never have to ask Daniel anything.",
       "checklistTitle": "Close checklist",
       "checklist": [
-        { "title": "1 · Set up", "body": "Create the merchant's shop from your workspace (it stays unclaimed) and add a first listing." },
-        { "title": "2 · Collect", "body": "Collect cash from the merchant and pay for the domain, subdomain, or ad with your own card. The sale is attributed to your code." },
-        { "title": "3 · Design the ad (when it applies)", "body": "If the close includes a printed ad: designing it from your workspace is coming soon — for now, coordinate the design directly with the team." },
-        { "title": "4 · Hand off over WhatsApp", "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account." },
-        { "title": "5 · Send the receipt", "body": "The automatic receipt to the merchant is coming soon — for now, let them know over WhatsApp yourself that everything is activated." }
+        {
+          "title": "1 · Set up",
+          "body": "Create the merchant's shop from your workspace (it stays unclaimed) and add a first listing."
+        },
+        {
+          "title": "2 · Collect",
+          "body": "Collect cash from the merchant and pay for the domain, subdomain, or ad with your own card. The sale is attributed to your code."
+        },
+        {
+          "title": "3 · Design the ad (when it applies)",
+          "body": "If the close includes a printed ad: designing it from your workspace is coming soon — for now, coordinate the design directly with the team."
+        },
+        {
+          "title": "4 · Hand off over WhatsApp",
+          "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account."
+        },
+        {
+          "title": "5 · Send the receipt",
+          "body": "The automatic receipt to the merchant is coming soon — for now, let them know over WhatsApp yourself that everything is activated."
+        }
       ],
       "scriptsTitle": "30-second scripts",
       "scripts": [
-        { "title": "Own domain", "body": "\"Did you know your shop could live at yourname.mx instead of a long link? Looks more professional and people find you directly. It's $499 a year, one-time, and with my code I can activate it today.\"" },
-        { "title": "Subdomain", "body": "\"Your shop can have its own address, yourname.miyagisanchez.com, without buying a domain. It's $199 a year, but with my code it's FREE the first year — I can activate it today.\"" },
-        { "title": "Printed ad", "body": "\"We run in print and circulate in your area — people who don't even search online will find you there. Price depends on size, charged once, and with my code you get a price you can't get on your own.\"" },
-        { "title": "Mercado Libre sync", "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\"" },
-        { "title": "Store migration", "body": "\"Coming from Shopify, Tiendanube, WooCommerce, or Big Cartel? I'll get you set up today — I photograph your catalog or bring your export, and in one visit it's all on your own Miyagi Sánchez shop. Flat price up to a catalog size limit; if yours is bigger, I'll give you a quote before charging anything.\"" }
+        {
+          "title": "Own domain",
+          "body": "\"Did you know your shop could live at yourname.mx instead of a long link? Looks more professional and people find you directly. It's $499 a year, one-time, and with my code I can activate it today.\""
+        },
+        {
+          "title": "Subdomain",
+          "body": "\"Your shop can have its own address, yourname.miyagisanchez.com, without buying a domain. It's $199 a year, but with my code it's FREE the first year — I can activate it today.\""
+        },
+        {
+          "title": "Printed ad",
+          "body": "\"We run in print and circulate in your area — people who don't even search online will find you there. Price depends on size, charged once, and with my code you get a price you can't get on your own.\""
+        },
+        {
+          "title": "Mercado Libre sync",
+          "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\""
+        },
+        {
+          "title": "Store migration",
+          "body": "\"Coming from Shopify, Tiendanube, WooCommerce, or Big Cartel? I'll get you set up today — I photograph your catalog or bring your export, and in one visit it's all on your own Miyagi Sánchez shop. Flat price up to a catalog size limit; if yours is bigger, I'll give you a quote before charging anything.\""
+        }
       ],
       "paymentsTitle": "How payments work",
       "paymentsBody": "You pay for the domain, subdomain, or ad with your own card when you set up the shop. The merchant pays you back in cash (or however you agree). Your commission isn't charged separately: Miyagi Sánchez records it on your account and the team settles it with you afterward, by transfer or cash.",
@@ -1476,30 +2408,75 @@
       "lead": "The step-by-step of an in-person migration, start to finish — what to photograph, what to ask, and when to charge flat price, a quote, or hand the case to Daniel.",
       "photoTitle": "What to photograph",
       "photo": [
-        { "title": "Their current catalog", "body": "Screenshots of their product list on their current platform (name, price, photo) — a backup in case anything doesn't import cleanly." },
-        { "title": "The total product count", "body": "How many products they have in total — decides whether the close is flat price or needs a quote (see below)." },
-        { "title": "Their logo and colors", "body": "If they have a defined brand (logo, colors on their current shop), photograph them to give their Miyagi Sánchez shop the same look." },
-        { "title": "Shipping and returns policies", "body": "Photograph or copy the text wherever they have them written — it transcribes directly into their Miyagi Sánchez shop." }
+        {
+          "title": "Their current catalog",
+          "body": "Screenshots of their product list on their current platform (name, price, photo) — a backup in case anything doesn't import cleanly."
+        },
+        {
+          "title": "The total product count",
+          "body": "How many products they have in total — decides whether the close is flat price or needs a quote (see below)."
+        },
+        {
+          "title": "Their logo and colors",
+          "body": "If they have a defined brand (logo, colors on their current shop), photograph them to give their Miyagi Sánchez shop the same look."
+        },
+        {
+          "title": "Shipping and returns policies",
+          "body": "Photograph or copy the text wherever they have them written — it transcribes directly into their Miyagi Sánchez shop."
+        }
       ],
       "interviewTitle": "Interview questions",
       "interview": [
-        { "title": "Which platform are you coming from?", "body": "Shopify uses the direct connector (just the domain); Tiendanube, WooCommerce, and Big Cartel export a file first." },
-        { "title": "How do you get paid today?", "body": "Card, transfer, cash — so you can activate the same payment methods on their new Miyagi Sánchez shop from day one." },
-        { "title": "How do you ship?", "body": "To configure the same (or closest) shipping method on their new shop." },
-        { "title": "Is there anything very custom about your current shop?", "body": "Themes, sections, or pages beyond catalog, shipping, and basic policies — if there are, that's information for the parity report, not something you promise to replicate yourself." }
+        {
+          "title": "Which platform are you coming from?",
+          "body": "Shopify uses the direct connector (just the domain); Tiendanube, WooCommerce, and Big Cartel export a file first."
+        },
+        {
+          "title": "How do you get paid today?",
+          "body": "Card, transfer, cash — so you can activate the same payment methods on their new Miyagi Sánchez shop from day one."
+        },
+        {
+          "title": "How do you ship?",
+          "body": "To configure the same (or closest) shipping method on their new shop."
+        },
+        {
+          "title": "Is there anything very custom about your current shop?",
+          "body": "Themes, sections, or pages beyond catalog, shipping, and basic policies — if there are, that's information for the parity report, not something you promise to replicate yourself."
+        }
       ],
       "runTitle": "How to run the migration",
       "run": [
-        { "title": "1 · Bring in the catalog", "body": "Shopify: use the connector with their domain (Workspace → Import catalog → Migrate from Shopify). Tiendanube/WooCommerce/Big Cartel: ask for their export (or help them generate it right there with the /vende/migracion guides) and upload it at Workspace → Import catalog." },
-        { "title": "2 · Review the parity report", "body": "If it's coming from Shopify, review the report of what maps and what doesn't before continuing — it decides whether the case is flat price, a quote, or \"very custom.\"" },
-        { "title": "3 · Decide the price (see below) and close", "body": "From /promotor/cerrar, choose \"Store migration\" and charge accordingly." },
-        { "title": "4 · Review and publish with the merchant", "body": "Go through the imported catalog together, fix anything that needs it, and publish in front of them — so they see their shop working." }
+        {
+          "title": "1 · Bring in the catalog",
+          "body": "Shopify: use the connector with their domain (Workspace → Import catalog → Migrate from Shopify). Tiendanube/WooCommerce/Big Cartel: ask for their export (or help them generate it right there with the /vende/migracion guides) and upload it at Workspace → Import catalog."
+        },
+        {
+          "title": "2 · Review the parity report",
+          "body": "If it's coming from Shopify, review the report of what maps and what doesn't before continuing — it decides whether the case is flat price, a quote, or \"very custom.\""
+        },
+        {
+          "title": "3 · Decide the price (see below) and close",
+          "body": "From /promotor/cerrar, choose \"Store migration\" and charge accordingly."
+        },
+        {
+          "title": "4 · Review and publish with the merchant",
+          "body": "Go through the imported catalog together, fix anything that needs it, and publish in front of them — so they see their shop working."
+        }
       ],
       "decisionTitle": "Flat price, quote, or Daniel — how to decide",
       "decision": [
-        { "title": "Flat price", "body": "Catalog within the flat-price migration limit (check the exact number above, next to the price) and nothing out of the ordinary. Close directly from /promotor/cerrar with no quote ID." },
-        { "title": "Quote", "body": "Catalog bigger than the flat-price limit. From the parity report (only available for Shopify migrations for now), generate the quote, copy the ID for the merchant, and paste it into /promotor/cerrar when charging — the amount charged is always exactly the quote's, never a different number." },
-        { "title": "Hand the case to Daniel", "body": "If the report flags the shop as \"very custom\" (an incomplete pull or an out-of-the-ordinary catalog), no price is generated at all — neither flat nor quoted. Let the merchant know Daniel will contact them directly, and don't promise or charge any amount yourself." }
+        {
+          "title": "Flat price",
+          "body": "Catalog within the flat-price migration limit (check the exact number above, next to the price) and nothing out of the ordinary. Close directly from /promotor/cerrar with no quote ID."
+        },
+        {
+          "title": "Quote",
+          "body": "Catalog bigger than the flat-price limit. From the parity report (only available for Shopify migrations for now), generate the quote, copy the ID for the merchant, and paste it into /promotor/cerrar when charging — the amount charged is always exactly the quote's, never a different number."
+        },
+        {
+          "title": "Hand the case to Daniel",
+          "body": "If the report flags the shop as \"very custom\" (an incomplete pull or an out-of-the-ordinary catalog), no price is generated at all — neither flat nor quoted. Let the merchant know Daniel will contact them directly, and don't promise or charge any amount yourself."
+        }
       ]
     },
     "mundial": {
@@ -1833,7 +2810,11 @@
   "home": {
     "hero": {
       "heading": "What your neighborhood sells, buys, and recommends",
-      "badges": ["Protected purchase", "Make an offer", "0% commissions"]
+      "badges": [
+        "Protected purchase",
+        "Make an offer",
+        "0% commissions"
+      ]
     },
     "selection": {
       "heading": "This week's picks",
@@ -1888,9 +2869,21 @@
           "It is built on Medusa (the commerce engine) and is agent-native: it follows the open UCP and MCP standards, so an AI assistant can browse the catalog, negotiate, and buy without needing a browser."
         ],
         "points": [
-          { "title": "Multi-seller", "body": "Many independent shops on a single platform.", "icon": "iconoir-shop-four-tiles" },
-          { "title": "Built for Mexico", "body": "Local payments and methods: SPEI, cash, DiMo, MercadoPago, and Stripe.", "icon": "iconoir-map-pin" },
-          { "title": "Agent-native", "body": "Your AI can read us and act on your behalf via UCP and MCP.", "icon": "iconoir-sparks" }
+          {
+            "title": "Multi-seller",
+            "body": "Many independent shops on a single platform.",
+            "icon": "iconoir-shop-four-tiles"
+          },
+          {
+            "title": "Built for Mexico",
+            "body": "Local payments and methods: SPEI, cash, DiMo, MercadoPago, and Stripe.",
+            "icon": "iconoir-map-pin"
+          },
+          {
+            "title": "Agent-native",
+            "body": "Your AI can read us and act on your behalf via UCP and MCP.",
+            "icon": "iconoir-sparks"
+          }
         ]
       },
       "why_sell": {
@@ -1901,10 +2894,26 @@
           "Your catalog lives once and appears in many places: the marketplace, your own branded domain, a widget you paste on any site, and an API/agent for programmatic purchases."
         ],
         "points": [
-          { "title": "0% commission", "body": "We don’t charge per sale. Listing and selling are free.", "icon": "iconoir-hand-cash" },
-          { "title": "Multi-channel", "body": "Marketplace, own domain, embeddable widget, and API/agents — one catalog.", "icon": "iconoir-share-android" },
-          { "title": "AI commerce", "body": "Buyers and agents can browse and negotiate offers natively.", "icon": "iconoir-chat-bubble" },
-          { "title": "Express migration", "body": "Import your catalog from a file, pasted text, or JSON; the AI structures it for you.", "icon": "iconoir-cloud-upload" }
+          {
+            "title": "0% commission",
+            "body": "We don’t charge per sale. Listing and selling are free.",
+            "icon": "iconoir-hand-cash"
+          },
+          {
+            "title": "Multi-channel",
+            "body": "Marketplace, own domain, embeddable widget, and API/agents — one catalog.",
+            "icon": "iconoir-share-android"
+          },
+          {
+            "title": "AI commerce",
+            "body": "Buyers and agents can browse and negotiate offers natively.",
+            "icon": "iconoir-chat-bubble"
+          },
+          {
+            "title": "Express migration",
+            "body": "Import your catalog from a file, pasted text, or JSON; the AI structures it for you.",
+            "icon": "iconoir-cloud-upload"
+          }
         ]
       },
       "how_to_start": {
@@ -1915,9 +2924,18 @@
           "Have an AI assistant? Ask it to read miyagisanchez.com and prepare your shop: the brand dressing and products ready to import. You review and publish."
         ],
         "points": [
-          { "title": "1. Sign up", "body": "About 20 seconds with Google." },
-          { "title": "2. Import", "body": "File, pasted text, or JSON → the AI structures your catalog." },
-          { "title": "3. Publish", "body": "Review, tweak, and open your shop." }
+          {
+            "title": "1. Sign up",
+            "body": "About 20 seconds with Google."
+          },
+          {
+            "title": "2. Import",
+            "body": "File, pasted text, or JSON → the AI structures your catalog."
+          },
+          {
+            "title": "3. Publish",
+            "body": "Review, tweak, and open your shop."
+          }
         ]
       },
       "cost_transparency": {
@@ -1946,10 +2964,26 @@
           "Want to talk about the project? Write to daniel@miyagisanchez.com."
         ],
         "points": [
-          { "title": "70+ people", "body": "Product and engineering team led at AB InBev.", "icon": "iconoir-community" },
-          { "title": "$70M+ USD", "body": "Capital budget managed at AB InBev.", "icon": "iconoir-coins" },
-          { "title": "2 startups founded", "body": "Built and operated from zero: Bicimensajero.com and Pokapok.mx.", "icon": "iconoir-shop" },
-          { "title": "MSc in Finance", "body": "University of Aberdeen, 2024.", "icon": "iconoir-graduation-cap" }
+          {
+            "title": "70+ people",
+            "body": "Product and engineering team led at AB InBev.",
+            "icon": "iconoir-community"
+          },
+          {
+            "title": "$70M+ USD",
+            "body": "Capital budget managed at AB InBev.",
+            "icon": "iconoir-coins"
+          },
+          {
+            "title": "2 startups founded",
+            "body": "Built and operated from zero: Bicimensajero.com and Pokapok.mx.",
+            "icon": "iconoir-shop"
+          },
+          {
+            "title": "MSc in Finance",
+            "body": "University of Aberdeen, 2024.",
+            "icon": "iconoir-graduation-cap"
+          }
         ]
       },
       "philosophy": {

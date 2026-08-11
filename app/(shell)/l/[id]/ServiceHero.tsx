@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import { serviceHeroModel } from '@/lib/service-hero'
 import type { Spec } from '@/lib/listing-attributes'
@@ -68,7 +69,7 @@ export default function ServiceHero({
       {/* ── "Qué incluye" — service attrs + description ───────────────────────── */}
       {(inclusions.length > 0 || description) && (
         <div data-testid="pdp-service-incluye" style={{ background: 'var(--bg-sunk)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <h2 style={{ fontWeight: 700, fontSize: 'var(--t-base)', marginBottom: 10 }}>Qué incluye</h2>
+          <h2 style={{ fontWeight: 700, fontSize: 'var(--t-base)', marginBottom: 10 }}><BuyerCopyText copyKey="l.id.ServiceHero.07125a17" /></h2>
           {inclusions.length > 0 && (
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 16px', marginBottom: description ? 12 : 0 }}>
               {inclusions.map(spec => (

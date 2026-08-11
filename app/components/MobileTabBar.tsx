@@ -111,7 +111,13 @@ function TabItem({
   )
 }
 
-export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
+export default function MobileTabBar({
+  search,
+  labels,
+}: {
+  search: SearchSheetCopy
+  labels: Record<string, string>
+}) {
   const pathname = usePathname()
   const { isSignedIn } = useUser()
 
@@ -266,7 +272,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
                 key={tab.key}
                 href={href}
                 className="tab-press-center"
-                aria-label={tab.label}
+                aria-label={labels[tab.key]}
                 style={{
                   width: 46,
                   height: 46,
@@ -292,7 +298,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
               key={tab.key}
               href={href}
               icon={tab.icon}
-              label={tab.label}
+              label={labels[tab.key]}
               active={active}
               hasUnread={tab.unread ? !!isSignedIn && hasUnread && !active : false}
               labelMode={LABEL_MODE}
@@ -309,7 +315,7 @@ export default function MobileTabBar({ search }: { search: SearchSheetCopy }) {
           type="button"
           onClick={() => { searchInputRef.current?.focus(); setSearchOpen(true) }}
           className="glass-liquid search-circle-btn"
-          aria-label="Buscar"
+          aria-label={labels.search}
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
           style={{

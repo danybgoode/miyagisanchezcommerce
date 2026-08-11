@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { buildAgentPrompt, resolveAgentContext, withDetails } from '@/lib/agent-prompt'
 import { useAgentContext } from '@/app/components/AgentContext'
+import type { Dictionary } from '@/lib/dictionary'
 
 /**
  * `icon`       — bare ✨ icon button (legacy; no longer mounted after the
@@ -15,13 +16,13 @@ import { useAgentContext } from '@/app/components/AgentContext'
  *                a `position:relative` search input (mobile header). Same sheet.
  */
 type Variant = 'icon' | 'affordance' | 'search'
+type AgentCopy = Dictionary['buyerShell']['agent']
+const subscribeToClient = () => () => {}
 
-export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant } = {}) {
+export default function AIAgentButton({ variant = 'icon', copy: ui }: { variant?: Variant; copy: AgentCopy }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => { setMounted(true) }, [])
+  const mounted = useSyncExternalStore(subscribeToClient, () => true, () => false)
 
   // es-MX hand-off prompt, contextual to the current page. The page TYPE + URL come from
   // the path (URL-only — S1.3); rich human-readable details (product title/price, shop
@@ -68,10 +69,10 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
           </div>
           <div>
             <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>
-              Compra con tu agente IA
+              {ui.title}
             </p>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '4px 0 0', lineHeight: 1.4 }}>
-              Copia este prompt en Claude, ChatGPT o Gemini.
+              {ui.description}
             </p>
           </div>
         </div>
@@ -102,7 +103,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
             style={{ flex: 1, fontSize: 14, gap: 6 }}
           >
             <i className={copied ? 'iconoir-check' : 'iconoir-copy'} style={{ fontSize: 16 }} />
-            {copied ? '¡Copiado!' : 'Copiar prompt'}
+            {copied ? ui.copied : ui.copy}
           </button>
           <a
             href={claudeUrl}
@@ -112,7 +113,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
             style={{ flex: 1, fontSize: 14, gap: 6 }}
           >
             <i className="iconoir-open-in-browser" style={{ fontSize: 16 }} />
-            Abrir en Claude
+            {ui.openClaude}
           </a>
         </div>
 
@@ -124,7 +125,7 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
             style={{ flex: 1, fontSize: 13 }}
           >
             <i className="iconoir-book" style={{ fontSize: 14 }} />
-            Ficha del marketplace
+            {ui.marketplaceCard}
           </a>
           <a
             href="https://ucp.dev"
@@ -148,8 +149,8 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title="Comprar con IA"
-          aria-label="Agente IA"
+          title={ui.buyWithAi}
+          aria-label={ui.agentLabel}
           style={{
             position: 'absolute',
             right: 6,
@@ -174,8 +175,8 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title="Comprar con IA / Buy with AI"
-          aria-label="Agente IA"
+          title={ui.buyWithAi}
+          aria-label={ui.agentLabel}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -195,14 +196,15 @@ export default function AIAgentButton({ variant = 'icon' }: { variant?: Variant 
           }}
         >
           <i className="iconoir-sparks" style={{ fontSize: 16 }} />
-          Agente IA
+          {ui.agentLabel}
         </button>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="icon-btn"
-          title="Comprar con IA / Buy with AI"
+          title={ui.buyWithAi}
+          aria-label={ui.agentLabel}
           style={{ color: 'var(--agent)' }}
         >
           <i className="iconoir-sparks" style={{ fontSize: 22 }} />

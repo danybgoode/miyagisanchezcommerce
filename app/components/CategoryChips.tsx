@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { CATEGORIES } from '@/lib/types'
 import type { CategoryCount } from '@/lib/home-curation'
@@ -33,7 +34,7 @@ export default function CategoryChips({ activeCategory, className, counts, marke
         className={`chip${!activeCategory ? ' is-selected' : ''}`}
       >
         <i className="iconoir-view-grid" aria-hidden />
-        <span>{hasCounts ? 'Todas →' : 'Todo'}</span>
+        <span>{hasCounts ? <BuyerCopyText copyKey="components.CategoryChips.4a7768e0" /> : <BuyerCopyText copyKey="components.CategoryChips.02948176" />}</span>
       </Link>
 
       {items.map(cat => (

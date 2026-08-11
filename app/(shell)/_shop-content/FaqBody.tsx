@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { wellFormedFaqItems } from '@/lib/shop-content'
@@ -23,7 +24,7 @@ export default function FaqBody({ shop, basePath }: { shop: Shop; basePath: stri
       <Link href={basePath || '/'} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
         ← {shop.name}
       </Link>
-      <h1 className="text-xl font-bold mt-3 mb-4">Preguntas frecuentes</h1>
+      <h1 className="text-xl font-bold mt-3 mb-4"><BuyerCopyText copyKey="shop.content.FaqBody.8ff896c4" /></h1>
       <div className="space-y-4">
         {items.map((item, i) => (
           <div key={i} className="border border-[var(--color-border)] rounded-lg p-4">

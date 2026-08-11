@@ -1,3 +1,4 @@
+import { BuyerCopyText, BuyerPresentationProvider } from '@/app/components/BuyerPresentationContext'
 /**
  * /payment/success
  *
@@ -15,6 +16,9 @@ import { db } from '@/lib/supabase'
 import { isVerifiedCustomDomain } from '@/lib/custom-domain'
 import { browseUrlFor, listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { formatPresentationCurrency, formatPresentationDate, resolveMarketPresentation, type MarketPresentation } from '@/lib/market-presentation'
+import { isMarketCode } from '@/lib/markets'
+import { getDictionary } from '@/lib/dictionary'
 
 export const metadata = { title: 'Pago completado — Miyagi Sánchez' }
 
@@ -55,28 +59,29 @@ async function authorizeMpPayment(cartId: string, mpPaymentId: string): Promise<
 }
 
 /** Seller/shop name for the post-purchase summary (channel-agnostic listings endpoint). */
-async function getListingSellerName(productId: string): Promise<string | null> {
+async function getListingSeller(productId: string): Promise<{ name: string | null; marketCode: string | null }> {
   try {
     const res = await fetch(`${MEDUSA_BASE}/store/listings/${productId}`, {
       headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY },
       cache: 'no-store',
     })
-    if (!res.ok) return null
+    if (!res.ok) return { name: null, marketCode: null }
     const { listing } = await res.json()
-    return listing?.seller?.name ?? listing?.shop?.name ?? null
+    const seller = listing?.seller ?? listing?.shop
+    return { name: seller?.name ?? null, marketCode: seller?.market_code ?? null }
   } catch {
-    return null
+    return { name: null, marketCode: null }
   }
 }
 
-function formatCents(cents: unknown, currency: unknown): string | null {
+function presentationFor(value: unknown): MarketPresentation {
+  return resolveMarketPresentation(isMarketCode(value) ? value : 'mx')
+}
+
+function formatCents(presentation: MarketPresentation, cents: unknown, currency: unknown): string | null {
   const amount = Math.round(Number(cents ?? 0))
   if (!Number.isFinite(amount) || amount <= 0) return null
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: String(currency ?? 'MXN').toUpperCase(),
-    maximumFractionDigits: 0,
-  }).format(amount / 100)
+  return formatPresentationCurrency(presentation, amount, String(currency ?? presentation.currency), { maximumFractionDigits: 0 })
 }
 
 export default async function PaymentSuccessPage({
@@ -137,51 +142,48 @@ export default async function PaymentSuccessPage({
 
     const supportMeta = (orderMeta.support ?? null) as Record<string, unknown> | null
     if (supportMeta?.kind === 'support') {
-      return <SupportSuccessUI
+      const presentation = presentationFor(supportMeta.market_code ?? orderMeta.market_code)
+      const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
+      return <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}><SupportSuccessUI
         cartId={cartId}
         orderId={(order?.id as string | undefined) ?? null}
-        amountPaid={formatCents(supportMeta.amount_cents, supportMeta.currency)}
+        amountPaid={formatCents(presentation, supportMeta.amount_cents, supportMeta.currency)}
         amountCents={Math.round(Number(supportMeta.amount_cents ?? 0))}
         currency={String(supportMeta.currency ?? 'MXN').toUpperCase()}
         sellerSlug={(supportMeta.seller_slug as string | undefined) ?? null}
         provider={mpPaymentId ? 'mercadopago' : 'stripe'}
         marketOrigin={marketOrigin}
-      />
+      /></BuyerPresentationProvider>
     }
 
     const productId = (order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.product_id as string | undefined
-    const itemName = (order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.title as string ?? 'tu compra'
+    const itemName = ((order?.items as Array<Record<string, unknown>> | undefined)?.[0]?.title as string | undefined) ?? null
+    const seller = productId ? await getListingSeller(productId) : { name: null, marketCode: null }
+    const presentation = presentationFor(orderMeta.market_code ?? seller.marketCode)
+    const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
     const amountTotal = order?.total as number | undefined
     const currency = order?.currency_code as string ?? 'MXN'
-    const amountPaid = amountTotal
-      ? new Intl.NumberFormat('es-MX', {
-          style: 'currency',
-          currency: currency.toUpperCase(),
-          maximumFractionDigits: 0,
-        }).format(amountTotal / 100)
-      : null
+    const amountPaid = formatCents(presentation, amountTotal, currency)
 
     // ── Print-ad placement? Route to the print management surface ──────────
     // (a placement is not a shippable order; it lives in /account/print-ads)
     const { data: printSub } = await db
       .from('print_ad_submissions').select('id').eq('cart_id', cartId).maybeSingle()
-    if (printSub) return <PrintSuccessUI amountPaid={amountPaid} />
+    if (printSub) return <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}><PrintSuccessUI amountPaid={amountPaid} /></BuyerPresentationProvider>
 
     // Human-friendly order number (Medusa display_id) + seller name for the summary.
     const orderNumber = order?.display_id != null ? `#${order.display_id}` : null
-    const sellerName = productId ? await getListingSellerName(productId) : null
-
-    return <SuccessUI
+    return <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}><SuccessUI
       buyerName={null}
       amountPaid={amountPaid}
       itemName={itemName}
       orderNumber={orderNumber}
-      sellerName={sellerName}
+      sellerName={seller.name}
       listingId={productId ?? null}
       isDigital={false}
       provider={mpPaymentId ? 'mercadopago' : 'stripe'}
       marketOrigin={marketOrigin}
-    />
+    /></BuyerPresentationProvider>
   }
 
   // ── Legacy Stripe flow ───────────────────────────────────────────────────
@@ -199,6 +201,9 @@ export default async function PaymentSuccessPage({
 
   const listingId = session!.metadata?.listing_id
   const listingType = session!.metadata?.listing_type
+  const legacySeller = listingId ? await getListingSeller(listingId) : { name: null, marketCode: null }
+  const presentation = presentationFor(session!.metadata?.market_code ?? legacySeller.marketCode)
+  const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
 
   // Fetch order for digital download URL (legacy Supabase orders)
   const { data: order } = listingId ? await db
@@ -208,28 +213,23 @@ export default async function PaymentSuccessPage({
     .maybeSingle() : { data: null }
 
   const buyerName = session!.customer_details?.name?.split(' ')[0] ?? null
-  const amountPaid = session!.amount_total
-    ? new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: session!.currency?.toUpperCase() ?? 'MXN',
-        maximumFractionDigits: 0,
-      }).format(session!.amount_total / 100)
-    : null
+  const amountPaid = formatCents(presentation, session!.amount_total, session!.currency)
 
   const itemName = session!.line_items?.data?.[0]?.description
     ?? session!.line_items?.data?.[0]?.price?.nickname
-    ?? 'tu compra'
+    ?? null
 
   return (
+    <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}>
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
         <CheckIcon />
         <h1 className="text-2xl font-bold mb-2">
-          {buyerName ? `¡Gracias, ${buyerName}!` : '¡Pago completado!'}
+          {buyerName ? <BuyerCopyText copyKey="payment.success.page.8343240b" values={[buyerName]} /> : <BuyerCopyText copyKey="payment.success.page.10a06ee0" />}
         </h1>
         {amountPaid && (
           <p className="text-[var(--color-muted)] mb-6">
-            Pagaste <strong className="text-[var(--color-foreground)]">{amountPaid}</strong> por {itemName}.
+            <BuyerCopyText copyKey="payment.success.page.fc2b2d84" />{' '}<strong className="text-[var(--color-foreground)]">{amountPaid}</strong> <BuyerCopyText copyKey="payment.success.page.2c829972" />{' '}{itemName}.
           </p>
         )}
 
@@ -237,25 +237,23 @@ export default async function PaymentSuccessPage({
           <div className="border border-blue-200 bg-blue-50 rounded-[var(--r-md)] p-5 mb-6 text-left">
             <div className="flex items-center gap-2 mb-2">
               <i className="iconoir-download text-xl" aria-hidden />
-              <span className="font-semibold text-blue-800">Entrega digital</span>
+              <span className="font-semibold text-blue-800"><BuyerCopyText copyKey="payment.success.page.bd7c6765" /></span>
             </div>
             {order?.digital_download_url ? (
               <>
-                <p className="text-sm text-blue-700 mb-3">Tu archivo está listo. También te lo enviamos por correo.</p>
+                <p className="text-sm text-blue-700 mb-3"><BuyerCopyText copyKey="payment.success.page.36194349" /></p>
                 <a href={order.digital_download_url}
                   className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-2.5 rounded-[var(--r-md)] font-semibold text-sm no-underline hover:bg-blue-700 transition-colors">
-                  <i className="iconoir-download" aria-hidden /> Descargar ahora
-                </a>
+                  <i className="iconoir-download" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.31b67fea" /></a>
                 {order.digital_download_expires_at && (
                   <p className="text-xs text-blue-500 mt-2 text-center">
-                    Enlace válido hasta {new Date(order.digital_download_expires_at as string).toLocaleString('es-MX')}
+                    <BuyerCopyText copyKey="payment.success.page.63b04269" />{' '}{formatPresentationDate(presentation, order.digital_download_expires_at as string, { dateStyle: 'medium', timeStyle: 'short' })}
                   </p>
                 )}
               </>
             ) : (
               <p className="text-sm text-blue-700">
-                Tu descarga se está preparando — te llegará por correo en los próximos minutos.
-              </p>
+                <BuyerCopyText copyKey="payment.success.page.b1340a7f" /></p>
             )}
           </div>
         )}
@@ -263,8 +261,7 @@ export default async function PaymentSuccessPage({
         {listingType !== 'digital' && (
           <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
             <p className="text-[var(--color-muted)]">
-              El vendedor recibirá una notificación y se pondrá en contacto contigo para coordinar la entrega.
-            </p>
+              <BuyerCopyText copyKey="payment.success.page.36a9055f" /></p>
           </div>
         )}
 
@@ -272,20 +269,18 @@ export default async function PaymentSuccessPage({
           {listingId && (
             <Link href={listingUrlFor(marketOrigin, listingId)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
-              Ver el anuncio
-            </Link>
+              <BuyerCopyText copyKey="payment.success.page.d792b667" /></Link>
           )}
           <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
-            Seguir explorando →
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.eddd7461" /></Link>
         </div>
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
-          <i className="iconoir-check" aria-hidden /> Pago seguro con Stripe · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma
-        </p>
+          <i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.6796e062" />{' '}<i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.b73f5c69" /></p>
       </div>
     </div>
+    </BuyerPresentationProvider>
   )
 }
 
@@ -349,19 +344,19 @@ function SupportSuccessUI({
       <SupportSuccessBridge cartId={cartId} orderId={orderId} amountCents={amountCents} currency={currency} />
       <div className="max-w-md w-full text-center">
         <CheckIcon />
-        <h1 className="text-2xl font-bold mb-2">Gracias por apoyar</h1>
+        <h1 className="text-2xl font-bold mb-2"><BuyerCopyText copyKey="payment.success.page.4ab5d378" /></h1>
         <p className="text-[var(--color-muted)] mb-6">
-          {amountPaid ? <>Tu contribución de <strong className="text-[var(--color-foreground)]">{amountPaid}</strong> fue recibida.</> : 'Tu contribución fue recibida.'}
+          {amountPaid ? <><BuyerCopyText copyKey="payment.success.page.d436a8bb" />{' '}<strong className="text-[var(--color-foreground)]">{amountPaid}</strong> <BuyerCopyText copyKey="payment.success.page.f5e6da86" /></> : <BuyerCopyText copyKey="payment.success.page.edbdb02f" />}
         </p>
 
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
           <div className="flex justify-between gap-3 py-1">
-            <span className="text-[var(--color-muted)]">Concepto</span>
-            <span className="font-medium text-right">Apoyo / contribución</span>
+            <span className="text-[var(--color-muted)]"><BuyerCopyText copyKey="payment.success.page.1dc0583f" /></span>
+            <span className="font-medium text-right"><BuyerCopyText copyKey="payment.success.page.1bf16dba" /></span>
           </div>
           {amountPaid && (
             <div className="flex justify-between gap-3 py-1 mt-1 pt-2 border-t border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)]">Pagado</span>
+              <span className="text-[var(--color-muted)]"><BuyerCopyText copyKey="payment.success.page.7bce59f7" /></span>
               <span className="font-bold text-right">{amountPaid}</span>
             </div>
           )}
@@ -371,17 +366,15 @@ function SupportSuccessUI({
           {sellerSlug && (
             <Link href={shopUrlFor(marketOrigin, sellerSlug)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
-              Ver la tienda
-            </Link>
+              <BuyerCopyText copyKey="payment.success.page.a9f5de98" /></Link>
           )}
           <Link href="/"
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
-            Volver a Miyagi Sánchez
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.dd6c672d" /></Link>
         </div>
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
-          {provider === 'mercadopago' ? 'Pago seguro con Mercado Pago' : 'Pago seguro con Stripe'}
+          {provider === 'mercadopago' ? <BuyerCopyText copyKey="payment.success.page.d019aee8" /> : <BuyerCopyText copyKey="payment.success.page.8233441b" />}
         </p>
       </div>
     </div>
@@ -395,17 +388,15 @@ function PrintSuccessUI({ amountPaid }: { amountPaid: string | null }) {
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
         <div className="text-5xl mb-4"><i className="iconoir-journal" aria-hidden /></div>
-        <h1 className="text-2xl font-bold mb-2">¡Recibimos tu anuncio!</h1>
+        <h1 className="text-2xl font-bold mb-2"><BuyerCopyText copyKey="payment.success.page.57cfb669" /></h1>
         <p className="text-[var(--color-muted)] mb-6">
-          {amountPaid ? <>Pagaste <strong className="text-[var(--color-foreground)]">{amountPaid}</strong>. </> : null}
-          Nuestro equipo diseñará tu anuncio con estética México 86 y lo incluirá en la edición impresa. Te avisamos por correo cuando esté listo.
-        </p>
+          {amountPaid ? <><BuyerCopyText copyKey="payment.success.page.fc2b2d84" />{' '}<strong className="text-[var(--color-foreground)]">{amountPaid}</strong>. </> : null}
+          <BuyerCopyText copyKey="payment.success.page.35722f4b" /></p>
         <Link
           href="/account/print-ads"
           className="inline-block bg-[var(--color-accent)] text-white px-6 py-3 rounded-[var(--r-md)] font-semibold no-underline hover:bg-[var(--color-accent-hover)] transition-colors"
         >
-          Ver mis anuncios
-        </Link>
+          <BuyerCopyText copyKey="payment.success.page.636d6ac0" /></Link>
       </div>
     </div>
   )
@@ -446,24 +437,19 @@ function PaymentPendingRecovery({
         <div className="w-16 h-16 rounded-[var(--r-pill)] bg-amber-100 flex items-center justify-center mx-auto mb-6">
           <span className="text-3xl" aria-hidden>⏳</span>
         </div>
-        <h1 className="text-2xl font-bold mb-1">Estamos confirmando tu pedido</h1>
+        <h1 className="text-2xl font-bold mb-1"><BuyerCopyText copyKey="payment.success.page.533331e0" /></h1>
         <p className="text-sm text-[var(--color-muted)] mb-6">
-          Tu pago se está procesando. Esto puede tardar unos segundos. <strong>No vuelvas a pagar</strong> —
-          en cuanto se confirme aparecerá tu pedido.
-        </p>
+          <BuyerCopyText copyKey="payment.success.page.2de144c5" />{' '}<strong><BuyerCopyText copyKey="payment.success.page.65d88d5b" /></strong> <BuyerCopyText copyKey="payment.success.page.6dfefb2a" /></p>
         <div className="flex flex-col gap-2">
           <Link href={retryHref} prefetch={false}
             className="w-full bg-[var(--color-accent)] text-white py-3 rounded-[var(--r-md)] text-sm font-semibold no-underline">
-            Revisar de nuevo
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.6a7b440b" /></Link>
           <Link href="/account/orders"
             className="w-full border border-[var(--color-border)] py-3 rounded-[var(--r-md)] text-sm font-semibold no-underline text-[var(--color-text)]">
-            Ver mis pedidos
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.110acfcd" /></Link>
         </div>
         <p className="text-xs text-[var(--color-muted)] mt-4">
-          Si después de unos minutos no aparece, escríbenos y lo resolvemos.
-        </p>
+          <BuyerCopyText copyKey="payment.success.page.b1c92855" /></p>
       </div>
     </div>
   )
@@ -481,7 +467,7 @@ function SuccessUI({
 }: {
   buyerName: string | null
   amountPaid: string | null
-  itemName: string
+  itemName: string | null
   orderNumber: string | null
   sellerName: string | null
   listingId: string | null
@@ -494,27 +480,27 @@ function SuccessUI({
       <div className="max-w-md w-full text-center">
         <CheckIcon />
         <h1 className="text-2xl font-bold mb-1">
-          {buyerName ? `¡Gracias, ${buyerName}!` : '¡Pago completado!'}
+          {buyerName ? <BuyerCopyText copyKey="payment.success.page.8343240b" values={[buyerName]} /> : <BuyerCopyText copyKey="payment.success.page.10a06ee0" />}
         </h1>
         {orderNumber && (
-          <p className="text-sm text-[var(--color-muted)] mb-6">Pedido {orderNumber}</p>
+          <p className="text-sm text-[var(--color-muted)] mb-6"><BuyerCopyText copyKey="payment.success.page.0f704c90" />{' '}{orderNumber}</p>
         )}
 
         {/* Order summary */}
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-4 text-sm text-left">
           <div className="flex justify-between gap-3 py-1">
-            <span className="text-[var(--color-muted)]">Artículo</span>
-            <span className="font-medium text-right">{itemName}</span>
+            <span className="text-[var(--color-muted)]"><BuyerCopyText copyKey="payment.success.page.39534106" /></span>
+            <span className="font-medium text-right">{itemName ?? <BuyerCopyText copyKey="payment.purchaseFallback" />}</span>
           </div>
           {sellerName && (
             <div className="flex justify-between gap-3 py-1">
-              <span className="text-[var(--color-muted)]">Vendedor</span>
+              <span className="text-[var(--color-muted)]"><BuyerCopyText copyKey="payment.success.page.0e698b7e" /></span>
               <span className="font-medium text-right">{sellerName}</span>
             </div>
           )}
           {amountPaid && (
             <div className="flex justify-between gap-3 py-1 mt-1 pt-2 border-t border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)]">Pagado</span>
+              <span className="text-[var(--color-muted)]"><BuyerCopyText copyKey="payment.success.page.7bce59f7" /></span>
               <span className="font-bold text-right">{amountPaid}</span>
             </div>
           )}
@@ -522,31 +508,27 @@ function SuccessUI({
 
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 mb-6 text-sm text-left">
           <p className="text-[var(--color-muted)]">
-            El vendedor recibirá una notificación y se pondrá en contacto contigo para coordinar la entrega.
-          </p>
+            <BuyerCopyText copyKey="payment.success.page.36a9055f" /></p>
         </div>
 
         <div className="flex flex-col gap-3">
           <Link href="/account/orders"
             className="bg-[var(--color-foreground)] text-[var(--color-background)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-semibold no-underline hover:opacity-90 transition-opacity">
-            Ver mis pedidos
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.110acfcd" /></Link>
           {listingId && (
             <Link href={listingUrlFor(marketOrigin, listingId)}
               className="border border-[var(--color-border)] px-5 py-2.5 rounded-[var(--r-md)] text-sm font-medium no-underline hover:bg-[var(--color-surface-alt)] transition-colors">
-              Ver el anuncio
-            </Link>
+              <BuyerCopyText copyKey="payment.success.page.d792b667" /></Link>
           )}
           <Link href={browseUrlFor(marketOrigin)}
             className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]">
-            Seguir explorando →
-          </Link>
+            <BuyerCopyText copyKey="payment.success.page.eddd7461" /></Link>
         </div>
 
         <p className="text-xs text-[var(--color-muted)] mt-8">
           {provider === 'mercadopago'
-            ? <><i className="iconoir-check" aria-hidden /> Pago seguro con Mercado Pago · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma</>
-            : <><i className="iconoir-check" aria-hidden /> Pago seguro con Stripe · <i className="iconoir-check" aria-hidden /> Sin comisiones de plataforma</>}
+            ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.31cf0958" />{' '}<i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.b73f5c69" /></>
+            : <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.6796e062" />{' '}<i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="payment.success.page.b73f5c69" /></>}
         </p>
       </div>
     </div>

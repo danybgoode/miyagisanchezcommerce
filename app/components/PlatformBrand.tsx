@@ -1,16 +1,19 @@
 import Link from 'next/link'
 import { resolvePlatformTheme } from '@/lib/platform-theme'
+import { marketBasePath, type MarketCode } from '@/lib/markets'
 
 type Props = {
   variant: 'desktop' | 'mobile'
+  market: MarketCode
+  ariaLabel: string
 }
 
-export default function PlatformBrand({ variant }: Props) {
+export default function PlatformBrand({ variant, market, ariaLabel }: Props) {
   const seasonal = resolvePlatformTheme()
   const className = variant === 'desktop' ? 'platform-brand platform-brand-desktop' : 'platform-brand platform-brand-mobile'
 
   return (
-    <Link href="/mx" className={className} aria-label="Miyagi Sánchez México - inicio">
+    <Link href={marketBasePath(market)} className={className} aria-label={ariaLabel}>
       <span className="platform-brand-core" aria-hidden>
         {variant === 'mobile' ? (
           // eslint-disable-next-line @next/next/no-img-element

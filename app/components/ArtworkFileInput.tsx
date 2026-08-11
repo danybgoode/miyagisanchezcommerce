@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useRef, useState } from 'react'
 import { checkArtworkResolution, type ArtworkFormat } from '@/lib/personalization'
 
@@ -117,9 +118,9 @@ export default function ArtworkFileInput({
           }}
         >
           {uploading ? (
-            <><span className="animate-spin inline-block">⟳</span> Subiendo…</>
+            <><span className="animate-spin inline-block">⟳</span> <BuyerCopyText copyKey="components.ArtworkFileInput.1e3e04ad" /></>
           ) : (
-            <><i className="iconoir-attachment" aria-hidden /> Subir archivo ({allowedFormats.join(', ').toUpperCase()} · máx. {maxSizeMb} MB)</>
+            <><i className="iconoir-attachment" aria-hidden /> <BuyerCopyText copyKey="components.ArtworkFileInput.6ac12f70" />{allowedFormats.join(', ').toUpperCase()} <BuyerCopyText copyKey="components.ArtworkFileInput.b8a7ad8f" />{' '}{maxSizeMb} <BuyerCopyText copyKey="components.ArtworkFileInput.49e8f09e" /></>
           )}
         </label>
       ) : (
@@ -131,11 +132,10 @@ export default function ArtworkFileInput({
             <i className="iconoir-page" aria-hidden style={{ fontSize: 22 }} />
           )}
           <span style={{ flex: 1, fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {fileName ?? 'Archivo subido'}
+            {fileName ?? <BuyerCopyText copyKey="components.ArtworkFileInput.b4f625c6" />}
           </span>
           <button type="button" onClick={remove} style={{ fontSize: 12, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Quitar
-          </button>
+            <BuyerCopyText copyKey="components.ArtworkFileInput.443562d5" /></button>
         </div>
       )}
 

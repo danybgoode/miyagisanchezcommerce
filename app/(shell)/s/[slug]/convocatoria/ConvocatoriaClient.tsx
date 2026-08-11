@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 /**
  * Public writer-submission portal (bookshop-launchpad S1.1). No account — the
  * email code IS the identity check (sweepstakes spine). Flow: fill form + pick
@@ -40,6 +41,7 @@ export default function ConvocatoriaClient({
   guidelines: string | null
   maxSizeMb: number
 }) {
+  const copy = useBuyerCopy()
   const [title, setTitle] = useState('')
   const [authorName, setAuthorName] = useState('')
   const [email, setEmail] = useState('')
@@ -126,11 +128,10 @@ export default function ConvocatoriaClient({
     return (
       <div className="border border-[var(--color-border)] rounded-xl p-6 text-center">
         <div className="text-4xl mb-3"><i className="iconoir-book" aria-hidden /></div>
-        <h2 className="text-2xl font-bold">¡Recibido!</h2>
+        <h2 className="text-2xl font-bold"><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.bcffad2e" /></h2>
         <p className="mt-3 text-[var(--color-muted)] leading-7">
-          {shopName} recibió tu manuscrito <strong>«{title.trim()}»</strong>. Te escribiremos a{' '}
-          <strong>{email.trim()}</strong> cuando lo revisen.
-        </p>
+          {shopName} <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.f80e01f3" />{' '}<strong>«{title.trim()}»</strong><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.82737e99" />{' '}
+          <strong>{email.trim()}</strong> <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.7632d4f3" /></p>
       </div>
     )
   }
@@ -139,76 +140,66 @@ export default function ConvocatoriaClient({
 
   return (
     <form onSubmit={submit} className="border border-[var(--color-border)] rounded-xl p-5 sm:p-6">
-      <h2 className="text-2xl font-bold">Envía tu manuscrito</h2>
+      <h2 className="text-2xl font-bold"><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.8b70030b" /></h2>
       <p className="mt-2 text-sm text-[var(--color-muted)] leading-6">
-        Sin crear cuenta. Solo confirma tu correo con un código.
-      </p>
+        <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.b4e5a39b" /></p>
 
       <div className="mt-5 space-y-4">
         <label className="block text-sm font-medium">
-          Título de tu obra *
-          <input value={title} onChange={e => setTitle(e.target.value)} maxLength={200}
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.05c8558c" /><input value={title} onChange={e => setTitle(e.target.value)} maxLength={200}
             className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
         </label>
 
         <label className="block text-sm font-medium">
-          Tu nombre *
-          <input value={authorName} onChange={e => setAuthorName(e.target.value)} maxLength={120}
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.ba4f7fab" /><input value={authorName} onChange={e => setAuthorName(e.target.value)} maxLength={120}
             className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
         </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block text-sm font-medium">
-            Género (opcional)
-            <input value={genre} onChange={e => setGenre(e.target.value)} maxLength={60} placeholder="Novela, cuento, poesía…"
+            <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.5691e360" /><input value={genre} onChange={e => setGenre(e.target.value)} maxLength={60} placeholder={copy('s.slug.convocatoria.ConvocatoriaClient.cf40fd4c')}
               className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
           </label>
         </div>
 
         <label className="block text-sm font-medium">
-          Sinopsis (opcional)
-          <textarea value={synopsis} onChange={e => setSynopsis(e.target.value)} rows={4} maxLength={2000}
-            placeholder="Cuéntanos de qué trata en unas líneas."
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.6ae84ee8" /><textarea value={synopsis} onChange={e => setSynopsis(e.target.value)} rows={4} maxLength={2000}
+            placeholder={copy('s.slug.convocatoria.ConvocatoriaClient.1b6a87b8')}
             className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] leading-relaxed" />
         </label>
 
         <label className="block text-sm font-medium">
-          Manuscrito (PDF, EPUB o DOCX · máx. {maxSizeMb} MB) *
-          <input type="file" accept={ACCEPT} onChange={e => setFile(e.target.files?.[0] ?? null)}
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.b2dba380" />{' '}{maxSizeMb} <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.fb43f467" /><input type="file" accept={ACCEPT} onChange={e => setFile(e.target.files?.[0] ?? null)}
             className="mt-1 w-full text-sm file:mr-3 file:rounded-lg file:border file:border-[var(--color-border)] file:bg-[var(--color-surface-alt)] file:px-3 file:py-2 file:text-sm" />
         </label>
         {file && !fileTooBig && (
-          <p className="text-xs text-[var(--color-muted)]">{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB</p>
+          <p className="text-xs text-[var(--color-muted)]">{file.name} · {(file.size / 1024 / 1024).toFixed(1)} <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.d95ea8d6" /></p>
         )}
         {fileTooBig && (
-          <p className="text-xs text-red-600">El archivo supera {maxSizeMb} MB. Elige uno más pequeño.</p>
+          <p className="text-xs text-red-600"><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.cb1b2ae0" />{' '}{maxSizeMb} <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.32b609eb" /></p>
         )}
 
         <label className="block text-sm font-medium">
-          Tu correo *
-          <div className="mt-1 flex gap-2">
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.a033d5f9" /><div className="mt-1 flex gap-2">
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
               className="min-w-0 flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)]" />
             <button type="button" onClick={sendCode} disabled={sending}
               className="shrink-0 px-3 py-2 rounded-lg border border-[var(--color-border)] text-sm font-semibold disabled:opacity-50">
-              {sending ? 'Enviando…' : codeSent ? 'Reenviar' : 'Enviar código'}
+              {sending ? <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.4b69ae82" /> : codeSent ? <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.d9ba1536" /> : <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.cba247f1" />}
             </button>
           </div>
         </label>
-        {codeSent && <p className="text-sm text-green-700">Te enviamos un código a {email.trim()}. Revisa tu correo.</p>}
+        {codeSent && <p className="text-sm text-green-700"><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.b1f5b90f" />{' '}{email.trim()}<BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.7e893aca" /></p>}
 
         <label className="block text-sm font-medium">
-          Código de confirmación *
-          <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6}
+          <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.d80e309d" /><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6}
             className="mt-1 w-full border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-background)] font-mono tracking-widest" />
         </label>
 
         <label className="flex items-start gap-2 text-xs text-[var(--color-muted)] leading-5">
           <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-0.5" />
           <span>
-            Confirmo que soy el autor o tengo los derechos para compartir esta obra, y acepto los
-            términos de la convocatoria (más abajo).
-          </span>
+            <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.0531285c" /></span>
         </label>
       </div>
 
@@ -216,12 +207,12 @@ export default function ConvocatoriaClient({
 
       <button disabled={submitting || fileTooBig}
         className="mt-5 w-full bg-[var(--color-accent)] text-white rounded-lg px-4 py-3 text-sm font-semibold disabled:opacity-50">
-        {submitting ? 'Enviando…' : 'Enviar manuscrito'}
+        {submitting ? <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.4b69ae82" /> : <BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.5af63f84" />}
       </button>
 
       {guidelines && (
         <div className="mt-6 border-t border-[var(--color-border)] pt-5">
-          <h3 className="font-semibold text-sm mb-2">Indicaciones de {shopName}</h3>
+          <h3 className="font-semibold text-sm mb-2"><BuyerCopyText copyKey="s.slug.convocatoria.ConvocatoriaClient.5c6369f5" />{' '}{shopName}</h3>
           <p className="text-xs leading-5 text-[var(--color-muted)] whitespace-pre-line">{guidelines}</p>
         </div>
       )}

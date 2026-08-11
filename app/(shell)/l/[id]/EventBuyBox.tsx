@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 /**
  * EventBuyBox — the quantity stepper + buy CTA for paid event admissions
  * (epic 10, S1.2). Renders only when `events.quantity_enabled` is ON and the
@@ -35,6 +36,7 @@ export default function EventBuyBox({
   buyLabelPrefix: string
   signInLabel: string
 }) {
+  const copy = useBuyerCopy()
   const max = Math.max(1, cap)
   const [qty, setQty] = useState(1)
 
@@ -58,13 +60,13 @@ export default function EventBuyBox({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Boletos</span>
-        <div role="group" aria-label="Cantidad de boletos" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.EventBuyBox.8a69c60e" /></span>
+        <div role="group" aria-label={copy('l.id.EventBuyBox.ceae5f30')} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
             onClick={() => setQty(q => Math.max(1, q - 1))}
             disabled={qty <= 1}
-            aria-label="Quitar un boleto"
+            aria-label={copy('l.id.EventBuyBox.b5aee5f8')}
             style={{ ...stepBtn, opacity: qty <= 1 ? 0.4 : 1, cursor: qty <= 1 ? 'not-allowed' : 'pointer' }}
           >
             −
@@ -76,7 +78,7 @@ export default function EventBuyBox({
             type="button"
             onClick={() => setQty(q => Math.min(max, q + 1))}
             disabled={qty >= max}
-            aria-label="Agregar un boleto"
+            aria-label={copy('l.id.EventBuyBox.33d1fff5')}
             style={{ ...stepBtn, opacity: qty >= max ? 0.4 : 1, cursor: qty >= max ? 'not-allowed' : 'pointer' }}
           >
             +

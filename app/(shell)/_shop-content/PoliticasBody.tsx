@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { returnsWindowLabel } from '@/lib/trust-signals'
@@ -29,15 +30,15 @@ export default function PoliticasBody({ shop, basePath }: { shop: Shop; basePath
       <Link href={basePath || '/'} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
         ← {shop.name}
       </Link>
-      <h1 className="text-xl font-bold mt-3 mb-4">Políticas de {shop.name}</h1>
+      <h1 className="text-xl font-bold mt-3 mb-4"><BuyerCopyText copyKey="shop.content.PoliticasBody.9fc9fbd4" />{' '}{shop.name}</h1>
 
       <section className="border border-[var(--color-border)] rounded-lg p-4">
-        <p className="text-sm font-semibold mb-2">Devoluciones</p>
+        <p className="text-sm font-semibold mb-2"><BuyerCopyText copyKey="shop.content.PoliticasBody.3467fca9" /></p>
         <p className="text-sm text-[var(--color-muted)] leading-relaxed">
-          Acepta devoluciones durante {returnsLabel.toLowerCase()}
-          {returnsPolicy?.conditions === 'unopened' ? ' si el producto sigue cerrado' : ''}
-          {returnsPolicy?.conditions === 'original' ? ' si se entrega en su estado original' : ''}
-          {returnsPolicy?.shipping_paid_by === 'seller' ? '. El vendedor cubre el envío de devolución.' : '. El comprador cubre el envío de devolución.'}
+          <BuyerCopyText copyKey="shop.content.PoliticasBody.0376bca7" />{' '}{returnsLabel.toLowerCase()}
+          {returnsPolicy?.conditions === 'unopened' ? <BuyerCopyText copyKey="shop.content.PoliticasBody.b6b14aaa" /> : ''}
+          {returnsPolicy?.conditions === 'original' ? <BuyerCopyText copyKey="shop.content.PoliticasBody.c41d95bc" /> : ''}
+          {returnsPolicy?.shipping_paid_by === 'seller' ? <BuyerCopyText copyKey="shop.content.PoliticasBody.bd851b88" /> : <BuyerCopyText copyKey="shop.content.PoliticasBody.9b918784" />}
         </p>
         {returnsPolicy?.custom_note && (
           <p className="text-sm text-[var(--fg)] leading-relaxed mt-2">{returnsPolicy.custom_note}</p>

@@ -1,9 +1,11 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 
 /** Small inline copy-to-clipboard button with a brief "✓ Copiado" confirmation. */
 export default function CopyButton({ value, className }: { value: string; className?: string }) {
+  const buyerCopy = useBuyerCopy()
   const [copied, setCopied] = useState(false)
   async function copy() {
     try {
@@ -16,10 +18,10 @@ export default function CopyButton({ value, className }: { value: string; classN
     <button
       type="button"
       onClick={copy}
-      aria-label="Copiar"
+      aria-label={buyerCopy('components.CopyButton.ebf7f2a9')}
       className={className ?? 'text-xs font-semibold text-[var(--color-accent)] border border-[var(--color-border)] rounded px-2 py-0.5'}
     >
-      {copied ? <><i className="iconoir-check" aria-hidden /> Copiado</> : 'Copiar'}
+      {copied ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="components.CopyButton.7d0cba93" /></> : <BuyerCopyText copyKey="components.CopyButton.ebf7f2a9" />}
     </button>
   )
 }

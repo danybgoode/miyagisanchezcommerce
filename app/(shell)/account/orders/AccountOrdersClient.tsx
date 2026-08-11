@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
 
 import { useState } from 'react'
@@ -70,17 +71,12 @@ function getShipment(order: Order): OrderShipment | null {
   return order.marketplace_shipments?.[0] ?? null
 }
 
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
 // ── Order card ────────────────────────────────────────────────────────────────
 
 function OrderCard({ order }: { order: Order }) {
+  const formatters = useBuyerFormatters()
+  const formatPrice = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
+  const formatDate = (iso: string) => formatters.date(iso, { day: 'numeric', month: 'long', year: 'numeric' })
   const listing  = getListing(order)
   const shop     = getShop(order)
   const shipment = getShipment(order)
@@ -144,9 +140,9 @@ function OrderCard({ order }: { order: Order }) {
       {(order.status === 'shipped' || order.status === 'in_transit') && (
         <div className="px-4 pb-3">
           <div className="flex items-center justify-between text-[10px] text-[var(--color-muted)] mb-1">
-            <span>Pagado</span>
-            <span>Enviado</span>
-            <span>Entregado</span>
+            <span><BuyerCopyText copyKey="account.orders.AccountOrdersClient.5e8a8a2c" /></span>
+            <span><BuyerCopyText copyKey="account.orders.AccountOrdersClient.027d2723" /></span>
+            <span><BuyerCopyText copyKey="account.orders.AccountOrdersClient.bdfb6283" /></span>
           </div>
           <div className="h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
             <div className={`h-full rounded-full bg-[var(--color-accent)] transition-all ${
@@ -175,10 +171,9 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Mis compras</h1>
+        <h1 className="text-2xl font-bold"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.80296a52" /></h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
-          {orders.length} compra{orders.length !== 1 ? 's' : ''} en total
-        </p>
+          {orders.length} <BuyerCopyText copyKey="account.orders.AccountOrdersClient.d3f906d9" />{orders.length !== 1 ? <BuyerCopyText copyKey="account.orders.AccountOrdersClient.9e99b095" /> : ''} <BuyerCopyText copyKey="account.orders.AccountOrdersClient.7443abbe" /></p>
       </div>
 
       {/* Active order highlight */}
@@ -186,8 +181,7 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
           <span className="text-lg"><i className="iconoir-delivery-truck" aria-hidden /></span>
           <p className="text-sm text-blue-800">
-            Tienes <strong>{activeOrders.length} pedido{activeOrders.length > 1 ? 's' : ''}</strong> en proceso.
-          </p>
+            <BuyerCopyText copyKey="account.orders.AccountOrdersClient.3a392235" />{' '}<strong>{activeOrders.length} <BuyerCopyText copyKey="account.orders.AccountOrdersClient.919cdc19" />{activeOrders.length > 1 ? <BuyerCopyText copyKey="account.orders.AccountOrdersClient.9e99b095" /> : ''}</strong> <BuyerCopyText copyKey="account.orders.AccountOrdersClient.2f356b3d" /></p>
         </div>
       )}
 
@@ -227,24 +221,21 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
           {filter === 'active' && orders.length > 0 ? (
             <>
               <div className="text-4xl mb-3"><i className="iconoir-check" aria-hidden /></div>
-              <h3 className="font-semibold text-lg mb-1">Sin pedidos activos</h3>
-              <p className="text-sm text-[var(--color-muted)]">Todos tus pedidos han sido entregados.</p>
+              <h3 className="font-semibold text-lg mb-1"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.e2a71b67" /></h3>
+              <p className="text-sm text-[var(--color-muted)]"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.921c6364" /></p>
               <button type="button" onClick={() => setFilter('completed')}
                 className="mt-3 text-sm text-[var(--color-accent)] underline">
-                Ver historial
-              </button>
+                <BuyerCopyText copyKey="account.orders.AccountOrdersClient.c4c58f42" /></button>
             </>
           ) : (
             <>
               <div className="text-4xl mb-3"><i className="iconoir-shopping-bag" aria-hidden /></div>
-              <h3 className="font-semibold text-lg mb-1">Aún no has comprado nada</h3>
+              <h3 className="font-semibold text-lg mb-1"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.e14d2f53" /></h3>
               <p className="text-sm text-[var(--color-muted)] mb-5 max-w-xs mx-auto">
-                Explora miles de productos de vendedores locales en México.
-              </p>
+                <BuyerCopyText copyKey="account.orders.AccountOrdersClient.35fee0a5" /></p>
               <Link href={browseUrlFor(SITE_ORIGIN)}
                 className="inline-block bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-lg font-medium no-underline hover:bg-[var(--color-accent-hover)] transition-colors">
-                Explorar productos
-              </Link>
+                <BuyerCopyText copyKey="account.orders.AccountOrdersClient.8342d5bd" /></Link>
             </>
           )}
         </div>
@@ -258,8 +249,8 @@ export default function AccountOrdersClient({ orders }: { orders: Order[] }) {
 
       {/* Account nav links */}
       <div className="mt-8 pt-6 border-t border-[var(--color-border)] flex flex-wrap gap-4 text-xs text-[var(--color-muted)]">
-        <Link href="/account/subscriptions" className="hover:text-[var(--color-text)] no-underline">Mis suscripciones</Link>
-        <Link href="/account/favorites" className="hover:text-[var(--color-text)] no-underline">Guardados</Link>
+        <Link href="/account/subscriptions" className="hover:text-[var(--color-text)] no-underline"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.0b43695f" /></Link>
+        <Link href="/account/favorites" className="hover:text-[var(--color-text)] no-underline"><BuyerCopyText copyKey="account.orders.AccountOrdersClient.6e57e7f7" /></Link>
       </div>
     </div>
   )

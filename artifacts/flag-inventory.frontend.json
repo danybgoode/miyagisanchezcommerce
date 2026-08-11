@@ -23,7 +23,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:384",
+        "app/(shell)/l/[id]/page.tsx:381",
         "app/(shell)/sell/edit/[id]/page.tsx:189",
         "app/(shell)/shop/manage/catalogo/page.tsx:102",
         "app/api/ucp/catalog/[id]/route.ts:75",
@@ -53,8 +53,8 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:215",
-        "app/(shell)/l/[id]/page.tsx:427",
+        "app/(shell)/checkout/page.tsx:214",
+        "app/(shell)/l/[id]/page.tsx:424",
         "app/api/ucp/checkout-session/route.ts:356"
       ]
     },
@@ -75,7 +75,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:160"
+        "app/(shell)/l/[id]/page.tsx:153"
       ]
     },
     {
@@ -108,8 +108,8 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:170",
-        "app/(shell)/l/[id]/page.tsx:460",
+        "app/(shell)/checkout/page.tsx:169",
+        "app/(shell)/l/[id]/page.tsx:457",
         "app/api/ucp/checkout-session/route.ts:387"
       ]
     },
@@ -146,7 +146,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/s/[slug]/convocatoria/page.tsx:70",
+        "app/(shell)/s/[slug]/convocatoria/page.tsx:64",
         "app/(shell)/sell/edit/[id]/page.tsx:184",
         "app/(shell)/shop/manage/convocatoria/campanas/page.tsx:16",
         "app/(shell)/shop/manage/convocatoria/page.tsx:17",
@@ -398,7 +398,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/l/[id]/page.tsx:405"
+        "app/(shell)/l/[id]/page.tsx:402"
       ]
     },
     {

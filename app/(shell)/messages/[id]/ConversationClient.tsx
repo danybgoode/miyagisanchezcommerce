@@ -1,11 +1,12 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- conversation attachments preserve arbitrary participant-hosted image URLs */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { BUYER_STAMPS, SELLER_STAMPS, type StampKey } from '@/lib/stamps'
-import { formatOfferAmount, timeUntil, offerTurn, type OfferStatus } from '@/lib/offers'
+import { timeUntil, offerTurn, type OfferStatus } from '@/lib/offers'
 import OfferCheckoutButton from '@/app/components/OfferCheckoutButton'
 import TrustSignals from '@/app/components/TrustSignals'
 import type { CheckoutProvider } from '@/lib/cart'
@@ -14,6 +15,7 @@ import { useConversationStream } from '@/lib/messaging/stream'
 import { ensurePushSubscription } from '@/lib/push-client'
 import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { presentationCalendarDate } from '@/lib/market-presentation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,19 +61,6 @@ interface Props {
 
 const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-}
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-function sameDay(a: string, b: string) {
-  return new Date(a).toDateString() === new Date(b).toDateString()
-}
-function fmt(cents: number, currency = 'MXN') {
-  return formatOfferAmount(cents, currency)
-}
-
 function listingTypeLabel(type?: string | null) {
   switch (type) {
     case 'digital': return 'Digital'
@@ -103,6 +92,11 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
    *  the "Aprobar prueba" CTA on every proof_sent bubble once approved. */
   proofApproved: boolean
 }) {
+  const formatters = useBuyerFormatters()
+  const fmt = (cents: number, currencyCode = 'MXN') =>
+    formatters.currency(cents, currencyCode, { maximumFractionDigits: 0 })
+  const formatTime = (iso: string) =>
+    formatters.date(iso, { hour: '2-digit', minute: '2-digit' })
   const meta = event.metadata
   const isMine = event.actor === role || (event.actor === `${role}_agent`)
   const isSystem = event.actor === 'system'
@@ -112,7 +106,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
     return (
       <div style={{ textAlign: 'center', padding: '6px 16px' }}>
         <span style={{ fontSize: 12, color: 'var(--fg-muted)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '4px 12px', display: 'inline-block' }}>
-          {renderSystemText(event.event_type, meta, currency)}
+          {renderSystemText(event.event_type, meta, currency, fmt)}
         </span>
       </div>
     )
@@ -129,7 +123,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
           border: isMine ? 'none' : '1px solid var(--border)',
           boxShadow: 'var(--shadow-1)',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--fg-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Oferta</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--fg-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}><BuyerCopyText copyKey="messages.id.ConversationClient.c0f8fdb9" /></div>
           <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)' }}>
             {fmt(meta.amount_cents as number, currency)}
           </div>
@@ -148,7 +142,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
           background: isMine ? 'var(--info)' : 'var(--info-soft)',
           border: isMine ? 'none' : '1.5px solid var(--info)',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--info)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contraoferta</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--info)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}><BuyerCopyText copyKey="messages.id.ConversationClient.f51328ca" /></div>
           <div style={{ fontSize: 22, fontWeight: 700, color: isMine ? 'var(--fg-inverse)' : 'var(--info)' }}>
             {fmt(meta.counter_amount_cents as number ?? meta.amount_cents as number, currency)}
           </div>
@@ -194,19 +188,18 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
           boxShadow: 'var(--shadow-1)',
         }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: isMine ? 'rgba(255,255,255,0.7)' : 'var(--fg-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Prueba de impresión
-          </div>
+            <BuyerCopyText copyKey="messages.id.ConversationClient.0b6dd4dd" /></div>
           {imageUrl && (
             <img src={imageUrl} alt="Prueba de impresión" style={{ width: '100%', maxWidth: 240, borderRadius: 10, display: 'block', marginBottom: 8 }} />
           )}
           <div style={{ fontSize: 13, color: isMine ? 'var(--fg-inverse)' : 'var(--fg)', lineHeight: 1.5 }}>
-            {size && <div>Tamaño: {size}</div>}
-            {quantity != null && <div>Cantidad: {quantity}</div>}
-            {priceCents != null && <div>Precio: {fmt(priceCents, currency)}</div>}
+            {size && <div><BuyerCopyText copyKey="messages.id.ConversationClient.f089f82b" />{' '}{size}</div>}
+            {quantity != null && <div><BuyerCopyText copyKey="messages.id.ConversationClient.8a333b9e" />{' '}{quantity}</div>}
+            {priceCents != null && <div><BuyerCopyText copyKey="messages.id.ConversationClient.745c0c5f" />{' '}{fmt(priceCents, currency)}</div>}
           </div>
           {role === 'buyer' && (
             proofApproved
-              ? <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: isMine ? 'var(--fg-inverse)' : 'var(--success)' }}><i className="iconoir-check" aria-hidden /> Aprobada</div>
+              ? <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: isMine ? 'var(--fg-inverse)' : 'var(--success)' }}><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="messages.id.ConversationClient.6dbe35cb" /></div>
               : <ProofApproveButton conversationId={conversationId} onApproved={onRefresh} />
           )}
           <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,0.6)' : 'var(--fg-subtle)', marginTop: 6 }}>{formatTime(event.created_at)}</div>
@@ -219,8 +212,7 @@ function EventBubble({ event, role, conversationId, onRefresh, proofApproved }: 
     return (
       <div style={{ textAlign: 'center', padding: '6px 16px' }}>
         <span style={{ fontSize: 12, color: 'var(--fg-muted)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '4px 12px', display: 'inline-block' }}>
-          <i className="iconoir-check" aria-hidden /> Prueba aprobada
-        </span>
+          <i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="messages.id.ConversationClient.b62363d1" /></span>
       </div>
     )
   }
@@ -262,14 +254,14 @@ function ProofApproveButton({ conversationId, onApproved }: { conversationId: st
           fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1,
         }}
       >
-        {busy ? '…' : 'Aprobar prueba'}
+        {busy ? '…' : <BuyerCopyText copyKey="messages.id.ConversationClient.edc5e014" />}
       </button>
       {error && <div style={{ marginTop: 4, fontSize: 11, color: 'var(--danger)' }}>{error}</div>}
     </>
   )
 }
 
-function renderSystemText(type: string, meta: Record<string, unknown>, currency: string): string {
+function renderSystemText(type: string, meta: Record<string, unknown>, currency: string, fmt: (cents: number, currency: string) => string): string {
   const amt = meta.amount_cents ? fmt(meta.amount_cents as number, currency) : ''
   switch (type) {
     case 'offer_accepted':   return `✓ Oferta aceptada — ${amt}`
@@ -319,7 +311,7 @@ function TransactionLedgerCard({ ledger, orderId, role }: {
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}>
             {ledger.whoActsNext}
             {ledger.deadlineIso && (
-              <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> · Expira en {timeUntil(ledger.deadlineIso)}</span>
+              <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> <BuyerCopyText copyKey="messages.id.ConversationClient.7d24f9b6" />{' '}{timeUntil(ledger.deadlineIso)}</span>
             )}
           </span>
         )}
@@ -376,7 +368,7 @@ function OfferTurnLine({ offer, role }: { offer: ConvOffer; role: 'buyer' | 'sel
     <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)', marginBottom: 8 }}>
       {turn.line}
       {turn.deadlineIso && (
-        <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}> · Expira en {timeUntil(turn.deadlineIso)}</span>
+        <span style={{ color: 'var(--fg-muted)', fontWeight: 400 }}> <BuyerCopyText copyKey="messages.id.ConversationClient.7d24f9b6" />{' '}{timeUntil(turn.deadlineIso)}</span>
       )}
     </p>
   )
@@ -392,6 +384,9 @@ function OfferActionBar({
   isSignedIn: boolean
   onRefresh: () => void
 }) {
+  const copy = useBuyerCopy()
+  const { currency: formatCurrency } = useBuyerFormatters()
+  const fmt = (cents: number, currency: string) => formatCurrency(cents, currency, { maximumFractionDigits: 0 })
   const [busy, setBusy] = useState(false)
 
   async function sellerAction(action: 'accept' | 'decline' | 'counter', counterCents?: number, msg?: string) {
@@ -431,22 +426,22 @@ function OfferActionBar({
     return (
       <DealStatusBar
         tone="success"
-        title="Compra realizada"
+        title={copy('messages.id.ConversationClient.ac030cd8')}
         body={`El pedido quedó confirmado por ${fmt(agreedCents, offer.currency)}.`}
       />
     )
   }
 
   if (offer.status === 'declined') {
-    return <DealStatusBar tone="neutral" title="Oferta rechazada" body="El artículo sigue disponible si quieres iniciar una nueva conversación u oferta." />
+    return <DealStatusBar tone="neutral" title={copy('messages.id.ConversationClient.96a212da')} body="El artículo sigue disponible si quieres iniciar una nueva conversación u oferta." />
   }
 
   if (offer.status === 'withdrawn') {
-    return <DealStatusBar tone="neutral" title="Oferta retirada" body="Esta negociación ya no está activa." />
+    return <DealStatusBar tone="neutral" title={copy('messages.id.ConversationClient.dd9579c0')} body="Esta negociación ya no está activa." />
   }
 
   if (offer.status === 'expired' || isExpiredOffer || isExpiredCounter || isCheckoutExpired) {
-    return <DealStatusBar tone="danger" title="Trato expirado" body="El precio acordado ya no está disponible. Puedes volver al anuncio para iniciar una nueva oferta." />
+    return <DealStatusBar tone="danger" title={copy('messages.id.ConversationClient.c06b8c1a')} body="El precio acordado ya no está disponible. Puedes volver al anuncio para iniciar una nueva oferta." />
   }
 
   if (role === 'seller' && offer.status === 'pending' && !isExpiredOffer) {
@@ -463,8 +458,7 @@ function OfferActionBar({
           disabled={busy}
           style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          Retirar oferta
-        </button>
+          <BuyerCopyText copyKey="messages.id.ConversationClient.8d534684" /></button>
       </div>
     )
   }
@@ -481,8 +475,7 @@ function OfferActionBar({
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
-          <i className="iconoir-check" aria-hidden /> Aceptar trato
-        </button>
+          <i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="messages.id.ConversationClient.62143c02" /></button>
         <button
           type="button"
           onClick={() => buyerAction('withdraw')}
@@ -490,8 +483,7 @@ function OfferActionBar({
           className="flex-1 font-medium rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--bg-sunk)', color: 'var(--fg)', border: '1px solid var(--border)', cursor: 'pointer' }}
         >
-          Rechazar
-        </button>
+          <BuyerCopyText copyKey="messages.id.ConversationClient.f6e4b918" /></button>
         </div>
       </div>
     )
@@ -500,10 +492,10 @@ function OfferActionBar({
   if (role === 'buyer' && offer.status === 'accepted') {
     return (
       <div style={{ padding: '12px 16px', background: 'var(--success-soft)', borderTop: '1.5px solid var(--success)' }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>¡Trato listo! Compra al precio acordado.</p>
+        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}><BuyerCopyText copyKey="messages.id.ConversationClient.877119b5" /></p>
         <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--fg)', marginBottom: 8 }}>{fmt(agreedCents, offer.currency)}</p>
         {offer.checkout_expires_at && (
-          <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}>⏰ Expira en {timeUntil(offer.checkout_expires_at)}</p>
+          <p style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 8 }}><BuyerCopyText copyKey="messages.id.ConversationClient.f8aac9a2" />{' '}{timeUntil(offer.checkout_expires_at)}</p>
         )}
         {listing && checkoutProvider ? (
           <OfferCheckoutButton
@@ -517,7 +509,7 @@ function OfferActionBar({
             variant="accent"
           />
         ) : (
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>El vendedor aún no tiene pagos en línea activos. Escríbele para coordinar.</p>
+          <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="messages.id.ConversationClient.923ac08f" /></p>
         )}
       </div>
     )
@@ -527,7 +519,7 @@ function OfferActionBar({
     return (
       <DealStatusBar
         tone="success"
-        title="Trato aceptado"
+        title={copy('messages.id.ConversationClient.5bd1ad33')}
         body={`Esperando pago del comprador por ${fmt(agreedCents, offer.currency)}.`}
       />
     )
@@ -560,6 +552,9 @@ function SellerActionBar({ offer, onAction, busy }: {
   onAction: (action: 'accept' | 'decline' | 'counter', cents?: number, msg?: string) => void
   busy: boolean
 }) {
+  const copy = useBuyerCopy()
+  const { currency: formatCurrency } = useBuyerFormatters()
+  const fmt = (cents: number, currency: string) => formatCurrency(cents, currency, { maximumFractionDigits: 0 })
   const [showCounter, setShowCounter] = useState(false)
   const [counterVal, setCounterVal] = useState('')
   const [counterMsg, setCounterMsg] = useState('')
@@ -571,7 +566,7 @@ function SellerActionBar({ offer, onAction, busy }: {
     return (
       <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Tu contraoferta</span>
+          <span style={{ fontSize: 14, fontWeight: 600 }}><BuyerCopyText copyKey="messages.id.ConversationClient.a4a35822" /></span>
           <button type="button" onClick={() => setShowCounter(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontSize: 18 }}>×</button>
         </div>
         <div style={{ position: 'relative', marginBottom: 8 }}>
@@ -590,7 +585,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           type="text"
           value={counterMsg}
           onChange={e => setCounterMsg(e.target.value)}
-          placeholder="Nota opcional para el comprador…"
+          placeholder={copy('messages.id.ConversationClient.979befbf')}
           style={{ width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, fontFamily: 'var(--font-sans)', background: 'var(--bg-elevated)', outline: 'none', boxSizing: 'border-box', marginBottom: 10 }}
         />
         <button
@@ -600,7 +595,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="w-full font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--info)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer', fontSize: 14 }}
         >
-          Enviar contraoferta — {cents > 0 ? fmt(cents, offer.currency) : '…'}
+          <BuyerCopyText copyKey="messages.id.ConversationClient.ba0dd174" />{' '}{cents > 0 ? fmt(cents, offer.currency) : '…'}
         </button>
       </div>
     )
@@ -610,7 +605,7 @@ function SellerActionBar({ offer, onAction, busy }: {
     <div style={{ padding: '12px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
       <OfferTurnLine offer={offer} role="seller" />
       <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 10 }}>
-        Oferta recibida: <strong>{fmt(offer.offer_amount_cents, offer.currency)}</strong>
+        <BuyerCopyText copyKey="messages.id.ConversationClient.2f225435" />{' '}<strong>{fmt(offer.offer_amount_cents, offer.currency)}</strong>
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
@@ -620,8 +615,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="flex-1 font-semibold rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', border: 'none', cursor: 'pointer' }}
         >
-          <i className="iconoir-check" aria-hidden /> Aceptar
-        </button>
+          <i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="messages.id.ConversationClient.56561b70" /></button>
         <button
           type="button"
           onClick={() => setShowCounter(true)}
@@ -629,8 +623,7 @@ function SellerActionBar({ offer, onAction, busy }: {
           className="font-medium rounded-xl py-3 text-sm disabled:opacity-50"
           style={{ background: 'var(--info-soft)', color: 'var(--info)', border: '1.5px solid var(--info)', cursor: 'pointer', padding: '12px 16px' }}
         >
-          <i className="iconoir-undo" aria-hidden /> Contraofertar
-        </button>
+          <i className="iconoir-undo" aria-hidden /> <BuyerCopyText copyKey="messages.id.ConversationClient.cb9182ae" /></button>
         <button
           type="button"
           onClick={() => onAction('decline')}
@@ -687,8 +680,7 @@ function StampChooser({ role, conversationId, onStampSent }: {
         }}
       >
         <i className="iconoir-chat-bubble" style={{ fontSize: 16 }} />
-        Mensaje
-        <i className={`iconoir-nav-arrow-${open ? 'down' : 'up'}`} style={{ fontSize: 12, color: 'var(--fg-muted)' }} />
+        <BuyerCopyText copyKey="messages.id.ConversationClient.0c937c2e" /><i className={`iconoir-nav-arrow-${open ? 'down' : 'up'}`} style={{ fontSize: 12, color: 'var(--fg-muted)' }} />
       </button>
 
       {open && (
@@ -702,7 +694,7 @@ function StampChooser({ role, conversationId, onStampSent }: {
           }}
         >
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mensajes rápidos</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}><BuyerCopyText copyKey="messages.id.ConversationClient.339ec659" /></p>
           </div>
           <div style={{ maxHeight: 300, overflowY: 'auto' }}>
             {stamps.map(({ key, text }) => (
@@ -732,6 +724,9 @@ function StampChooser({ role, conversationId, onStampSent }: {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ConversationClient({ conversationId, initialConversation, initialEvents, role, initialTransaction, trustCapsule }: Props) {
+  const buyerCopy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
+  const fmt = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
   const [conv, setConv] = useState(initialConversation)
   const [events, setEvents] = useState(initialEvents)
   const [transaction, setTransaction] = useState(initialTransaction)
@@ -760,7 +755,7 @@ export default function ConversationClient({ conversationId, initialConversation
     ? fmt(agreedCents, offer?.currency ?? listing?.currency ?? 'MXN')
     : listing?.price_cents
       ? fmt(listing.price_cents, listing.currency)
-      : 'Precio a consultar'
+      : buyerCopy('messages.contactForPrice')
 
   // Scroll to bottom on load and new events
   useEffect(() => {
@@ -870,7 +865,8 @@ export default function ConversationClient({ conversationId, initialConversation
   const grouped: Array<{ date: string; events: ConvEvent[] }> = []
   for (const ev of events) {
     const last = grouped[grouped.length - 1]
-    if (!last || !sameDay(last.events[last.events.length - 1].created_at, ev.created_at)) {
+    const marketDay = (iso: string) => presentationCalendarDate(formatters.presentation, iso)
+    if (!last || marketDay(last.events[last.events.length - 1].created_at) !== marketDay(ev.created_at)) {
       grouped.push({ date: ev.created_at, events: [ev] })
     } else {
       last.events.push(ev)
@@ -908,7 +904,7 @@ export default function ConversationClient({ conversationId, initialConversation
               )}
             </div>
             <p style={{ fontSize: 13, color: agreedCents ? 'var(--success)' : 'var(--fg-muted)', fontWeight: agreedCents ? 800 : 400 }}>
-              {agreedCents ? 'Precio acordado: ' : ''}{headerPrice}
+              {agreedCents ? <BuyerCopyText copyKey="messages.id.ConversationClient.9c4e09c6" /> : ''}{headerPrice}
               <span style={{ marginLeft: 6, color: 'var(--fg-muted)', fontWeight: 400 }}>· {listingTypeLabel(listing?.listing_type)}</span>
               {role === 'buyer' && shop && (
                 <span style={{ marginLeft: 6, color: 'var(--fg-muted)', fontWeight: 400 }}>· {shop.name}</span>
@@ -943,11 +939,11 @@ export default function ConversationClient({ conversationId, initialConversation
         <i className="iconoir-sparks" style={{ fontSize: 14, color: 'var(--agent)' }} />
         <span style={{ fontSize: 12, color: 'var(--agent)' }}>
           {role === 'buyer'
-            ? 'Tu agente puede negociar por ti automáticamente.'
-            : 'Activa la negociación automática en configuración.'}
+            ? <BuyerCopyText copyKey="messages.id.ConversationClient.78f7321a" />
+            : <BuyerCopyText copyKey="messages.id.ConversationClient.5a463fba" />}
         </span>
         <Link href={role === 'buyer' ? '/agent' : '/shop/manage/settings/negociacion'} style={{ fontSize: 12, fontWeight: 600, color: 'var(--agent)', textDecoration: 'underline', marginLeft: 'auto', flexShrink: 0 }}>
-          {role === 'buyer' ? 'Enviar agente' : 'Configurar'}
+          {role === 'buyer' ? <BuyerCopyText copyKey="messages.id.ConversationClient.6bc07191" /> : <BuyerCopyText copyKey="messages.id.ConversationClient.354fb2a2" />}
         </Link>
       </div>
 
@@ -982,15 +978,14 @@ export default function ConversationClient({ conversationId, initialConversation
         )}
         {events.length === 0 && (
           <div style={{ textAlign: 'center', padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>
-            No hay eventos aún.
-          </div>
+            <BuyerCopyText copyKey="messages.id.ConversationClient.824c257f" /></div>
         )}
         {grouped.map(({ date, events: dayEvents }) => (
           <div key={date}>
             {/* Date separator */}
             <div style={{ textAlign: 'center', padding: '12px 0 6px' }}>
               <span style={{ fontSize: 11, color: 'var(--fg-subtle)', background: 'var(--bg-sunk)', borderRadius: 'var(--r-pill)', padding: '3px 10px', display: 'inline-block' }}>
-                {formatDate(date)}
+                {formatters.date(date, { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
             {dayEvents.map(ev => (
@@ -1025,15 +1020,14 @@ export default function ConversationClient({ conversationId, initialConversation
           <div style={{ padding: '10px 16px', background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
             <StampChooser role={role} conversationId={conversationId} onStampSent={refresh} />
             <div style={{ flex: 1, fontSize: 13, color: 'var(--fg-muted)', fontStyle: 'italic', paddingLeft: 4 }}>
-              Usa mensajes estructurados — sin texto libre
-            </div>
+              <BuyerCopyText copyKey="messages.id.ConversationClient.152dc9f0" /></div>
           </div>
         </div>
       )}
 
       {isClosed && (
         <div style={{ flexShrink: 0, padding: '14px 16px', background: 'var(--bg-sunk)', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Esta conversación está cerrada.</p>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="messages.id.ConversationClient.6f93ffef" /></p>
         </div>
       )}
     </div>

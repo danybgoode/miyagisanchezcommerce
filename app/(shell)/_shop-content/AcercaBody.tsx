@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authoredAboutBody } from '@/lib/shop-content'
@@ -24,7 +25,7 @@ export default function AcercaBody({ shop, basePath }: { shop: Shop; basePath: s
       <Link href={basePath || '/'} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
         ← {shop.name}
       </Link>
-      <h1 className="text-xl font-bold mt-3 mb-4">Acerca de {shop.name}</h1>
+      <h1 className="text-xl font-bold mt-3 mb-4"><BuyerCopyText copyKey="shop.content.AcercaBody.1a7485f9" />{' '}{shop.name}</h1>
       <p className="text-sm leading-relaxed whitespace-pre-line">{body}</p>
     </div>
   )

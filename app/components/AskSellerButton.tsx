@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -75,7 +76,7 @@ export default function AskSellerButton({
           }}
         >
           <i className="iconoir-message-text" style={{ fontSize: 14 }} />
-          {loading ? 'Abriendo...' : label}
+          {loading ? <BuyerCopyText copyKey="components.AskSellerButton.218613b5" /> : label}
         </button>
         {error && <p style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
       </div>
@@ -92,7 +93,7 @@ export default function AskSellerButton({
         style={{ width: '100%', justifyContent: 'center' }}
       >
         <i className="iconoir-message-text" style={{ fontSize: 16 }} />
-        {loading ? 'Abriendo...' : label}
+        {loading ? <BuyerCopyText copyKey="components.AskSellerButton.218613b5" /> : label}
       </button>
       {error && <p style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
     </div>

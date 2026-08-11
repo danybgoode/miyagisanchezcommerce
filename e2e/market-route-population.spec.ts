@@ -24,8 +24,8 @@ test.describe('market route population', () => {
   test('literal MX routes share the legacy page system while tenant routes remain present', () => {
     const required = [
       'app/(site)/page.tsx',
-      'app/(site)/mx/page.tsx',
-      'app/(site)/us/page.tsx',
+      'app/(mx-site)/mx/page.tsx',
+      'app/(us-site)/us/page.tsx',
       'app/(shell)/l/[id]/page.tsx',
       'app/(shell)/s/[slug]/page.tsx',
       'app/(shell)/c/[collection]/page.tsx',
@@ -50,7 +50,7 @@ test.describe('market route population', () => {
     // D9: route-entrypoint absence is the guard. Colocated components are allowed,
     // but a later `/us/l`, `/us/s`, search, or category route cannot quietly become
     // a plausible-but-empty US marketplace.
-    expect(usRoutes).toEqual(['app/(site)/us/page.tsx'])
+    expect(usRoutes).toEqual(['app/(us-site)/us/page.tsx'])
   })
 
   test('the root selector is a zero-catalog static surface', () => {
@@ -86,12 +86,15 @@ test.describe('market route population', () => {
     // it is the defect wearing the escape hatch's clothes. Caught by the fresh
     // reviewer on PR #345 by mutation, not by reasoning; re-verify the same way.
     //
-    // `(site)` IS the whole population, and here is why it isn't an arbitrary root:
+    // The three `*-site` groups are the whole static population; the language split
+    // deliberately moved MX and US out of the shared selector group.
     // `app/(shell)/layout.tsx` reads `headers()`, so everything under `(shell)`
     // renders per-request (verified live — `/vende`, `/terminos` and a 404 all return
     // `private, no-cache, no-store`). A future sibling route group with a static
     // layout WOULD escape this, so it must be added here when one appears.
-    const pages = filesBelow('app/(site)').filter((file) => file.endsWith('/page.tsx'))
+    const pages = ['app/(site)', 'app/(mx-site)', 'app/(us-site)']
+      .flatMap(filesBelow)
+      .filter((file) => file.endsWith('/page.tsx'))
 
     // A scan that silently finds nothing must not read as a pass — AGENTS.md rule 5.
     // Matches the sibling assertion at the MX-shop-route test below.
@@ -189,21 +192,18 @@ test.describe('post-authentication destination', () => {
   // looked like it configured this (NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL) does not
   // exist in @clerk/nextjs v7, so the value must live in the layout.
   test('sign-in lands on a market, never back on the selector', () => {
-    const source = readFileSync(path.join(ROOT, 'app/layout.tsx'), 'utf8')
-
-    const home = /const POST_AUTH_HOME = '([^']+)'/.exec(source)
-    expect(home, 'POST_AUTH_HOME must stay a single named destination').not.toBeNull()
-    expect(home![1]).not.toBe('/')
+    const source = readFileSync(path.join(ROOT, 'app/components/MarketDocument.tsx'), 'utf8')
     // An OPEN market, not merely a known one. `/us` is a registry-valid code whose
     // marketplace_status is 'invitation' — no Region, no USD price, no checkout — so
     // landing a signed-in user there is a dead end of a different shape than `/`.
     const openHomes = openMarketCodes().map((code) => marketBasePath(code))
     expect(openHomes, 'no open market to land on').not.toEqual([])
-    expect(openHomes).toContain(home![1])
+    expect(openHomes).toContain(marketBasePath('mx'))
+    expect(source).toContain('isMarketplaceOpen(market) ? market : DEFAULT_MARKET')
 
     // Both halves wired, or a signed-up user still strands on the selector.
-    expect(source).toContain('signInFallbackRedirectUrl={POST_AUTH_HOME}')
-    expect(source).toContain('signUpFallbackRedirectUrl={POST_AUTH_HOME}')
+    expect(source).toContain('signInFallbackRedirectUrl={postAuthHome}')
+    expect(source).toContain('signUpFallbackRedirectUrl={postAuthHome}')
 
     // FALLBACK, not FORCE — force overrides `redirect_url` and would break the
     // "sign in to continue" hop back into checkout.

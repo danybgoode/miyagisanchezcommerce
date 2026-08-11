@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { LISTING_TYPE_FILTERS } from '@/lib/listing-query'
 import type { SearchParams } from '@/lib/types'
@@ -28,7 +29,7 @@ export default function ListingTypeChips({ params, className, marketBasePath = '
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
       {/* "Todos" — clears the type filter */}
       <Link href={hrefFor(params, null, marketBasePath)} className={`chip${!active ? ' is-selected' : ''}`}>
-        <span>Todos</span>
+        <span><BuyerCopyText copyKey="components.ListingTypeChips.6609e719" /></span>
       </Link>
 
       {LISTING_TYPE_FILTERS.map(t => (

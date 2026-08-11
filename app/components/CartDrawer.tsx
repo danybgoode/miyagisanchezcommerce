@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useCart, type CartItem } from './CartContext'
@@ -9,17 +10,11 @@ import { SITE_ORIGIN } from '@/lib/market-seo'
 const SPRING   = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 const EASE_OUT = 'cubic-bezier(0.2, 0, 0, 1)'
 
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
-}
-
 // ── Seller group ──────────────────────────────────────────────────────────────
 
 function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] }) {
+  const copy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
   const { removeItem, closeCart } = useCart()
 
   const seller = items[0]
@@ -49,7 +44,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
           {seller.sellerName}
         </Link>
         <span style={{ fontSize: 11, color: 'var(--fg-muted)', marginLeft: 'auto' }}>
-          {items.length} {items.length === 1 ? 'artículo' : 'artículos'}
+          {items.length} {items.length === 1 ? <BuyerCopyText copyKey="components.CartDrawer.6e55e396" /> : <BuyerCopyText copyKey="components.CartDrawer.1a260e8b" />}
         </span>
       </div>
 
@@ -90,12 +85,12 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
                 {item.title}
               </p>
               <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', margin: '2px 0 0' }}>
-                {formatPrice(item.price_cents, item.currency)}
+                {formatters.currency(item.price_cents, item.currency, { maximumFractionDigits: 0 })}
               </p>
               {(item.personalization?.fields ?? []).map((f, i) => (
                 <p key={i} style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {f.type === 'file' ? (
-                    <><i className="iconoir-attachment" aria-hidden /> {f.label || 'Arte adjunto'}</>
+                    <><i className="iconoir-attachment" aria-hidden /> {f.label || <BuyerCopyText copyKey="components.CartDrawer.bd74dde7" />}</>
                   ) : (
                     <>{f.label ? `${f.label}: ${f.value}` : f.value}</>
                   )}
@@ -107,7 +102,7 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
             <button
               type="button"
               onClick={() => removeItem(item.productId)}
-              title="Quitar"
+              title={copy('components.CartDrawer.c3047eea')}
               style={{
                 width: 28, height: 28, borderRadius: '50%', border: 'none',
                 background: 'transparent', cursor: 'pointer',
@@ -128,10 +123,10 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
       <div style={{ padding: '12px 20px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-            Subtotal{items.length > 1 ? ` (${items.length} artículos)` : ''}
+            <BuyerCopyText copyKey="components.CartDrawer.305da0c9" />{items.length > 1 ? <BuyerCopyText copyKey="components.CartDrawer.e716b4a8" values={[items.length]} /> : ''}
           </span>
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
-            {formatPrice(subtotal, currency)}
+            {formatters.currency(subtotal, currency, { maximumFractionDigits: 0 })}
           </span>
         </div>
 
@@ -151,13 +146,11 @@ function SellerGroup({ sellerId, items }: { sellerId: string; items: CartItem[] 
                 textDecoration: 'none',
               }}
             >
-              Revisar paquete
-            </Link>
+              <BuyerCopyText copyKey="components.CartDrawer.06f61a45" /></Link>
           )}
           {!hasStripe && !hasMp && (
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' }}>
-              Este vendedor no tiene pagos en línea activos.
-            </p>
+              <BuyerCopyText copyKey="components.CartDrawer.12a36b68" /></p>
           )}
         </div>
 
@@ -184,11 +177,9 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
         <i className="iconoir-shopping-bag" style={{ fontSize: 32, color: 'var(--fg-muted)' }} />
       </div>
       <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)', margin: '0 0 6px' }}>
-        Tu carrito está vacío
-      </p>
+        <BuyerCopyText copyKey="components.CartDrawer.291ba7f1" /></p>
       <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
-        Agrega artículos desde cualquier listing para pagar todo en un solo paso.
-      </p>
+        <BuyerCopyText copyKey="components.CartDrawer.25af231b" /></p>
       <Link
         href={marketplaceUrl(SITE_ORIGIN, '/l')}
         onClick={onClose}
@@ -198,7 +189,7 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
           color: 'var(--accent)', textDecoration: 'none',
         }}
       >
-        Explorar listings <i className="iconoir-arrow-right" style={{ fontSize: 14 }} />
+        <BuyerCopyText copyKey="components.CartDrawer.bc86891d" />{' '}<i className="iconoir-arrow-right" style={{ fontSize: 14 }} />
       </Link>
     </div>
   )
@@ -207,6 +198,7 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
 // ── Main drawer ───────────────────────────────────────────────────────────────
 
 export default function CartDrawer() {
+  const copy = useBuyerCopy()
   const { isOpen, closeCart, items, itemsBySeller } = useCart()
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -256,7 +248,7 @@ export default function CartDrawer() {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Carrito de compra"
+        aria-label={copy('components.CartDrawer.9a222c42')}
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 201,
           width: '100%', maxWidth: 420,
@@ -281,8 +273,7 @@ export default function CartDrawer() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <i className="iconoir-shopping-bag" style={{ fontSize: 18, color: 'var(--fg)' }} />
             <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--fg)' }}>
-              Tu carrito
-            </span>
+              <BuyerCopyText copyKey="components.CartDrawer.45d54548" /></span>
             {items.length > 0 && (
               <span style={{
                 fontSize: 12, fontWeight: 600, color: 'var(--accent)',
@@ -296,7 +287,7 @@ export default function CartDrawer() {
           <button
             type="button"
             onClick={closeCart}
-            aria-label="Cerrar carrito"
+            aria-label={copy('components.CartDrawer.df32289e')}
             style={{
               width: 32, height: 32, borderRadius: '50%', border: 'none',
               background: 'var(--bg-sunk)', cursor: 'pointer',
@@ -332,8 +323,7 @@ export default function CartDrawer() {
             flexShrink: 0,
           }}>
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, textAlign: 'center', lineHeight: 1.5 }}>
-              Tienes artículos de {sellerIds.length} vendedores. Cada uno se paga por separado y llega en su propio envío.
-            </p>
+              <BuyerCopyText copyKey="components.CartDrawer.b2aa522e" />{' '}{sellerIds.length} <BuyerCopyText copyKey="components.CartDrawer.4e660159" /></p>
           </div>
         )}
       </div>

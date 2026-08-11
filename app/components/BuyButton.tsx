@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth, useUser } from '@clerk/nextjs'
@@ -41,8 +42,7 @@ export default function BuyButton({
   if (!sellerHasStripe) {
     return (
       <p className="text-xs text-[var(--fg-muted)] text-center py-2">
-        El vendedor aún no ha activado pagos en línea.
-      </p>
+        <BuyerCopyText copyKey="components.BuyButton.1911d825" /></p>
     )
   }
 
@@ -60,8 +60,7 @@ export default function BuyButton({
         style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
       >
         <i className="iconoir-log-in" style={{ fontSize: 16 }} />
-        Inicia sesión para comprar
-      </a>
+        <BuyerCopyText copyKey="components.BuyButton.f9a773d9" /></a>
     )
   }
 
@@ -106,13 +105,12 @@ export default function BuyButton({
         {loading ? (
           <span className="animate-spin inline-block">⟳</span>
         ) : (
-          <>{isDigital ? 'Comprar y descargar' : 'Comprar ahora'} — {price}</>
+          <>{isDigital ? <BuyerCopyText copyKey="components.BuyButton.00b6bbc3" /> : <BuyerCopyText copyKey="components.BuyButton.df3233ef" />} — {price}</>
         )}
       </button>
       {error && <p className="text-[var(--danger)] text-xs mt-2 text-center"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}
       <p className="text-xs text-center text-[var(--fg-muted)] mt-1.5">
-        Pago seguro con Stripe · 0% comisión
-      </p>
+        <BuyerCopyText copyKey="components.BuyButton.2227a53f" /></p>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import { inmuebleHeroModel, inmuebleIconSpecs, zoneMapUrl, type InmuebleIconSpec } from '@/lib/inmueble-hero'
 
@@ -66,8 +67,8 @@ export default function InmuebleHero({
         >
           <i className="iconoir-map-pin" style={{ fontSize: 18, color: 'var(--accent)', flexShrink: 0 }} />
           <div className="min-w-0 flex-1">
-            <p style={{ fontSize: 13, fontWeight: 700 }}>Zona aproximada</p>
-            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{location} · la dirección exacta se comparte al agendar la visita</p>
+            <p style={{ fontSize: 13, fontWeight: 700 }}><BuyerCopyText copyKey="l.id.InmuebleHero.28e02f2e" /></p>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{location} <BuyerCopyText copyKey="l.id.InmuebleHero.1cb17074" /></p>
           </div>
           <i className="iconoir-arrow-up-right" style={{ fontSize: 14, color: 'var(--fg-subtle)', flexShrink: 0 }} />
         </a>

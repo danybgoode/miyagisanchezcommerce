@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
@@ -14,14 +15,14 @@ export default async function AccountPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')
 
-  const name = user.firstName || user.username || 'tu cuenta'
+  const name = user.firstName || user.username
   const email = user.emailAddresses?.[0]?.emailAddress ?? ''
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
       <header className="flex items-center justify-between gap-4 mb-8">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold truncate">Hola, {name}</h1>
+          <h1 className="text-xl font-bold truncate"><BuyerCopyText copyKey="account.page.9a62ab6f" />{' '}{name ?? <BuyerCopyText copyKey="account.fallbackName" />}</h1>
           {email && <p className="text-sm text-[var(--color-muted)] truncate">{email}</p>}
         </div>
         <LazyUserButton />
@@ -49,8 +50,7 @@ export default async function AccountPage() {
           href="/sell"
           className="text-sm text-[var(--color-muted)] no-underline hover:text-[var(--color-foreground)]"
         >
-          Publicar un anuncio →
-        </Link>
+          <BuyerCopyText copyKey="account.page.f1134fb1" /></Link>
       </div>
     </div>
   )

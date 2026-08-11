@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 import Link from 'next/link'
 import AskSellerButton from '@/app/components/AskSellerButton'
@@ -8,10 +9,10 @@ import {
   nightsBetween,
   rentalUnitsLabel,
   ratePeriodLabel,
-  formatRentalCents,
   type RatePeriod,
 } from '@/lib/rental-pricing'
 import { resolveRentalBookingCta } from '@/lib/rental-booking-cta'
+import { presentationCalendarDate } from '@/lib/market-presentation'
 
 /**
  * RentalBooking — PDP redesign (epic 01) Sprint 4, S4.2; flag flip in Sprint 2
@@ -56,9 +57,11 @@ export default function RentalBooking({
   sellerHasPaymentMethod: boolean
   marketBasePath?: string
 }) {
-  // Today in Mexico City (not UTC) — a UTC `today` rolls to tomorrow after ~18:00
-  // local (UTC-6), which would block a same-day check-in. en-CA renders YYYY-MM-DD.
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' })
+  const formatters = useBuyerFormatters()
+  const formatCents = (cents: number) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
+  // Native date inputs require YYYY-MM-DD, evaluated in the route-owned market
+  // timezone so a UTC rollover never blocks a valid same-day booking.
+  const today = presentationCalendarDate(formatters.presentation, new Date())
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
 
@@ -72,10 +75,10 @@ export default function RentalBooking({
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 14 }}>
         <i className="iconoir-calendar" style={{ fontSize: 20, color: 'var(--accent)', marginTop: 1, flexShrink: 0 }} />
         <div className="min-w-0">
-          <p style={{ fontSize: 14, fontWeight: 800 }}>Elige tus fechas</p>
+          <p style={{ fontSize: 14, fontWeight: 800 }}><BuyerCopyText copyKey="l.id.RentalBooking.f4eff161" /></p>
           <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-            {formatRentalCents(dailyRateCents, currency)} / {ratePeriodLabel(period)}
-            {depositCents > 0 && <> · depósito {formatRentalCents(depositCents, currency)}</>}
+            {formatCents(dailyRateCents)} / {ratePeriodLabel(period)}
+            {depositCents > 0 && <> <BuyerCopyText copyKey="l.id.RentalBooking.9587ef43" />{' '}{formatCents(depositCents)}</>}
           </p>
         </div>
       </div>
@@ -83,7 +86,7 @@ export default function RentalBooking({
       {/* Date range */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         <label style={{ display: 'block' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}>Entrada</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.RentalBooking.d5250dea" /></span>
           <input
             type="date"
             data-testid="pdp-rental-checkin"
@@ -97,7 +100,7 @@ export default function RentalBooking({
           />
         </label>
         <label style={{ display: 'block' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}>Salida</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.RentalBooking.3e39719e" /></span>
           <input
             type="date"
             data-testid="pdp-rental-checkout"
@@ -114,19 +117,19 @@ export default function RentalBooking({
         <div data-testid="pdp-rental-breakdown" style={{ background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', padding: 12, marginBottom: 14, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ color: 'var(--fg-muted)' }}>
-              {formatRentalCents(dailyRateCents, currency)} × {rentalUnitsLabel(price.units, period)}
+              {formatCents(dailyRateCents)} × {rentalUnitsLabel(price.units, period)}
             </span>
-            <span style={{ fontWeight: 600 }}>{formatRentalCents(price.rentCents, currency)}</span>
+            <span style={{ fontWeight: 600 }}>{formatCents(price.rentCents)}</span>
           </div>
           {price.depositCents > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ color: 'var(--fg-muted)' }}>Depósito reembolsable</span>
-              <span style={{ fontWeight: 600 }}>{formatRentalCents(price.depositCents, currency)}</span>
+              <span style={{ color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="l.id.RentalBooking.cec46bd7" /></span>
+              <span style={{ fontWeight: 600 }}>{formatCents(price.depositCents)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-            <span style={{ fontWeight: 700 }}>Total estimado</span>
-            <span data-testid="pdp-rental-total" style={{ fontWeight: 800 }}>{formatRentalCents(price.totalCents, currency)}</span>
+            <span style={{ fontWeight: 700 }}><BuyerCopyText copyKey="l.id.RentalBooking.de76d847" /></span>
+            <span data-testid="pdp-rental-total" style={{ fontWeight: 800 }}>{formatCents(price.totalCents)}</span>
           </div>
         </div>
       )}
@@ -142,18 +145,15 @@ export default function RentalBooking({
             <>
               <Link href={cta.href} className="btn btn-dark btn-lg" style={{ width: '100%', justifyContent: 'center', textDecoration: 'none' }}>
                 <i className="iconoir-calendar-check" style={{ fontSize: 16 }} />
-                Reservar estas fechas
-              </Link>
+                <BuyerCopyText copyKey="l.id.RentalBooking.7b1ec463" /></Link>
               <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
-                El depósito se cobra junto con la renta.
-              </p>
+                <BuyerCopyText copyKey="l.id.RentalBooking.e6cac2b2" /></p>
             </>
           ) : (
             <>
               <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Reservar estas fechas" marketBasePath={marketBasePath} />
               <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 6 }}>
-                Coordinarás el cobro y el depósito con el vendedor.
-              </p>
+                <BuyerCopyText copyKey="l.id.RentalBooking.17e79e6e" /></p>
             </>
           )}
         </div>
@@ -164,15 +164,13 @@ export default function RentalBooking({
           className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm"
           style={{ background: 'var(--bg-sunk)', color: 'var(--fg-subtle)', cursor: 'not-allowed' }}
         >
-          Elige fechas para reservar
-        </div>
+          <BuyerCopyText copyKey="l.id.RentalBooking.c8f49c5f" /></div>
       )}
 
       {bookingUrl && (
         <div style={{ marginTop: 8, textAlign: 'center' }}>
           <a href={bookingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'underline' }}>
-            Ver disponibilidad
-          </a>
+            <BuyerCopyText copyKey="l.id.RentalBooking.efe56842" /></a>
         </div>
       )}
     </div>

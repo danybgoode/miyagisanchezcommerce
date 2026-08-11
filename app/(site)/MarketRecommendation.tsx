@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useSyncExternalStore } from 'react'
 import { recommendedMarketForLocale } from '@/lib/market-recommendation'
 import type { MarketCode } from '@/lib/markets'
@@ -37,7 +38,6 @@ export default function MarketRecommendation({ market }: { market: MarketCode })
       data-testid={`market-suggested-${market}`}
       style={{ fontSize: 11, marginLeft: 8 }}
     >
-      Sugerido por tu navegador
-    </span>
+      <BuyerCopyText copyKey="MarketRecommendation.95e68536" /></span>
   )
 }
