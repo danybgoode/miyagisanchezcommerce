@@ -16,13 +16,13 @@ import type { Shop } from '@/lib/types'
  * PDP trust chip uses, so the two surfaces can't drift on the window label.
  * Unauthored (no window set) → notFound() — never a dead nav link.
  */
-export default function PoliticasBody({ shop, basePath }: { shop: Shop; basePath: string }) {
+export default function PoliticasBody({ shop, basePath, returnsLabel: localizedReturnsLabel }: { shop: Shop; basePath: string; returnsLabel?: string }) {
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const returnsPolicy = settings.returns_policy as
     | { window?: string; conditions?: string; shipping_paid_by?: 'buyer' | 'seller'; custom_note?: string | null }
     | null
     | undefined
-  const returnsLabel = returnsWindowLabel(returnsPolicy?.window)
+  const returnsLabel = localizedReturnsLabel ?? returnsWindowLabel(returnsPolicy?.window)
   if (!returnsLabel) notFound()
 
   return (

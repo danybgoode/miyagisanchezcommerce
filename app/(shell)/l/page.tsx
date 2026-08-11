@@ -11,21 +11,24 @@ import CategoryChips from '@/app/components/CategoryChips'
 import ListingTypeChips from '@/app/components/ListingTypeChips'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import type { MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { listingTypeLabel } from '@/lib/market-vocabulary'
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, language: 'es' | 'en'): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 2) return 'Ahora mismo'
-  if (mins < 60) return `Hace ${mins} min`
+  if (mins < 2) return language === 'en' ? 'Just now' : 'Ahora mismo'
+  if (mins < 60) return language === 'en' ? `${mins} min ago` : `Hace ${mins} min`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `Hace ${hrs} h`
+  if (hrs < 24) return language === 'en' ? `${hrs}h ago` : `Hace ${hrs} h`
   const days = Math.floor(hrs / 24)
-  if (days < 7) return `Hace ${days} día${days > 1 ? 's' : ''}`
+  if (days < 7) return language === 'en' ? `${days} day${days === 1 ? '' : 's'} ago` : `Hace ${days} día${days > 1 ? 's' : ''}`
   const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `Hace ${weeks} semana${weeks > 1 ? 's' : ''}`
+  if (weeks < 5) return language === 'en' ? `${weeks} week${weeks === 1 ? '' : 's'} ago` : `Hace ${weeks} semana${weeks > 1 ? 's' : ''}`
   const months = Math.floor(days / 30)
-  if (months < 12) return `Hace ${months} mes${months > 1 ? 'es' : ''}`
-  return `Hace ${Math.floor(months / 12)} año${Math.floor(months / 12) > 1 ? 's' : ''}`
+  if (months < 12) return language === 'en' ? `${months} month${months === 1 ? '' : 's'} ago` : `Hace ${months} mes${months > 1 ? 'es' : ''}`
+  const years = Math.floor(months / 12)
+  return language === 'en' ? `${years} year${years === 1 ? '' : 's'} ago` : `Hace ${years} año${years > 1 ? 's' : ''}`
 }
 
 export async function ListingsPage({
@@ -38,11 +41,12 @@ export async function ListingsPage({
   marketBasePath?: string
 }) {
   const [params, user] = await Promise.all([searchParams, currentUser()])
+  const presentation = resolveMarketPresentation(market)
   // Autos facet rail rides alongside the grid fetch (cars-vertical S1.1); modelo
   // options scope to the applied marca. Only for the autos category — every other
   // category skips the extra call. Null (no facet_pool yet / non-autos) ⇒ the
   // SearchBar falls back to its plain free-text autos panel.
-  const [{ listings, total, page }, carFacets] = await Promise.all([
+  const [{ listings, total, page, market_unavailable: marketUnavailable }, carFacets] = await Promise.all([
     searchListings(params, market),
     params.category === 'autos' ? getAutoFacets(params.brand, market) : Promise.resolve(null),
   ])
@@ -76,7 +80,7 @@ export async function ListingsPage({
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <CategoryChips activeCategory={params.category} className="mb-3" marketBasePath={marketBasePath} />
+      <CategoryChips activeCategory={params.category} className="mb-3" marketBasePath={marketBasePath} language={presentation.language} />
 
       <ListingTypeChips params={params} className="mb-5" marketBasePath={marketBasePath} />
 
@@ -90,6 +94,13 @@ export async function ListingsPage({
         marketBasePath={marketBasePath}
       />
 
+      {marketUnavailable ? (
+        <div className="card-panel my-8 px-5 py-10 text-center" data-testid="market-catalog-unavailable" role="status">
+          <i className="iconoir-cloud-error" style={{ fontSize: 40, color: 'var(--fg-subtle)' }} aria-hidden />
+          <p style={{ fontWeight: 600, color: 'var(--fg)', marginTop: 12 }}><BuyerCopyText copyKey="market.catalogUnavailableHeading" /></p>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 5 }}><BuyerCopyText copyKey="market.catalogUnavailableBody" /></p>
+        </div>
+      ) : <>
       {/* Result count */}
       <div className="flex items-center justify-between mb-4">
         <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
@@ -136,20 +147,20 @@ export async function ListingsPage({
                   <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginBottom: 4 }}>
                     {listing.title}
                   </p>
-                  <p className="t-price" style={{ fontSize: 'var(--t-base)' }}>{formatPrice(listing)}</p>
+                  <p className="t-price" style={{ fontSize: 'var(--t-base)' }}>{formatPrice(listing, presentation.htmlLang)}</p>
                   {(() => {
-                    const chip = financingChip(listing)
+                    const chip = market === 'mx' ? financingChip(listing) : null
                     return chip && <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 1 }}>{chip}</p>
                   })()}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {listingTypeBadge(listing.listing_type) && (
                       <span className="badge badge-soft" style={{ fontSize: 10, color: 'var(--accent)' }}>
-                        {listingTypeBadge(listing.listing_type)}
+                        {listingTypeLabel(listing.listing_type, listingTypeBadge(listing.listing_type) ?? listing.listing_type, presentation.language)}
                       </span>
                     )}
                     {listing.condition && (
                       <span className="badge badge-soft" style={{ fontSize: 10 }}>
-                        {conditionLabel(listing.condition)}
+                        {conditionLabel(listing.condition, presentation.language)}
                       </span>
                     )}
                     {listing.location && (
@@ -166,7 +177,7 @@ export async function ListingsPage({
                       </p>
                     )}
                     <p style={{ fontSize: 11, color: 'var(--fg-subtle)', flexShrink: 0, marginLeft: 4 }}>
-                      {timeAgo(listing.created_at)}
+                      {timeAgo(listing.created_at, presentation.language)}
                     </p>
                   </div>
                 </div>
@@ -211,6 +222,7 @@ export async function ListingsPage({
           )}
         </>
       )}
+      </>}
     </div>
   )
 }

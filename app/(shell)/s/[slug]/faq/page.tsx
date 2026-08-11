@@ -22,18 +22,19 @@ export async function generateShopFaqMetadata({
   marketBasePath?: string
 }): Promise<Metadata> {
   const { slug } = await params
-  if (!isLikelyShopSlug(slug)) return { title: 'Página no encontrada' }
-  const shop = await getShop(slug)
-  if (!shop) return { title: 'Página no encontrada' }
+  const missingTitle = market === 'us' ? 'Page not found' : 'Página no encontrada'
+  if (!isLikelyShopSlug(slug)) return { title: missingTitle }
+  const shop = await getShop(slug, market)
+  if (!shop) return { title: missingTitle }
   if (market && readPublicSellerMarket(shop)?.market_code !== market) {
-    return { title: 'Página no encontrada' }
+    return { title: missingTitle }
   }
   // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
   // rather than relying on Next discarding metadata when the body notFound()s —
   // that behavior was asserted in review but never actually verified.
-  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Página no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: missingTitle }
   return {
-    title: `Preguntas frecuentes — ${shop.name}`,
+    title: `${market === 'us' ? 'Frequently asked questions' : 'Preguntas frecuentes'} — ${shop.name}`,
     ...(marketBasePath ? marketCatalogCanonical(`${marketBasePath}/s/${slug}/faq`) : {}),
   }
 }
@@ -54,7 +55,7 @@ export async function ShopFaqPage({
 }) {
   const { slug } = await params
   if (!isLikelyShopSlug(slug)) notFound()
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) {
     const current = await getSlugRedirect(slug)
     if (current) permanentRedirect(`${marketBasePath}/s/${current}/faq`)

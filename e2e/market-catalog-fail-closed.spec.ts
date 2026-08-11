@@ -36,20 +36,12 @@ function asUnavailable(decision: MarketCatalogDecision): MarketUnavailable {
 }
 
 test.describe('planMarketCatalogRead · refuses BEFORE any I/O', () => {
-  test('us is refused with the structured invitation state — never MX rows', () => {
-    const state = asUnavailable(plan('us'))
-    expect(state).toEqual({
-      unavailable: true,
-      market_code: 'us',
-      marketplace_status: 'invitation',
-      reason: 'marketplace_not_open',
-    })
-  })
-
-  test('the refusal carries no listings, no total, no catalog of any kind', () => {
-    // The whole decision object is the answer; there is nowhere for a row to hide.
-    const state = asUnavailable(plan('us'))
-    expect(Object.keys(state).sort()).toEqual(['market_code', 'marketplace_status', 'reason', 'unavailable'])
+  test('us is approved and carries the exact backend wire contract', () => {
+    const decision = plan('us')
+    expect(isMarketUnavailable(decision)).toBe(false)
+    if (isMarketUnavailable(decision)) return
+    expect(decision.market).toEqual(MARKETS.us)
+    expect(decision.query).toBe(`${MARKET_QUERY_PARAM}=us`)
   })
 
   test('an unknown market is refused, and is NOT coerced to Mexico', () => {
@@ -122,7 +114,8 @@ test.describe('non-2xx backend market refusals stay structured', () => {
   })
 
   test('the exact 404 closed-market response is preserved', () => {
-    expect(readMarketUnavailableResponse(MARKETS.us, 404, {
+    const invitation = { ...MARKETS.us, marketplace_status: 'invitation' as const }
+    expect(readMarketUnavailableResponse(invitation, 404, {
       unavailable: true,
       market_code: 'us',
       marketplace_status: 'invitation',
@@ -164,19 +157,22 @@ test.describe('verifyMarketFilter · what may be SERVED', () => {
     expect(state?.reason).toBe('market_mismatch')
   })
 
-  test('an ABSENT echo is tolerated for MX only — the whole live population is MX (D0)', () => {
-    expect(verifyMarketFilter(MARKETS.mx, { listings: [] })).toBeNull()
+  test('an ABSENT echo is refused for MX now that two live catalogs exist', () => {
+    expect(verifyMarketFilter(MARKETS.mx, { listings: [] })).toEqual({
+      unavailable: true,
+      market_code: 'mx',
+      marketplace_status: 'active',
+      reason: 'market_filter_unavailable',
+    })
   })
 
   test('an ABSENT echo is REFUSED for any non-default market', () => {
-    // `us` is not `active`, so it never reaches this function through the shell —
-    // but the rule is asserted on the record directly, because it is what stops the
-    // NEXT market to open from shipping ahead of its backend filter.
+    // US is active and therefore MUST prove the backend filter on every response.
     const state = verifyMarketFilter(MARKETS.us, { listings: [{ id: 'prod_mx' }] })
     expect(state).toEqual({
       unavailable: true,
       market_code: 'us',
-      marketplace_status: 'invitation',
+      marketplace_status: 'active',
       reason: 'market_filter_unavailable',
     })
   })
@@ -226,9 +222,11 @@ test.describe('takeMarketScopedField · a mismatched response yields NO rows', (
     expect(unavailable).toBeNull()
   })
 
-  test('an absent echo returns rows for MX and the fallback for any other market', () => {
+  test('an absent echo returns the fallback for every market', () => {
     const legacy = { listings: [{ id: 'prod_mx_1' }] }
-    expect(takeMarketScopedField(MARKETS.mx, legacy, 'listings', []).value).toEqual([{ id: 'prod_mx_1' }])
+    const refusedMx = takeMarketScopedField(MARKETS.mx, legacy, 'listings', [])
+    expect(refusedMx.value).toEqual([])
+    expect(refusedMx.unavailable?.reason).toBe('market_filter_unavailable')
     const refused = takeMarketScopedField(MARKETS.us, legacy, 'listings', [])
     expect(refused.value).toEqual([])
     expect(refused.unavailable?.reason).toBe('market_filter_unavailable')
@@ -252,8 +250,8 @@ test.describe('the meta helpers keep the two shapes distinguishable', () => {
     expect(marketMetaFor(MARKETS.mx)).toEqual({ market_code: 'mx', market_unavailable: null })
   })
 
-  test('a refused read carries the full reason, so a caller cannot mistake it for "none"', () => {
-    const state = asUnavailable(plan('us'))
-    expect(marketMetaUnavailable(state)).toEqual({ market_code: 'us', market_unavailable: state })
+  test('an unknown read carries the full reason, so a caller cannot mistake it for "none"', () => {
+    const state = asUnavailable(plan('fr'))
+    expect(marketMetaUnavailable(state)).toEqual({ market_code: null, market_unavailable: state })
   })
 })

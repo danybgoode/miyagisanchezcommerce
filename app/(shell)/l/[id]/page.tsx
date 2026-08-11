@@ -66,6 +66,7 @@ import type { MarketCode } from '@/lib/markets'
 import { getDictionary } from '@/lib/dictionary'
 import { formatPresentationCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
 import { marketCatalogCanonical } from '@/lib/market-seo'
+import { resolveCommerceReadiness } from '@/lib/commerce-readiness'
 
 export async function generateListingMetadata({
   params,
@@ -154,6 +155,7 @@ export async function ListingPage({
   ])
   if (!listing) notFound()
   const presentation = resolveMarketPresentation(market)
+  const english = presentation.language === 'en'
   const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
   const formatCents = (cents: number, currency: string) =>
     formatPresentationCurrency(presentation, cents, currency, { maximumFractionDigits: 0 })
@@ -313,34 +315,42 @@ export async function ListingPage({
   const subMeta = listing.metadata?.subscription as { interval?: 'month' | 'year'; content_description?: string; stripe_price_id?: string } | undefined
   const subTiers: StoredTier[] = storedTiers && storedTiers.length > 0
     ? storedTiers
-    : subMeta ? [{ id: 'default', label: 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
-  const agendarLabel = listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
+    : subMeta ? [{ id: 'default', label: english ? 'Subscription' : 'Suscripción', price_cents: listing.price_cents ?? 0, interval: subMeta.interval ?? 'month', features: subMeta.content_description ? subMeta.content_description.split('\n').filter(Boolean) : [], is_highlighted: false, stripe_price_id: subMeta.stripe_price_id }] : []
+  const agendarLabel = english
+    ? listing.category === 'autos' ? '🚗 Schedule a test drive' : listing.category === 'inmuebles' ? '🏠 Schedule a visit' : listing.listing_type === 'service' ? '🕐 Schedule an appointment' : listing.listing_type === 'rental' ? '📅 Check availability' : '📅 Schedule'
+    : listing.category === 'autos' ? '🚗 Agendar prueba de manejo' : listing.category === 'inmuebles' ? '🏠 Agendar visita' : listing.listing_type === 'service' ? '🕐 Agendar cita' : listing.listing_type === 'rental' ? '📅 Ver disponibilidad' : '📅 Agendar'
   const hasDirectContact = !!(whatsappPhone || visiblePhone || contactEmail || bookingUrl)
   const paymentMethods = [
-    sellerHasMp && !isDigital && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: 'Tarjeta, wallet, OXXO' },
-    sellerHasStripe && { icon: 'iconoir-credit-card', label: 'Tarjeta', note: 'Stripe Connect' },
-    hasBankTransfer && { icon: 'iconoir-bank', label: 'SPEI', note: 'Transferencia bancaria' },
-    hasDimo && { icon: 'iconoir-smartphone-device', label: 'DiMo', note: 'Transferencia por teléfono' },
-    whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: 'Acordar directo' },
-    bookingUrl && { icon: 'iconoir-calendar', label: 'Agenda', note: bookingText ?? 'Reservar horario' },
+    sellerHasMp && !isDigital && { icon: 'iconoir-credit-card', label: 'Mercado Pago', note: english ? 'Card, wallet, cash voucher' : 'Tarjeta, wallet, OXXO' },
+    sellerHasStripe && { icon: 'iconoir-credit-card', label: english ? 'Card' : 'Tarjeta', note: 'Stripe Connect' },
+    hasBankTransfer && { icon: 'iconoir-bank', label: english ? 'Bank transfer' : 'SPEI', note: english ? 'Arrange with the seller' : 'Transferencia bancaria' },
+    hasDimo && { icon: 'iconoir-smartphone-device', label: 'DiMo', note: english ? 'Phone transfer' : 'Transferencia por teléfono' },
+    whatsappPhone && { icon: 'iconoir-chat-bubble', label: 'WhatsApp', note: english ? 'Arrange directly' : 'Acordar directo' },
+    bookingUrl && { icon: 'iconoir-calendar', label: english ? 'Schedule' : 'Agenda', note: bookingText ?? (english ? 'Reserve a time' : 'Reservar horario') },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
   // Seller offers at least one online/selectable payment path → show the single
   // "Comprar ahora" button (the checkout page is the method chooser).
-  const hasAnyPayment = sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo
+  const commerceReadiness = resolveCommerceReadiness({
+    market,
+    priceCents: listing.price_cents,
+    currency: listing.currency,
+    sellerPaymentAvailable: sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo,
+  })
+  const hasAnyPayment = commerceReadiness.ready
   const fulfillmentMethods = [
     shippingSettings?.local_pickup && {
       icon: 'iconoir-shop',
-      label: 'Recolección local',
+      label: english ? 'Local pickup' : 'Recolección local',
       note: pickupSpots.length > 1
-        ? `${pickupSpots.length} puntos de entrega — elige al pagar`
+          ? english ? `${pickupSpots.length} pickup points — choose at checkout` : `${pickupSpots.length} puntos de entrega — elige al pagar`
         : pickupSpots[0]?.name
           ? `${pickupSpots[0].name}${pickupSpots[0].address ? ` · ${pickupSpots[0].address}` : ''}`
-          : 'Punto de entrega — coordina con la tienda',
+          : english ? 'Pickup point — arrange with the shop' : 'Punto de entrega — coordina con la tienda',
     },
-    isDigital && { icon: 'iconoir-download', label: 'Entrega digital', note: 'Disponible al pagar' },
-    listing.listing_type === 'service' && { icon: 'iconoir-calendar', label: 'Servicio', note: bookingUrl ? 'Agenda disponible' : 'Coordina con el vendedor' },
-    listing.listing_type === 'rental' && { icon: 'iconoir-calendar', label: 'Renta', note: bookingUrl ? 'Ver disponibilidad' : 'Coordina fechas' },
-    processingLabel && { icon: 'iconoir-box', label: 'Preparación', note: processingLabel },
+    isDigital && { icon: 'iconoir-download', label: english ? 'Digital delivery' : 'Entrega digital', note: english ? 'Available after payment' : 'Disponible al pagar' },
+    listing.listing_type === 'service' && { icon: 'iconoir-calendar', label: english ? 'Service' : 'Servicio', note: bookingUrl ? (english ? 'Appointments available' : 'Agenda disponible') : (english ? 'Arrange with the seller' : 'Coordina con el vendedor') },
+    listing.listing_type === 'rental' && { icon: 'iconoir-calendar', label: english ? 'Rental' : 'Renta', note: bookingUrl ? (english ? 'Check availability' : 'Ver disponibilidad') : (english ? 'Arrange dates' : 'Coordina fechas') },
+    processingLabel && { icon: 'iconoir-box', label: english ? 'Preparation' : 'Preparación', note: processingLabel },
   ].filter(Boolean) as Array<{ icon: string; label: string; note: string }>
 
   // Check if favorited
@@ -599,8 +609,8 @@ export async function ListingPage({
               <BuyerCopyText copyKey="l.id.page.4b2e7723" /></Link>
           )
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-            <BuyerCopyText copyKey="l.id.page.e0984f2d" /></div>
+          <div data-testid="commerce-readiness" data-reason={commerceReadiness.reason} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+            <BuyerCopyText copyKey={commerceReadiness.reason === 'checkout_not_available' ? 'market.checkoutComingSoon' : 'l.id.page.e0984f2d'} /></div>
         )
       )}
       {/* Negotiation doesn't compose with the configurator this sprint
@@ -690,8 +700,8 @@ export async function ListingPage({
       </Link>
     )
   ) : (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
-      <BuyerCopyText copyKey="l.id.page.e0984f2d" /></div>
+    <div data-testid="commerce-readiness" data-reason={commerceReadiness.reason} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', padding: '0 8px' }}>
+      <BuyerCopyText copyKey={commerceReadiness.reason === 'checkout_not_available' ? 'market.checkoutComingSoon' : 'l.id.page.e0984f2d'} /></div>
   )
 
   // "Preguntar" demoted to a light text link below the primary/secondary actions (S1.3).
@@ -863,7 +873,7 @@ export async function ListingPage({
           )}
           {listing.condition && (
             <span style={{ fontSize: 12, fontWeight: 500, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '3px 10px' }}>
-              {conditionLabel(listing.condition)}
+              {conditionLabel(listing.condition, presentation.language)}
             </span>
           )}
           <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{timeAgo(listing.created_at)}</span>

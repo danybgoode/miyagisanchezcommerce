@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test'
  * bogus-path variant below is the observed-red mechanism for that guard.
  */
 
-const OG_IMAGE_PAGES = ['/', '/mx', '/vende', '/acerca', '/agent']
+const OG_IMAGE_PAGES = ['/', '/mx', '/us', '/vende', '/acerca', '/agent']
 
 function ogTag(html: string, property: string): string | null {
   const re = new RegExp(`<meta property="${property}" content="([^"]*)"`)
@@ -44,7 +44,7 @@ test.describe('Agent-readability surface — substantive content', () => {
     expect(html.length).toBeGreaterThan(10_000)
     expect(html).toContain('Tu tienda es tuya. El mercado es por país.')
     expect(html).toContain('Entrar a Miyagi México')
-    expect(html).toContain('Conocer el piloto')
+    expect(html).toContain('Entrar a Miyagi Estados Unidos')
   })
 
   test('/mx returns the Mexico marketplace shell, not an empty page', async ({ request }) => {

@@ -19,6 +19,7 @@ import ClosetListingCard from '../s/[slug]/ClosetListingCard'
 import type { AnnouncementSettings } from '@/lib/shop-settings/types'
 import type { Shop } from '@/lib/types'
 import type { MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 /**
  * Shared body for both collection-page routes (own-shop premium
@@ -52,7 +53,7 @@ export default async function CollectionPage({
   if (!isLikelyCollectionSlug(collectionShortSlug)) notFound()
 
   const [allCollections, listingRead] = await Promise.all([
-    getShopCollections(shop.slug),
+    getShopCollections(shop.slug, market),
     market
       ? getMarketplaceShopListings(shop.slug, market)
       : getShopListings(shop.slug).then((listings) => ({
@@ -142,7 +143,7 @@ export default async function CollectionPage({
                     spei: paymentAvailability.bankTransfer,
                   },
                   href: `${marketBasePath}/l/${listing.id}`,
-                  formattedPrice: formatPrice(listing),
+                  formattedPrice: formatPrice(listing, resolveMarketPresentation(market ?? 'mx').htmlLang),
                   status: listing.status,
                   hasExcerpt: hasExcerpt(listing.metadata),
                 }}

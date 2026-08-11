@@ -8,6 +8,7 @@ export const PLATFORM_SITEMAP_ENTRIES = [
   { path: '/mx', changeFrequency: 'daily', priority: 1 },
   { path: '/mx/l', changeFrequency: 'daily', priority: 0.9 },
   { path: '/us', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/us/l', changeFrequency: 'daily', priority: 0.9 },
   { path: '/acerca', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/vende', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/vende/creadores', changeFrequency: 'weekly', priority: 0.8 },

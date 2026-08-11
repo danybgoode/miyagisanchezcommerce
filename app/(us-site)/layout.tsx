@@ -9,7 +9,7 @@ import '@/app/iconoir-subset.css'
 export const metadata: Metadata = marketRootMetadata('us')
 export const viewport: Viewport = ROOT_VIEWPORT
 
-/** US invitation root today; S3 adds the sibling `(us-shell)` catalog root. */
+/** Root adapter for `/us`; catalog descendants live under sibling `(us-shell)`. */
 export default function UnitedStatesSiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <MarketDocument market="us">

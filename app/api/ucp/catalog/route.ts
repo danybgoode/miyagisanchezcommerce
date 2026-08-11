@@ -9,11 +9,11 @@
  *   q            - full-text search
  *   category     - autos | inmuebles | electronica | hogar | moda | deportes | servicios | mascotas | herramientas | negocios | otros
  *   listing_type - product | service | rental | digital | subscription
- *   state        - Mexican state name (e.g. "Ciudad de México")
+ *   state        - selected market's state name
  *   location     - city / neighborhood (partial match)
  *   condition    - new | like_new | good | fair | parts
- *   min_price    - minimum price in MXN pesos (not centavos)
- *   max_price    - maximum price in MXN pesos
+ *   min_price    - minimum amount in the selected market currency (not cents)
+ *   max_price    - maximum amount in the selected market currency
  *   limit        - 1–50, default 20
  *   sort         - reciente (default) | precio_asc | precio_desc | popular | year_desc | year_asc | marca
  *   brand        - car marca (alias/casing-aware, e.g. "Volkswagen" also matches "VW")
@@ -35,12 +35,12 @@ import { getPriceGrid } from '@/lib/listings'
 import { isEnabled } from '@/lib/flags'
 import type { Listing } from '@/lib/types'
 import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 
 const MAX_LIMIT = 50
 const DEFAULT_LIMIT = 20
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +73,15 @@ export async function GET(req: NextRequest) {
   if (isMarketUnavailable(marketDecision)) {
     return NextResponse.json(marketDecision, { headers: CORS })
   }
+  const publishableKey = resolvePublishableKeyForMarket(marketDecision.market.code, PROCESS_MARKET_ENV)
+  if (publishableKey.status !== 'resolved') {
+    return NextResponse.json({
+      unavailable: true,
+      market_code: marketDecision.market.code,
+      marketplace_status: marketDecision.market.marketplace_status,
+      reason: 'market_filter_unavailable',
+    }, { status: 503, headers: CORS })
+  }
 
   const rawLimit = parseInt(searchParams.get('limit') ?? String(DEFAULT_LIMIT))
   const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT)
@@ -85,11 +94,11 @@ export async function GET(req: NextRequest) {
   forwardParams.set('market', marketDecision.market.code)
   forwardParams.set('limit', String(limit))
   forwardParams.set('sort', searchParams.get('sort') ?? 'reciente')
-  // UCP uses min_price/max_price in pesos — Medusa endpoint also takes pesos
-  // (the backend multiplies by 100 internally)
+  // UCP and Medusa both accept min/max in the selected currency's major units;
+  // the backend converts those amounts to integer cents internally.
 
   const res = await fetch(`${MEDUSA_BASE}/store/listings?${forwardParams.toString()}`, {
-    headers: { 'x-publishable-api-key': PUB_KEY },
+    headers: { 'x-publishable-api-key': publishableKey.token },
     next: { revalidate: CACHE.CATALOG } as RequestInit['next'],
   })
 

@@ -2,6 +2,7 @@ import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { CATEGORIES } from '@/lib/types'
 import type { CategoryCount } from '@/lib/home-curation'
+import { categoryLabel, type BuyerLanguage } from '@/lib/market-vocabulary'
 
 type Props = {
   activeCategory?: string
@@ -14,9 +15,10 @@ type Props = {
    */
   counts?: CategoryCount[]
   marketBasePath?: string
+  language?: BuyerLanguage
 }
 
-export default function CategoryChips({ activeCategory, className, counts, marketBasePath = '' }: Props) {
+export default function CategoryChips({ activeCategory, className, counts, marketBasePath = '', language = 'es' }: Props) {
   // Degrade to the full static list (no counts) when the live-counts fetch comes
   // back empty — a transient `getCategoryCounts()` gap must never take the whole
   // browse-by-category rail down with it (that's a distinct concern from the
@@ -44,7 +46,7 @@ export default function CategoryChips({ activeCategory, className, counts, marke
           className={`chip${cat.key === activeCategory ? ' is-selected' : ''}`}
         >
           <i className={`iconoir-${cat.icon}`} aria-hidden />
-          <span>{cat.label}</span>
+          <span>{categoryLabel(cat.key, language)}</span>
           {cat.count !== undefined && <span className="chip-count">{cat.count}</span>}
         </Link>
       ))}

@@ -45,7 +45,7 @@ const GOLDEN: Record<string, MarketRecord> = {
     currency_code: 'usd',
     default_locale: 'en-US',
     timezone: 'America/New_York',
-    marketplace_status: 'invitation',
+    marketplace_status: 'active',
   },
 }
 
@@ -61,10 +61,10 @@ test.describe('market registry · golden record contract', () => {
     })
   }
 
-  test('MX is active and US is invitation — the fail-closed posture of the epic', () => {
+  test('MX and US are active marketplaces', () => {
     expect(isMarketplaceOpen('mx')).toBe(true)
-    expect(isMarketplaceOpen('us')).toBe(false)
-    expect(openMarketCodes()).toEqual(['mx'])
+    expect(isMarketplaceOpen('us')).toBe(true)
+    expect(openMarketCodes()).toEqual(['mx', 'us'])
   })
 
   test('DEFAULT_MARKET is mx — the pre-launch backward-compatible default', () => {

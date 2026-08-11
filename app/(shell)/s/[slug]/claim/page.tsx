@@ -17,7 +17,7 @@ export async function ClaimPage({
   marketBasePath?: string
 }) {
   const { slug } = await params
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) notFound()
   if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
   // Consent-safe previews: a preview-private shop must not expose its name — nor a

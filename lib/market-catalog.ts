@@ -31,13 +31,10 @@
  *     never two: `confirmed` (the server named the market back), `absent` (no echo
  *     — an older backend) and `mismatch` (it named a DIFFERENT market).
  *
- * `absent` is tolerated for `DEFAULT_MARKET` only, and that tolerance is a
- * statement about the live population rather than a shrug: production has exactly
- * one Medusa Region and one marketplace Sales Channel, both Mexico's, and every
- * published product predates the registry (epic decision D0). An un-filtered
- * Mexico response and a filtered one are the same rows. For any other market
- * `absent` is unavailable — so the first non-Mexico market to go `active` cannot
- * ship ahead of its backend filter.
+ * `absent` is unavailable for every market. Sprint 3 opened the second catalog,
+ * invalidating the old D0-era exception that tolerated an unconfirmed MX response
+ * while Mexico was the whole population. Once two markets exist, either direction
+ * can leak; every response must prove the filter it applied.
  */
 
 import {
@@ -61,7 +58,7 @@ export const MARKET_ECHO_FIELD = 'market_code'
 export type MarketUnavailableReason =
   /** The caller supplied something that is not a supported market code. */
   | 'unknown_market'
-  /** A real market whose `marketplace_status` is not `active` (today: `us`). */
+  /** A real market whose `marketplace_status` is not `active`. */
   | 'marketplace_not_open'
   /** Open market, but the backend did not confirm it applied the market filter. */
   | 'market_filter_unavailable'
@@ -156,8 +153,8 @@ export function readMarketFilterState(payload: unknown, market: MarketCode): Mar
  * Post-response half of the gate. Returns `null` when the payload may be served,
  * or the structured unavailable state when it may not.
  *
- * See the module header for why `absent` is survivable for `DEFAULT_MARKET` and
- * fatal for every other market.
+ * An absent echo is fatal for every market; with two live catalogs, no legacy
+ * default can safely accept an unconfirmed response.
  */
 export function verifyMarketFilter(market: MarketRecord, payload: unknown): MarketUnavailable | null {
   const state = readMarketFilterState(payload, market.code)
@@ -165,7 +162,6 @@ export function verifyMarketFilter(market: MarketRecord, payload: unknown): Mark
   if (state === 'mismatch') {
     return unavailable(market.code, market.marketplace_status, 'market_mismatch')
   }
-  if (market.code === DEFAULT_MARKET) return null
   return unavailable(market.code, market.marketplace_status, 'market_filter_unavailable')
 }
 

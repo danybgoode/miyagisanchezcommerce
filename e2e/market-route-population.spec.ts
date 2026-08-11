@@ -21,11 +21,14 @@ function filesBelow(relativeDir: string): string[] {
 }
 
 test.describe('market route population', () => {
-  test('literal MX routes share the legacy page system while tenant routes remain present', () => {
+  test('literal MX and US routes share the legacy page system while tenant routes remain present', () => {
     const required = [
       'app/(site)/page.tsx',
       'app/(mx-site)/mx/page.tsx',
       'app/(us-site)/us/page.tsx',
+      'app/(us-shell)/us/l/page.tsx',
+      'app/(us-shell)/us/l/[id]/page.tsx',
+      'app/(us-shell)/us/s/[slug]/page.tsx',
       'app/(shell)/l/[id]/page.tsx',
       'app/(shell)/s/[slug]/page.tsx',
       'app/(shell)/c/[collection]/page.tsx',
@@ -40,17 +43,21 @@ test.describe('market route population', () => {
     expect(isMarketPrefixablePath('/c/editorial')).toBe(false)
   })
 
-  test('the invitation market has exactly one static route, never a catalog subtree', () => {
-    const usRoutes = filesBelow('app')
-      .map((file) => path.relative(ROOT, file).replace(/\\/g, '/'))
-      .filter((file) => /\/(?:us)(?:\/|$)/.test(file))
-      .filter((file) => /\/(?:page|route)\.(?:ts|tsx)$/.test(file))
+  test('the US adapter population mirrors every literal MX catalog route', () => {
+    const routeTail = (file: string, market: 'mx' | 'us') => {
+      const relative = path.relative(ROOT, file).replace(/\\/g, '/')
+      return relative.slice(relative.indexOf(`/${market}/`) + market.length + 2)
+    }
+    const mx = filesBelow('app/(shell)/mx')
+      .filter((file) => file.endsWith('/page.tsx'))
+      .map((file) => routeTail(file, 'mx'))
       .sort()
-
-    // D9: route-entrypoint absence is the guard. Colocated components are allowed,
-    // but a later `/us/l`, `/us/s`, search, or category route cannot quietly become
-    // a plausible-but-empty US marketplace.
-    expect(usRoutes).toEqual(['app/(us-site)/us/page.tsx'])
+    const us = filesBelow('app/(us-shell)/us')
+      .filter((file) => file.endsWith('/page.tsx'))
+      .map((file) => routeTail(file, 'us'))
+      .sort()
+    expect(mx.length, 'the MX adapter scan found nothing').toBeGreaterThan(5)
+    expect(us).toEqual(mx)
   })
 
   test('the root selector is a zero-catalog static surface', () => {
@@ -183,6 +190,15 @@ test.describe('market route population', () => {
       .map((file) => path.relative(ROOT, file))
     expect(offenders).toEqual([])
   })
+
+  test('every literal US shop route passes a market decision, not only a URL prefix', () => {
+    const wrappers = filesBelow('app/(us-shell)/us/s').filter((file) => file.endsWith('/page.tsx'))
+    expect(wrappers.length).toBeGreaterThan(5)
+    const offenders = wrappers
+      .filter((file) => !readFileSync(file, 'utf8').includes("market: 'us'"))
+      .map((file) => path.relative(ROOT, file))
+    expect(offenders).toEqual([])
+  })
 })
 
 test.describe('post-authentication destination', () => {
@@ -193,9 +209,8 @@ test.describe('post-authentication destination', () => {
   // exist in @clerk/nextjs v7, so the value must live in the layout.
   test('sign-in lands on a market, never back on the selector', () => {
     const source = readFileSync(path.join(ROOT, 'app/components/MarketDocument.tsx'), 'utf8')
-    // An OPEN market, not merely a known one. `/us` is a registry-valid code whose
-    // marketplace_status is 'invitation' — no Region, no USD price, no checkout — so
-    // landing a signed-in user there is a dead end of a different shape than `/`.
+    // An OPEN market, not merely a known one. A future scaffolded market may have a
+    // registry-valid code without a live marketplace and must not become a default.
     const openHomes = openMarketCodes().map((code) => marketBasePath(code))
     expect(openHomes, 'no open market to land on').not.toEqual([])
     expect(openHomes).toContain(marketBasePath('mx'))

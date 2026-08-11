@@ -24,6 +24,8 @@ import { deriveInventoryMode } from '@/lib/inventory-mode'
 import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
+import { resolveCommerceReadiness, type CommerceReadiness } from '@/lib/commerce-readiness'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 // ── Core types ─────────────────────────────────────────────────────────────────
 
@@ -136,6 +138,7 @@ export interface UcpListing {
   actions: UcpActions
   payment_methods: UcpPaymentMethods
   checkout_urls: UcpCheckoutUrls
+  commerce_readiness: CommerceReadiness
   offer_constraints: UcpOfferConstraints | null
 
   // Trust + safety signals (key differentiator vs. Craigslist/FB Marketplace)
@@ -166,6 +169,7 @@ export interface UcpListing {
 
 export interface UcpCatalogResponse {
   items: UcpListing[]
+  market_code: MarketCode
   total: number
   limit: number
   cursor: string | null         // ISO timestamp of last item — pass as ?cursor= for next page
@@ -189,8 +193,8 @@ export interface UcpManifest {
 
 // ── Formatter helpers ──────────────────────────────────────────────────────────
 
-function formatPrice(cents: number, currency: string): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN' })
+function formatPrice(cents: number, currency: string, marketCode: MarketCode): string {
+  return new Intl.NumberFormat(resolveMarketPresentation(marketCode).htmlLang, { style: 'currency', currency })
     .format(cents / 100)
 }
 
@@ -255,7 +259,13 @@ export function toUcpListing(
   const isDigital = listing.listing_type === 'digital'
   const isClaimed = isShopClaimed(shop)
 
-  const buyNow = hasPrice && isClaimed && inStock && (hasMp || hasStripe)
+  const commerceReadiness = resolveCommerceReadiness({
+    market: marketCode,
+    priceCents: listing.price_cents,
+    currency: listing.currency,
+    sellerPaymentAvailable: hasMp || hasStripe,
+  })
+  const buyNow = commerceReadiness.ready && isClaimed && inStock
   const makeOffer = hasPrice && !isDigital && isClaimed && inStock
 
   // ── Trust ───────────────────────────────────────────────────────────────────
@@ -296,8 +306,8 @@ export function toUcpListing(
 
   // ── Checkout URLs (POST endpoints — agent sends listingId) ──────────────────
   const checkoutUrls: UcpCheckoutUrls = {}
-  if (hasMp && hasPrice && !isDigital && isClaimed && inStock) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
-  if (hasStripe && hasPrice && isClaimed && inStock) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
+  if (commerceReadiness.ready && hasMp && !isDigital && isClaimed && inStock) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
+  if (commerceReadiness.ready && hasStripe && isClaimed && inStock) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
 
   // ── Schema.org ──────────────────────────────────────────────────────────────
   const schemaOrg: Record<string, unknown> = {
@@ -338,7 +348,7 @@ export function toUcpListing(
     price: hasPrice ? {
       amount_cents: listing.price_cents!,
       currency: listing.currency ?? 'MXN',
-      formatted: formatPrice(listing.price_cents!, listing.currency ?? 'MXN'),
+      formatted: formatPrice(listing.price_cents!, listing.currency ?? 'MXN', marketCode),
     } : null,
     images: (listing.images ?? []).map(img => ({ url: img.url, alt: img.alt ?? listing.title })),
     condition: listing.condition,
@@ -403,6 +413,7 @@ export function toUcpListing(
     },
 
     checkout_urls: checkoutUrls,
+    commerce_readiness: commerceReadiness,
     offer_constraints: offerConstraints,
 
     trust: {
