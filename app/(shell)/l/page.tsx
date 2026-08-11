@@ -82,7 +82,7 @@ export async function ListingsPage({
     <div className="max-w-6xl mx-auto px-4 py-6">
       <CategoryChips activeCategory={params.category} className="mb-3" marketBasePath={marketBasePath} language={presentation.language} />
 
-      <ListingTypeChips params={params} className="mb-5" marketBasePath={marketBasePath} />
+      <ListingTypeChips params={params} className="mb-5" marketBasePath={marketBasePath} language={presentation.language} />
 
       <SearchBar
         params={params}
