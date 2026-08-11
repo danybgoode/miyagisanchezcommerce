@@ -30,6 +30,15 @@ test.describe('market root documents · server-owned language', () => {
     }
   })
 
+  test('the selector and MX root each own a hashed file-convention OG image', () => {
+    const selectorOg = source('app/(site)/opengraph-image.tsx')
+    const mxOg = source('app/(mx-site)/mx/opengraph-image.tsx')
+    for (const image of [selectorOg, mxOg]) {
+      expect(image).toContain("from '@/app/opengraph-image'")
+      expect(image).toContain('alt, contentType, size, default')
+    }
+  })
+
   test('the current dynamic shell remains explicitly es-MX; S3 owns a sibling US shell', () => {
     const shell = source('app/(shell)/layout.tsx')
     expect(shell).toContain('<MarketDocument market="mx">')
