@@ -2,7 +2,7 @@ import 'server-only'
 import { currentUser } from '@clerk/nextjs/server'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { tg } from '@/lib/telegram'
-import { isMarketCode, type MarketCode } from '@/lib/markets'
+import type { MarketCode } from '@/lib/markets'
 
 /**
  * lib/ensure-shop.ts
