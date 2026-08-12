@@ -19,6 +19,82 @@
  */
 
 import type { FlagKey } from './flags'
+import type { MarketCode } from './markets'
+
+/**
+ * Seller nav labels per market (us-marketplace S5.1 / D17).
+ *
+ * The rail is the frame a merchant sees on EVERY page of their portal, so it is where
+ * an untranslated portal is most obviously untranslated. The es-MX column is copied
+ * verbatim from the literals that used to be inline — `/mx` must not move by a
+ * character, and the spec asserts that against the exact strings.
+ *
+ * Brand names stay as authored (AGENTS.md rule 5): "Mercado Libre" is a company, not a
+ * phrase to translate.
+ */
+const NAV_LABELS = {
+  es: {
+    operar: 'Operar', resumen: 'Resumen', pedidos: 'Pedidos', ofertas: 'Ofertas',
+    catalogo: 'Catálogo', anuncios: 'Anuncios', colecciones: 'Colecciones',
+    canales: 'Canales', mercadoLibre: 'Mercado Libre', importar: 'Importar catálogo',
+    crecer: 'Crecer', cupones: 'Cupones', suscripciones: 'Suscripciones',
+    contenido: 'Contenido', eventos: 'Eventos', sorteos: 'Sorteos',
+    analiticas: 'Analíticas', ganancias: 'Ganancias', configuracion: 'Configuración',
+  },
+  en: {
+    operar: 'Operate', resumen: 'Overview', pedidos: 'Orders', ofertas: 'Offers',
+    catalogo: 'Catalog', anuncios: 'Listings', colecciones: 'Collections',
+    canales: 'Channels', mercadoLibre: 'Mercado Libre', importar: 'Import catalog',
+    crecer: 'Grow', cupones: 'Coupons', suscripciones: 'Subscriptions',
+    contenido: 'Content', eventos: 'Events', sorteos: 'Giveaways',
+    analiticas: 'Analytics', ganancias: 'Earnings', configuracion: 'Settings',
+  },
+} as const
+
+export type SellerNavLabelKey = keyof typeof NAV_LABELS['es']
+
+/** The label table for a market. `mx` is the documented default for an unknown one. */
+export function sellerNavLabels(market: MarketCode = 'mx') {
+  return market === 'us' ? NAV_LABELS.en : NAV_LABELS.es
+}
+
+/**
+ * Re-label a nav tree for a market.
+ *
+ * Deliberately a TRANSFORM over the existing constants rather than a second tree: one
+ * structure, one set of hrefs, one flag mapping. A parallel English tree would drift
+ * the moment someone adds a page to only one of them — and the drift would be
+ * invisible, because each tree would still render fine on its own.
+ */
+export function localizeSellerNav<G extends { label: string; entries: SellerNavEntry[] }>(
+  groups: G[],
+  market: MarketCode,
+): G[] {
+  const labels = sellerNavLabels(market)
+  const t = (value: string) => LABEL_KEY_BY_ES[value] ? labels[LABEL_KEY_BY_ES[value]] : value
+  return groups.map((group) => ({
+    ...group,
+    label: t(group.label),
+    entries: group.entries.map((entry) => ({
+      ...entry,
+      label: t(entry.label),
+      ...(entry.mobileLabel ? { mobileLabel: t(entry.mobileLabel) } : {}),
+    })),
+  }))
+}
+
+export function localizeSellerNavEntries(entries: SellerNavEntry[], market: MarketCode): SellerNavEntry[] {
+  return localizeSellerNav([{ label: '', entries }], market)[0].entries
+}
+
+/**
+ * es-MX label → key. The es column IS the identity of a label, because the constants
+ * below are still authored in Spanish; translating is a lookup, and an unrecognised
+ * string passes through unchanged rather than rendering blank.
+ */
+const LABEL_KEY_BY_ES: Record<string, SellerNavLabelKey> = Object.fromEntries(
+  Object.entries(NAV_LABELS.es).map(([key, value]) => [value, key as SellerNavLabelKey]),
+) as Record<string, SellerNavLabelKey>
 
 export interface SellerNavEntry {
   /** Stable id for keys/tests. */

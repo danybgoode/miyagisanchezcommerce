@@ -4,6 +4,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/supabase'
 import { syncMedusaSellerProfile } from '@/lib/medusa-seller-sync'
 import { ensureShop, type ShopCreateInput } from '@/lib/ensure-shop'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 import { normalizeSupportSettings } from '@/lib/support-widget'
 import { httpUrl } from '@/lib/settings-import'
 
@@ -34,13 +35,27 @@ export async function POST(req: NextRequest) {
   const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
-  let body: ShopCreateInput
+  let body: ShopCreateInput & { market?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 }) }
 
   const clerkJwt = await getToken()
   if (!clerkJwt) return NextResponse.json({ error: 'Error de autenticación.' }, { status: 401 })
 
-  const result = await ensureShop(userId, clerkJwt, body)
+  // ── The intended market (us-marketplace S5.2 / D17) ──────────────────────────
+  //
+  // The onboarding form sends where the merchant signed up from; this route decides
+  // what that means. `resolveSellerSignupMarket` NARROWS an arbitrary string to a
+  // real, open market or to nothing — so the body cannot name a market that does not
+  // exist, or one that is not accepting shops.
+  //
+  // It is not a security boundary and does not pretend to be: the backend's
+  // `planSellerCreationMarket` refuses an invalid market (422) and refuses to move an
+  // existing shop across countries (409). This is the layer that makes the common
+  // case correct; that one makes every case safe.
+  const result = await ensureShop(userId, clerkJwt, {
+    ...body,
+    operatingMarket: resolveSellerSignupMarket(body.market),
+  })
   if (!result.ok) {
     return NextResponse.json({ error: result.error, ...(result.field && { field: result.field }) }, { status: result.status })
   }
