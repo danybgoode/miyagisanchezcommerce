@@ -66,6 +66,12 @@ export default function ProfitClient({
   // still looks plausible. A Mexico-only seller sees exactly one group, so the page is
   // unchanged for everyone on the platform today.
   const currencyTotals = totalsByCurrency(orderRows)
+  // `$` is the symbol for BOTH markets — es-MX renders MXN as `$1,250` and en-US
+  // renders USD as `$12.50`. So splitting the aggregation is not enough on its own:
+  // two rows would both read `$` and a seller could not tell which market they came
+  // from. When more than one currency is present, every row names its own. Found by
+  // the Codex pass on frontend PR 360.
+  const showCurrency = currencyTotals.length > 1
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
@@ -139,6 +145,7 @@ export default function ProfitClient({
                 <thead>
                   <tr className="bg-[var(--color-background)] text-left">
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Pedido</th>
+                    {showCurrency && <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Moneda</th>}
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Ingreso</th>
                     {showMlFees && <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Comisión</th>}
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Envío</th>
@@ -163,6 +170,7 @@ export default function ProfitClient({
                           </p>
                         )}
                       </td>
+                      {showCurrency && <td className="px-3 py-2 text-[var(--color-muted)] text-xs font-semibold">{r.currency_code.toUpperCase()}</td>}
                       <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents, r.currency_code)}</td>
                       {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents, r.currency_code)}</td>}
                       <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.shipping_cents, r.currency_code)}</td>
@@ -191,6 +199,7 @@ export default function ProfitClient({
                   <tr className="bg-[var(--color-background)] text-left">
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Producto</th>
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Unidades</th>
+                    {showCurrency && <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Moneda</th>}
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Ingreso</th>
                     {showMlFees && <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Comisión</th>}
                     <th className="px-3 py-2 font-medium text-[var(--color-muted)] text-xs">Costo</th>
@@ -204,6 +213,7 @@ export default function ProfitClient({
                     <tr key={`${r.product_id}::${r.variant_id ?? ''}::${r.currency_code}`} className="border-t border-[var(--color-border)]">
                       <td className="px-3 py-2 text-[var(--color-text)] font-medium truncate max-w-[16rem]">{r.title}</td>
                       <td className="px-3 py-2 text-[var(--color-text)]">{r.units}</td>
+                      {showCurrency && <td className="px-3 py-2 text-[var(--color-muted)] text-xs font-semibold">{r.currency_code.toUpperCase()}</td>}
                       <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents, r.currency_code)}</td>
                       {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents, r.currency_code)}</td>}
                       <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.cogs_cents, r.currency_code)}</td>

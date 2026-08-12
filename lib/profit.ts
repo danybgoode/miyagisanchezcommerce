@@ -172,6 +172,11 @@ export interface CurrencyTotals {
  * Sorted by revenue so the seller's principal market leads, with the currency itself as
  * the tiebreak so the order is stable across renders.
  */
+export const EMPTY_TOTALS = (currency = 'mxn'): CurrencyTotals => ({
+  currency_code: normalizeCurrency(currency),
+  revenue: 0, fees: 0, shipping: 0, cogs: 0, margin: 0, margin_pct: null, orders: 0,
+})
+
 export function totalsByCurrency(rows: OrderMarginRow[]): CurrencyTotals[] {
   const byCurrency = new Map<string, CurrencyTotals>()
   for (const row of rows) {
@@ -187,6 +192,12 @@ export function totalsByCurrency(rows: OrderMarginRow[]): CurrencyTotals[] {
     totals.orders += 1
     byCurrency.set(code, totals)
   }
+  // A seller with no sales yet still gets ONE zero group. Returning an empty array
+  // would make the summary cards vanish rather than read zero — the dashboard's
+  // existing empty state, deleted by accident. Found by the Codex pass on frontend
+  // PR 360.
+  if (byCurrency.size === 0) return [EMPTY_TOTALS()]
+
   return [...byCurrency.values()]
     .map((t) => ({ ...t, margin_pct: t.revenue > 0 ? t.margin / t.revenue : null }))
     .sort((a, b) => b.revenue - a.revenue || a.currency_code.localeCompare(b.currency_code))

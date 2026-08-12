@@ -106,6 +106,26 @@ test.describe('dashboard totals', () => {
     expect(tied.map((t) => t.currency_code)).toEqual(['mxn', 'usd'])
   })
 
+  test('a seller with NO sales still gets one zero group, not an empty dashboard', () => {
+    // Found by the Codex pass on frontend PR 360: returning `[]` here made the summary
+    // cards vanish rather than read zero, deleting the dashboard's existing empty
+    // state. A zero is a fact; an absent card is a missing feature.
+    const totals = totalsByCurrency([])
+    expect(totals).toHaveLength(1)
+    expect(totals[0]).toEqual({
+      currency_code: 'mxn', revenue: 0, fees: 0, shipping: 0, cogs: 0,
+      margin: 0, margin_pct: null, orders: 0,
+    })
+  })
+
+  test('one currency means one group — the row label only appears when it disambiguates', () => {
+    // `$` is the symbol for BOTH markets (es-MX: `$1,250`; en-US: `$12.50`), so the
+    // UI shows a currency column exactly when there is more than one group. A
+    // Mexico-only seller must not gain a column of `MXN` labels for no reason.
+    expect(totalsByCurrency(computeOrderMargins([twoMarkets.events[0]], [twoMarkets.orders[0]]))).toHaveLength(1)
+    expect(totalsByCurrency(computeOrderMargins(twoMarkets.events, twoMarkets.orders)).length).toBeGreaterThan(1)
+  })
+
   test('a Mexico-only seller sees exactly ONE group — the page is unchanged for everyone today', () => {
     const totals = totalsByCurrency(computeOrderMargins([twoMarkets.events[0]], [twoMarkets.orders[0]]))
     expect(totals).toHaveLength(1)
