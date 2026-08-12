@@ -351,9 +351,12 @@ export function computeSkuMarginsByChannel(events: ProfitEvent[], orders: Profit
     // matches computeOrderMargins' own `source` field, so a product with
     // events from both channels never collapses into one row.
     const currency = normalizeCurrency(e.currency_code)
-    const bucketKey = baseBucketKey === 'unassigned'
-      ? `unassigned::${currency}`
-      : `${baseBucketKey}::${e.source}::${currency}`
+    // The channel is in the key for the unassigned bucket TOO. Dropping it there
+    // predates this change — the original key was a bare `'unassigned'` — but it
+    // corrupts exactly what this function exists to separate: two unassigned events
+    // from different channels merged into one row, in the per-CHANNEL breakdown.
+    // Found by the Antigravity pass on frontend PR 360.
+    const bucketKey = `${baseBucketKey}::${e.source}::${currency}`
     const bucket = bucketFor(bucketKey, productId, variantId, title, e.source, currency)
 
     if (e.event_type === 'revenue') bucket.revenue_cents += e.amount_cents

@@ -79,6 +79,29 @@ test.describe('profit aggregation is currency-keyed', () => {
     expect(unassigned.map((r) => r.currency_code).sort()).toEqual(['mxn', 'usd'])
   })
 
+  test('the per-channel breakdown keeps channels apart even when unattributed', () => {
+    // The unassigned key used to drop the channel — a bare 'unassigned' before this
+    // change, `unassigned::${currency}` after my first pass. Either way two
+    // unattributed events from DIFFERENT channels merged into one row, in the
+    // function whose entire purpose is separating channels. Found by the Antigravity
+    // pass on frontend PR 360.
+    const twoChannels = computeSkuMarginsByChannel(
+      [
+        event({ id: 'n', order_id: 'o_n', order_line_id: null, source: 'native', amount_cents: 100 }),
+        event({ id: 'm', order_id: 'o_m', order_line_id: null, source: 'mercadolibre', amount_cents: 200 }),
+      ],
+      [
+        order({ id: 'o_n', source: 'native', items: [{ id: 'l1', product_id: 'p1', variant_id: null, title: 'A', quantity: 1 }, { id: 'l2', product_id: 'p2', variant_id: null, title: 'B', quantity: 1 }] }),
+        order({ id: 'o_m', source: 'mercadolibre', items: [{ id: 'l3', product_id: 'p3', variant_id: null, title: 'C', quantity: 1 }, { id: 'l4', product_id: 'p4', variant_id: null, title: 'D', quantity: 1 }] }),
+      ],
+    ).filter((r) => r.product_id === 'unassigned')
+
+    expect(twoChannels).toHaveLength(2)
+    expect(twoChannels.map((r) => r.source).sort()).toEqual(['mercadolibre', 'native'])
+    // The merged figure that must never appear.
+    expect(twoChannels.some((r) => r.revenue_cents === 300)).toBe(false)
+  })
+
   test('order rows carry their own currency', () => {
     const rows = computeOrderMargins(twoMarkets.events, twoMarkets.orders)
     expect(Object.fromEntries(rows.map((r) => [r.order_id, r.currency_code])))
