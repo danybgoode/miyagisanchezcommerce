@@ -601,11 +601,11 @@ export async function ListingPage({
               signInBuyLabel={eventModel ? signInBuyLabel : undefined}
             />
           ) : isSignedIn ? (
-            <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}&market=${market}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               <BuyerCopyText copyKey="l.id.page.fb109676" />{' '}{effectivePrice}
             </Link>
           ) : (
-            <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+            <Link href={signInHopHref(`/checkout?listingId=${listing.id}&market=${market}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
               <BuyerCopyText copyKey="l.id.page.4b2e7723" /></Link>
           )
         ) : (
@@ -691,11 +691,11 @@ export async function ListingPage({
         signInLabel={signInBuyLabel}
       />
     ) : isSignedIn ? (
-      <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+      <Link href={checkoutHopHref(`/checkout?listingId=${listing.id}&market=${market}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
         {buyNowLabel}
       </Link>
     ) : (
-      <Link href={signInHopHref(`/checkout?listingId=${listing.id}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
+      <Link href={signInHopHref(`/checkout?listingId=${listing.id}&market=${market}`, customDomain)} className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors" style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}>
         {signInBuyLabel}
       </Link>
     )

@@ -10,6 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isEnabled } from '@/lib/flags'
 import { applyPaymentKillSwitches } from '@/lib/checkout-killswitch'
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY     = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -24,17 +26,23 @@ export async function GET(req: NextRequest) {
   // to the known values here too (defense-in-depth — the backend already
   // does the same `=== 'arranged' ? 'arranged' : 'carrier'` clamp).
   const deliveryMode = searchParams.get('deliveryMode') === 'arranged' ? 'arranged' : 'carrier'
+  const requestedMarket = searchParams.get('market')
+  const market = isMarketCode(requestedMarket) ? requestedMarket : DEFAULT_MARKET
 
   if (!sellerId) {
     return NextResponse.json({ error: 'sellerId requerido.' }, { status: 400 })
   }
 
-  const qs = new URLSearchParams({ listing_type: listingType, is_digital: isDigital, delivery_mode: deliveryMode })
+  const qs = new URLSearchParams({ listing_type: listingType, is_digital: isDigital, delivery_mode: deliveryMode, market })
+  const key = resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV)
+  if (key.status !== 'resolved') {
+    return NextResponse.json({ error: 'No se pudo resolver el mercado de pago.' }, { status: 503 })
+  }
 
   try {
     const upstream = await fetch(
       `${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerId)}/checkout-options?${qs}`,
-      { headers: { 'x-publishable-api-key': PUB_KEY } },
+      { headers: { 'x-publishable-api-key': key.token || PUB_KEY } },
     )
     const data = await upstream.json().catch(() => null)
     if (data == null) {

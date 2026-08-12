@@ -24,6 +24,7 @@ import {
   issueTicket,
   type EventTicket,
 } from './event-ticket-state'
+import { admitMarketCheckout, marketCheckoutRefusalMessage } from './checkout-market-strategy'
 
 /**
  * The line-item body fragment that carries buyer personalization onto the Medusa
@@ -251,7 +252,7 @@ async function responseMessage(response: Response, fallback: string) {
 export type CheckoutProvider = 'stripe' | 'mercadopago' | 'spei' | 'cash' | 'manual'
 /** Sub-type for the unified manual ("Pago directo") method. */
 export type ManualSubType = 'clabe' | 'cash' | 'dimo'
-export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'coord' | 'none'
+export type CheckoutFulfillmentMethod = 'local_pickup' | 'shipping' | 'digital' | 'service' | 'rental' | 'coord' | 'manual_carrier' | 'none'
 
 export interface CheckoutShippingAddress {
   name?: string
@@ -390,24 +391,31 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     market,
   } = params
 
-  // Resolve the Medusa Region from the market BEFORE any network call, so an
+  // Resolve the Medusa Region and permanent market/delivery strategy BEFORE any
+  // network call, so every refusal precedes customer/cart/shipping writes.
   // unsupported market fails here rather than after a cart already exists.
   // `UnknownMarketError` propagates deliberately: cart creation is a write seam and
   // an unrecognised market at a write seam is a bug, not a degraded read.
   const marketDecision = planMarketCatalogRead(market ?? DEFAULT_MARKET)
   if (isMarketUnavailable(marketDecision)) {
     throw new Error(
-      `This marketplace is unavailable (${marketDecision.reason}). ` +
-      'US commerce is an explicit non-goal of this epic.',
+      `This marketplace is unavailable (${marketDecision.reason}).`,
     )
   }
   const regionId = resolveRegionIdForMarket(marketDecision.market.code, PROCESS_MARKET_ENV)
   if (regionId === null) {
     throw new Error(
-      'This market has no Medusa Region, so no cart can be created in it. ' +
-      'US commerce (currency, payment providers, fulfillment) is an explicit non-goal of this epic.',
+      'This market has no Medusa Region, so no cart can be created in it.',
     )
   }
+  const admission = admitMarketCheckout({
+    market: marketDecision.market.code,
+    provider,
+    fulfillmentMethod,
+    shippingAddress,
+    hasClientShippingQuote: shippingQuote != null,
+  })
+  if (!admission.ok) throw new Error(marketCheckoutRefusalMessage(admission.code, admission.market))
 
   // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'
@@ -494,6 +502,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     headers: authHeaders,
     body: JSON.stringify({
       provider,
+      market: marketDecision.market.code,
       ...(manualSubType ? { manual_sub_type: manualSubType } : {}),
       buyer_email: buyerEmail,
       ...(sellerId ? { seller_id: sellerId } : {}),
@@ -508,7 +517,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
       ...(originDomain ? { origin_domain: originDomain } : {}),
       ...(support ? { support } : {}),
       ...(rental ? { rental } : {}),
-      ...(shippingQuote ? {
+      ...(marketDecision.market.code === 'mx' && shippingQuote ? {
         shipping_quote: {
           rate_id: shippingQuote.rateId,
           carrier: shippingQuote.carrier,

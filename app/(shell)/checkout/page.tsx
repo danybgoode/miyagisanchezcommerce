@@ -19,6 +19,7 @@ import { SITE_ORIGIN } from '@/lib/market-seo'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
 import { getDictionary } from '@/lib/dictionary'
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets'
 
 type SearchParams = {
   listingId?: string
@@ -33,6 +34,7 @@ type SearchParams = {
   /** Rental: the buyer's chosen date range (from the PDP date picker). */
   checkIn?: string
   checkOut?: string
+  market?: string
 }
 
 async function resolvePublicListingId(listingId: string) {
@@ -73,6 +75,7 @@ async function getAcceptedOfferPrice(offerId: string | undefined, listingId: str
 
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
+  const market = isMarketCode(params.market) ? params.market : DEFAULT_MARKET
   // Next.js gives `string[]` for a repeated query key (?variantId=A&variantId=B)
   // regardless of the declared `SearchParams` type — coerce defensively into a
   // local so a malformed/duplicated URL can never reach unitPriceCentsFor() or
@@ -109,9 +112,9 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}${checkIn ? `&checkIn=${checkIn}` : ''}${checkOut ? `&checkOut=${checkOut}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}&market=${market}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}${checkIn ? `&checkIn=${checkIn}` : ''}${checkOut ? `&checkOut=${checkOut}` : ''}`)}`)
 
-  const listing = await getListing(listingId)
+  const listing = await getListing(listingId, market)
   if (!listing) notFound()
   const presentation = resolveMarketPresentation(listing.shop?.market_code ?? 'mx')
   const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
@@ -293,6 +296,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}
           rental={isRentalCheckout ? { check_in: checkIn!, check_out: checkOut! } : undefined}
+          market={market}
         />
       </div>
     </main>

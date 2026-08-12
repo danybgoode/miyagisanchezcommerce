@@ -16,7 +16,7 @@ export type CommerceReadiness =
  * real member only when its direct-charge checkout is implemented and verified;
  * until then every web/agent caller receives the same named refusal.
  */
-const DIRECT_CHECKOUT_MARKETS: readonly MarketCode[] = ['mx']
+const DIRECT_CHECKOUT_MARKETS: readonly MarketCode[] = ['mx', 'us']
 
 export function resolveCommerceReadiness(input: {
   market: unknown
