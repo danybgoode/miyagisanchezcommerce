@@ -499,7 +499,14 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
         </section>
       )}
 
-      {seleccion.length === 0 && categories.length === 0 && (
+      {/* `recienLlegado` belongs in this test too. Without it the page could render
+          "the first listings will appear here soon" directly beneath a listing —
+          which is exactly what /us did on the day its first product went live, with
+          one uncategorised item: `seleccion` and `categories` were both empty while
+          the new-arrivals row was not. MX never exposed it because MX always has
+          categories, which is why the original comment here read "marketplace
+          non-empty today". The empty state must mean the WHOLE page is empty. */}
+      {seleccion.length === 0 && categories.length === 0 && recienLlegado.length === 0 && (
         <div className="text-center py-16" style={{ color: 'var(--fg-muted)' }}>
           <i className="iconoir-shop" style={{ fontSize: 48, color: 'var(--fg-subtle)', display: 'block', marginBottom: 12 }} />
           <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>{home.emptyState.heading}</p>
