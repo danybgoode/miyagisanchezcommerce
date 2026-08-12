@@ -305,9 +305,22 @@ export function toUcpListing(
     : null
 
   // ── Checkout URLs (POST endpoints — agent sends listingId) ──────────────────
+  //
+  // MARKET-SCOPED. `/api/stripe/checkout` and `/api/mp/checkout` are the LEGACY
+  // Mexican rails: the first refuses any non-MXN listing outright
+  // (`MARKET_NOT_SUPPORTED`), and MercadoPago cannot settle USD at all. Advertising
+  // either to an agent for a US listing hands it a URL that is guaranteed to refuse —
+  // `buy_now: true` beside a dead endpoint, which is worse than no URL, because the
+  // agent has no way to tell the difference until it has already tried to pay.
+  //
+  // US agent checkout goes through `/api/ucp/checkout-session`, which is market-aware
+  // and enters the same Medusa `start-checkout` rail as the web (D15). That endpoint
+  // is advertised in the manifest rather than per-listing, so a US listing correctly
+  // carries no per-listing checkout URL.
   const checkoutUrls: UcpCheckoutUrls = {}
-  if (commerceReadiness.ready && hasMp && !isDigital && isClaimed && inStock) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
-  if (commerceReadiness.ready && hasStripe && isClaimed && inStock) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
+  const legacyMxRails = marketCode === 'mx'
+  if (legacyMxRails && commerceReadiness.ready && hasMp && !isDigital && isClaimed && inStock) checkoutUrls.mercadopago = `${baseUrl}/api/mp/checkout`
+  if (legacyMxRails && commerceReadiness.ready && hasStripe && isClaimed && inStock) checkoutUrls.stripe = `${baseUrl}/api/stripe/checkout`
 
   // ── Schema.org ──────────────────────────────────────────────────────────────
   const schemaOrg: Record<string, unknown> = {

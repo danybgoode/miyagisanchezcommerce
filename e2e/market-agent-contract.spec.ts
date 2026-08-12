@@ -107,10 +107,24 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(item.url).toBe('https://miyagisanchez.com/us/l/prod_123')
     expect(item.actions.buy_now).toBe(true)
     expect(item.commerce_readiness).toEqual({ ready: true, market_code: 'us', reason: 'ready' })
-    // A checkout URL is now offered at all — with the S3 readiness result it was
-    // `{}`. The URL itself is a market-neutral API endpoint by design; the market is
-    // threaded through the tool arguments, which the checkout-tool spec below covers.
-    expect(item.checkout_urls?.stripe).toBeTruthy()
+    // NO per-listing checkout URL for US, deliberately. `/api/stripe/checkout` and
+    // `/api/mp/checkout` are the legacy Mexican rails — the first refuses any non-MXN
+    // listing with MARKET_NOT_SUPPORTED and MercadoPago cannot settle USD at all.
+    // Advertising one would hand an agent `buy_now: true` beside a URL guaranteed to
+    // refuse, which is worse than no URL: the agent cannot tell until it tries to pay.
+    // US agent checkout goes through the market-aware /api/ucp/checkout-session.
+    expect(item.checkout_urls).toEqual({})
+  })
+
+  test('MX keeps its per-listing legacy rails — the market scoping is not a blanket removal', () => {
+    // Always allow the negation of what you ban: scoping the legacy rails to MX must
+    // not quietly take them away from MX, which is where they actually work.
+    const mx = toUcpListing(
+      { ...LISTING, shop: { ...LISTING.shop, clerk_user_id: 'user_mx', metadata: { settings: { stripe: { connected: true, charges_enabled: true } } } } } as Listing,
+      'https://miyagisanchez.com', null, false, 'mx',
+    )
+    expect(mx.actions.buy_now).toBe(true)
+    expect(mx.checkout_urls?.stripe).toBe('https://miyagisanchez.com/api/stripe/checkout')
   })
 
   test('a US listing whose shop has no connected Stripe account still suppresses buy_now', () => {
