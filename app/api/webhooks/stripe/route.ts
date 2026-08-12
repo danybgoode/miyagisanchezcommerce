@@ -717,6 +717,12 @@ async function handleAccountUpdated(account: Stripe.Account) {
       headers: {
         'Content-Type': 'application/json',
         'x-publishable-api-key': MEDUSA_PUB_KEY,
+        // This route flips a seller's payment readiness, so it must not stay open
+        // to anonymous callers. The backend starts REQUIRING this header in a later
+        // deploy; sending it first is inert until then, which is what makes the two
+        // repos safe to land in either order. The backend has no preview environment,
+        // so enforcing before this shipped would have broken MX account.updated syncs.
+        'x-internal-secret': process.env.MEDUSA_INTERNAL_SECRET ?? '',
       },
       body: JSON.stringify({
         stripe_account_id: account.id,
