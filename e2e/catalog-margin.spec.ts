@@ -10,6 +10,7 @@ import { MARGIN_KILLER_THRESHOLD_PCT, type SkuMarginRow } from '../lib/profit'
  */
 
 const row = (over: Partial<SkuMarginRow> = {}): SkuMarginRow => ({
+  currency_code: 'mxn',
   product_id: 'p1',
   variant_id: 'v1',
   title: 'Taza',
