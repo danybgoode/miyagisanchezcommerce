@@ -83,17 +83,38 @@ test.describe('US checkout admission', () => {
     })).toEqual({ ok: true, market: 'mx', shippingAmountCents: null })
   })
 
-  test('every refusal has a message that names the code nowhere and the fix somewhere', () => {
-    const codes = [
-      'US_ONLINE_PAYMENT_REQUIRED', 'US_CARRIER_UNAVAILABLE', 'US_ADDRESS_REQUIRED',
-      'US_CLIENT_SHIPPING_FORBIDDEN', 'COORD_REQUIRES_MANUAL_PAYMENT',
-    ] as const
-    for (const code of codes) {
-      const message = marketCheckoutRefusalMessage(code)
-      expect(message.length).toBeGreaterThan(20)
-      // A buyer must never be shown a SCREAMING_SNAKE code; that was the first draft.
-      expect(message).not.toContain(code)
-      expect(message).not.toMatch(/[A-Z]{2,}_[A-Z]/)
+  const CODES = [
+    'US_ONLINE_PAYMENT_REQUIRED', 'US_CARRIER_UNAVAILABLE', 'US_ADDRESS_REQUIRED',
+    'US_CLIENT_SHIPPING_FORBIDDEN', 'COORD_REQUIRES_MANUAL_PAYMENT',
+  ] as const
+
+  test('no refusal shows a buyer a SCREAMING_SNAKE code', () => {
+    for (const market of ['mx', 'us'] as const) {
+      for (const code of CODES) {
+        const message = marketCheckoutRefusalMessage(code, market)
+        expect(message.length).toBeGreaterThan(20)
+        expect(message).not.toContain(code)
+        expect(message).not.toMatch(/[A-Z]{2,}_[A-Z]/)
+      }
+    }
+  })
+
+  test('an MX buyer is refused in Spanish — the coord rule fires on MX too', () => {
+    // Found by the Codex cross-family pass on PR #359. `COORD_REQUIRES_MANUAL_PAYMENT`
+    // is not US-only, and the first version answered it in English, putting hardcoded
+    // English on an es-MX surface (AGENTS.md rule 5).
+    for (const code of CODES) {
+      const es = marketCheckoutRefusalMessage(code, 'mx')
+      expect(es, code).toMatch(/[áéíóúñ¿]|vendedor|envío|pedidos|dirección|navegador|entrega/i)
+    }
+    // …and the default market is MX, so an omitted argument cannot leak English.
+    expect(marketCheckoutRefusalMessage('COORD_REQUIRES_MANUAL_PAYMENT'))
+      .toBe(marketCheckoutRefusalMessage('COORD_REQUIRES_MANUAL_PAYMENT', 'mx'))
+  })
+
+  test('a US buyer is refused in English', () => {
+    for (const code of CODES) {
+      expect(marketCheckoutRefusalMessage(code, 'us'), code).not.toMatch(/[áéíóúñ¿¡]/i)
     }
   })
 })

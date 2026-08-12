@@ -415,7 +415,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     shippingAddress,
     hasClientShippingQuote: shippingQuote != null,
   })
-  if (!admission.ok) throw new Error(marketCheckoutRefusalMessage(admission.code))
+  if (!admission.ok) throw new Error(marketCheckoutRefusalMessage(admission.code, admission.market))
 
   // Manual (incl. legacy spei/cash) completes the cart inline; gateways redirect.
   const isManual = provider === 'manual' || provider === 'spei' || provider === 'cash'

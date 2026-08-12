@@ -96,17 +96,42 @@ export function admitMarketCheckout(input: {
 /** Fulfillment methods that put a parcel in front of a buyer's door. */
 const ADDRESSED_FULFILLMENT = new Set<MarketCheckoutFulfillment>(['shipping', 'manual_carrier'])
 
-export function marketCheckoutRefusalMessage(code: Exclude<MarketCheckoutAdmission, { ok: true }>['code']): string {
-  switch (code) {
-    case 'US_ONLINE_PAYMENT_REQUIRED':
-      return 'US orders are paid by card, into the seller\'s own Stripe account.'
-    case 'US_CARRIER_UNAVAILABLE':
-      return "Carrier-rated shipping is not available in the US marketplace. Choose the seller's own shipping instead."
-    case 'US_ADDRESS_REQUIRED':
-      return 'A complete US delivery address is required.'
-    case 'US_CLIENT_SHIPPING_FORBIDDEN':
-      return "Shipping cost can't be set by the browser on a US order."
-    case 'COORD_REQUIRES_MANUAL_PAYMENT':
-      return 'Coordinated delivery is arranged directly with the seller, not paid online.'
-  }
+/**
+ * Buyer-facing copy for a refusal.
+ *
+ * MARKET-SHAPED, because the refusals are not all US-only. `COORD_REQUIRES_MANUAL_PAYMENT`
+ * fires on a Mexican coordinated-delivery checkout too, and the first version answered
+ * it in English — hardcoded English on an es-MX surface, which is the one copy rule
+ * this codebase states as unbreakable (AGENTS.md rule 5). Found by the Codex
+ * cross-family pass on PR #359.
+ *
+ * These live here rather than in `locales/{es,en}.json` deliberately: they are thrown
+ * as `Error` messages from a pure module that the dictionary loader cannot reach, and
+ * the dictionary is for rendered chrome. The es-MX string is what an MX buyer sees,
+ * which is what the rule protects.
+ */
+export type MarketCheckoutRefusalCode = Exclude<MarketCheckoutAdmission, { ok: true }>['code']
+
+const REFUSALS: Record<MarketCode, Record<MarketCheckoutRefusalCode, string>> = {
+  mx: {
+    US_ONLINE_PAYMENT_REQUIRED: 'Los pedidos de Estados Unidos se pagan con tarjeta.',
+    US_CARRIER_UNAVAILABLE: 'El envío con paquetería cotizada no está disponible en el marketplace de Estados Unidos.',
+    US_ADDRESS_REQUIRED: 'Se requiere una dirección de entrega completa.',
+    US_CLIENT_SHIPPING_FORBIDDEN: 'El costo de envío no se puede definir desde el navegador.',
+    COORD_REQUIRES_MANUAL_PAYMENT: 'La entrega acordada se paga directamente con el vendedor, no en línea.',
+  },
+  us: {
+    US_ONLINE_PAYMENT_REQUIRED: "US orders are paid by card, into the seller's own Stripe account.",
+    US_CARRIER_UNAVAILABLE: "Carrier-rated shipping is not available in the US marketplace. Choose the seller's own shipping instead.",
+    US_ADDRESS_REQUIRED: 'A complete US delivery address is required.',
+    US_CLIENT_SHIPPING_FORBIDDEN: "Shipping cost can't be set by the browser on a US order.",
+    COORD_REQUIRES_MANUAL_PAYMENT: 'Coordinated delivery is arranged directly with the seller, not paid online.',
+  },
+}
+
+export function marketCheckoutRefusalMessage(
+  code: MarketCheckoutRefusalCode,
+  market: MarketCode = 'mx',
+): string {
+  return REFUSALS[market][code]
 }
