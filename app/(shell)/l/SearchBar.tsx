@@ -516,7 +516,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           type="submit"
           className="flex-1 bg-[var(--fg-inverse)] text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-[var(--r-md)] text-sm hover:bg-white/90 transition-colors"
         >
-          {resultCountLabel(count)}
+          {resultCountLabel(count, presentation.language)}
         </button>
       </div>
       </form>

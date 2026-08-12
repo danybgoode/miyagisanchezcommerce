@@ -1,4 +1,5 @@
 import type { SearchParams } from './types'
+import type { BuyerLanguage } from '@/lib/market-vocabulary'
 
 /**
  * Listing search-query helpers — kept free of any `next/*` import so the
@@ -52,9 +53,19 @@ export function listingTypeFrame(
   return type ? (TYPE_FRAMES[type] ?? null) : null
 }
 
-// Mobile filter sheet — the apply button's live label (es-MX, singular/plural).
-// `null` (count not yet loaded) → a neutral "Ver resultados"; 0 → "Sin resultados".
-export function resultCountLabel(count: number | null | undefined): string {
+// Mobile filter sheet — the apply button's live label, singular/plural per market.
+// `null` (count not yet loaded) → a neutral "see results"; 0 → "no results".
+//
+// This was hardcoded es-MX and leaked one Spanish string onto the US buyer path:
+// `/us/l` rendered an otherwise-English page whose filter button read
+// "Sin resultados". Language is a PARAMETER here, like every other label in
+// `market-vocabulary.ts` — defaulting to 'es' so the MX callers are unchanged.
+export function resultCountLabel(count: number | null | undefined, language: BuyerLanguage = 'es'): string {
+  if (language === 'en') {
+    if (count == null) return 'See results'
+    if (count <= 0) return 'No results'
+    return `See ${count} ${count === 1 ? 'result' : 'results'}`
+  }
   if (count == null) return 'Ver resultados'
   if (count <= 0) return 'Sin resultados'
   return `Ver ${count} ${count === 1 ? 'resultado' : 'resultados'}`
