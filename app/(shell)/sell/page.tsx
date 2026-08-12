@@ -6,6 +6,7 @@ import SellWizard from './SellWizard'
 import { getMySeller } from '@/lib/get-my-seller'
 import { isEnabled } from '@/lib/flags'
 import { getTenantIntake } from '@/lib/tenant-intake'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -37,7 +38,11 @@ export const metadata = {
   description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
 }
 
-export default async function SellPage() {
+export default async function SellPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const user = await currentUser()
 
   if (!user) {
@@ -110,6 +115,13 @@ export default async function SellPage() {
   // eligibility gate in `app/(shell)/layout.tsx`/`app/(shell)/sell/layout.tsx`
   // calls the same function, so this costs one Medusa round-trip per request,
   // not two.
+  // Which market this merchant is signing up from (us-marketplace S5.2 / D17).
+  // Narrowed here so the wizard receives a real, open market or nothing at all — the
+  // page is the server, and a raw query string must not travel any further than this.
+  const params = (await searchParams) ?? {}
+  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
+  const signupMarket = resolveSellerSignupMarket(marketParam)
+
   const existingShop = await getMySeller()
   // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
   // pre-launch; server-evaluated so the flag flip needs no client round-trip.
@@ -141,6 +153,7 @@ export default async function SellPage() {
         existingShop={existingShop}
         arrangedOnlyEnabled={arrangedOnlyEnabled}
         ownedShopOnlyEnabled={ownedShopOnlyEnabled}
+        signupMarket={signupMarket}
       />
     </div>
   )

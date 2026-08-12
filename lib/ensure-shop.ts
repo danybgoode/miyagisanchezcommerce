@@ -2,6 +2,7 @@ import 'server-only'
 import { currentUser } from '@clerk/nextjs/server'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { tg } from '@/lib/telegram'
+import { isMarketCode, type MarketCode } from '@/lib/markets'
 
 /**
  * lib/ensure-shop.ts
@@ -38,6 +39,19 @@ export interface ShopCreateInput {
   state?: string
   city?: string
   description?: string
+  /**
+   * The market this shop will operate in (us-marketplace S5.2 / D17).
+   *
+   * RESOLVED SERVER-SIDE by the caller and validated against the market registry
+   * before it reaches here — never taken raw from a request body. The backend is the
+   * real authority: `planSellerCreationMarket` refuses an invalid value (422) and
+   * refuses to re-marketize an existing shop (409), so a wrong value here is caught
+   * rather than silently applied.
+   *
+   * Omitted means the documented MX `legacy_default`, which is what every existing
+   * caller gets and what every seller on the platform today already has.
+   */
+  operatingMarket?: MarketCode
 }
 
 export type EnsureShopResult =
@@ -87,11 +101,23 @@ export async function ensureShop(userId: string, clerkJwt: string, body: ShopCre
       ...(body.slug?.trim() && { slug: body.slug.trim() }),
       description: body.description?.trim() || null,
       location,
+      // D17: the market travels WITH the create. Omitting it — which is what this
+      // did — meant a merchant who signed up from /us got a Mexican shop pricing in
+      // pesos, and nothing anywhere said so. The backend refuses to move an existing
+      // shop across countries, so the only moment this can be set is the first create.
+      ...(body.operatingMarket ? { operating_market: body.operatingMarket } : {}),
     }),
   })
   const createData = await createRes.json().catch(() => null) as { seller?: MedusaSellerForMirror } | null
   if (!createRes.ok || !createData?.seller) {
     console.error('[ensure-shop] seller creation failed:', createRes.status, createData)
+    // A market conflict or an invalid market is a NAMED refusal from the backend, not
+    // an outage. Flattening it to a 500 "try again" would send a merchant into an
+    // endless retry against a decision that will never change on its own.
+    if (createRes.status === 409 || createRes.status === 422) {
+      const detail = (createData as unknown as { message?: string } | null)?.message
+      return { ok: false, status: createRes.status, error: detail || 'No se pudo crear la tienda con ese mercado.' }
+    }
     return { ok: false, status: 500, error: 'No se pudo crear la tienda. Inténtalo de nuevo.' }
   }
 

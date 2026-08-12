@@ -515,12 +515,24 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
             {/* Recruit CTA is auth-aware: signed-out → /vende pitch (prerenders into the
                 static HTML), signed-in → /sell publish wizard. Both via the client AuthShow,
                 so no headers() and / stays static. (Empty-state path — marketplace non-empty today.) */}
-            {market === 'mx' && <AuthShow when="signed-out">
-              <Link href="/vende" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
-            </AuthShow>}
-            {market === 'mx' && <AuthShow when="signed-in">
-              <Link href="/sell" className="btn btn-primary btn-sm">{home.emptyState.publishCta}</Link>
-            </AuthShow>}
+            {/* us-marketplace S5.2 (D17): the US now has a real seller entry. It was
+                MX-only because US could not sell — true until S4 built the rail, and
+                a misleading CTA then. `?market=us` is the signup handoff: the server
+                page narrows it and the backend refuses anything it dislikes.
+                `/vende` is the Spanish pitch page, so a signed-out US visitor goes
+                straight to the wizard rather than to a page in the wrong language. */}
+            <AuthShow when="signed-out">
+              <Link
+                href={market === 'mx' ? '/vende' : '/sell?market=us'}
+                className="btn btn-primary btn-sm"
+              >{home.emptyState.publishCta}</Link>
+            </AuthShow>
+            <AuthShow when="signed-in">
+              <Link
+                href={market === 'mx' ? '/sell' : '/sell?market=us'}
+                className="btn btn-primary btn-sm"
+              >{home.emptyState.publishCta}</Link>
+            </AuthShow>
             {market === 'mx' ? (
               <Link href="/vecindario" className="btn btn-secondary btn-sm">{home.emptyState.secondaryCta}</Link>
             ) : (
