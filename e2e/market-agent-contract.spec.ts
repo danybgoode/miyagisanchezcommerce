@@ -65,7 +65,7 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(item.schema_org.url).toBe(item.url)
   })
 
-  test('US listings format USD in en-US and suppress buy_now with a permanent named readiness result', () => {
+  test('US listings format USD in en-US and now offer buy_now on the S4 direct-charge rail', () => {
     const usListing = {
       ...LISTING,
       title: 'Hand-thrown mug',
@@ -78,7 +78,26 @@ test.describe('UCP/MCP country-market contract', () => {
         name: 'North Clay',
         slug: 'north-clay',
         location: 'Brooklyn',
-        metadata: { stripe_account_id: 'acct_us' },
+        // Claimed: `buy_now` is `readiness.ready && isClaimed && inStock`, so an
+        // unclaimed shop would hide the readiness change behind an unrelated false.
+        clerk_user_id: 'user_north_clay',
+        // The shape a real US seller persists — Accounts v2 (D14), which has NO
+        // `connected`/`charges_enabled` keys. Written out in full rather than
+        // simplified, because "the storefront only understood the v1 shape" is
+        // exactly the bug this fixture exists to catch.
+        metadata: {
+          settings: {
+            stripe: {
+              account_id: 'acct_us',
+              api_generation: 'v2',
+              account_country: 'us',
+              merchant_configuration: 'active',
+              card_payments_status: 'active',
+              blocking_requirements: [],
+              outstanding_requirements: [],
+            },
+          },
+        },
       },
     } as Listing
     const item = toUcpListing(usListing, 'https://miyagisanchez.com', null, false, 'us')
@@ -86,9 +105,26 @@ test.describe('UCP/MCP country-market contract', () => {
     expect(item.price?.currency).toBe('USD')
     expect(item.price?.formatted).toMatch(/^\$/)
     expect(item.url).toBe('https://miyagisanchez.com/us/l/prod_123')
+    expect(item.actions.buy_now).toBe(true)
+    expect(item.commerce_readiness).toEqual({ ready: true, market_code: 'us', reason: 'ready' })
+    // A checkout URL is now offered at all — with the S3 readiness result it was
+    // `{}`. The URL itself is a market-neutral API endpoint by design; the market is
+    // threaded through the tool arguments, which the checkout-tool spec below covers.
+    expect(item.checkout_urls?.stripe).toBeTruthy()
+  })
+
+  test('a US listing whose shop has no connected Stripe account still suppresses buy_now', () => {
+    // The rail existing must not become a blanket yes. This is the case the S3 spec
+    // used to cover for every US listing, and it still has to hold for this one.
+    const unconnected = {
+      ...LISTING,
+      currency: 'USD',
+      price_cents: 10_000,
+      shop: { ...LISTING.shop, slug: 'north-clay', clerk_user_id: 'user_north_clay', metadata: {} },
+    } as Listing
+    const item = toUcpListing(unconnected, 'https://miyagisanchez.com', null, false, 'us')
     expect(item.actions.buy_now).toBe(false)
-    expect(item.checkout_urls).toEqual({})
-    expect(item.commerce_readiness).toEqual({ ready: false, market_code: 'us', reason: 'checkout_not_available' })
+    expect(item.commerce_readiness).toMatchObject({ ready: false, market_code: 'us' })
   })
 
   test('the temporary default is MX and remains explicit in the read plan', () => {

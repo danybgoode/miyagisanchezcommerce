@@ -53,7 +53,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:214",
+        "app/(shell)/checkout/page.tsx:217",
         "app/(shell)/l/[id]/page.tsx:434",
         "app/api/ucp/checkout-session/route.ts:356"
       ]
@@ -65,7 +65,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/api/checkout/options/route.ts:47"
+        "app/api/checkout/options/route.ts:55"
       ]
     },
     {
@@ -108,7 +108,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/checkout/page.tsx:169",
+        "app/(shell)/checkout/page.tsx:172",
         "app/(shell)/l/[id]/page.tsx:467",
         "app/api/ucp/checkout-session/route.ts:387"
       ]

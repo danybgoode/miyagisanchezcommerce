@@ -54,11 +54,22 @@ test.describe('US marketplace Sprint 3 contract', () => {
     expect(browse).toContain('market.catalogUnavailableHeading')
   })
 
-  test('commerce readiness permanently suppresses US direct checkout until its rail exists', () => {
+  test('commerce readiness admits US now that its direct-charge rail exists (S4)', () => {
+    // S3 pinned the opposite: `checkout_not_available`, permanently, because there was
+    // no US payment rail. S4.1 built it (Stripe Connect direct charges, proven in test
+    // mode) and S4.2 gave it a delivery method, so the honest answer changed. D13's
+    // rule was never "US is unbuyable" — it was "be honest about whether it is", and
+    // leaving this red would now be the dishonest state.
     expect(resolveCommerceReadiness({ market: 'mx', priceCents: 10_000, currency: 'MXN', sellerPaymentAvailable: true }))
       .toEqual({ ready: true, market_code: 'mx', reason: 'ready' })
     expect(resolveCommerceReadiness({ market: 'us', priceCents: 10_000, currency: 'USD', sellerPaymentAvailable: true }))
-      .toEqual({ ready: false, market_code: 'us', reason: 'checkout_not_available' })
+      .toEqual({ ready: true, market_code: 'us', reason: 'ready' })
+    // The rail existing does NOT weaken the other gates — a US shop with no connected
+    // Stripe account is still refused, by the same named result.
+    expect(resolveCommerceReadiness({ market: 'us', priceCents: 10_000, currency: 'USD', sellerPaymentAvailable: false }))
+      .toEqual({ ready: false, market_code: 'us', reason: 'seller_payment_unavailable' })
+    expect(resolveCommerceReadiness({ market: 'us', priceCents: 10_000, currency: 'MXN', sellerPaymentAvailable: true }))
+      .toEqual({ ready: false, market_code: 'us', reason: 'currency_mismatch' })
     expect(resolveCommerceReadiness({ market: 'us', priceCents: 0, currency: 'USD', sellerPaymentAvailable: true }))
       .toEqual({ ready: false, market_code: 'us', reason: 'missing_positive_price' })
     expect(resolveCommerceReadiness({ market: 'mx', priceCents: 10_000, currency: 'USD', sellerPaymentAvailable: true }))

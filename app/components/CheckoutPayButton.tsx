@@ -9,6 +9,7 @@ import type { CartItem } from './CartContext'
 import type { PersonalizationPayload } from '@/lib/personalization'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { useBuyerFormatters } from './BuyerPresentationContext'
+import type { MarketCode } from '@/lib/markets'
 
 const PAY_LABEL: Record<CheckoutProvider, string> = {
   mercadopago: 'Pagar con Mercado Pago',
@@ -48,6 +49,7 @@ interface CheckoutPayButtonProps {
   rental?: { check_in: string; check_out: string }
   disabled?: boolean
   onStarted?: () => void
+  market?: MarketCode
 }
 
 export default function CheckoutPayButton({
@@ -73,6 +75,7 @@ export default function CheckoutPayButton({
   rental,
   disabled,
   onStarted,
+  market = 'mx',
 }: CheckoutPayButtonProps) {
   const formatters = useBuyerFormatters()
   const router = useRouter()
@@ -119,6 +122,7 @@ export default function CheckoutPayButton({
         shippingQuote,
         originDomain,
         rental,
+        market,
       })
       onStarted?.()
       if (result.redirect_url) {

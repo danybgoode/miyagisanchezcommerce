@@ -14,6 +14,7 @@ import { shouldOfferCoordinatedFallback, pickManualPaymentId, isCoordDeliverySel
 import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
+import type { MarketCode } from '@/lib/markets'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -74,8 +75,8 @@ function radioDot(active: boolean): CSSProperties {
   return { width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }
 }
 
-function blankAddress(): CheckoutShippingAddress {
-  return { country: 'MX', name: '', phone: '', line1: '', ext_number: '', int_number: '', line2: '', city: '', state: '', state_code: '', postal_code: '' }
+function blankAddress(market: MarketCode): CheckoutShippingAddress {
+  return { country: market === 'us' ? 'US' : 'MX', name: '', phone: '', line1: '', ext_number: '', int_number: '', line2: '', city: '', state: '', state_code: '', postal_code: '' }
 }
 
 export default function CheckoutExperience({
@@ -94,6 +95,7 @@ export default function CheckoutExperience({
   originDomain,
   rental,
   onStarted,
+  market = 'mx',
 }: {
   sellerId: string
   listingId?: string
@@ -115,6 +117,7 @@ export default function CheckoutExperience({
   /** Rental: buyer's chosen date range. ONLY dates — never an amount. */
   rental?: { check_in: string; check_out: string }
   onStarted?: () => void
+  market?: MarketCode
 }) {
   const formatters = useBuyerFormatters()
   const formatCents = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
@@ -136,7 +139,7 @@ export default function CheckoutExperience({
 
   useEffect(() => {
     let cancelled = false
-    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital), deliveryMode })
+    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital), deliveryMode, market })
     fetch(`/api/checkout/options?${qs}`)
       .then(r => r.json())
       .then((data: CheckoutOptions & { error?: string }) => {
@@ -148,7 +151,7 @@ export default function CheckoutExperience({
       })
       .catch(() => { if (!cancelled) setOptionsError('No se pudieron cargar las opciones de pago.') })
     return () => { cancelled = true }
-  }, [sellerId, listingType, isDigital, deliveryMode])
+  }, [sellerId, listingType, isDigital, deliveryMode, market])
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
@@ -156,7 +159,7 @@ export default function CheckoutExperience({
   const [pickupDate, setPickupDate] = useState('')
   const [pickupWindow, setPickupWindow] = useState('')
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
-  const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
+  const [address, setAddress] = useState<CheckoutShippingAddress>(() => blankAddress(market))
 
   // CP-first lookup state
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
@@ -230,7 +233,7 @@ export default function CheckoutExperience({
     [paymentMethods, selectedPaymentId],
   )
 
-  const cpResolved = Boolean(cpResult?.stateCode)
+  const cpResolved = market === 'us' || Boolean(cpResult?.stateCode)
   const addressReady = !selectedDelivery?.requires_address || Boolean(
     address.name?.trim() && address.line1?.trim() && address.ext_number?.trim() && address.state_code?.trim() && address.postal_code?.trim(),
   )
@@ -863,6 +866,7 @@ export default function CheckoutExperience({
             shippingQuote={isCoordCheckout ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
             rental={rental}
+            market={market}
             disabled={!canPay}
             onStarted={onStarted}
           />
