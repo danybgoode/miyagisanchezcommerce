@@ -7,6 +7,8 @@ import {
   SELLER_NAV,
   SELLER_NAV_MOBILE_PRIMARY,
   SELLER_NAV_MOBILE_OVERFLOW_GROUPS,
+  localizeSellerNav,
+  localizeSellerNavEntries,
   activeSellerNavHref,
   filterNavByEnabledFlags,
   filterEntriesByEnabledFlags,
@@ -17,6 +19,7 @@ import type { FlagKey } from '@/lib/flags'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import type { MarketCode } from '@/lib/markets'
 
 interface SellerNavProps {
   /** Server-resolved via `isEnabled()` in `layout.tsx` — never forked here. */
@@ -27,6 +30,11 @@ interface SellerNavProps {
   configIncomplete?: boolean
   /** Backs the "Ver tienda pública" link in the "Más" sheet; omitted when no shop/user. */
   shopSlug?: string | null
+  /**
+   * The shop's operating market, resolved server-side from Medusa (D17). Drives the
+   * nav language only — never a channel, payment or publication decision (D9).
+   */
+  market?: MarketCode
 }
 
 // ── Desktop left rail ─────────────────────────────────────────────────────────
@@ -187,13 +195,16 @@ function OverflowEntry({
   )
 }
 
-export default function SellerNav({ enabledFlags = new Set(), badges = {}, configIncomplete = false, shopSlug = null }: SellerNavProps) {
+export default function SellerNav({ enabledFlags = new Set(), badges = {}, configIncomplete = false, shopSlug = null, market = 'mx' }: SellerNavProps) {
   const pathname = usePathname() ?? ''
   const active = activeSellerNavHref(pathname)
   const [moreOpen, setMoreOpen] = useState(false)
-  const railGroups = filterNavByEnabledFlags(SELLER_NAV, enabledFlags)
-  const primaryEntries = filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_PRIMARY, enabledFlags)
-  const overflowGroups = filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, enabledFlags)
+  // The market comes from the shop row via the server shell (D17) — never from the
+  // browser. Localizing is a TRANSFORM over the one nav tree, so the structure, hrefs
+  // and flag gating cannot drift between languages.
+  const railGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV, enabledFlags), market)
+  const primaryEntries = localizeSellerNavEntries(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_PRIMARY, enabledFlags), market)
+  const overflowGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, enabledFlags), market)
   const relayActive = hasRelayBadge(overflowGroups, badges)
 
   return (
@@ -201,7 +212,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
       {/* ── Desktop left rail ── */}
       <nav
         className="hidden md:flex"
-        aria-label="Navegación de vendedor"
+        aria-label={market === 'us' ? 'Seller navigation' : 'Navegación de vendedor'}
         style={{
           flexDirection: 'column',
           gap: 18,
@@ -332,7 +343,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
 
       <nav
         className="glass-liquid flex md:hidden"
-        aria-label="Navegación de vendedor"
+        aria-label={market === 'us' ? 'Seller navigation' : 'Navegación de vendedor'}
         style={{
           position: 'fixed',
           bottom: 'max(16px, env(safe-area-inset-bottom))',
