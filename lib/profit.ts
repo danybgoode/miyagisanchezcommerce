@@ -45,6 +45,8 @@ export interface ProfitOrderInfo {
 export type PendingPiece = 'cogs' | 'shipping' | 'ml_fee'
 
 export interface OrderMarginRow {
+  /** The order's own currency (S4.3 / D16) — see `SkuMarginRow.currency_code`. */
+  currency_code: string
   order_id: string
   display_id: number | null
   created_at: string | null
@@ -63,6 +65,15 @@ export interface OrderMarginRow {
 }
 
 export interface SkuMarginRow {
+  /**
+   * The currency this row is denominated in (us-marketplace S4.3 / D16).
+   *
+   * Every aggregation key includes it. Cents are not a unit — 1000 MXN cents and
+   * 1000 USD cents are different amounts of money, and adding them produces a number
+   * that is not a price in any currency. Before this, a seller operating in both
+   * markets would have seen one summed figure with no indication it was nonsense.
+   */
+  currency_code: string
   product_id: string
   /** The specific variant this row's Apply-price control targets (Sprint 2 ·
    * US-5); null when events couldn't be attributed to a single variant. */
@@ -118,6 +129,7 @@ export function computeOrderMargins(events: ProfitEvent[], orders: ProfitOrderIn
 
     const margin = revenue - fees - shipping - cogs
     rows.push({
+      currency_code: normalizeCurrency(info?.currency_code),
       order_id: orderId,
       display_id: info?.display_id ?? null,
       created_at: info?.created_at ?? null,
@@ -137,6 +149,63 @@ export function computeOrderMargins(events: ProfitEvent[], orders: ProfitOrderIn
   return rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
 }
 
+export interface CurrencyTotals {
+  currency_code: string
+  revenue: number
+  fees: number
+  shipping: number
+  cogs: number
+  margin: number
+  margin_pct: number | null
+  orders: number
+}
+
+/**
+ * Dashboard totals, ONE SET PER CURRENCY (S4.3 / D16).
+ *
+ * The dashboard used to `reduce` every order row into a single figure. For a
+ * Mexico-only platform that was right; the moment one seller takes both MXN and USD it
+ * becomes a number that is not money — pesos and dollars added as though cents were a
+ * unit. And it fails silently: the total still renders, still looks plausible, and is
+ * simply wrong, which is the worst shape a money bug can take.
+ *
+ * Sorted by revenue so the seller's principal market leads, with the currency itself as
+ * the tiebreak so the order is stable across renders.
+ */
+export function totalsByCurrency(rows: OrderMarginRow[]): CurrencyTotals[] {
+  const byCurrency = new Map<string, CurrencyTotals>()
+  for (const row of rows) {
+    const code = normalizeCurrency(row.currency_code)
+    const totals = byCurrency.get(code) ?? {
+      currency_code: code, revenue: 0, fees: 0, shipping: 0, cogs: 0, margin: 0, margin_pct: null, orders: 0,
+    }
+    totals.revenue += row.revenue_cents
+    totals.fees += row.fees_cents
+    totals.shipping += row.shipping_cents
+    totals.cogs += row.cogs_cents
+    totals.margin += row.margin_cents
+    totals.orders += 1
+    byCurrency.set(code, totals)
+  }
+  return [...byCurrency.values()]
+    .map((t) => ({ ...t, margin_pct: t.revenue > 0 ? t.margin / t.revenue : null }))
+    .sort((a, b) => b.revenue - a.revenue || a.currency_code.localeCompare(b.currency_code))
+}
+
+/**
+ * The currency an amount is denominated in, lowercased, with a documented default.
+ *
+ * `mxn` is the fallback because every event that predates the US market is Mexican and
+ * the column was nullable then — NOT because an unknown currency is safe to treat as
+ * pesos. A row whose currency truly cannot be read is a different fact from a Mexican
+ * one, but it cannot arise here: the ledger writer stamps `order.currency_code` and
+ * defaults it identically, so the two agree by construction rather than by luck.
+ */
+export function normalizeCurrency(currency: string | null | undefined): string {
+  const value = typeof currency === 'string' ? currency.trim().toLowerCase() : ''
+  return value || 'mxn'
+}
+
 /**
  * Line-level events (revenue / ml_fee / cogs) aggregated per product.
  * Attribution: by the event's `order_line_id` → the order's item → product;
@@ -153,11 +222,11 @@ export function computeSkuMargins(events: ProfitEvent[], orders: ProfitOrderInfo
   // unit, US-5), falling back to product_id for events that predate a
   // variant_id being recorded — never collapses two distinct variants of the
   // same product into one row.
-  const bucketFor = (bucketKey: string, productId: string, variantId: string | null, title: string): SkuMarginRow => {
+  const bucketFor = (bucketKey: string, productId: string, variantId: string | null, title: string, currency: string): SkuMarginRow => {
     const existing = buckets.get(bucketKey)
     if (existing) return existing
     const fresh: SkuMarginRow = {
-      product_id: productId, variant_id: variantId, title, units: 0,
+      currency_code: currency, product_id: productId, variant_id: variantId, title, units: 0,
       revenue_cents: 0, fees_cents: 0, cogs_cents: 0, margin_cents: 0, margin_pct: null, pending: [],
     }
     buckets.set(bucketKey, fresh)
@@ -186,8 +255,12 @@ export function computeSkuMargins(events: ProfitEvent[], orders: ProfitOrderInfo
     const productId = item?.product_id ?? 'unassigned'
     const variantId = item?.variant_id ?? null
     const title = item?.title ?? 'Sin asignar'
-    const bucketKey = productId === 'unassigned' ? 'unassigned' : (variantId ?? productId)
-    const bucket = bucketFor(bucketKey, productId, variantId, title)
+    // CURRENCY IS PART OF THE KEY (D16). Even the "unassigned" bucket splits by it —
+    // an honest unattributed total in one currency beats a meaningless mixed one.
+    const currency = normalizeCurrency(e.currency_code)
+    const baseKey = productId === 'unassigned' ? 'unassigned' : (variantId ?? productId)
+    const bucketKey = `${baseKey}::${currency}`
+    const bucket = bucketFor(bucketKey, productId, variantId, title, currency)
 
     if (e.event_type === 'revenue') bucket.revenue_cents += e.amount_cents
     else if (e.event_type === 'ml_fee') bucket.fees_cents += e.amount_cents
@@ -232,11 +305,11 @@ export function computeSkuMarginsByChannel(events: ProfitEvent[], orders: Profit
   const orderById = new Map(orders.map((o) => [o.id, o]))
   const buckets = new Map<string, SkuMarginRow>()
 
-  const bucketFor = (bucketKey: string, productId: string, variantId: string | null, title: string, source: ProfitSource): SkuMarginRow => {
+  const bucketFor = (bucketKey: string, productId: string, variantId: string | null, title: string, source: ProfitSource, currency: string): SkuMarginRow => {
     const existing = buckets.get(bucketKey)
     if (existing) return existing
     const fresh: SkuMarginRow = {
-      product_id: productId, variant_id: variantId, title, units: 0,
+      currency_code: currency, product_id: productId, variant_id: variantId, title, units: 0,
       revenue_cents: 0, fees_cents: 0, cogs_cents: 0, margin_cents: 0, margin_pct: null, pending: [], source,
     }
     buckets.set(bucketKey, fresh)
@@ -266,8 +339,11 @@ export function computeSkuMarginsByChannel(events: ProfitEvent[], orders: Profit
     // The per-channel dimension: the event's own source, not the order's —
     // matches computeOrderMargins' own `source` field, so a product with
     // events from both channels never collapses into one row.
-    const bucketKey = baseBucketKey === 'unassigned' ? 'unassigned' : `${baseBucketKey}::${e.source}`
-    const bucket = bucketFor(bucketKey, productId, variantId, title, e.source)
+    const currency = normalizeCurrency(e.currency_code)
+    const bucketKey = baseBucketKey === 'unassigned'
+      ? `unassigned::${currency}`
+      : `${baseBucketKey}::${e.source}::${currency}`
+    const bucket = bucketFor(bucketKey, productId, variantId, title, e.source, currency)
 
     if (e.event_type === 'revenue') bucket.revenue_cents += e.amount_cents
     else if (e.event_type === 'ml_fee') bucket.fees_cents += e.amount_cents
@@ -397,8 +473,22 @@ export function classifyUnderpriced(rows: SkuMarginRow[]): SkuMarginRow[] {
 }
 
 /** es-MX centavos → "$1,850.50" (matches the manage-area convention). */
+/**
+ * Format an amount in its OWN currency's locale (D9).
+ *
+ * `Intl` will happily render USD under `es-MX` — it produces `USD 12.50`, with a
+ * Mexican decimal convention and a currency code where a US seller expects `$12.50`.
+ * The locale follows the money, not the viewer, because this is a seller reading their
+ * own takings for a market they operate in.
+ */
+const CURRENCY_LOCALE: Record<string, string> = { mxn: 'es-MX', usd: 'en-US' }
+
 export function formatCents(cents: number, currency = 'MXN'): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
+  const code = normalizeCurrency(currency)
+  return new Intl.NumberFormat(CURRENCY_LOCALE[code] ?? 'es-MX', {
+    style: 'currency',
+    currency: code.toUpperCase(),
+  }).format(cents / 100)
 }
 
 /** 0.4213 → "42.1%"; null → "—". */

@@ -69,6 +69,7 @@ test.describe('profit · solveForPrice (US-4)', () => {
 })
 
 const skuRow = (over: Partial<SkuMarginRow> = {}): SkuMarginRow => ({
+  currency_code: 'mxn',
   product_id: 'p1',
   variant_id: 'v1',
   title: 'Taza',

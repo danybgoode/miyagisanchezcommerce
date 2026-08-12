@@ -52,6 +52,36 @@ export function formatPresentationCurrency(
   }).format(cents / 100)
 }
 
+/**
+ * Format an amount for an order, receipt, refund or email, from the amount's OWN
+ * currency (us-marketplace S4.3 / D9).
+ *
+ * Order surfaces have no `MarketPresentation` in hand — they have an order row with a
+ * `currency_code`. Before this they passed that currency to a HARDCODED `es-MX`
+ * locale, which renders USD as `USD 12` rather than `$12.50`: a Mexican decimal
+ * convention, a currency code where a US buyer expects a symbol, and — because those
+ * call sites also pass `maximumFractionDigits: 0` — no cents at all. Rounding a
+ * $12.50 receipt to `$13` is not a formatting nit; it is a receipt that disagrees with
+ * the card statement.
+ *
+ * So the locale follows the money and cents are preserved for USD. MXN keeps its
+ * whole-peso convention, which is what every existing call site asked for and what
+ * `/mx` must keep showing.
+ */
+export function formatOrderCurrency(
+  cents: number,
+  currency: string | null | undefined,
+  options: Intl.NumberFormatOptions = {},
+): string {
+  const code = (typeof currency === 'string' && currency.trim() ? currency : 'MXN').trim().toUpperCase()
+  const presentation = resolveMarketPresentation(code === 'USD' ? 'us' : 'mx')
+  return formatPresentationCurrency(presentation, cents, code, {
+    // Whole pesos as before; real cents for dollars.
+    maximumFractionDigits: code === 'MXN' ? 0 : 2,
+    ...options,
+  })
+}
+
 export function formatPresentationDate(
   presentation: MarketPresentation,
   value: string | number | Date,

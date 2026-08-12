@@ -3,6 +3,7 @@
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
   formatCents,
+  totalsByCurrency,
   formatPct,
   classifyMarginKillers,
   classifyUnderpriced,
@@ -32,11 +33,11 @@ function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—'
 }
 
-function MarginCell({ cents, pct }: { cents: number; pct: number | null }) {
+function MarginCell({ cents, pct, currency }: { cents: number; pct: number | null; currency?: string }) {
   const negative = cents < 0
   return (
     <span className={negative ? 'text-red-600 font-semibold' : 'text-green-700 font-semibold'}>
-      {formatCents(cents)}
+      {formatCents(cents, currency)}
       <span className="text-xs font-normal text-[var(--color-muted)]"> · {formatPct(pct)}</span>
     </span>
   )
@@ -60,17 +61,11 @@ export default function ProfitClient({
   // this filter just avoids rendering an empty/broken card).
   const pricingRows = skuRows.filter((r) => r.variant_id && r.units > 0 && r.revenue_cents > 0)
 
-  const totals = orderRows.reduce(
-    (acc, r) => ({
-      revenue: acc.revenue + r.revenue_cents,
-      fees: acc.fees + r.fees_cents,
-      shipping: acc.shipping + r.shipping_cents,
-      cogs: acc.cogs + r.cogs_cents,
-      margin: acc.margin + r.margin_cents,
-    }),
-    { revenue: 0, fees: 0, shipping: 0, cogs: 0, margin: 0 },
-  )
-  const totalPct = totals.revenue > 0 ? totals.margin / totals.revenue : null
+  // ONE SET OF TOTALS PER CURRENCY (S4.3 / D16). Summing pesos and dollars produces a
+  // number that is not money, and does it silently — the figure still renders and
+  // still looks plausible. A Mexico-only seller sees exactly one group, so the page is
+  // unchanged for everyone on the platform today.
+  const currencyTotals = totalsByCurrency(orderRows)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
@@ -90,33 +85,42 @@ export default function ProfitClient({
         </div>
       )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
-          <p className="text-xs text-[var(--color-muted)] font-medium">Ingresos</p>
-          <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.revenue)}</p>
-          <p className="text-xs text-[var(--color-muted)] mt-0.5">{orderRows.length} ventas</p>
-        </div>
-        {showMlFees && (
-          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
-            <p className="text-xs text-[var(--color-muted)] font-medium">Comisiones ML</p>
-            <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.fees)}</p>
-            <p className="text-xs text-[var(--color-muted)] mt-0.5">cobradas por Mercado Libre</p>
+      {/* KPI cards — one row per currency (S4.3 / D16) */}
+      {currencyTotals.map((totals) => (
+        <div key={totals.currency_code} className="space-y-2">
+          {currencyTotals.length > 1 && (
+            <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">
+              {totals.currency_code.toUpperCase()}
+            </p>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
+              <p className="text-xs text-[var(--color-muted)] font-medium">Ingresos</p>
+              <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.revenue, totals.currency_code)}</p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">{totals.orders} ventas</p>
+            </div>
+            {showMlFees && (
+              <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
+                <p className="text-xs text-[var(--color-muted)] font-medium">Comisiones ML</p>
+                <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.fees, totals.currency_code)}</p>
+                <p className="text-xs text-[var(--color-muted)] mt-0.5">cobradas por Mercado Libre</p>
+              </div>
+            )}
+            <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
+              <p className="text-xs text-[var(--color-muted)] font-medium">Costos + envío</p>
+              <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.cogs + totals.shipping, totals.currency_code)}</p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">tu costo {formatCents(totals.cogs, totals.currency_code)} · envío {formatCents(totals.shipping, totals.currency_code)}</p>
+            </div>
+            <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
+              <p className="text-xs text-[var(--color-muted)] font-medium">Ganancia</p>
+              <p className={`text-xl font-bold mt-1 ${totals.margin < 0 ? 'text-red-600' : 'text-[var(--color-accent)]'}`}>
+                {formatCents(totals.margin, totals.currency_code)}
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5">margen {formatPct(totals.margin_pct)}</p>
+            </div>
           </div>
-        )}
-        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
-          <p className="text-xs text-[var(--color-muted)] font-medium">Costos + envío</p>
-          <p className="text-xl font-bold text-[var(--color-text)] mt-1">{formatCents(totals.cogs + totals.shipping)}</p>
-          <p className="text-xs text-[var(--color-muted)] mt-0.5">tu costo {formatCents(totals.cogs)} · envío {formatCents(totals.shipping)}</p>
         </div>
-        <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4">
-          <p className="text-xs text-[var(--color-muted)] font-medium">Ganancia</p>
-          <p className={`text-xl font-bold mt-1 ${totals.margin < 0 ? 'text-red-600' : 'text-[var(--color-accent)]'}`}>
-            {formatCents(totals.margin)}
-          </p>
-          <p className="text-xs text-[var(--color-muted)] mt-0.5">margen {formatPct(totalPct)}</p>
-        </div>
-      </div>
+      ))}
 
       {/* Per-order table */}
       <div>
@@ -159,11 +163,11 @@ export default function ProfitClient({
                           </p>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents)}</td>
-                      {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents)}</td>}
-                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.shipping_cents)}</td>
-                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.cogs_cents)}</td>
-                      <td className="px-3 py-2"><MarginCell cents={r.margin_cents} pct={r.margin_pct} /></td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents, r.currency_code)}</td>
+                      {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents, r.currency_code)}</td>}
+                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.shipping_cents, r.currency_code)}</td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.cogs_cents, r.currency_code)}</td>
+                      <td className="px-3 py-2"><MarginCell cents={r.margin_cents} pct={r.margin_pct} currency={r.currency_code} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -195,13 +199,15 @@ export default function ProfitClient({
                 </thead>
                 <tbody>
                   {skuRows.map((r) => (
-                    <tr key={r.product_id} className="border-t border-[var(--color-border)]">
+                    // The key includes the currency: one SKU sold in two markets is two
+                    // rows now, and a product_id-only key would collide and drop one.
+                    <tr key={`${r.product_id}::${r.variant_id ?? ''}::${r.currency_code}`} className="border-t border-[var(--color-border)]">
                       <td className="px-3 py-2 text-[var(--color-text)] font-medium truncate max-w-[16rem]">{r.title}</td>
                       <td className="px-3 py-2 text-[var(--color-text)]">{r.units}</td>
-                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents)}</td>
-                      {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents)}</td>}
-                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.cogs_cents)}</td>
-                      <td className="px-3 py-2"><MarginCell cents={r.margin_cents} pct={r.margin_pct} /></td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.revenue_cents, r.currency_code)}</td>
+                      {showMlFees && <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.fees_cents, r.currency_code)}</td>}
+                      <td className="px-3 py-2 text-[var(--color-text)]">{formatCents(r.cogs_cents, r.currency_code)}</td>
+                      <td className="px-3 py-2"><MarginCell cents={r.margin_cents} pct={r.margin_pct} currency={r.currency_code} /></td>
                     </tr>
                   ))}
                 </tbody>

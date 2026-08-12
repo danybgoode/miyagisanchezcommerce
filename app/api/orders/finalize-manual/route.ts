@@ -24,13 +24,14 @@ import { isEnabled } from '@/lib/flags'
 import { resolveBuyerClerkId } from '@/lib/order-buyer'
 import { listingUrlFor } from '@/lib/market-url'
 import type { RentalBookingLike } from '@/lib/rental-booking'
+import { formatOrderCurrency } from '@/lib/market-presentation'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
 
 function fmt(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN', maximumFractionDigits: 0 }).format((cents ?? 0) / 100)
+  return formatOrderCurrency((cents ?? 0), currency || 'MXN')
 }
 
 type ManualOrder = {
