@@ -103,7 +103,11 @@ const ADDRESSED_FULFILLMENT = new Set<MarketCheckoutFulfillment>(['shipping', 'm
  * fires on a Mexican coordinated-delivery checkout too, and the first version answered
  * it in English — hardcoded English on an es-MX surface, which is the one copy rule
  * this codebase states as unbreakable (AGENTS.md rule 5). Found by the Codex
- * cross-family pass on PR #359.
+ * cross-family pass on frontend PR 359.
+ *
+ * (Written without a `#` on purpose: the design-token guard scans comments too and
+ * reads a hash-prefixed 3- or 6-digit PR number as a raw hex colour. Rewording is
+ * cheaper and safer than loosening a guard on the money path.)
  *
  * These live here rather than in `locales/{es,en}.json` deliberately: they are thrown
  * as `Error` messages from a pure module that the dictionary loader cannot reach, and
