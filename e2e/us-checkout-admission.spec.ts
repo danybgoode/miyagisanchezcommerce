@@ -7,6 +7,14 @@ import { admitMarketCheckout, marketCheckoutRefusalMessage } from '../lib/checko
  * The backend's `admitUsDelivery` is the authorization boundary; this copy exists so
  * the buyer is stopped before a cart write rather than after one. The two must agree,
  * so the refusal CODES here are deliberately the same strings the backend returns.
+ *
+ * OWED TO DANIEL — the first REAL USD charge. Everything here and in the backend's
+ * matrix is proven, and S4.1's Stripe TEST-mode run took a real card through direct
+ * charge → refund → fee (21/21). What no automated layer can do is move real money:
+ * one live USD order paid, fulfilled with a tracking number, and refunded, on the
+ * production Stripe account. Runbook: `Roadmap/07-agentic-and-federated-commerce/
+ * us-marketplace/sprint-4.md`, smoke step 6. This is the epic's only real-money step
+ * and it is deliberately a human's, not an agent's.
  */
 
 const usAddress = {

@@ -17,6 +17,14 @@ import { resolveCommerceReadiness } from '../lib/commerce-readiness'
  * `seller_payment_unavailable` and every surface — storefront, UCP, MCP — suppressed
  * `buy_now` permanently. Browsable and unbuyable, with no error anywhere: the backend
  * was ready to charge and the frontend never offered the button.
+ *
+ * OWED TO DANIEL — a live Stripe Connect onboarding round-trip on a US shop. The
+ * projection, the readiness rules and the return URL all have specs, but only a real
+ * session can prove the whole loop: start onboarding, complete it at Stripe, land back
+ * on `/shop/manage/settings/pagos` (it returned a 404 until backend #150), and see the
+ * shop report ready. The 404 was found this way and by no other means — the fact that
+ * made the URL wrong lived in the backend repo, invisible to every reviewer reading
+ * the storefront.
  */
 
 /** Exactly what `mergeStripeSettings(_, projectStripeV2Account(account))` persists. */
