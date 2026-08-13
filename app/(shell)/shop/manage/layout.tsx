@@ -1,5 +1,8 @@
 import { headers } from 'next/headers'
 import SellerShellChrome from './_components/SellerShellChrome'
+import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import { getDictionary } from '@/lib/dictionary'
+import { getMySeller } from '@/lib/get-my-seller'
 
 /**
  * Seller-mode shell for `/shop/manage/*`.
@@ -23,10 +26,20 @@ export default async function SellerManageLayout({ children }: { children: React
   const channel = hdrs.get('x-miyagi-channel')
   const isChannel = channel === 'custom' || channel === 'subdomain'
   const whiteLabel = isEmbed || isChannel
+  const seller = await getMySeller()
+  const market = seller?.market ?? 'mx'
+
+  const content = whiteLabel
+    ? children
+    : <SellerShellChrome>{children}</SellerShellChrome>
+
+  // MX is the authored tree, byte for byte: no boundary and no dictionary are
+  // introduced into its render path. Medusa's seller market is the only switch.
+  if (market !== 'us') return content
+
+  const copy = (await getDictionary('en')).sellerCopy
 
   // White-label host → the root ChannelLayout already owns the chrome. Render the
   // manage pages plainly inside it; no seller shell, no stacked bars.
-  if (whiteLabel) return <>{children}</>
-
-  return <SellerShellChrome>{children}</SellerShellChrome>
+  return <SellerCopyBoundary market={market} copy={copy}>{content}</SellerCopyBoundary>
 }

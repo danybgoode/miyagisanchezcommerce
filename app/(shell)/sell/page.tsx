@@ -3,6 +3,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SellWizard from './SellWizard'
+import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
 import { isEnabled } from '@/lib/flags'
 import { getTenantIntake } from '@/lib/tenant-intake'
@@ -43,10 +45,15 @@ export default async function SellPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
+  // A not-yet-created seller has no Medusa market. The explicit, validated
+  // signup market is the existing S5 authority for this one pre-seller state.
+  const params = (await searchParams) ?? {}
+  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
+  const signupMarket = resolveSellerSignupMarket(marketParam)
   const user = await currentUser()
 
   if (!user) {
-    return (
+    const content = (
       <div className="max-w-2xl mx-auto px-4 py-16">
         {/* Hero */}
         <div className="text-center mb-12">
@@ -106,6 +113,9 @@ export default async function SellPage({
         </p>
       </div>
     )
+    if (signupMarket !== 'us') return content
+    const copy = (await getDictionary('en')).sellerCopy
+    return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
   }
 
   // Medusa is the source of truth for sellers (same as /shop/manage). Checking it
@@ -115,13 +125,6 @@ export default async function SellPage({
   // eligibility gate in `app/(shell)/layout.tsx`/`app/(shell)/sell/layout.tsx`
   // calls the same function, so this costs one Medusa round-trip per request,
   // not two.
-  // Which market this merchant is signing up from (us-marketplace S5.2 / D17).
-  // Narrowed here so the wizard receives a real, open market or nothing at all — the
-  // page is the server, and a raw query string must not travel any further than this.
-  const params = (await searchParams) ?? {}
-  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
-  const signupMarket = resolveSellerSignupMarket(marketParam)
-
   const existingShop = await getMySeller()
   // Arranged-only delivery (epic, S1.2) — the "Entrega" toggle stays hidden
   // pre-launch; server-evaluated so the flag flip needs no client round-trip.
@@ -146,7 +149,7 @@ export default async function SellPage({
     }
   }
 
-  return (
+  const content = (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {!existingShop && <AgentSetupNudge />}
       <SellWizard
@@ -157,4 +160,9 @@ export default async function SellPage({
       />
     </div>
   )
+  // Existing US shops are wrapped by the layout from their Medusa market. This
+  // branch is only for a fresh seller whose validated signup market is US.
+  if (existingShop || signupMarket !== 'us') return content
+  const copy = (await getDictionary('en')).sellerCopy
+  return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
 }
