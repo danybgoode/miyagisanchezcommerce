@@ -11,6 +11,20 @@ import { resolveMarketPresentation } from '../lib/market-presentation'
  * `normalizeLocale('en-US')` returns `es`, so a US merchant's own dashboard would have
  * concluded it was Mexican. The market is a fact about the shop; the language is
  * derived from it, never the reverse.
+ *
+ * OWED TO DANIEL — an authed `/sell` load. This is the one direct confirmation that
+ * real Clerk session tokens carry the issuer the new JWKS verification expects
+ * (backend #148). The evidence is strong but indirect — the instance's own OIDC
+ * discovery document, the `pk_live` decode, no satellite config — and the old
+ * retry-without-issuer fallback is deliberately gone, so there is no second chance if
+ * it is wrong. `logIssuerMismatch` prints the claimed vs expected issuer on failure,
+ * so a wrong assumption costs one log line rather than an hour.
+ *
+ * OWED TO DANIEL — the seller portal's body copy. The rail, shell chrome, locale seam
+ * and signup path are en-US; roughly 550 strings across 113 page files under
+ * `app/(shell)/shop/manage/**` are still es-MX, so a US merchant currently gets an
+ * English frame around Spanish pages. Scoped with a regenerable count in
+ * `Roadmap/07-agentic-and-federated-commerce/us-marketplace/sprint-5.md`.
  */
 
 const root = process.cwd()
