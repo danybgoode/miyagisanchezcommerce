@@ -27,10 +27,22 @@ import {
   filterCommunications,
 } from '../lib/notifications/catalog'
 
+/**
+ * Infrastructure exports that match the `send*` shape but are not communications.
+ *
+ * `sendWithResult` is the TRANSPORT every sender goes through — it has no trigger,
+ * no actor pair and no channel, so a catalog entry for it would be a lie. Named
+ * explicitly rather than pattern-excluded: a list of two is auditable, and a regex
+ * clever enough to exclude it would eventually exclude a real sender too.
+ */
+const NOT_COMMUNICATIONS = new Set(['sendWithResult'])
+
 /** The exported senders of `lib/email.ts`, read from source. */
 function exportedSenders(): string[] {
   const source = readFileSync(join(process.cwd(), 'lib', 'email.ts'), 'utf8')
-  return [...source.matchAll(/^export async function (send\w+)/gm)].map((m) => m[1])
+  return [...source.matchAll(/^export async function (send\w+)/gm)]
+    .map((m) => m[1])
+    .filter((name) => !NOT_COMMUNICATIONS.has(name))
 }
 
 test.describe('communications catalog population', () => {

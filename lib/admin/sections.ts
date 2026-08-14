@@ -144,6 +144,15 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     group: 'administracion',
   },
   {
+    key: 'comunicaciones',
+    label: 'Comunicaciones',
+    description: 'Qué avisa la plataforma, a quién y por qué canal. Envíate cualquiera de prueba.',
+    href: '/admin/comunicaciones',
+    icon: 'iconoir-mail',
+    risk: 'low',
+    group: 'administracion',
+  },
+  {
     key: 'flags',
     label: 'Flags',
     description: 'Prende y apaga funciones de la plataforma sin redeploy (auditado).',

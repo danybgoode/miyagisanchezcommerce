@@ -3,6 +3,7 @@
  * Text-first. No decorative elements. Every line earns its place.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { Resend } from 'resend'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
@@ -228,6 +229,99 @@ function divider(): string {
 
 const RESEND_MIN_SCHEDULE_MS = 16 * 60 * 1000 // 16 min buffer
 
+/**
+ * Why this is a discriminated result and `send` below is not
+ * (marketplace-communications · D4).
+ *
+ * `send` returns `string | null`, and `null` meant three completely different
+ * things: the API key is unset, Resend rejected the message, or a scheduled send
+ * landed inside Resend's 16-minute window. On a rail the product owner asked to make
+ * bulletproof, "I could not check", "it did not send" and "there was nothing to
+ * send" are different facts — collapsing them is the confident falsehood
+ * `LEARNINGS.md` keeps recording.
+ *
+ * Rather than churn 62 call sites that legitimately ignore the value,
+ * `sendWithResult` carries the honest answer and `send` stays the thin adapter the
+ * fire-and-forget senders already use. The sample sender in
+ * `/admin/comunicaciones` uses the honest one, because reporting "sent" for an
+ * unconfigured key is precisely what would make that surface untrustworthy.
+ */
+/**
+ * Sample-send marking (marketplace-communications · D6).
+ *
+ * `/admin/comunicaciones` sends a real template with fixture data so the product
+ * owner can see exactly what a merchant receives. Those messages MUST be
+ * unmistakable: an operator who finds one in an inbox six months from now must not
+ * read it as a real order notification.
+ *
+ * The marking has to reach 62 senders that each build their own subject, and the
+ * alternatives were both bad — threading a parameter through every signature, or a
+ * module-level mutable flag that two concurrent requests would trample. AsyncLocal-
+ * Storage is request-scoped by construction, so a sample send cannot mark a real
+ * notification happening at the same moment on another request.
+ */
+const sampleContext = new AsyncLocalStorage<{ key: string }>()
+
+/** Run `fn` with every email it sends marked as a sample. */
+export function runAsSampleSend<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  return sampleContext.run({ key }, fn)
+}
+
+const SAMPLE_SUBJECT_PREFIX = '[PRUEBA] '
+
+function sampleBanner(key: string): string {
+  return `<div style="margin:0 0 18px;padding:10px 14px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:13px;color:#92400e">
+    <strong>Correo de prueba.</strong> Se envió desde <code>/admin/comunicaciones</code> con datos de muestra
+    para revisar cómo se ve esta plantilla. No corresponde a ningún pedido, oferta ni pago real.<br>
+    <span style="color:#a16207">Plantilla: <code>${esc(key)}</code></span>
+  </div>`
+}
+
+export type EmailSendResult =
+  | { ok: true; id: string | null }
+  | { ok: false; reason: 'unconfigured' | 'rejected' | 'too_soon'; detail?: string }
+
+export async function sendWithResult(
+  to: string,
+  subject: string,
+  body: string,
+  scheduledAt?: Date,
+  brand?: Brand,
+  language: EmailLanguage = 'es',
+): Promise<EmailSendResult> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
+    return { ok: false, reason: 'unconfigured' }
+  }
+  if (scheduledAt && scheduledAt.getTime() - Date.now() < RESEND_MIN_SCHEDULE_MS) {
+    // Too close to fire — skip rather than error (the window already passed).
+    console.warn('[email] scheduled send too soon, skipping:', subject)
+    return { ok: false, reason: 'too_soon' }
+  }
+  // Marking happens HERE, at the single transport, so no sender can forget it and a
+  // new sender inherits it for free.
+  const sample = sampleContext.getStore()
+  const finalSubject = sample ? `${SAMPLE_SUBJECT_PREFIX}${subject}` : subject
+  const finalBody = sample ? `${sampleBanner(sample.key)}${body}` : body
+
+  try {
+    const result = await resend().emails.send({
+      from: FROM,
+      to,
+      subject: finalSubject,
+      html: html(finalSubject, finalBody, brand, language),
+      ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
+    })
+    // Resend can accept without echoing an id. That is still a send, so `id` is
+    // nullable INSIDE the ok branch rather than collapsing back into a failure.
+    return { ok: true, id: result.data?.id ?? null }
+  } catch (err) {
+    console.error('[email] send failed:', subject, '→', to, err)
+    return { ok: false, reason: 'rejected', detail: err instanceof Error ? err.message : undefined }
+  }
+}
+
+/** The fire-and-forget adapter every existing sender uses. Unchanged contract. */
 async function send(
   to: string,
   subject: string,
@@ -236,28 +330,8 @@ async function send(
   brand?: Brand,
   language: EmailLanguage = 'es',
 ): Promise<string | null> {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
-    return null
-  }
-  if (scheduledAt && scheduledAt.getTime() - Date.now() < RESEND_MIN_SCHEDULE_MS) {
-    // Too close to fire — just skip rather than error (window already passed)
-    console.warn('[email] scheduled send too soon, skipping:', subject)
-    return null
-  }
-  try {
-    const result = await resend().emails.send({
-      from: FROM,
-      to,
-      subject,
-      html: html(subject, body, brand, language),
-      ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
-    })
-    return result.data?.id ?? null
-  } catch (err) {
-    console.error('[email] send failed:', subject, '→', to, err)
-    return null
-  }
+  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language)
+  return result.ok ? result.id : null
 }
 
 // ── Cancel a scheduled email by Resend ID ─────────────────────────────────────
