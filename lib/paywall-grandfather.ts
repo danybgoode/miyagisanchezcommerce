@@ -122,6 +122,10 @@ export function planGrandfatherBackfill(
  * owes it. Returns `null` when the shop is owed nothing, so the caller writes
  * nothing at all rather than issuing a no-op UPDATE — a write that changes no row
  * still reports success, and this keeps "nothing to do" distinguishable.
+ *
+ * Used by the specs and by any caller doing a whole-object write. The live script
+ * writes through `writeStepsForShop` + the `merge_shop_metadata` RPC instead, which
+ * merges server-side and so cannot revert a concurrent change to an unrelated key.
  */
 export function grantPatchForShop(
   shop: ShopForBackfill,
@@ -133,4 +137,48 @@ export function grantPatchForShop(
   const patch: Record<string, unknown> = { ...(shop.metadata ?? {}) }
   for (const decision of owed) patch[PAYWALL_GRANT_KEY[decision.sku]] = grant
   return patch
+}
+
+export type ShopWriteStep = {
+  sku: PaywallSku
+  /** The metadata key this step writes. */
+  key: string
+  /**
+   * Passed to `merge_shop_metadata`'s presence guard.
+   *
+   * `key`  — the value is ABSENT, so refuse if it appears concurrently. That is what
+   *          stops the backfill overwriting a grant somebody else just made.
+   * `null` — the value is PRESENT but malformed (`readGrant` refuses it, so it
+   *          entitles nobody). A presence guard would reject exactly the row we came
+   *          to repair, leaving the shop unentitled while the dry run promised a fix.
+   */
+  requireAbsentKey: string | null
+  /** `repair` means a malformed value is being replaced, not a missing one added. */
+  kind: 'grant' | 'repair'
+}
+
+/**
+ * One write step per owed SKU, in catalog order.
+ *
+ * Separate steps rather than one combined write: a single update guarded on every
+ * owed key matches zero rows the moment ANY one of them is granted concurrently,
+ * silently skipping the rest. Per-SKU steps fail independently.
+ */
+export function writeStepsForShop(
+  shop: ShopForBackfill,
+  decisions: readonly BackfillDecision[],
+): ShopWriteStep[] {
+  return decisions
+    .filter((d) => d.shopId === shop.id && d.action === 'grant')
+    .map((decision) => {
+      const key = PAYWALL_GRANT_KEY[decision.sku]
+      const raw = (shop.metadata ?? {})[key]
+      const present = raw !== undefined && raw !== null
+      return {
+        sku: decision.sku,
+        key,
+        requireAbsentKey: present ? null : key,
+        kind: present ? ('repair' as const) : ('grant' as const),
+      }
+    })
 }

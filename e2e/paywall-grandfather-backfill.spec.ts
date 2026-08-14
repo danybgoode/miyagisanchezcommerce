@@ -15,6 +15,7 @@ import {
   buildGrandfatherGrant,
   grantPatchForShop,
   planGrandfatherBackfill,
+  writeStepsForShop,
   type ShopForBackfill,
 } from '../lib/paywall-grandfather'
 import { parseArgs } from '../scripts/backfill-paywall-grants'
@@ -181,5 +182,46 @@ test.describe('parseArgs', () => {
 
   test('an unknown flag is fatal rather than ignored', () => {
     expect(parseArgs(['--force']).ok).toBe(false)
+  })
+})
+
+test.describe('writeStepsForShop', () => {
+  test('an ABSENT key is guarded on its own absence, so a concurrent grant is never overwritten', () => {
+    const plan = planGrandfatherBackfill([shop('a')], ['subdomain'])
+    const [step] = writeStepsForShop(shop('a'), plan.decisions)
+    expect(step.kind).toBe('grant')
+    expect(step.requireAbsentKey).toBe(PAYWALL_GRANT_KEY.subdomain)
+  })
+
+  test('a MALFORMED key is repaired UNGUARDED — the guard would reject the row we came to fix', () => {
+    // This is the round-2 blocker in one assertion. readGrant refuses a one_time
+    // with no expires_at, so the planner owes this shop a grant; a presence guard
+    // would match zero rows and leave it unentitled while the dry run promised a fix.
+    const malformed = shop('a', {
+      [PAYWALL_GRANT_KEY.subdomain]: { type: 'one_time', granted_at: '2026-01-01T00:00:00.000Z' },
+    })
+    const plan = planGrandfatherBackfill([malformed], ['subdomain'])
+    const [step] = writeStepsForShop(malformed, plan.decisions)
+    expect(step.kind).toBe('repair')
+    expect(step.requireAbsentKey).toBeNull()
+  })
+
+  test('each owed SKU gets its OWN step, so one concurrent grant cannot block the rest', () => {
+    // The other round-2 blocker: a single combined write guarded on every owed key
+    // matches zero rows the moment any one of them is granted elsewhere.
+    const steps = writeStepsForShop(shop('a'), planGrandfatherBackfill([shop('a')]).decisions)
+    expect(steps).toHaveLength(PAYWALL_SKUS.length)
+    expect(new Set(steps.map((s) => s.key)).size).toBe(PAYWALL_SKUS.length)
+  })
+
+  test('a shop owed nothing produces no steps at all', () => {
+    const granted = shop('a', Object.fromEntries(PAYWALL_SKUS.map((s) => [PAYWALL_GRANT_KEY[s], grandfather])))
+    expect(writeStepsForShop(granted, planGrandfatherBackfill([granted]).decisions)).toEqual([])
+  })
+
+  test("another shop's decisions never produce steps for this shop", () => {
+    const a = shop('a')
+    const plan = planGrandfatherBackfill([a, shop('b')])
+    expect(writeStepsForShop(a, plan.decisions)).toHaveLength(PAYWALL_SKUS.length)
   })
 })

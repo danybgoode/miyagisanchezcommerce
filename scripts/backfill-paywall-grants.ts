@@ -23,12 +23,12 @@
  */
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
+import { readGrant } from '../lib/domain-entitlement'
 import {
-  PAYWALL_GRANT_KEY,
   PAYWALL_SKUS,
   buildGrandfatherGrant,
-  grantPatchForShop,
   planGrandfatherBackfill,
+  writeStepsForShop,
   type PaywallSku,
   type ShopForBackfill,
 } from '../lib/paywall-grandfather'
@@ -116,10 +116,11 @@ async function main(): Promise<void> {
   for (const shop of shops) {
     if (!plan.decisions.some((d) => d.shopId === shop.id && d.action === 'grant')) continue
 
-    // RE-READ before writing. The plan came from one snapshot of every shop taken at
-    // the start of the run, and these writes replace the whole `metadata` object — so
-    // a patch built from that snapshot would silently revert any unrelated key
-    // another writer changed in between (settings, theme, a domain).
+    // RE-READ before writing. The merge itself is atomic, so this is not about
+    // clobbering — it decides WHICH guard each step uses. A key that was absent in
+    // the opening snapshot but is present now must be guarded (or skipped), and a
+    // key that is present-but-malformed must be repaired unconditionally. Deciding
+    // that from a stale snapshot would pick the wrong guard.
     const { data: fresh, error: reReadError } = await db
       .from('marketplace_shops')
       .select('id, slug, name, metadata')
@@ -136,51 +137,57 @@ async function main(): Promise<void> {
     const owed = freshPlan.decisions.filter((d) => d.action === 'grant')
     if (owed.length === 0) { raced += 1; continue }
 
-    // ONE WRITE PER SKU, accumulating. A single combined update guarded on every
-    // owed key would match zero rows the moment ANY one of them was granted
-    // concurrently — silently skipping the others while still reporting success.
-    // `working` carries each successful grant forward so SKU 2's patch does not
-    // revert SKU 1's.
-    let working: Record<string, unknown> = { ...((fresh as ShopForBackfill).metadata ?? {}) }
-    for (const decision of owed) {
-      const key = PAYWALL_GRANT_KEY[decision.sku]
-      const present = working[key] !== undefined && working[key] !== null
-
-      let query = db
-        .from('marketplace_shops')
-        .update({ metadata: { ...working, [key]: grant } })
-        .eq('id', shop.id)
-
-      // Guard ONLY the genuinely-absent case. A malformed value is present but
-      // entitles nobody (`readGrant` refuses it), so the planner owes that shop a
-      // grant — and an `is null` guard would reject the row and leave it unentitled
-      // while the dry run promised a fix. Guarding it would make the planner and the
-      // writer disagree, which is the whole failure this script exists to avoid.
-      if (!present) query = query.is(`metadata->${key}`, null)
-
-      // `.select()` back: supabase-js reports no error for an UPDATE that matched
-      // nothing, so without this a race or an id typo would look like a clean success.
-      const { data: updated, error: writeError } = await query.select('id')
+    // ONE MERGE PER SKU, server-side. `merge_shop_metadata` does `metadata || patch`
+    // inside the UPDATE, so a concurrent change to an unrelated key (settings, theme,
+    // a domain) survives — a read-modify-write of the whole object would revert it.
+    // Per-SKU rather than combined, so one concurrently-granted SKU cannot block the
+    // rest.
+    for (const step of writeStepsForShop(fresh as ShopForBackfill, freshPlan.decisions)) {
+      const { data: merged, error: writeError } = await db.rpc('merge_shop_metadata', {
+        p_shop_id: shop.id,
+        p_patch: { [step.key]: grant },
+        p_require_absent_key: step.requireAbsentKey,
+      })
       if (writeError) {
-        failures.push(`${shop.slug ?? shop.id} (${decision.sku}): ${writeError.message}`)
+        failures.push(`${shop.slug ?? shop.id} (${step.sku}): ${writeError.message}`)
         continue
       }
-      if (!updated?.length) { raced += 1; continue }
-      working[key] = grant
-      if (present) repaired += 1
-      else written += 1
+
+      if (Array.isArray(merged) && merged.length > 0) {
+        if (step.kind === 'repair') repaired += 1
+        else written += 1
+        continue
+      }
+
+      // Zero rows means the presence guard fired: the key appeared between the
+      // re-read and now. That is only SAFE if what appeared actually entitles the
+      // shop — so verify instead of assuming. A value that is present but still
+      // refused by `readGrant` leaves the shop unentitled, which is a failure that
+      // needs a human, not a quiet "skipped, granted concurrently".
+      const { data: after, error: verifyError } = await db
+        .from('marketplace_shops')
+        .select('metadata')
+        .eq('id', shop.id)
+        .maybeSingle()
+      if (verifyError || !after) {
+        failures.push(`${shop.slug ?? shop.id} (${step.sku}): could not verify after a refused merge`)
+        continue
+      }
+      if (readGrant((after as { metadata: unknown }).metadata, step.key)) raced += 1
+      else failures.push(`${shop.slug ?? shop.id} (${step.sku}): key present but still not a valid grant`)
     }
   }
 
   console.log(
     `[paywall:backfill] granted ${written}; repaired ${repaired} malformed; ` +
-      `${raced} skipped (granted concurrently); ${failures.length} failure(s)`,
+      `${raced} skipped (already granted concurrently); ${failures.length} failed write(s)`,
   )
   for (const failure of failures) console.error(`  ! ${failure}`)
 
   // A partial apply is a PARTIAL outcome, never a success. The exit code says so.
   if (failures.length) {
-    throw new Error(`${failures.length} shop(s) failed — re-run to retry (the backfill is idempotent)`)
+    // Counted per WRITE, not per shop: one shop can fail on two SKUs.
+    throw new Error(`${failures.length} write(s) failed — re-run to retry (the backfill is idempotent)`)
   }
 }
 
