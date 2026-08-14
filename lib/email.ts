@@ -729,30 +729,14 @@ export async function sendCounterAccepted(ctx: {
   await send(ctx.sellerEmail, subject, body)
 }
 
-// ── 7. Seller: counter declined / offer withdrawn ────────────────────────────
-export async function sendCounterDeclined(ctx: {
-  sellerEmail: string
-  listingTitle: string
-  listingUrl: string
-  offerAmount: string
-  counterAmount: string
-  buyerName: string
-}): Promise<void> {
-  const subject = `El comprador rechazó tu contraoferta — ${ctx.listingTitle}`
-  const body = [
-    h1('El comprador no aceptó la contraoferta'),
-    table([
-      ['Anuncio',       `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
-      ['Oferta inicial', ctx.offerAmount],
-      ['Tu contraoferta', ctx.counterAmount],
-      ['Comprador',      ctx.buyerName],
-    ]),
-    p('El anuncio sigue activo y disponible para nuevas ofertas o compra directa.'),
-    cta('Ver anuncio', ctx.listingUrl),
-  ].join('')
-  await send(ctx.sellerEmail, subject, body)
-}
-
+// ── 7. Seller: offer withdrawn ───────────────────────────────────────────────
+//
+// There is deliberately no `sendCounterDeclined` here. It existed, unwired, for a
+// buyer action the product does not have: `buyer-respond` accepts exactly
+// `accept-counter` and `withdraw`, so a buyer who does not want the counteroffer
+// withdraws. Sending "El comprador rechazó tu contraoferta" for a withdrawal would
+// describe an action nobody took, so the template was removed rather than wired to
+// the nearest available trigger.
 export async function sendOfferWithdrawn(ctx: {
   sellerEmail: string
   listingTitle: string
