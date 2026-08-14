@@ -19,7 +19,8 @@
     "smoke": "node scripts/live-smoke.mjs",
     "seed": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts",
     "seed:clear": "node --experimental-strip-types --env-file=.env.local scripts/seed.ts --clear",
-    "lint:changed": "node scripts/lint-changed.mjs"
+    "lint:changed": "node scripts/lint-changed.mjs",
+    "paywall:backfill": "tsx --env-file=.env.local scripts/backfill-paywall-grants.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",
