@@ -14,10 +14,20 @@ import { ADMIN_SECTIONS, ADMIN_SECTION_GROUP_LABELS, activeAdminSectionHref } fr
 const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url))
 
 test.describe('admin · ADMIN_SECTIONS registry', () => {
-  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido + miyagi-partners-mcp S3 feedback)', () => {
+  test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido + miyagi-partners-mcp S3 feedback + marketplace-communications S2.1 comunicaciones)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'feedback', 'tenants', 'flags', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'feedback', 'tenants', 'comunicaciones', 'flags', 'scraping',
     ])
+  })
+
+  test('marketplace-communications S2.1 registers the communications matrix', () => {
+    const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
+    expect(byKey.comunicaciones?.href).toBe('/admin/comunicaciones')
+    expect(byKey.comunicaciones?.external).toBeUndefined()
+    // Reading the map is low-risk; the sample send it offers is constrained to a
+    // compile-time allow-list rather than by this tier.
+    expect(byKey.comunicaciones?.risk).toBe('low')
+    expect(byKey.comunicaciones?.group).toBe('administracion')
   })
 
   test('miyagi-partners-mcp S3 registers the read-only send_feedback list (internal, low-risk, administración group)', () => {
