@@ -118,9 +118,10 @@ async function main(): Promise<void> {
 
     // RE-READ before writing. The merge itself is atomic, so this is not about
     // clobbering — it decides WHICH guard each step uses. A key that was absent in
-    // the opening snapshot but is present now must be guarded (or skipped), and a
-    // key that is present-but-malformed must be repaired unconditionally. Deciding
-    // that from a stale snapshot would pick the wrong guard.
+    // the opening snapshot but is present now must be guarded on absence (or
+    // skipped), and a key that is present-but-malformed is repaired by
+    // compare-and-swap against the exact value read here. Deciding that from a stale
+    // snapshot would pick the wrong guard, or swap against a value that moved.
     const { data: fresh, error: reReadError } = await db
       .from('marketplace_shops')
       .select('id, slug, name, metadata')
@@ -146,7 +147,8 @@ async function main(): Promise<void> {
       const { data: merged, error: writeError } = await db.rpc('merge_shop_metadata', {
         p_shop_id: shop.id,
         p_patch: { [step.key]: grant },
-        p_require_absent_key: step.requireAbsentKey,
+        p_guard_key: step.guard.key,
+        p_expected: step.guard.expected,
       })
       if (writeError) {
         failures.push(`${shop.slug ?? shop.id} (${step.sku}): ${writeError.message}`)
@@ -159,8 +161,8 @@ async function main(): Promise<void> {
         continue
       }
 
-      // Zero rows means the presence guard fired: the key appeared between the
-      // re-read and now. That is only SAFE if what appeared actually entitles the
+      // Zero rows means the guard fired: the key appeared, or changed, between the
+      // re-read and now. That is only SAFE if what is there now actually entitles the
       // shop — so verify instead of assuming. A value that is present but still
       // refused by `readGrant` leaves the shop unentitled, which is a failure that
       // needs a human, not a quiet "skipped, granted concurrently".

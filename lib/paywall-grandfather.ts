@@ -144,15 +144,19 @@ export type ShopWriteStep = {
   /** The metadata key this step writes. */
   key: string
   /**
-   * Passed to `merge_shop_metadata`'s presence guard.
+   * `merge_shop_metadata`'s guard, covering both cases with one concept.
    *
-   * `key`  — the value is ABSENT, so refuse if it appears concurrently. That is what
-   *          stops the backfill overwriting a grant somebody else just made.
-   * `null` — the value is PRESENT but malformed (`readGrant` refuses it, so it
-   *          entitles nobody). A presence guard would reject exactly the row we came
-   *          to repair, leaving the shop unentitled while the dry run promised a fix.
+   * `expected: null`     — the value is ABSENT. Refuse if it appears concurrently;
+   *                        that is what stops the backfill overwriting a grant
+   *                        somebody else just made.
+   * `expected: <value>`  — the value is PRESENT but malformed (`readGrant` refuses
+   *                        it, so it entitles nobody). Compare-and-swap against the
+   *                        exact value we read: repair it, or refuse if it changed.
+   *                        A plain absence guard would reject the very row we came to
+   *                        fix; an unguarded merge could overwrite a valid grant that
+   *                        landed in between.
    */
-  requireAbsentKey: string | null
+  guard: { key: string; expected: unknown }
   /** `repair` means a malformed value is being replaced, not a missing one added. */
   kind: 'grant' | 'repair'
 }
@@ -177,7 +181,7 @@ export function writeStepsForShop(
       return {
         sku: decision.sku,
         key,
-        requireAbsentKey: present ? null : key,
+        guard: { key, expected: present ? raw : null },
         kind: present ? ('repair' as const) : ('grant' as const),
       }
     })

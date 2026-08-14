@@ -190,10 +190,10 @@ test.describe('writeStepsForShop', () => {
     const plan = planGrandfatherBackfill([shop('a')], ['subdomain'])
     const [step] = writeStepsForShop(shop('a'), plan.decisions)
     expect(step.kind).toBe('grant')
-    expect(step.requireAbsentKey).toBe(PAYWALL_GRANT_KEY.subdomain)
+    expect(step.guard).toEqual({ key: PAYWALL_GRANT_KEY.subdomain, expected: null })
   })
 
-  test('a MALFORMED key is repaired UNGUARDED — the guard would reject the row we came to fix', () => {
+  test('a MALFORMED key is repaired by COMPARE-AND-SWAP against the exact bad value', () => {
     // This is the round-2 blocker in one assertion. readGrant refuses a one_time
     // with no expires_at, so the planner owes this shop a grant; a presence guard
     // would match zero rows and leave it unentitled while the dry run promised a fix.
@@ -203,7 +203,10 @@ test.describe('writeStepsForShop', () => {
     const plan = planGrandfatherBackfill([malformed], ['subdomain'])
     const [step] = writeStepsForShop(malformed, plan.decisions)
     expect(step.kind).toBe('repair')
-    expect(step.requireAbsentKey).toBeNull()
+    // Not an absence guard (it would reject the row we came to fix) and not
+    // unguarded (that could overwrite a valid grant that landed in between).
+    expect(step.guard.key).toBe(PAYWALL_GRANT_KEY.subdomain)
+    expect(step.guard.expected).toEqual({ type: 'one_time', granted_at: '2026-01-01T00:00:00.000Z' })
   })
 
   test('each owed SKU gets its OWN step, so one concurrent grant cannot block the rest', () => {
