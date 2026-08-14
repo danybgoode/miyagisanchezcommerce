@@ -24,6 +24,7 @@
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import {
+  PAYWALL_GRANT_KEY,
   PAYWALL_SKUS,
   buildGrandfatherGrant,
   grantPatchForShop,
@@ -47,7 +48,9 @@ export function parseArgs(argv: readonly string[]): { ok: true; args: Args } | {
       if (!(PAYWALL_SKUS as readonly string[]).includes(value)) {
         return { ok: false, error: `--sku must be one of ${PAYWALL_SKUS.join(', ')} (got ${value ?? 'nothing'})` }
       }
-      skus.push(value as PaywallSku)
+      // Deduplicate: a repeated --sku would otherwise plan the same shop twice and
+      // report two grants where one write happens, making the totals lie.
+      if (!skus.includes(value as PaywallSku)) skus.push(value as PaywallSku)
       i += 1
       continue
     }
@@ -100,25 +103,57 @@ async function main(): Promise<void> {
   }
 
   let written = 0
+  let raced = 0
   const failures: string[] = []
   for (const shop of shops) {
-    const patch = grantPatchForShop(shop, plan.decisions, grant)
-    if (!patch) continue
-    // `.select()` back: supabase-js reports no error for an UPDATE that matched
-    // nothing, so without this an id typo would look like a clean success.
-    const { data: updated, error: writeError } = await db
+    if (!plan.decisions.some((d) => d.shopId === shop.id && d.action === 'grant')) continue
+
+    // RE-READ before writing. The plan was derived from one snapshot of every shop
+    // taken at the start of the run, and this write replaces the whole `metadata`
+    // object — so a patch built from that snapshot would silently revert any
+    // unrelated key another writer changed in between (settings, theme, a domain).
+    // Building it from a fresh read means we never write back a stale copy.
+    const { data: fresh, error: reReadError } = await db
       .from('marketplace_shops')
-      .update({ metadata: patch })
+      .select('id, slug, name, metadata')
       .eq('id', shop.id)
-      .select('id')
-    if (writeError || !updated?.length) {
-      failures.push(`${shop.slug ?? shop.id}: ${writeError?.message ?? 'update matched no row'}`)
+      .maybeSingle()
+    if (reReadError || !fresh) {
+      failures.push(`${shop.slug ?? shop.id}: re-read failed (${reReadError?.message ?? 'row disappeared'})`)
       continue
     }
+
+    // Re-plan against the fresh row: a grant that appeared since the snapshot makes
+    // this shop owe nothing, and it must NOT be overwritten with a grandfather one.
+    const freshPlan = planGrandfatherBackfill([fresh as ShopForBackfill], skus)
+    const patch = grantPatchForShop(fresh as ShopForBackfill, freshPlan.decisions, grant)
+    if (!patch) { raced += 1; continue }
+
+    const owedKeys = freshPlan.decisions
+      .filter((d) => d.action === 'grant')
+      .map((d) => PAYWALL_GRANT_KEY[d.sku])
+
+    // Make the write CONDITIONAL on each owed key still being absent, evaluated by
+    // Postgres at write time. This closes the grant-overwrite race atomically: if a
+    // concurrent writer granted the SKU between the re-read and here, zero rows
+    // match and we report a race rather than clobbering a paid grant.
+    let query = db.from('marketplace_shops').update({ metadata: patch }).eq('id', shop.id)
+    for (const key of owedKeys) query = query.is(`metadata->${key}`, null)
+
+    // `.select()` back: supabase-js reports no error for an UPDATE that matched
+    // nothing, so without this a race or an id typo would look like a clean success.
+    const { data: updated, error: writeError } = await query.select('id')
+    if (writeError) {
+      failures.push(`${shop.slug ?? shop.id}: ${writeError.message}`)
+      continue
+    }
+    if (!updated?.length) { raced += 1; continue }
     written += 1
   }
 
-  console.log(`[paywall:backfill] wrote ${written} shop row(s); ${failures.length} failure(s)`)
+  console.log(
+    `[paywall:backfill] wrote ${written} shop row(s); ${raced} skipped (granted concurrently); ${failures.length} failure(s)`,
+  )
   for (const failure of failures) console.error(`  ! ${failure}`)
 
   // A partial apply is a PARTIAL outcome, never a success. The exit code says so.

@@ -17,6 +17,7 @@ import {
   planGrandfatherBackfill,
   type ShopForBackfill,
 } from '../lib/paywall-grandfather'
+import { parseArgs } from '../scripts/backfill-paywall-grants'
 
 const shop = (id: string, metadata: Record<string, unknown> | null = null): ShopForBackfill => ({
   id, slug: id, name: id, metadata,
@@ -151,5 +152,34 @@ test.describe('grantPatchForShop', () => {
     const patch = grantPatchForShop(a, plan.decisions, buildGrandfatherGrant())
     // 3 SKUs for shop a only — not 6.
     expect(Object.keys(patch ?? {})).toHaveLength(PAYWALL_SKUS.length)
+  })
+})
+
+test.describe('parseArgs', () => {
+  test('defaults to a dry run over every SKU — the safe default is the default', () => {
+    const parsed = parseArgs([])
+    expect(parsed.ok && parsed.args.apply).toBe(false)
+    expect(parsed.ok && parsed.args.skus).toEqual([...PAYWALL_SKUS])
+  })
+
+  test('--apply opts in, and --dry-run opts back out', () => {
+    const applied = parseArgs(['--apply'])
+    expect(applied.ok && applied.args.apply).toBe(true)
+    const both = parseArgs(['--apply', '--dry-run'])
+    expect(both.ok && both.args.apply).toBe(false)
+  })
+
+  test('a repeated --sku is deduplicated, so the totals cannot double-count', () => {
+    const parsed = parseArgs(['--sku', 'subdomain', '--sku', 'subdomain'])
+    expect(parsed.ok && parsed.args.skus).toEqual(['subdomain'])
+  })
+
+  test('an unknown sku is refused, not coerced', () => {
+    expect(parseArgs(['--sku', 'envia']).ok).toBe(false)
+    expect(parseArgs(['--sku']).ok).toBe(false)
+  })
+
+  test('an unknown flag is fatal rather than ignored', () => {
+    expect(parseArgs(['--force']).ok).toBe(false)
   })
 })
