@@ -190,7 +190,7 @@ test.describe('writeStepsForShop', () => {
     const plan = planGrandfatherBackfill([shop('a')], ['subdomain'])
     const [step] = writeStepsForShop(shop('a'), plan.decisions)
     expect(step.kind).toBe('grant')
-    expect(step.guard).toEqual({ key: PAYWALL_GRANT_KEY.subdomain, expected: null })
+    expect(step.guard).toEqual({ key: PAYWALL_GRANT_KEY.subdomain, mode: 'absent' })
   })
 
   test('a MALFORMED key is repaired by COMPARE-AND-SWAP against the exact bad value', () => {
@@ -205,8 +205,11 @@ test.describe('writeStepsForShop', () => {
     expect(step.kind).toBe('repair')
     // Not an absence guard (it would reject the row we came to fix) and not
     // unguarded (that could overwrite a valid grant that landed in between).
-    expect(step.guard.key).toBe(PAYWALL_GRANT_KEY.subdomain)
-    expect(step.guard.expected).toEqual({ type: 'one_time', granted_at: '2026-01-01T00:00:00.000Z' })
+    expect(step.guard).toEqual({
+      key: PAYWALL_GRANT_KEY.subdomain,
+      mode: 'equals',
+      expected: { type: 'one_time', granted_at: '2026-01-01T00:00:00.000Z' },
+    })
   })
 
   test('each owed SKU gets its OWN step, so one concurrent grant cannot block the rest', () => {
@@ -215,6 +218,19 @@ test.describe('writeStepsForShop', () => {
     const steps = writeStepsForShop(shop('a'), planGrandfatherBackfill([shop('a')]).decisions)
     expect(steps).toHaveLength(PAYWALL_SKUS.length)
     expect(new Set(steps.map((s) => s.key)).size).toBe(PAYWALL_SKUS.length)
+  })
+
+  test('a key holding JSON null gets its OWN mode — absent and json-null are different states', () => {
+    // The round-5 blocker in one assertion. TypeScript sees `null` and would call it
+    // absent; SQL's `?` sees the key and calls it present. Guarding on absence
+    // therefore matched zero rows and the shop could never be repaired, on every
+    // retry, forever. The mode is stated so the two cannot disagree.
+    const jsonNull = shop('a', { [PAYWALL_GRANT_KEY.subdomain]: null })
+    const plan = planGrandfatherBackfill([jsonNull], ['subdomain'])
+    expect(plan.totals.subdomain).toEqual({ grant: 1, skip: 0 })
+    const [step] = writeStepsForShop(jsonNull, plan.decisions)
+    expect(step.kind).toBe('repair')
+    expect(step.guard).toEqual({ key: PAYWALL_GRANT_KEY.subdomain, mode: 'json_null' })
   })
 
   test('a shop owed nothing produces no steps at all', () => {

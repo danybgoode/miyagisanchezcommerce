@@ -136,7 +136,13 @@ async function main(): Promise<void> {
     // that SKU owe nothing, and it must NOT be overwritten with a grandfather one.
     const freshPlan = planGrandfatherBackfill([fresh as ShopForBackfill], skus)
     const owed = freshPlan.decisions.filter((d) => d.action === 'grant')
-    if (owed.length === 0) { raced += 1; continue }
+    if (owed.length === 0) {
+      // Count per SKU, not per shop. The guard-triggered path below increments once
+      // per SKU, so incrementing once here would undercount exactly the case where
+      // every owed SKU was granted concurrently before the re-read.
+      raced += plan.decisions.filter((d) => d.shopId === shop.id && d.action === 'grant').length
+      continue
+    }
 
     // ONE MERGE PER SKU, server-side. `merge_shop_metadata` does `metadata || patch`
     // inside the UPDATE, so a concurrent change to an unrelated key (settings, theme,
@@ -148,7 +154,8 @@ async function main(): Promise<void> {
         p_shop_id: shop.id,
         p_patch: { [step.key]: grant },
         p_guard_key: step.guard.key,
-        p_expected: step.guard.expected,
+        p_guard_mode: step.guard.mode,
+        p_expected: step.guard.mode === 'equals' ? step.guard.expected : null,
       })
       if (writeError) {
         failures.push(`${shop.slug ?? shop.id} (${step.sku}): ${writeError.message}`)

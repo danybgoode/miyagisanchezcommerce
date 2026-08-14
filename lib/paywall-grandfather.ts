@@ -144,19 +144,22 @@ export type ShopWriteStep = {
   /** The metadata key this step writes. */
   key: string
   /**
-   * `merge_shop_metadata`'s guard, covering both cases with one concept.
+   * `merge_shop_metadata`'s guard. The mode is STATED, never inferred from whether
+   * `expected` happens to be null — because "the key is absent" and "the key holds
+   * JSON null" are different states that a JS null cannot tell apart, and conflating
+   * them left a shop permanently unrepairable (the planner called it absent, SQL's
+   * `?` called it present, so every retry matched zero rows forever).
    *
-   * `expected: null`     — the value is ABSENT. Refuse if it appears concurrently;
-   *                        that is what stops the backfill overwriting a grant
-   *                        somebody else just made.
-   * `expected: <value>`  — the value is PRESENT but malformed (`readGrant` refuses
-   *                        it, so it entitles nobody). Compare-and-swap against the
-   *                        exact value we read: repair it, or refuse if it changed.
-   *                        A plain absence guard would reject the very row we came to
-   *                        fix; an unguarded merge could overwrite a valid grant that
-   *                        landed in between.
+   * `absent`    — nothing is there. Refuse if a grant appears concurrently; that is
+   *               what stops the backfill overwriting one somebody else just made.
+   * `json_null` — the key holds JSON null: present, and entitles nobody.
+   * `equals`    — the key holds a malformed value. Compare-and-swap against the exact
+   *               value we read, so a valid grant landing in between is not replaced.
    */
-  guard: { key: string; expected: unknown }
+  guard:
+    | { key: string; mode: 'absent' }
+    | { key: string; mode: 'json_null' }
+    | { key: string; mode: 'equals'; expected: unknown }
   /** `repair` means a malformed value is being replaced, not a missing one added. */
   kind: 'grant' | 'repair'
 }
@@ -177,12 +180,17 @@ export function writeStepsForShop(
     .map((decision) => {
       const key = PAYWALL_GRANT_KEY[decision.sku]
       const raw = (shop.metadata ?? {})[key]
-      const present = raw !== undefined && raw !== null
+      if (raw === undefined) {
+        return { sku: decision.sku, key, guard: { key, mode: 'absent' as const }, kind: 'grant' as const }
+      }
+      if (raw === null) {
+        return { sku: decision.sku, key, guard: { key, mode: 'json_null' as const }, kind: 'repair' as const }
+      }
       return {
         sku: decision.sku,
         key,
-        guard: { key, expected: present ? raw : null },
-        kind: present ? ('repair' as const) : ('grant' as const),
+        guard: { key, mode: 'equals' as const, expected: raw },
+        kind: 'repair' as const,
       }
     })
 }
