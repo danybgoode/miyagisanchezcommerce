@@ -1,4 +1,4 @@
-import type { FlagDefinition, FlagDefinitionSyncEntry } from '@golden-beans/sdk'
+import type { FlagDefinition, FlagDefinitionSyncEntry } from '@golden-frijoles/sdk'
 import type { FlagCriticality, FlagEnforcement, FlagKey, FlagPolarity } from './flag-catalog'
 
 type FrontendGoldenFlagKey = Exclude<FlagKey, 'ml.orders_enabled'>

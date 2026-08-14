@@ -20,7 +20,7 @@ import {
   type EventContext,
   type FlagEvaluationTelemetryInput,
   type ScenarioExecutionTelemetryInput,
-} from '@golden-beans/sdk'
+} from '@golden-frijoles/sdk'
 import type { GrowthTrackInput } from './growth-track'
 
 const TELEMETRY_TIMEOUT_MS = 5_000

@@ -11,7 +11,7 @@ import {
   createFlagProvider,
   type FlagProvider,
   type FlagResolutionReason,
-} from '@golden-beans/sdk'
+} from '@golden-frijoles/sdk'
 import {
   parseGoldenFlagEnvironment,
   type GoldenFlagEnvironment,

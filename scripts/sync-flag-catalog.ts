@@ -1,7 +1,7 @@
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { createFlagDefinitionSyncClient } from '@golden-beans/sdk'
+import { createFlagDefinitionSyncClient } from '@golden-frijoles/sdk'
 import { frontendGoldenFlagDefinitionEntries } from '../lib/golden-flag-definition-catalog'
 
 export type FlagSyncConfig = {
