@@ -82,6 +82,13 @@ async function main(): Promise<void> {
   // Three states, never two: a read failure is UNAVAILABLE, not "no shops need a grant".
   if (error) throw new Error(`could not read marketplace_shops: ${error.message}`)
   if (!data) throw new Error('marketplace_shops read returned no result set')
+  // Zero shops is not "nothing to do" — this platform has shops. An empty read means
+  // the credentials point somewhere else (an empty project, the wrong environment),
+  // and reporting a green run for it is exactly the confident falsehood that makes a
+  // backfill read as a passing gate. Refuse rather than succeed at nothing.
+  if (data.length === 0) {
+    throw new Error('marketplace_shops is empty — refusing to report success against a project with no shops')
+  }
 
   const shops = data as ShopForBackfill[]
   const plan = planGrandfatherBackfill(shops, skus)
@@ -103,16 +110,16 @@ async function main(): Promise<void> {
   }
 
   let written = 0
+  let repaired = 0
   let raced = 0
   const failures: string[] = []
   for (const shop of shops) {
     if (!plan.decisions.some((d) => d.shopId === shop.id && d.action === 'grant')) continue
 
-    // RE-READ before writing. The plan was derived from one snapshot of every shop
-    // taken at the start of the run, and this write replaces the whole `metadata`
-    // object — so a patch built from that snapshot would silently revert any
-    // unrelated key another writer changed in between (settings, theme, a domain).
-    // Building it from a fresh read means we never write back a stale copy.
+    // RE-READ before writing. The plan came from one snapshot of every shop taken at
+    // the start of the run, and these writes replace the whole `metadata` object — so
+    // a patch built from that snapshot would silently revert any unrelated key
+    // another writer changed in between (settings, theme, a domain).
     const { data: fresh, error: reReadError } = await db
       .from('marketplace_shops')
       .select('id, slug, name, metadata')
@@ -124,35 +131,50 @@ async function main(): Promise<void> {
     }
 
     // Re-plan against the fresh row: a grant that appeared since the snapshot makes
-    // this shop owe nothing, and it must NOT be overwritten with a grandfather one.
+    // that SKU owe nothing, and it must NOT be overwritten with a grandfather one.
     const freshPlan = planGrandfatherBackfill([fresh as ShopForBackfill], skus)
-    const patch = grantPatchForShop(fresh as ShopForBackfill, freshPlan.decisions, grant)
-    if (!patch) { raced += 1; continue }
+    const owed = freshPlan.decisions.filter((d) => d.action === 'grant')
+    if (owed.length === 0) { raced += 1; continue }
 
-    const owedKeys = freshPlan.decisions
-      .filter((d) => d.action === 'grant')
-      .map((d) => PAYWALL_GRANT_KEY[d.sku])
+    // ONE WRITE PER SKU, accumulating. A single combined update guarded on every
+    // owed key would match zero rows the moment ANY one of them was granted
+    // concurrently — silently skipping the others while still reporting success.
+    // `working` carries each successful grant forward so SKU 2's patch does not
+    // revert SKU 1's.
+    let working: Record<string, unknown> = { ...((fresh as ShopForBackfill).metadata ?? {}) }
+    for (const decision of owed) {
+      const key = PAYWALL_GRANT_KEY[decision.sku]
+      const present = working[key] !== undefined && working[key] !== null
 
-    // Make the write CONDITIONAL on each owed key still being absent, evaluated by
-    // Postgres at write time. This closes the grant-overwrite race atomically: if a
-    // concurrent writer granted the SKU between the re-read and here, zero rows
-    // match and we report a race rather than clobbering a paid grant.
-    let query = db.from('marketplace_shops').update({ metadata: patch }).eq('id', shop.id)
-    for (const key of owedKeys) query = query.is(`metadata->${key}`, null)
+      let query = db
+        .from('marketplace_shops')
+        .update({ metadata: { ...working, [key]: grant } })
+        .eq('id', shop.id)
 
-    // `.select()` back: supabase-js reports no error for an UPDATE that matched
-    // nothing, so without this a race or an id typo would look like a clean success.
-    const { data: updated, error: writeError } = await query.select('id')
-    if (writeError) {
-      failures.push(`${shop.slug ?? shop.id}: ${writeError.message}`)
-      continue
+      // Guard ONLY the genuinely-absent case. A malformed value is present but
+      // entitles nobody (`readGrant` refuses it), so the planner owes that shop a
+      // grant — and an `is null` guard would reject the row and leave it unentitled
+      // while the dry run promised a fix. Guarding it would make the planner and the
+      // writer disagree, which is the whole failure this script exists to avoid.
+      if (!present) query = query.is(`metadata->${key}`, null)
+
+      // `.select()` back: supabase-js reports no error for an UPDATE that matched
+      // nothing, so without this a race or an id typo would look like a clean success.
+      const { data: updated, error: writeError } = await query.select('id')
+      if (writeError) {
+        failures.push(`${shop.slug ?? shop.id} (${decision.sku}): ${writeError.message}`)
+        continue
+      }
+      if (!updated?.length) { raced += 1; continue }
+      working[key] = grant
+      if (present) repaired += 1
+      else written += 1
     }
-    if (!updated?.length) { raced += 1; continue }
-    written += 1
   }
 
   console.log(
-    `[paywall:backfill] wrote ${written} shop row(s); ${raced} skipped (granted concurrently); ${failures.length} failure(s)`,
+    `[paywall:backfill] granted ${written}; repaired ${repaired} malformed; ` +
+      `${raced} skipped (granted concurrently); ${failures.length} failure(s)`,
   )
   for (const failure of failures) console.error(`  ! ${failure}`)
 
