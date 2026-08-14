@@ -1,7 +1,7 @@
 import type {
   ScenarioExecutionTelemetryInput,
   ScenarioProvider,
-} from '@golden-beans/sdk'
+} from '@golden-frijoles/sdk'
 import { MIYAGI_SCENARIO_TARGET_KEY } from '@/lib/scenario-target-contract'
 
 const SUBJECT = {

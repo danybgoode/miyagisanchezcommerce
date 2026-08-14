@@ -2,7 +2,7 @@ import 'server-only'
 import {
   createScenarioProvider,
   type ScenarioProvider,
-} from '@golden-beans/sdk'
+} from '@golden-frijoles/sdk'
 import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
 
 let provider: ScenarioProvider | undefined

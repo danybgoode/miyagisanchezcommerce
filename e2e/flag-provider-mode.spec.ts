@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createFlagProvider, type FlagProvider, type FlagSnapshot } from '@golden-beans/sdk'
+import { createFlagProvider, type FlagProvider, type FlagSnapshot } from '@golden-frijoles/sdk'
 import { parseFlagProviderMode, parseGoldenFlagEnvironment } from '../lib/flag-provider-mode'
 import { createFlagShadowObserver, type FlagShadowObservation } from '../lib/flag-shadow-observation'
 import { createFlagProviderEvaluator } from '../lib/flag-provider-evaluator'

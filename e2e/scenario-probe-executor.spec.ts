@@ -3,7 +3,7 @@ import type {
   ScenarioProvider,
   ScenarioProviderResolution,
   ScenarioSnapshot,
-} from '@golden-beans/sdk'
+} from '@golden-frijoles/sdk'
 import { executeScenarioProbe } from '../lib/scenario-probe-executor'
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
@@ -55,7 +55,10 @@ function provider(
   overrides: Partial<ScenarioProvider> = {},
 ): ScenarioProvider {
   return {
-    metadata: { name: 'golden-beans-scenarios' },
+    // Renamed by SDK 0.4.0 (D2). This is the PROVIDER's identity, not wire material —
+    // unlike the `x-golden-beans-*` headers and signing envelopes, which are signed
+    // and deliberately keep their original names (D3).
+    metadata: { name: 'golden-frijoles-scenarios' },
     initialize: async () => ({
       ok: true,
       changed: false,
