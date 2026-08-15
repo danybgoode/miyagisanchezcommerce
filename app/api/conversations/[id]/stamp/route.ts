@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { STAMPS, type StampKey } from '@/lib/stamps'
-import { notify } from '@/lib/notify'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { listingTitleForConversation, notifyConversationMessage } from '@/lib/notifications/conversation'
 
 // ── POST — send a structured stamp message ────────────────────────────────────
 
@@ -65,19 +65,20 @@ export async function POST(
     }).eq('id', id),
   ])
 
-  // Web push to the recipient (the other party). Never blocks the send.
+  // Tell the other party — through the PREFERENCE SEAM, not raw web push.
+  //
+  // This used to call `notify()` directly, so a reply reached exactly the people who
+  // had granted a push subscription and nobody else. Most sellers have none, which
+  // made messaging look delivered while being silent. Email + push + Telegram now,
+  // per the recipient's own settings. Never blocks the send.
   const recipientId = isBuyer ? conv.seller_clerk_user_id : conv.buyer_clerk_user_id
-  try {
-    await notify(recipientId, {
-      kind: 'new_message',
-      title: 'Nuevo mensaje',
-      body: stamp.text,
-      url: `/messages/${id}`,
-      tag: `conv:${id}`,
-    })
-  } catch {
-    /* push failures never break messaging */
-  }
+  void notifyConversationMessage({
+    conversationId: id,
+    recipientClerkUserId: recipientId ?? null,
+    recipientRole: isBuyer ? 'seller' : 'buyer',
+    listingTitle: await listingTitleForConversation(id),
+    messageText: stamp.text,
+  })
 
   return NextResponse.json({ ok: true })
 }

@@ -795,7 +795,10 @@
     "market.catalogUnavailableBody": "We could not confirm the US marketplace resources. Try again shortly; no Mexico listings were substituted.",
     "market.browseCatalog": "Browse the US catalog",
     "market.statePlaceholder": "State",
-    "market.checkoutComingSoon": "Checkout for US listings is coming next. You can browse this item now without being sent to a checkout that is not ready."
+    "market.checkoutComingSoon": "Checkout for US listings is coming next. You can browse this item now without being sent to a checkout that is not ready.",
+    "messages.loadFailed.title": "We couldn't load your messages",
+    "messages.loadFailed.body": "This is a problem on our side, not an empty inbox. Please try again in a moment.",
+    "messages.loadFailed.retry": "Try again"
   },
   "partnersRecruiting": {
     "landing": {

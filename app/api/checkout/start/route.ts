@@ -15,6 +15,7 @@
  * passthrough) since callers read both `redirect_url` and `cart_id`.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { startCheckout, type StartCheckoutParams } from '@/lib/cart'
 
 export async function POST(req: NextRequest) {
@@ -25,8 +26,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
 
+  // `buyerClerkUserId` decides WHO receives the post-order push/Telegram, so it is
+  // taken from the session and the body's value is discarded outright — an
+  // overwrite, not a fallback, so a crafted body cannot notify a stranger. Guests
+  // resolve to undefined and simply get no push, which is today's behaviour.
+  const { userId } = await auth()
+  const params: StartCheckoutParams = { ...body, buyerClerkUserId: userId ?? undefined }
+
   try {
-    const result = await startCheckout(body)
+    const result = await startCheckout(params)
     return NextResponse.json(result, { status: 200 })
   } catch (err) {
     // Preserve the thrown message verbatim — callers substring-match it

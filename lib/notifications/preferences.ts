@@ -12,7 +12,7 @@
  * today's behaviour with no backfill.
  */
 
-export const EVENT_GROUPS = ['orders', 'offers', 'payments', 'returns'] as const
+export const EVENT_GROUPS = ['orders', 'offers', 'payments', 'returns', 'mensajes'] as const
 export type EventGroup = (typeof EVENT_GROUPS)[number]
 
 export const CHANNELS = ['email', 'push', 'telegram'] as const
@@ -38,6 +38,10 @@ export type Channel = (typeof CHANNELS)[number]
 export const EVENT_GROUP = {
   new_order: 'orders',
   offer_made: 'offers',
+  // A buyer's question. Added 2026-08-15: conversations had NO group, so
+  // `/api/conversations/start` notified nobody and a reply sent web push only —
+  // which is a silent no-op for the majority of sellers, who have no subscription.
+  conversation_message: 'mensajes',
   buyer_reported_paid: 'payments',
   return_requested: 'returns',
   ml_order_new: 'orders',
@@ -153,6 +157,7 @@ export const GROUP_COPY: Record<EventGroup, { label: string; summary: string }> 
   offers:   { label: 'Ofertas',      summary: 'Cuando alguien hace una oferta.' },
   payments: { label: 'Pagos',        summary: 'Cuando el comprador avisa que ya pagó.' },
   returns:  { label: 'Devoluciones', summary: 'Cuando un comprador solicita una devolución.' },
+  mensajes: { label: 'Mensajes',     summary: 'Cuando alguien te escribe sobre un anuncio.' },
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -172,6 +177,7 @@ export const BUYER_EVENT_GROUPS = [
   'buyer.envios',
   'buyer.ofertas',
   'buyer.devoluciones',
+  'buyer.mensajes',
 ] as const
 export type BuyerEventGroup = (typeof BUYER_EVENT_GROUPS)[number]
 
@@ -212,6 +218,7 @@ export const BUYER_EVENT_GROUP = {
   return_requested:  'buyer.devoluciones',
   return_accepted:   'buyer.devoluciones',
   return_declined:   'buyer.devoluciones',
+  conversation_message: 'buyer.mensajes',
 } as const satisfies Record<string, BuyerEventGroup>
 export type BuyerEventKind = keyof typeof BUYER_EVENT_GROUP
 
@@ -271,6 +278,7 @@ export const BUYER_GROUP_COPY: Record<BuyerEventGroup, { label: string; summary:
   'buyer.envios':       { label: 'Envíos',       summary: 'Cuando tu pedido se envía y cuando llega.' },
   'buyer.ofertas':      { label: 'Ofertas',      summary: 'Cuando el vendedor responde tu oferta.' },
   'buyer.devoluciones': { label: 'Devoluciones', summary: 'Avances de tus solicitudes de devolución.' },
+  'buyer.mensajes':     { label: 'Mensajes',     summary: 'Cuando el vendedor responde tu mensaje.' },
 }
 
 // ── Dual-audience Telegram (epic #5b · Sprint 2) ──────────────────────────────

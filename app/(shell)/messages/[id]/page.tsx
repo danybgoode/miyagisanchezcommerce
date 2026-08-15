@@ -10,7 +10,7 @@ import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
 import { resolveConversationLedger } from '@/lib/conversation-ledger'
 import type { LedgerOffer } from '@/lib/transaction-ledger'
 import { returnsWindowLabel } from '@/lib/trust-signals'
-import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { marketCodeForCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
 import { getDictionary } from '@/lib/dictionary'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -30,17 +30,30 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   if (!user) redirect(`/sign-in?redirect_url=/messages/${id}`)
 
   // ── Fetch conversation (no offers embed — offers table has no currency column) ──
-  const { data: conv } = await db
+  // `marketplace_shops.market_code` is deliberately ABSENT: it has never been a
+  // column on the mirror (the operating market is a fact of the Medusa seller), and
+  // selecting it made PostgREST answer 400 — which this page turned into a 404. Every
+  // buyer who pressed "Preguntar" got the conversation created and then a not-found
+  // page (PR 351 → 2026-08-15). Presentation comes from the listing's own currency.
+  const { data: conv, error: convError } = await db
     .from('marketplace_conversations')
     .select(`
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
       buyer_unread, seller_unread, offer_id, medusa_order_id,
       marketplace_listings ( id, medusa_product_id, title, price_cents, currency, images, status, condition, location, listing_type ),
-      marketplace_shops ( id, name, slug, logo_url, verified, metadata, mp_enabled, market_code )
+      marketplace_shops ( id, name, slug, logo_url, verified, metadata, mp_enabled )
     `)
     .eq('id', id)
     .maybeSingle()
 
+  // A read that FAILED is not a conversation that does not exist. Collapsing the two
+  // is what made a live outage indistinguishable from a bad link — 404 tells the user
+  // the thing is gone, which was false and unactionable. Throw instead, so the error
+  // boundary offers a retry and the failure is visible in logs and Sentry.
+  if (convError) {
+    console.error('[messages/:id] conversation read failed:', convError)
+    throw new Error(`No se pudo leer la conversación: ${convError.message}`)
+  }
   if (!conv) notFound()
 
   const isBuyer  = conv.buyer_clerk_user_id === user.id
@@ -78,9 +91,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     verified?: boolean | null
     metadata?: Record<string, unknown> | null
     mp_enabled?: boolean | null
-    market_code?: string | null
   } | null
-  const presentation = resolveMarketPresentation(shopRaw?.market_code ?? 'mx')
+  const presentation = resolveMarketPresentation(marketCodeForCurrency(listingCurrency) ?? 'mx')
   const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
   const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)

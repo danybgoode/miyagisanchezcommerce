@@ -102,8 +102,8 @@ export async function deliverOrderWebhook(
     const { data: order } = await db
       .from('marketplace_orders')
       .select(`
-        id, status, amount_cents, currency, payment_method, created_at,
-        buyer_email, buyer_name, shop_id,
+        id, status, amount_cents, currency, created_at,
+        buyer_email, buyer_name, shop_id, metadata,
         marketplace_listings!inner(id, title),
         marketplace_shops!inner(id, ucp_webhook_url, ucp_webhook_secret)
       `)
@@ -133,7 +133,11 @@ export async function deliverOrderWebhook(
         status:         order.status,
         amount_cents:   order.amount_cents ?? 0,
         currency:       order.currency ?? 'MXN',
-        payment_method: order.payment_method ?? null,
+        // `marketplace_orders` has never had a `payment_method` COLUMN — it rides in
+        // `metadata`. Selecting it made PostgREST 400 the whole query, so this webhook
+        // silently delivered nothing. Harmless to date only because the legacy mirror
+        // table has 0 rows (found 2026-08-15 by a mechanical code-vs-schema scan).
+        payment_method: (order.metadata as Record<string, unknown> | null)?.payment_method as string ?? null,
         created_at:     order.created_at,
       },
       listing: {

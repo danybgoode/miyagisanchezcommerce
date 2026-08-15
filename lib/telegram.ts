@@ -14,6 +14,7 @@
  */
 
 import { newShopPingText } from './shop-notify'
+import { logNotification } from './notifications/log'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const CHAT_ID   = process.env.TELEGRAM_CHAT_ID
@@ -62,10 +63,22 @@ export function tgConfigured(chatId?: string | null): boolean {
 
 export async function tgSend(chatId: string | undefined | null, text: string): Promise<void> {
   const target = resolveChatId(chatId)
-  if (!BOT_TOKEN || !target) return   // silently skip if not configured / no target
+  // The skip stays silent to the CALLER (Telegram is observability, never the
+  // critical path) but is no longer silent to the ledger: "no bot token" and "no
+  // linked chat" are the two ways a Telegram notification quietly does not happen.
+  if (!BOT_TOKEN || !target) {
+    logNotification({
+      channel: 'telegram',
+      outcome: 'skipped',
+      recipient: target ?? null,
+      subject: firstLine(text),
+      reason: !BOT_TOKEN ? 'unconfigured' : 'no_recipient',
+    })
+    return
+  }
 
   try {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -75,9 +88,33 @@ export async function tgSend(chatId: string | undefined | null, text: string): P
       }),
       signal: AbortSignal.timeout(5000),  // 5s timeout — never block request path
     })
-  } catch {
-    // Intentionally swallowed — Telegram is observability, not critical path
+    // `tgSend` deliberately does not inspect the response for its RETURN value (see
+    // tgSendWithResult below for why), but the ledger records what the API said —
+    // otherwise a 401 bad-token looks identical to a delivered message forever.
+    logNotification({
+      channel: 'telegram',
+      outcome: res.ok ? 'sent' : 'failed',
+      recipient: target,
+      subject: firstLine(text),
+      reason: res.ok ? null : `http_${res.status}`,
+    })
+  } catch (e) {
+    // Intentionally swallowed for the caller — Telegram is observability, not
+    // critical path — but recorded, so it is not swallowed for the audit.
+    logNotification({
+      channel: 'telegram',
+      outcome: 'failed',
+      recipient: target,
+      subject: firstLine(text),
+      reason: 'network',
+      context: { detail: e instanceof Error ? e.message : String(e) },
+    })
   }
+}
+
+/** The ledger stores a label, not a whole HTML message body. */
+function firstLine(text: string): string {
+  return text.replace(/<[^>]*>/g, '').split('\n')[0].slice(0, 200)
 }
 
 /**

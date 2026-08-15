@@ -245,6 +245,13 @@ export const COMMUNICATION_FIXTURES: Record<string, CommunicationFixture> = {
     buyerEmail: to,
     orderUrl: ORDER,
   }),
+  'mensajes.conversation_message': (to) => email.sendConversationMessage({
+    to,
+    recipientRole: 'seller',
+    listingTitle: 'Bicicleta urbana',
+    messageText: '¿Sigue disponible? ¿Aceptas una oferta?',
+    conversationUrl: `${URL}/messages/00000000-0000-0000-0000-000000000000`,
+  }),
   'order.ml_event_to_seller': (to) => email.sendMlOrderEventToSeller({
     sellerEmail: to,
     subject: 'Venta nueva en Mercado Libre',

@@ -162,7 +162,10 @@ export async function PATCH(
 
   const { data: returnReq } = await db
     .from('marketplace_return_requests')
-    .select('id, status, buyer_email, buyer_name, buyer_clerk_user_id, order_id')
+    // No `buyer_name` — that column exists on `marketplace_orders`, never on this
+    // table, and asking for it 400'd the whole read (found 2026-08-15 by a mechanical
+    // code-vs-schema scan). Nothing below consumed it.
+    .select('id, status, buyer_email, buyer_clerk_user_id, order_id')
     .eq('id', requestId).eq('order_id', id).maybeSingle()
 
   if (!returnReq) return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 })

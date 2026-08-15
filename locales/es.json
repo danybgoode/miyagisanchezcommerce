@@ -795,7 +795,10 @@
     "market.catalogUnavailableBody": "No pudimos confirmar los recursos del mercado. Intenta de nuevo en un momento; no mostramos publicaciones de otro país.",
     "market.browseCatalog": "Explorar el catálogo",
     "market.statePlaceholder": "Estado",
-    "market.checkoutComingSoon": "El checkout para este mercado estará disponible pronto. Puedes explorar el artículo sin entrar a un checkout que aún no está listo."
+    "market.checkoutComingSoon": "El checkout para este mercado estará disponible pronto. Puedes explorar el artículo sin entrar a un checkout que aún no está listo.",
+    "messages.loadFailed.title": "No pudimos cargar tus mensajes",
+    "messages.loadFailed.body": "Esto es una falla nuestra, no que no tengas conversaciones. Vuelve a intentarlo en un momento.",
+    "messages.loadFailed.retry": "Reintentar"
   },
   "partnersRecruiting": {
     "landing": {
