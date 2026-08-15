@@ -1137,6 +1137,33 @@ export async function sendConversationMessage(ctx: {
   await send(ctx.to, subject, body)
 }
 
+/**
+ * An operational broadcast from the platform team (admin → sellers or buyers).
+ *
+ * Uses the SAME `html()` shell as all 62 other senders — wordmark, green rule,
+ * footer — so a message from the team is visibly the same product as a message
+ * about an order. There is no second design here on purpose.
+ *
+ * Paragraphs arrive as plain text and are escaped by `p()`. The composer never
+ * accepts markup: an outage notice written under pressure must not be able to
+ * inject HTML into a message going to everyone.
+ */
+export async function sendPlatformBroadcast(ctx: {
+  to: string
+  headline: string
+  paragraphs: string[]
+  ctaLabel?: string | null
+  ctaUrl?: string | null
+  subject: string
+}): Promise<void> {
+  const body = [
+    h1(ctx.headline),
+    ...ctx.paragraphs.map((text) => p(text)),
+    ctx.ctaLabel && ctx.ctaUrl ? cta(ctx.ctaLabel, ctx.ctaUrl) : '',
+  ].join('')
+  await send(ctx.to, ctx.subject, body)
+}
+
 // ── Buyer: order shipped notification ─────────────────────────────────────────
 
 /**
