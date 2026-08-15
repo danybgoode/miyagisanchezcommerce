@@ -89,20 +89,8 @@ export function sortKeys<T extends SortableKey>(keys: readonly T[], sort: Conten
   return list.sort(byNamespaceKeyAsc)
 }
 
-export interface PageResult<T> {
-  pageItems: T[]
-  totalPages: number
-  /** The page actually served — clamped into [1, totalPages], never out of range. */
-  page: number
-}
-
-/** Slice `items` into page `page` of `pageSize`. Clamps an out-of-range page instead of returning empty. */
-export function paginate<T>(items: readonly T[], page: number, pageSize: number): PageResult<T> {
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
-  const clampedPage = Math.min(Math.max(1, Math.floor(page) || 1), totalPages)
-  const start = (clampedPage - 1) * pageSize
-  return { pageItems: items.slice(start, start + pageSize), totalPages, page: clampedPage }
-}
+// Kept as a compatibility export for `/admin/contenido` and its existing specs.
+export { paginate, type PageResult } from './admin-pagination'
 
 export interface ContenidoSearchParams {
   q?: string

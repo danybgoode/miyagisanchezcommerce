@@ -9,6 +9,8 @@ import {
   type CommunicationFilter,
 } from '@/lib/notifications/catalog'
 import type { Channel } from '@/lib/notifications/preferences'
+import { pageAfterAdminListChange, paginate } from '@/lib/admin-pagination'
+import AdminPagination from '../_components/AdminPagination'
 
 /**
  * The communications matrix (marketplace-communications · S2.1, S2.2, S3.2).
@@ -40,6 +42,9 @@ const CHANNEL_LABEL: Record<Channel, string> = {
 
 type SendState = { key: string; status: 'sending' | 'sent' | 'error'; message?: string }
 
+// Keep the catalog scannable without rendering its entire matrix at once.
+const COMMUNICATIONS_PAGE_SIZE = 25
+
 export default function ComunicacionesClient({
   rows,
   recipients,
@@ -48,12 +53,17 @@ export default function ComunicacionesClient({
   recipients: string[]
 }) {
   const [filter, setFilter] = useState<CommunicationFilter>({})
+  const [page, setPage] = useState(1)
   const [recipient, setRecipient] = useState(recipients[0] ?? '')
   const [send, setSend] = useState<SendState | null>(null)
 
   const filtered = useMemo(
     () => filterCommunications(rows, filter) as Row[],
     [rows, filter],
+  )
+  const pagination = useMemo(
+    () => paginate(filtered, page, COMMUNICATIONS_PAGE_SIZE),
+    [filtered, page],
   )
 
   const channels = useMemo(() => {
@@ -82,6 +92,7 @@ export default function ComunicacionesClient({
   }
 
   function update(patch: Partial<CommunicationFilter>) {
+    setPage((prev) => pageAfterAdminListChange(prev, true))
     setFilter((prev) => {
       const next = { ...prev, ...patch }
       // An empty select means "no filter", not a filter on empty string.
@@ -172,7 +183,7 @@ export default function ComunicacionesClient({
       </div>
 
       <p className="text-sm text-[var(--color-muted)]">
-        {filtered.length} de {rows.length} comunicaciones
+        {filtered.length} de {rows.length} comunicaciones · página {pagination.page} de {pagination.totalPages}
       </p>
 
       <div className="overflow-x-auto">
@@ -187,7 +198,7 @@ export default function ComunicacionesClient({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => (
+            {pagination.pageItems.map((row) => (
               <tr key={row.key} className="border-b align-top">
                 <td className="py-2 pr-3">
                   <div>{row.trigger}</div>
@@ -224,6 +235,12 @@ export default function ComunicacionesClient({
           </tbody>
         </table>
       </div>
+
+      <AdminPagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onPageChange={setPage}
+      />
 
       {filtered.length === 0 && (
         <p className="text-sm text-[var(--color-muted)]">Ninguna comunicación coincide con estos filtros.</p>
