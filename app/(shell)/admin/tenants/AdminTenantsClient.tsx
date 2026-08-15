@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  filterTenants,
+  selectTenants,
   entitlementReasonLabel,
   claimStatusLabel,
   domainStatusLabel,
+  type TenantFilter,
   type TenantRow,
+  type TenantSortKey,
+  type SortDirection,
 } from '@/lib/admin/tenant-directory'
+import { sellerStatusLabel, sellerStatusTone, type SellerStatus } from '@/lib/seller-status'
+import TenantLifecyclePanel from './TenantLifecyclePanel'
 import type { DomainGrant, DomainEntitlementReason } from '@/lib/domain-entitlement'
 
 /**
@@ -26,12 +31,46 @@ type EntitlementResponse = {
 }
 
 export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }) {
-  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<TenantFilter>({})
+  const [sort, setSort] = useState<{ key: TenantSortKey; direction: SortDirection }>({
+    key: 'name',
+    direction: 'asc',
+  })
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  // Local copy so a grant/revoke can reflect the new reason in place.
+  /**
+   * The last lifecycle outcome, held HERE rather than in the row.
+   *
+   * A status change can remove the row from the current filter — reactivating while
+   * filtered to "en pausa" is the obvious case — and the row unmounts with its
+   * message. The partial-restore warning is the most important thing this screen can
+   * say, so it lives above the list and stays until dismissed.
+   */
+  const [report, setReport] = useState<{ shopName: string; message: string; incomplete: boolean } | null>(null)
+  /**
+   * Lifecycle locks, held HERE and keyed by shop rather than inside the row.
+   *
+   * The panel's `working` and `unknown` states used to live in component state, so
+   * collapsing the row — or filtering it away and reopening it — remounted a fresh
+   * panel in `idle` and allowed a second POST while the first was unresolved. That is
+   * exactly the race the lock exists to prevent, defeated by React's own lifecycle.
+   */
+  const [locks, setLocks] = useState<Record<string, 'working' | 'unknown'>>({})
+  // Local copy so a grant/revoke or a status change reflects in place.
   const [rows, setRows] = useState<TenantRow[]>(tenants)
 
-  const filtered = useMemo(() => filterTenants(rows, query), [rows, query])
+  // The SAME pure selector the api spec asserts over, so the screen and the spec
+  // cannot disagree about what "unclaimed, sorted by listings" means.
+  const filtered = useMemo(() => selectTenants(rows, filter, sort), [rows, filter, sort])
+
+  function updateFilter(patch: Partial<TenantFilter>) {
+    setFilter((prev) => {
+      const next = { ...prev, ...patch }
+      for (const key of Object.keys(next) as (keyof TenantFilter)[]) {
+        if (!next[key] || next[key] === 'any') delete next[key]
+      }
+      return next
+    })
+  }
 
   function patchRow(shopId: string, partial: Partial<TenantRow>) {
     setRows((prev) => prev.map((r) => (r.shopId === shopId ? { ...r, ...partial } : r)))
@@ -47,17 +86,98 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
         </p>
       </div>
 
+      {report && (
+        <div
+          role="status"
+          className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${
+            report.incomplete
+              ? 'border-[var(--color-warning,#9a6700)] bg-[var(--color-warning-bg,#fff4e5)]'
+              : 'border-[var(--color-border)] bg-[var(--color-bg-subtle)]'
+          }`}
+        >
+          <span className="flex-1">
+            <strong>{report.shopName}:</strong> {report.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReport(null)}
+            className="text-xs underline"
+            aria-label="Descartar"
+          >
+            Descartar
+          </button>
+        </div>
+      )}
+
       <input
         type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Busca por nombre, slug, dominio o id de vendedor…"
+        value={filter.q ?? ''}
+        onChange={(e) => updateFilter({ q: e.target.value })}
+        placeholder="Busca por nombre, slug, dominio, id de vendedor o correo…"
         className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
       />
 
+      <div className="flex flex-wrap items-end gap-2 text-xs">
+        <Select
+          label="Estado"
+          value={filter.status ?? 'any'}
+          onChange={(v) => updateFilter({ status: v as SellerStatus | 'any' })}
+          options={[
+            ['any', 'Cualquiera'],
+            ['active', 'Activa'],
+            ['paused', 'En pausa'],
+            ['deleted', 'Eliminada'],
+            // The two non-status states are filterable too: they are exactly the rows
+            // that need attention, and a distinction an operator cannot isolate is a
+            // decorative one.
+            ['not_imported', 'Sin importar a Medusa'],
+            ['absent', 'Vendedor huérfano en Medusa'],
+            ['unavailable', 'Estado no disponible'],
+          ]}
+        />
+        <Select
+          label="Reclamo"
+          value={filter.claimed ?? 'any'}
+          onChange={(v) => updateFilter({ claimed: v as 'claimed' | 'unclaimed' | 'any' })}
+          options={[['any', 'Cualquiera'], ['claimed', 'Reclamada'], ['unclaimed', 'Sin reclamar']]}
+        />
+        <Select
+          label="Mercado"
+          value={filter.market ?? 'any'}
+          onChange={(v) => updateFilter({ market: v as TenantFilter['market'] })}
+          options={[['any', 'Cualquiera'], ['mx', 'México'], ['us', 'Estados Unidos'], ['unknown', 'Sin resolver']]}
+        />
+        <Select
+          label="Dominio"
+          value={filter.domain ?? 'any'}
+          onChange={(v) => updateFilter({ domain: v as TenantFilter['domain'] })}
+          options={[['any', 'Cualquiera'], ['verified', 'Verificado'], ['pending', 'Pendiente'], ['none', 'Sin dominio']]}
+        />
+        <Select
+          label="Ordenar por"
+          value={sort.key}
+          onChange={(v) => setSort((prev) => ({ ...prev, key: v as TenantSortKey }))}
+          options={[
+            ['name', 'Nombre'],
+            ['listings', 'Anuncios'],
+            ['created', 'Fecha de alta'],
+            ['status', 'Estado'],
+            ['market', 'Mercado'],
+          ]}
+        />
+        <button
+          type="button"
+          onClick={() => setSort((prev) => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+          className="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-[var(--color-bg-subtle)]"
+          aria-label="Invertir orden"
+        >
+          {sort.direction === 'asc' ? '↑ Ascendente' : '↓ Descendente'}
+        </button>
+      </div>
+
       <p className="text-xs text-[var(--color-muted)]">
         {filtered.length} {filtered.length === 1 ? 'tienda' : 'tiendas'}
-        {query ? ` (de ${rows.length})` : ''}
+        {Object.keys(filter).length ? ` (de ${rows.length})` : ''}
       </p>
 
       <div className="space-y-2">
@@ -74,6 +194,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                 <span className="font-medium">{t.name}</span>
                 <span className="text-xs text-[var(--color-muted)]">/{t.slug}</span>
                 <span className="ml-auto flex items-center gap-2 text-xs">
+                  <Badge tone={sellerStatusTone(t.status)}>{sellerStatusLabel(t.status)}</Badge>
                   <Badge tone={t.claimed ? 'ok' : 'muted'}>{claimStatusLabel(t.claimed)}</Badge>
                   <Badge tone={t.domainStatus === 'verified' ? 'ok' : t.domainStatus === 'pending' ? 'warn' : 'muted'}>
                     {domainStatusLabel(t.domainStatus)}
@@ -113,6 +234,48 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                     <dt className="text-xs text-[var(--color-muted)]">Plan de dominio</dt>
                     <dd className="mt-0.5">
                       <EntitlementControls row={t} onResolved={(p) => patchRow(t.shopId, p)} />
+                    </dd>
+                  </div>
+                  <Field label="Correo de registro">
+                    {t.registrationEmail === 'unavailable' ? (
+                      // NOT a blank cell: "we could not ask Clerk" and "this merchant
+                      // has no email" are different facts (D5).
+                      <span className="text-[var(--color-muted)]">No disponible</span>
+                    ) : t.registrationEmail ? (
+                      <a href={`mailto:${t.registrationEmail}`} className="underline">{t.registrationEmail}</a>
+                    ) : (
+                      <span className="text-[var(--color-muted)]">Sin reclamar</span>
+                    )}
+                  </Field>
+                  <Field label="Estado">{sellerStatusLabel(t.status)}</Field>
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs text-[var(--color-muted)]">Ciclo de vida</dt>
+                    <dd className="mt-0.5">
+                      <TenantLifecyclePanel
+                        row={t}
+                        lock={locks[t.shopId] ?? null}
+                        onLock={(lock) =>
+                          setLocks((prev) => {
+                            if (!lock) {
+                              // Delete rather than destructure-omit: the omitted
+                              // binding trips no-unused-vars, and this reads plainly.
+                              const next = { ...prev }
+                              delete next[t.shopId]
+                              return next
+                            }
+                            return { ...prev, [t.shopId]: lock }
+                          })
+                        }
+                        onChanged={(p) => patchRow(t.shopId, p)}
+                        onReport={(next) =>
+                          setReport((prev) =>
+                            // Never overwrite an UNDISMISSED incomplete warning with a
+                            // later success: the incomplete one names products that
+                            // did not come back, and losing it loses the only record.
+                            prev?.incomplete && !next.incomplete ? prev : next,
+                          )
+                        }
+                      />
                     </dd>
                   </div>
                   <Field label="Anuncios">{t.listingCount}</Field>
@@ -331,12 +494,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function Badge({ tone, children }: { tone: 'ok' | 'warn' | 'muted'; children: React.ReactNode }) {
+function Badge({
+  tone,
+  children,
+}: {
+  // `danger` added for a deleted shop: it is not a warning, and rendering it in the
+  // same amber as "en pausa" would blur the one distinction an operator scanning this
+  // list most needs to make.
+  tone: 'ok' | 'warn' | 'danger' | 'muted'
+  children: React.ReactNode
+}) {
   const cls =
     tone === 'ok'
       ? 'bg-[var(--color-success-bg,#e7f6ec)] text-[var(--color-success,#1a7f37)]'
       : tone === 'warn'
         ? 'bg-[var(--color-warning-bg,#fff4e5)] text-[var(--color-warning,#9a6700)]'
-        : 'bg-[var(--color-bg-subtle)] text-[var(--color-muted)]'
+        : tone === 'danger'
+          ? 'bg-[var(--color-danger-bg,#ffebe9)] text-[var(--color-danger,#b3261e)]'
+          : 'bg-[var(--color-bg-subtle)] text-[var(--color-muted)]'
   return <span className={`rounded-full px-2 py-0.5 ${cls}`}>{children}</span>
+}
+
+/** A labelled select. Small enough to keep local; the filter bar is the only user. */
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: Array<[string, string]>
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[var(--color-muted)]">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1"
+      >
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>{l}</option>
+        ))}
+      </select>
+    </label>
+  )
 }
