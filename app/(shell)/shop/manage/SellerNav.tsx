@@ -18,6 +18,7 @@ import {
 import type { FlagKey } from '@/lib/flags'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { shopUrlFor } from '@/lib/market-url'
+import { PendingMark } from '@/app/components/LinkPending'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 import type { MarketCode } from '@/lib/markets'
 
@@ -43,6 +44,7 @@ function RailItem({ entry, active }: { entry: SellerNavEntry; active: boolean })
     <Link
       href={entry.href}
       aria-current={active ? 'page' : undefined}
+      className="pressable"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -59,9 +61,14 @@ function RailItem({ entry, active }: { entry: SellerNavEntry; active: boolean })
     >
       <i className={entry.icon} style={{ fontSize: 18, lineHeight: 1 }} />
       {entry.label}
+      {/* Portal navigation is the surface Daniel named: a merchant clicking
+          "Pedidos" got no acknowledgement at all until the next page painted. */}
+      <PendingMark />
     </Link>
   )
 }
+
+
 
 // ── Mobile bottom-bar item (Resumen · Pedidos · Catálogo) ────────────────────
 function BarItem({ entry, active, badgeCount }: { entry: SellerNavEntry; active: boolean; badgeCount?: number }) {
@@ -70,6 +77,7 @@ function BarItem({ entry, active, badgeCount }: { entry: SellerNavEntry; active:
       href={entry.href}
       aria-label={entry.label}
       aria-current={active ? 'page' : undefined}
+      className="pressable"
       style={{
         flex: 1,
         position: 'relative',
@@ -102,6 +110,7 @@ function BarItem({ entry, active, badgeCount }: { entry: SellerNavEntry; active:
         )}
       </span>
       <span style={{ fontSize: 10, fontFamily: 'var(--font-sans)' }}>{entry.mobileLabel ?? entry.label}</span>
+      <PendingMark />
     </Link>
   )
 }
@@ -112,6 +121,7 @@ function PublicarFab() {
     <Link
       href="/sell"
       aria-label="Publicar"
+      className="pressable"
       style={{
         flexShrink: 0,
         width: 46,
@@ -128,6 +138,7 @@ function PublicarFab() {
       }}
     >
       <i className="iconoir-plus" style={{ fontSize: 24, lineHeight: 1 }} />
+      <PendingMark />
     </Link>
   )
 }
