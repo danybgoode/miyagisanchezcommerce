@@ -18,6 +18,7 @@
 import { flattenDictionary, flattenNamespace, unflattenRows, type FlatCopyEntry } from './copy-tree'
 import { isBilingualNamespace } from './bilingual-namespaces'
 import type { OverrideRow } from './copy-overrides-merge'
+import { sectionForKey } from './copy-overrides-sections'
 
 /** Hard cap per export/import — keeps a single round-trip safe to process and review. */
 export const MAX_EXPORT_IMPORT_ROWS = 2000
@@ -34,13 +35,13 @@ export interface CopyExportRow {
 
 export interface ImportScope {
   namespace?: string
-  /** First segment of `key`, e.g. `'anchor'` — a "section" within a namespace. */
+  /** A "section" within a namespace, per the shared `sectionForKey` rule — e.g. `'anchor'`, or a page path for `sellerCopy`. */
   section?: string
 }
 
 function matchesScope(entry: FlatCopyEntry, scope: ImportScope): boolean {
   if (scope.namespace && entry.namespace !== scope.namespace) return false
-  if (scope.section && entry.key.split('.')[0] !== scope.section) return false
+  if (scope.section && sectionForKey(entry.namespace, entry.key) !== scope.section) return false
   return true
 }
 
