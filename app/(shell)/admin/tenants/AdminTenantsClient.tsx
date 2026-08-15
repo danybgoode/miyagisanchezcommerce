@@ -46,6 +46,15 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
    * say, so it lives above the list and stays until dismissed.
    */
   const [report, setReport] = useState<{ shopName: string; message: string; incomplete: boolean } | null>(null)
+  /**
+   * Lifecycle locks, held HERE and keyed by shop rather than inside the row.
+   *
+   * The panel's `working` and `unknown` states used to live in component state, so
+   * collapsing the row — or filtering it away and reopening it — remounted a fresh
+   * panel in `idle` and allowed a second POST while the first was unresolved. That is
+   * exactly the race the lock exists to prevent, defeated by React's own lifecycle.
+   */
+  const [locks, setLocks] = useState<Record<string, 'working' | 'unknown'>>({})
   // Local copy so a grant/revoke or a status change reflects in place.
   const [rows, setRows] = useState<TenantRow[]>(tenants)
 
@@ -244,8 +253,28 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                     <dd className="mt-0.5">
                       <TenantLifecyclePanel
                         row={t}
+                        lock={locks[t.shopId] ?? null}
+                        onLock={(lock) =>
+                          setLocks((prev) => {
+                            if (!lock) {
+                              // Delete rather than destructure-omit: the omitted
+                              // binding trips no-unused-vars, and this reads plainly.
+                              const next = { ...prev }
+                              delete next[t.shopId]
+                              return next
+                            }
+                            return { ...prev, [t.shopId]: lock }
+                          })
+                        }
                         onChanged={(p) => patchRow(t.shopId, p)}
-                        onReport={setReport}
+                        onReport={(next) =>
+                          setReport((prev) =>
+                            // Never overwrite an UNDISMISSED incomplete warning with a
+                            // later success: the incomplete one names products that
+                            // did not come back, and losing it loses the only record.
+                            prev?.incomplete && !next.incomplete ? prev : next,
+                          )
+                        }
                       />
                     </dd>
                   </div>

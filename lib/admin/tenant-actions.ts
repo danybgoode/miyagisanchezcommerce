@@ -178,6 +178,11 @@ export function statusChangeConfirmation(shopName: string, to: SellerStatus): st
         + 'compradores. El historial de pedidos se conserva, pero esta acción no se revierte desde aquí.'
     case 'active':
     default:
-      return `Reactivar “${shopName}”. Se restauran exactamente los productos que se retiraron al pausarla.`
+      // Deliberately "intenta restaurar", not "restaura". The response contract
+      // explicitly allows a partial restore — a product deleted while the shop was
+      // paused cannot come back — and a confirmation that promises completeness
+      // would be contradicted by the warning the very next screen may show.
+      return `Reactivar “${shopName}”. Se intentará restaurar exactamente los productos que se `
+        + 'retiraron al pausarla; si alguno ya no existe, te lo diremos al terminar.'
   }
 }

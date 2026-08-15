@@ -26,6 +26,15 @@ const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 /** Bounded: the directory fans this across every shop. */
 const TIMEOUT_MS = 5_000
 
+/**
+ * Statuses that mean "we do not know", not "it failed".
+ *
+ * A gateway can answer these AFTER Medusa committed the change, so a retry would hit
+ * an already-changed seller. 4xx stays a definite failure — those are authored by
+ * Medusa itself, which by definition did not act.
+ */
+const AMBIGUOUS_STATUSES = new Set([502, 503, 504])
+
 export type TenantStatusRead =
   | { readonly state: 'resolved'; readonly status: SellerStatus; readonly pausedLinkCount: number }
   /** The mirror row has no Medusa seller id: a scraped gem nobody imported yet. */
@@ -147,6 +156,17 @@ export async function changeSellerStatus(input: {
     )
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
     if (!res.ok) {
+      // A GATEWAY status is ambiguous, not a refusal. 502/503/504 can come from a
+      // proxy in front of Medusa AFTER it committed the change — a deletion that
+      // succeeded and whose response died in transit looks identical to one that
+      // never ran. Only a status Medusa itself authors (4xx) is a definite failure.
+      if (AMBIGUOUS_STATUSES.has(res.status)) {
+        return {
+          ok: 'unknown',
+          message: 'El backend devolvió un error de puerta de enlace, así que NO sabemos si el '
+            + 'cambio se aplicó. Recarga y verifica el estado de la tienda antes de reintentar.',
+        }
+      }
       // The backend's own message is es-MX for the cases it authors deliberately
       // (a refused transition, a missing seller). Anything else — a proxy error page,
       // a framework default — is English runtime text that must not reach a Spanish

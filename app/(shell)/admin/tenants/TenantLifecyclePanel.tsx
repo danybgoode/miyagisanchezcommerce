@@ -30,10 +30,19 @@ type Outcome =
 
 export default function TenantLifecyclePanel({
   row,
+  lock,
+  onLock,
   onChanged,
   onReport,
 }: {
   row: TenantRow
+  /**
+   * The in-flight / ambiguous lock, owned by the PARENT so it survives this component
+   * unmounting — collapsing the row or filtering it away used to reset the lock and
+   * re-enable a second POST against an unresolved mutation.
+   */
+  lock: 'working' | 'unknown' | null
+  onLock: (lock: 'working' | 'unknown' | null) => void
   onChanged: (patch: Partial<TenantRow>) => void
   /**
    * Report the outcome to the PARENT as well as showing it here.
@@ -48,7 +57,19 @@ export default function TenantLifecyclePanel({
 }) {
   const [target, setTarget] = useState<SellerStatus | null>(null)
   const [reason, setReason] = useState('')
-  const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' })
+  const [localOutcome, setOutcome] = useState<Outcome>({ kind: 'idle' })
+
+  // The parent's lock WINS over local state: a remounted panel must not present
+  // itself as idle while a mutation it started is still unresolved.
+  const outcome: Outcome = lock === 'working'
+    ? { kind: 'working' }
+    : lock === 'unknown' && localOutcome.kind !== 'unknown'
+      ? {
+          kind: 'unknown',
+          message: 'Hay un cambio de estado sin confirmar para esta tienda. Recarga y verifica '
+            + 'antes de intentar otro.',
+        }
+      : localOutcome
 
   if (!row.medusaSellerId) {
     return (
@@ -98,6 +119,7 @@ export default function TenantLifecyclePanel({
   async function submit() {
     if (!target || !reason.trim()) return
     setOutcome({ kind: 'working' })
+    onLock('working')
     try {
       const res = await fetch(`/api/admin/tenants/${row.shopId}/status`, {
         method: 'POST',
@@ -123,6 +145,7 @@ export default function TenantLifecyclePanel({
         const message = 'El backend respondió, pero no pudimos leer el resultado. '
           + 'Recarga y verifica el estado de la tienda antes de reintentar.'
         setOutcome({ kind: 'unknown', message })
+        onLock('unknown')
         onReport({ shopName: row.name, message, incomplete: true })
         // Clear the form: leaving the target and reason primed means Confirm is one
         // click away from a SECOND attempt against a shop that may already have been
@@ -148,6 +171,9 @@ export default function TenantLifecyclePanel({
           })
           setTarget(null)
           setReason('')
+          onLock('unknown')
+        } else {
+          onLock(null)
         }
         return
       }
@@ -163,6 +189,7 @@ export default function TenantLifecyclePanel({
             ? `Reactivada. Se restauraron ${Number(body!.restored ?? 0)} vínculo(s) de catálogo.`
             : `Listo. Se retiraron ${Number(body!.unlinked ?? 0)} vínculo(s) de catálogo.`
       setOutcome({ kind: 'done', incomplete, message })
+      onLock(null)
       // Survives this row leaving the filter.
       onReport({ shopName: row.name, message, incomplete })
       // The SERVER's answer, never the requested target — reporting our own intent
@@ -178,6 +205,7 @@ export default function TenantLifecyclePanel({
       const message = 'Se perdió la conexión antes de recibir respuesta. NO sabemos si el cambio '
         + 'se aplicó: recarga y verifica el estado de la tienda antes de reintentar.'
       setOutcome({ kind: 'unknown', message })
+      onLock('unknown')
       onReport({ shopName: row.name, message, incomplete: true })
       setTarget(null)
       setReason('')
