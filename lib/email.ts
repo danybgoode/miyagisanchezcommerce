@@ -43,15 +43,39 @@ function resend(): Resend {
 
 // ── Seller email lookup via Clerk Management API ──────────────────────────────
 
-export async function getSellerEmail(clerkUserId: string): Promise<string | null> {
+/**
+ * Why a seller could not be emailed.
+ *
+ * `no_email_on_account` (the account genuinely carries no address) and
+ * `lookup_failed` (Clerk was unreachable, rate-limited, or the id is unknown to
+ * THIS instance) are different facts with different fixes, and the bare
+ * `catch { return null }` this replaces collapsed them. That collapse is not
+ * cosmetic: the admin broadcast preview shows an operator who cannot be reached and
+ * why, and reporting "sin correo" over a transient outage would send them chasing
+ * fourteen merchants about an account problem none of them have.
+ */
+export type SellerEmailLookup =
+  | { email: string; reason?: undefined }
+  | { email: null; reason: 'no_email_on_account' | 'lookup_failed'; detail?: string }
+
+export async function getSellerEmailResult(clerkUserId: string): Promise<SellerEmailLookup> {
   try {
     const { clerkClient } = await import('@clerk/nextjs/server')
     const client = await clerkClient()
     const user = await client.users.getUser(clerkUserId)
-    return user.emailAddresses[0]?.emailAddress ?? null
-  } catch {
-    return null
+    const email = user.emailAddresses[0]?.emailAddress
+    return email ? { email } : { email: null, reason: 'no_email_on_account' }
+  } catch (e) {
+    // Said out loud. Every seller notification in the product resolves its recipient
+    // through here, so a silent failure here is a silent failure everywhere.
+    console.error('[getSellerEmail] Clerk lookup failed for', clerkUserId, e)
+    return { email: null, reason: 'lookup_failed', detail: e instanceof Error ? e.message : String(e) }
   }
+}
+
+/** The long-standing shape, kept for the callers that only need the address. */
+export async function getSellerEmail(clerkUserId: string): Promise<string | null> {
+  return (await getSellerEmailResult(clerkUserId)).email
 }
 
 // ── Base template ─────────────────────────────────────────────────────────────
