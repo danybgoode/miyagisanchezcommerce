@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { requireEnv } from './_helpers/auth'
+import { requireEnv, expectListingFound } from './_helpers/auth'
 
 /**
  * PDP interactive image gallery — real-browser smoke, ANONYMOUS (no auth).
@@ -24,6 +24,7 @@ test.describe('pdp · interactive gallery (browser)', () => {
   test.beforeEach(async ({ page }) => {
     requireEnv(LISTING_ID, 'MS_TEST_GALLERY_LISTING_ID')
     await page.goto(`/l/${LISTING_ID}`)
+    await expectListingFound(page, 'MS_TEST_GALLERY_LISTING_ID')
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
     const n = await thumbs(page).count()
     test.skip(n < 2, 'listing has <2 photos — nothing to step through')
@@ -106,6 +107,7 @@ test.describe('pdp · single-image gallery parity (browser)', () => {
   test.beforeEach(async ({ page }) => {
     requireEnv(SINGLE_LISTING_ID, 'MS_TEST_GALLERY_SINGLE_LISTING_ID')
     await page.goto(`/l/${SINGLE_LISTING_ID}`)
+    await expectListingFound(page, 'MS_TEST_GALLERY_SINGLE_LISTING_ID')
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
     const n = await thumbs(page).count()
     test.skip(n > 0, 'listing has 2+ photos — wrong fixture for the single-image case')
@@ -151,6 +153,7 @@ test.describe('pdp · zero-image placeholder parity (browser)', () => {
   test('back + share render over the placeholder', async ({ page }) => {
     requireEnv(ZERO_LISTING_ID, 'MS_TEST_GALLERY_ZERO_LISTING_ID')
     await page.goto(`/l/${ZERO_LISTING_ID}`)
+    await expectListingFound(page, 'MS_TEST_GALLERY_ZERO_LISTING_ID')
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
 
     await expect(page.getByTestId('gallery-back')).toBeVisible()
