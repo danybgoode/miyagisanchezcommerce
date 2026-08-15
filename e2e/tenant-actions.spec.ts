@@ -140,3 +140,20 @@ test.describe('statusChangeConfirmation', () => {
     expect(active).toContain('exactamente')
   })
 })
+
+test.describe('unknown-key rejection (review round 3)', () => {
+  test('REFUSES an unrecognised key instead of writing the rest', () => {
+    // `{ name: 'Nuevo', customDomain: 'x' }` previously wrote the name, dropped the
+    // domain and reported full success — a response claiming more than it did. Note
+    // `customDomain` is camelCase and so was not caught by the snake_case
+    // non-editable list; an allow-list is the only form that stays correct.
+    const decision = decideTenantEdit({ name: 'Nuevo', customDomain: 'example.com' })
+    expect(decision.ok).toBe(false)
+    if (!decision.ok) expect(decision.field).toBe('customDomain')
+  })
+
+  test('still accepts every legitimately editable field together', () => {
+    const decision = decideTenantEdit({ name: 'N', description: 'D', location: 'L' })
+    expect(decision.ok).toBe(true)
+  })
+})

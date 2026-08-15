@@ -72,6 +72,13 @@ export const POST = withAdmin<NextRequest, RouteCtx>(async (req, { params }) => 
     status: decision.status,
     reason: decision.reason,
   })
+  if (result.ok === 'unknown') {
+    // 504, not 503: the request reached Medusa and may well have applied. The body
+    // says `applied: 'unknown'` so the UI can tell the operator to VERIFY rather
+    // than retry — a retry against an already-paused shop gets a 409 no-change, but
+    // a retry against an already-DELETED one is worse.
+    return NextResponse.json({ error: result.message, applied: 'unknown' }, { status: 504 })
+  }
   if (!result.ok) {
     return NextResponse.json({ error: result.message }, { status: result.status })
   }

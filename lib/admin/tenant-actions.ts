@@ -68,6 +68,18 @@ export function decideTenantEdit(body: unknown): EditDecision {
   }
   const input = body as Record<string, unknown>
 
+  // REJECT AN UNKNOWN KEY. The first revision only refused the two fields it named,
+  // so `{ name: 'Nuevo', customDomain: 'x' }` wrote the name, dropped the domain and
+  // reported full success — a mutation response claiming more than it did, which is
+  // exactly what this file's own "reject rather than ignore" contract forbids. An
+  // allow-list is also the only form that stays correct as fields are added.
+  const allowed = new Set<string>([...TENANT_EDITABLE_FIELDS, ...TENANT_NON_EDITABLE_FIELDS])
+  for (const key of Object.keys(input)) {
+    if (!allowed.has(key)) {
+      return refuse(key, `No se reconoce el campo "${key}", así que no se guardó nada.`)
+    }
+  }
+
   for (const field of TENANT_NON_EDITABLE_FIELDS) {
     if (input[field] !== undefined) {
       return refuse(

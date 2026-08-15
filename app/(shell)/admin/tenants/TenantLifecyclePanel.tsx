@@ -24,6 +24,8 @@ type Outcome =
   | { kind: 'idle' }
   | { kind: 'working' }
   | { kind: 'done'; message: string; incomplete: boolean }
+  /** We do not know whether it applied — a lost or late response. Verify, do not retry. */
+  | { kind: 'unknown'; message: string }
   | { kind: 'error'; message: string }
 
 export default function TenantLifecyclePanel({
@@ -96,7 +98,20 @@ export default function TenantLifecyclePanel({
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) {
-        setOutcome({ kind: 'error', message: body?.error ?? `Error ${res.status}` })
+        const unknown = body?.applied === 'unknown'
+        setOutcome({
+          kind: unknown ? 'unknown' : 'error',
+          message: body?.error ?? `Error ${res.status}`,
+        })
+        // An unknown outcome is reported UPWARD too: it must survive the row
+        // unmounting for the same reason a partial restore must.
+        if (unknown) {
+          onReport({
+            shopName: row.name,
+            message: body?.error ?? 'No sabemos si el cambio se aplicó.',
+            incomplete: true,
+          })
+        }
         return
       }
       const incomplete = body?.complete === false
@@ -197,6 +212,9 @@ export default function TenantLifecyclePanel({
         <p className={`text-xs ${outcome.incomplete ? 'text-amber-700' : 'text-[#1d6f42]'}`}>
           {outcome.message}
         </p>
+      )}
+      {outcome.kind === 'unknown' && (
+        <p className="text-xs text-amber-700">{outcome.message}</p>
       )}
       {outcome.kind === 'error' && <p className="text-xs text-red-600">{outcome.message}</p>}
     </div>

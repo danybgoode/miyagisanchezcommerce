@@ -59,9 +59,14 @@ export async function readSellerStatus(
       readable?: unknown
       paused_link_count?: unknown
     }
-    const status = parseSellerStatus(body.status)
     // The route reports `readable: false` when the stored value could not be parsed.
-    // That is an unavailable status, not an absent seller.
+    // CHECK IT — the header documented this contract and the first revision ignored
+    // it, so `{ status: 'active', readable: false }` would have rendered a false
+    // green "Activa" and enabled lifecycle actions against an unknown state.
+    if (body.readable === false) {
+      return { state: 'unavailable', reason: 'backend reports the stored status is unreadable' }
+    }
+    const status = parseSellerStatus(body.status)
     if (!status) return { state: 'unavailable', reason: 'seller status is unreadable' }
     return {
       state: 'resolved',
@@ -74,6 +79,19 @@ export async function readSellerStatus(
 }
 
 export type StatusChangeResult =
+  | {
+      /**
+       * The request did not complete and we DO NOT KNOW whether it applied.
+       *
+       * Distinct from `ok: false`, which means it definitely did not. A timeout is
+       * the dangerous case: Medusa may have committed the unlink and lost the
+       * response, so telling the operator "el cambio NO se aplicó" invites a retry
+       * against a shop that is already paused. The first revision said exactly that
+       * — introduced while fixing the English-passthrough finding one round earlier.
+       */
+      readonly ok: 'unknown'
+      readonly message: string
+    }
   | {
       readonly ok: true
       readonly from: SellerStatus
@@ -133,7 +151,11 @@ export async function changeSellerStatus(input: {
     // "listo".
     const from = parseSellerStatus(body?.from)
     const to = parseSellerStatus(body?.to)
-    if (!from || !to || typeof body?.complete !== 'boolean') {
+    // An INCOMPLETE outcome without its product list is not a usable report: the UI
+    // would render "0 producto(s) ya no existen ()" — a warning that names nothing,
+    // which is worse than no warning because it looks answered.
+    const missingIsUsable = body?.complete !== false || Array.isArray(body?.missing_products)
+    if (!from || !to || typeof body?.complete !== 'boolean' || !missingIsUsable) {
       return {
         ok: false,
         status: 502,
@@ -157,9 +179,9 @@ export async function changeSellerStatus(input: {
     // was aborted"). Logged for us, never shown to the operator.
     console.warn('[tenant-status] change failed:', err)
     return {
-      ok: false,
-      status: 503,
-      message: 'No se pudo contactar al backend de comercio. El cambio NO se aplicó; intenta de nuevo.',
+      ok: 'unknown',
+      message: 'Se perdió la conexión con el backend antes de recibir respuesta. '
+        + 'NO sabemos si el cambio se aplicó: recarga y verifica el estado de la tienda antes de reintentar.',
     }
   }
 }
