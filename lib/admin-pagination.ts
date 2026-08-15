@@ -19,7 +19,20 @@ export function paginate<T>(items: readonly T[], page: number, pageSize: number)
   return { pageItems: items.slice(start, start + pageSize), totalPages, page: clampedPage }
 }
 
-/** A changed filter or sort always returns an admin list to its first page. */
-export function pageAfterAdminListChange(previousPage: number, changed: boolean): number {
-  return changed ? 1 : previousPage
-}
+/**
+ * Where a changed filter or sort puts you: back at the top.
+ *
+ * A constant, not a function. It began as `pageAfterAdminListChange(previous,
+ * changed)` — but every call site passed `changed: true`, which makes it a
+ * function with one reachable branch, and a spec over it asserted only that
+ * `true` returns 1. That is the shape the review notes warn about: a test that
+ * proves the wrapper was called and nothing about what the wrapper is for.
+ *
+ * The property that actually matters is asserted in
+ * `e2e/admin-list-pagination.spec.ts` against `paginate` itself — a user whose
+ * filter shrinks the result set must never land on an empty page, which holds
+ * BOTH because the callers reset to this and, independently, because `paginate`
+ * clamps. Two mechanisms, deliberately, since a missed reset at one call site
+ * should degrade to "shows the last page" rather than "shows nothing".
+ */
+export const ADMIN_LIST_FIRST_PAGE = 1

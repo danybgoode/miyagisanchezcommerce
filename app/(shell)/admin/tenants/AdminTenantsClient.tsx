@@ -12,7 +12,7 @@ import {
   type SortDirection,
 } from '@/lib/admin/tenant-directory'
 import { sellerStatusLabel, sellerStatusTone, type SellerStatus } from '@/lib/seller-status'
-import { pageAfterAdminListChange, paginate } from '@/lib/admin-pagination'
+import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
 import TenantLifecyclePanel from './TenantLifecyclePanel'
 import AdminPagination from '../_components/AdminPagination'
 import type { DomainGrant, DomainEntitlementReason } from '@/lib/domain-entitlement'
@@ -73,7 +73,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
   )
 
   function updateFilter(patch: Partial<TenantFilter>) {
-    setPage((prev) => pageAfterAdminListChange(prev, true))
+    setPage(ADMIN_LIST_FIRST_PAGE)
     setFilter((prev) => {
       const next = { ...prev, ...patch }
       for (const key of Object.keys(next) as (keyof TenantFilter)[]) {
@@ -84,7 +84,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
   }
 
   function updateSort(patch: Partial<{ key: TenantSortKey; direction: SortDirection }>) {
-    setPage((prev) => pageAfterAdminListChange(prev, true))
+    setPage(ADMIN_LIST_FIRST_PAGE)
     setSort((prev) => ({ ...prev, ...patch }))
   }
 

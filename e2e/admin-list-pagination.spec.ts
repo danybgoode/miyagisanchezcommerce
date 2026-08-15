@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { pageAfterAdminListChange, paginate } from '../lib/admin-pagination'
+import { ADMIN_LIST_FIRST_PAGE, paginate } from '../lib/admin-pagination'
 import { selectTenants, type TenantRow } from '../lib/admin/tenant-directory'
 import { COMMUNICATION_CATALOG, filterCommunications } from '../lib/notifications/catalog'
 
@@ -45,15 +45,30 @@ test.describe('admin list pagination', () => {
     expect(result.pageItems).not.toEqual([])
   })
 
-  test('a filter or sort change resets the resulting page number to one', () => {
-    const filtered = selectTenants(
-      Array.from({ length: 30 }, (_, index) => tenant(index, { status: index < 4 ? 'paused' : 'active' })),
-      { status: 'paused' },
-    )
-    const page = pageAfterAdminListChange(3, true)
-    const result = paginate(filtered, page, 25)
+  test('narrowing a filter while on a later page never shows an empty list', () => {
+    // The property, not the helper. A user on page 3 of every tenant who then
+    // filters down to 4 paused shops must see those four — asserted against the
+    // real selector + paginate composition, so it stays true no matter how the
+    // components choose to reset.
+    const rows = Array.from({ length: 80 }, (_, index) => tenant(index, { status: index < 4 ? 'paused' : 'active' }))
+    const filtered = selectTenants(rows, { status: 'paused' })
+    expect(filtered).toHaveLength(4)
 
-    expect(page).toBe(1)
-    expect(result.page).toBe(page)
+    const afterReset = paginate(filtered, ADMIN_LIST_FIRST_PAGE, 25)
+    expect(afterReset.page).toBe(1)
+    expect(afterReset.pageItems).toHaveLength(4)
+  })
+
+  test('and even if a caller FORGOT to reset, the clamp still shows rows', () => {
+    // Defence in depth, stated on purpose. The components reset to page 1 on a
+    // filter change; `paginate` clamps independently. A missed reset at one call
+    // site must degrade to "shows the last page", never to "shows nothing" —
+    // this is what keeps a future call site from shipping a blank admin list.
+    const rows = Array.from({ length: 80 }, (_, index) => tenant(index, { status: index < 4 ? 'paused' : 'active' }))
+    const filtered = selectTenants(rows, { status: 'paused' })
+
+    const staleThirdPage = paginate(filtered, 3, 25)
+    expect(staleThirdPage.page).toBe(1)
+    expect(staleThirdPage.pageItems).toHaveLength(4)
   })
 })

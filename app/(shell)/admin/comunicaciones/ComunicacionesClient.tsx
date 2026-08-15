@@ -9,7 +9,7 @@ import {
   type CommunicationFilter,
 } from '@/lib/notifications/catalog'
 import type { Channel } from '@/lib/notifications/preferences'
-import { pageAfterAdminListChange, paginate } from '@/lib/admin-pagination'
+import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
 import AdminPagination from '../_components/AdminPagination'
 
 /**
@@ -92,7 +92,7 @@ export default function ComunicacionesClient({
   }
 
   function update(patch: Partial<CommunicationFilter>) {
-    setPage((prev) => pageAfterAdminListChange(prev, true))
+    setPage(ADMIN_LIST_FIRST_PAGE)
     setFilter((prev) => {
       const next = { ...prev, ...patch }
       // An empty select means "no filter", not a filter on empty string.
