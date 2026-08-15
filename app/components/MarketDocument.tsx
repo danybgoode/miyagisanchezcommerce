@@ -9,6 +9,7 @@ import { getDictionary } from '@/lib/dictionary'
 import { DEFAULT_MARKET, isMarketplaceOpen, marketBasePath, type MarketCode } from '@/lib/markets'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { PLATFORM_OG_COLORS } from '@/lib/platform-theme'
+import RouteProgress from '@/app/components/RouteProgress'
 
 const BASE_URL = 'https://miyagisanchez.com'
 
@@ -196,6 +197,14 @@ export default async function MarketDocument({
           {/* Site-wide GTM container (GA4 + Clarity as tags inside GTM). Client-gated
               on hostname/path so the static root layout reads no headers. */}
           <SiteAnalytics />
+          {/* Mounted at the ONE <body> every layout goes through, not in
+              PlatformShell: the seller portal renders a bare <main> branch and the
+              white-label channel renders ChannelLayout, so a shell-level mount would
+              have silently skipped both — including `/shop/manage/*`, the exact
+              surface where slow navigation was reported. It must also OUTLIVE the
+              navigation it reports on, which anything below the layout boundary
+              cannot do. */}
+          <RouteProgress />
           <BuyerPresentationProvider presentation={presentation} copy={dictionary.buyerCopy}>
             <CartProvider>
               {children}

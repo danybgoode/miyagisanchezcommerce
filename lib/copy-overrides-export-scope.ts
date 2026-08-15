@@ -11,6 +11,7 @@
  * never drift from what the export button really produces.
  */
 import { namespaceLabel, routeForNamespaceSection } from './copy-overrides-routes'
+import { sectionForKey } from './copy-overrides-sections'
 
 export interface KeyIndexEntry {
   namespace: string
@@ -22,17 +23,23 @@ export function namespacesInIndex(index: readonly KeyIndexEntry[]): string[] {
   return [...new Set(index.map((e) => e.namespace))].sort()
 }
 
-/** Every section (first key-segment) within `namespace`, sorted — the section `<select>`'s options, cascading from the namespace choice. */
+/**
+ * Every section within `namespace`, sorted — the section `<select>`'s options,
+ * cascading from the namespace choice. Uses the shared `sectionForKey`, so the
+ * options offered here are exactly the groups the nav shows: when this inlined
+ * `key.split('.')[0]` instead, picking a `sellerCopy` page in the nav and then
+ * exporting "this section" would have matched zero keys.
+ */
 export function sectionsForNamespace(index: readonly KeyIndexEntry[], namespace: string): string[] {
   if (!namespace) return []
-  const sections = index.filter((e) => e.namespace === namespace).map((e) => e.key.split('.')[0] ?? e.key)
+  const sections = index.filter((e) => e.namespace === namespace).map((e) => sectionForKey(e.namespace, e.key))
   return [...new Set(sections)].sort()
 }
 
 /** How many keys `{namespace, section}` (either/both empty = "any") actually resolves to — mirrors `matchesScope`. */
 export function countForScope(index: readonly KeyIndexEntry[], namespace: string, section: string): number {
   return index.filter(
-    (e) => (!namespace || e.namespace === namespace) && (!section || e.key.split('.')[0] === section),
+    (e) => (!namespace || e.namespace === namespace) && (!section || sectionForKey(e.namespace, e.key) === section),
   ).length
 }
 

@@ -18,6 +18,7 @@ import type { PrintSocialSubmission } from '@/lib/print'
 import { formatPrice } from '@/lib/listings'
 import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { PendingMark } from '@/app/components/LinkPending'
 
 export const metadata: Metadata = {
   title: 'Vecindario',
@@ -102,6 +103,8 @@ function TrendingStrip({ listings }: { listings: NeighborhoodTrendingListing[] }
             href={listingUrlFor(SITE_ORIGIN, listing.id)}
             className="card-tile block w-44 flex-shrink-0 overflow-hidden no-underline sm:w-52"
           >
+            {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+            <PendingMark showDot={false} />
             {listing.images?.[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -151,6 +154,7 @@ function MerchantSpotlightStrip({ shops }: { shops: NeighborhoodSpotlightShop[] 
             href={shopUrlFor(SITE_ORIGIN, shop.slug)}
             className="card-tile block w-64 flex-shrink-0 p-4 no-underline sm:w-72"
           >
+            <PendingMark showDot={false} />
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: 'var(--bg-sunk)' }}>
                 {shop.logo_url ? (

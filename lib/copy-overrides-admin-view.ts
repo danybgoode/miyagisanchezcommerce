@@ -11,6 +11,8 @@
  * pagination here follows the same established convention rather than a new one.
  */
 
+import { sectionForKey } from './copy-overrides-sections'
+
 export type ContenidoSort = 'namespace_asc' | 'recent'
 export type ContenidoStatusFilter = 'all' | 'overridden' | 'default'
 
@@ -57,14 +59,21 @@ export function filterKeysByNamespace<T extends { namespace: string }>(keys: rea
 }
 
 /**
- * `''` or `'all'` means every section. A key's "section" is its first
- * dot-segment (`key.split('.')[0]`) — the same grouping the page-first nav
- * (Story 3.1, `lib/copy-overrides-page-nav.ts`) and the editor's field
- * grouping both use.
+ * `''` or `'all'` means every section. A key's "section" comes from
+ * `sectionForKey` (`lib/copy-overrides-sections.ts`) — the SAME call the
+ * page-first nav makes, which is the point: this used to inline
+ * `key.split('.')[0]` and the nav inlined it separately, so the two could
+ * drift apart and open a nav group onto an empty field list.
+ *
+ * `T` carries `namespace` as well as `key` because the rule is
+ * namespace-dependent (`sellerCopy`'s hashed keys section by source page).
  */
-export function filterKeysBySection<T extends { key: string }>(keys: readonly T[], section: string): T[] {
+export function filterKeysBySection<T extends { namespace: string; key: string }>(
+  keys: readonly T[],
+  section: string,
+): T[] {
   if (!section || section === 'all') return [...keys]
-  return keys.filter((k) => (k.key.split('.')[0] || k.key) === section)
+  return keys.filter((k) => sectionForKey(k.namespace, k.key) === section)
 }
 
 export function filterKeysByStatus<T extends StatusableKey>(keys: readonly T[], status: ContenidoStatusFilter): T[] {
