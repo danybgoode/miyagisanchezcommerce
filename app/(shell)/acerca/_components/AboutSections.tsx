@@ -7,6 +7,7 @@ import {
   type AboutPageCopy,
   type AboutSection,
 } from '@/lib/about-content'
+import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 
 /**
  * Human-facing `/acerca` page, rendered from the admin-overridden content
@@ -184,6 +185,18 @@ function ClosingCta({ page }: { page: AboutPageCopy }) {
       <Link href={ABOUT_SELLERS_HREF} className="btn btn-secondary btn-lg" prefetch={false}>
         {page.secondaryCtaLabel}
       </Link>
+      {/* Not a dictionary key: the address is a FACT about the platform, not
+          copy, and it lives in `lib/contact.ts` with the email transport's
+          Reply-To so the two can never disagree. The surrounding words are
+          fixed es-MX because /acerca's `?lang=en` toggle reads its copy from
+          the about-section model, which this line is deliberately not part of. */}
+      <p className="t-small" style={{ color: 'var(--fg-muted)', margin: 0, width: '100%' }}>
+        ¿Dudas? Escríbenos a{' '}
+        <a href={contactMailto('Acerca de Miyagi Sánchez')} style={{ color: 'var(--accent)' }}>
+          {CONTACT_EMAIL}
+        </a>
+        .
+      </p>
     </section>
   )
 }

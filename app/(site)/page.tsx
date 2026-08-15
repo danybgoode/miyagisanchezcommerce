@@ -65,23 +65,35 @@ export const metadata: Metadata = {
   ...selectorMetadata(),
 }
 
-/** Per-market selector copy. Status/locale facts come from the registry, never restated here. */
+/**
+ * Per-market selector copy. Status/locale facts come from the registry, never restated here.
+ *
+ * There is no `flag` here any more. The cards used flag EMOJI (a pair of Unicode
+ * regional indicators, U+1F1F2 U+1F1FD and U+1F1FA U+1F1F8 — named by codepoint
+ * so this comment does not itself trip the emoji guard, which scans source text
+ * and cannot tell a comment from a render) as their identifying mark. That fails
+ * three ways at once: it renders as a completely different thing per platform —
+ * a coloured flag on Apple, a two-letter box on most of Windows, and nothing at
+ * all where the font lacks the pair — it is a national flag standing in for a
+ * MARKET (the /us market is not "the United States", it is where USD listings
+ * and manual-carrier delivery live), and it is exactly the emoji-as-chrome the
+ * platform swept out everywhere else. The ISO code below is the mark instead:
+ * one CSS pill, identical on every device, and legible at 11px where a
+ * two-glyph flag is not.
+ */
 const MARKET_CARDS: Record<(typeof MARKET_CODES)[number], {
-  flag: string
   name: string
   lede: string
   cta: string
   href: string
 }> = {
   mx: {
-    flag: '🇲🇽',
     name: 'México',
     lede: 'El mercado Miyagi activo. Compra y vende en pesos, con pago protegido, envíos y entrega local.',
     cta: 'Entrar a Miyagi México',
     href: marketBasePath('mx'),
   },
   us: {
-    flag: '🇺🇸',
     name: 'Estados Unidos',
     lede: 'Mercado abierto para explorar tiendas y productos en dólares. El checkout directo llegará pronto.',
     cta: 'Entrar a Miyagi Estados Unidos',
@@ -126,7 +138,27 @@ export default function MarketSelectorPage() {
               style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span aria-hidden style={{ fontSize: 26 }}>{card.flag}</span>
+                {/* The market's ISO code as a quiet monospace pill. `aria-hidden`
+                    because the market's real name is the very next element —
+                    a screen reader announcing "M X México" is noise. */}
+                <span
+                  aria-hidden
+                  data-testid={`market-code-${code}`}
+                  style={{
+                    fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    lineHeight: 1,
+                    padding: '5px 7px',
+                    borderRadius: 'var(--r-sm)',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-sunk)',
+                    color: 'var(--fg-muted)',
+                  }}
+                >
+                  {code.toUpperCase()}
+                </span>
                 <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--fg)' }}>{card.name}</span>
                 <span
                   className="badge badge-soft"

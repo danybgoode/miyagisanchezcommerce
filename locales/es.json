@@ -58,7 +58,8 @@
       "createAccount": "Crear cuenta",
       "agentApi": "Agent API",
       "about": "Acerca de",
-      "terms": "Términos"
+      "terms": "Términos",
+      "contact": "Contacto"
     }
   },
   "buyerCopy": {
@@ -2591,6 +2592,10 @@
       {
         "title": "Uso responsable",
         "body": "No uses Miyagi para fraude, spam, suplantación, artículos prohibidos, promociones engañosas o actividades ilegales. Podemos limitar funciones o suspender cuentas y campañas para proteger a usuarios y tiendas."
+      },
+      {
+        "title": "Contacto",
+        "body": "Si tienes dudas, un problema con un pedido o quieres reportar algo, escríbenos a hola@miyagisanchez.com. Contesta una persona."
       }
     ]
   },
@@ -3300,7 +3305,6 @@
     "s_2b58b818be75efd0": "Tocar el timbre del 3er piso",
     "s_2b5b539ac46cff32": "El porcentaje de rechazo (",
     "s_2bfbedb6646a826b": "Selecciona una categoría…",
-    "s_2c576ea011dd254a": "⏸ Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;.",
     "s_2c856dc138142dbd": "Aún no recibes manuscritos. Comparte tu página de convocatoria para empezar.",
     "s_2c92f2a8dc234329": "Precio sugerido",
     "s_2ca9b074fb57c0ab": "Este es un dominio raíz (sin &quot;www&quot;): tu proveedor de DNS necesita soportar un registro CNAME (o ALIAS/ANAME) en la raíz — la mayoría de los proveedores modernos lo permiten (Cloudflare, y muchos otros vía &quot;flattening&quot;).",
@@ -3634,6 +3638,7 @@
     "s_5d83c4c048f2806c": "Eliminar dimensión",
     "s_5d8bcb3cda380575": "Ej: 123456789012",
     "s_5dc090d65e90b81b": "Configurando DNS — comprobando automáticamente cada 8 segundos…",
+    "s_5e53fc953165319a": "Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;.",
     "s_5e77e1785d574f9b": "Lista",
     "s_5e875bc90a360147": "Shopify",
     "s_5e94724018aac487": "Publicar en el marketplace",

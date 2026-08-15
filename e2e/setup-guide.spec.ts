@@ -130,12 +130,17 @@ test.describe('setup-guide · getSetupSteps', () => {
   })
 
   test('payments (step 3) is open on a fresh shop and carries the "~4 min" estimate, the exact sprint-1.md body copy, and the pagos CTA', () => {
+    // The CTA points at the pagos SECTION, not `/pagos/wizard`. The wizard is one
+    // guided path through a section that also shows what is already connected and
+    // offers the direct Stripe/Mercado Pago/SPEI controls; a merchant dropped
+    // straight into the wizard could not see the state they were being asked to
+    // change. The wizard is one click from the section.
     const steps = getSetupSteps({ shop: emptyShop, productCount: 0, shareDone: false })
     const pagos = steps.find((s) => s.id === 'pagos')
     expect(pagos?.open).toBe(true)
     expect(pagos?.estimate).toBe('~4 min')
     expect(pagos?.body).toBe('Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.')
     expect(pagos?.ctaLabel).toBe('Configurar cobros')
-    expect(pagos?.ctaHref).toBe('/shop/manage/settings/pagos/wizard')
+    expect(pagos?.ctaHref).toBe('/shop/manage/settings/pagos')
   })
 })

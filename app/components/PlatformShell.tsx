@@ -11,6 +11,7 @@ import CartButton from '@/app/components/CartButton'
 import { getDictionary } from '@/lib/dictionary'
 import { marketBasePath, type MarketCode } from '@/lib/markets'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 
 /**
  * The marketplace buyer chrome — sticky glass header (search, brand, cart, account,
@@ -334,6 +335,20 @@ export default async function PlatformShell({
           </Link>
           <Link href="/acerca" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.about}</Link>
           <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.terms}</Link>
+          {/* A plain mailto, not a contact form. The platform had no reachable
+              address anywhere on the site — the only way to reach a person was to
+              reply to an email we had already sent, which a visitor with a
+              question has never received. `title` carries the address so it is
+              readable on hover without clicking into a mail client. */}
+          <a
+            href={contactMailto('Miyagi Sánchez')}
+            title={CONTACT_EMAIL}
+            data-testid="footer-contact"
+            style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
+            className="hover:text-[var(--fg)]"
+          >
+            {copy.footer.contact}
+          </a>
         </div>
       </footer>
 

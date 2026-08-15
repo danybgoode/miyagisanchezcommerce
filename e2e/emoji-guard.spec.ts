@@ -63,6 +63,32 @@ test.describe('emoji-to-iconoir guard', () => {
     expect(findEmojiChromeOffendersInSourceFiles(files).map(formatOffense)).toEqual([])
   })
 
+  test('negative fixture: the blocks the pattern was blind to are now caught', () => {
+    // Every glyph here sat in an ENFORCED file, green, because the pattern's
+    // ranges did not include its block. The file list was right; the detector
+    // had the hole. That is why this fixture exists and why it names the
+    // specific glyphs rather than asserting "some emoji is caught".
+    const offenders = findEmojiChromeOffendersInSourceFiles([
+      { filePath: 'app/components/BuyButton.tsx', content: '<span>🆕</span>' },   // U+1F195, Enclosed Alphanumeric Supp.
+      { filePath: 'app/components/BuyButton.tsx', content: '<span>⏳</span>' },   // U+23F3, Misc Technical
+      { filePath: 'app/components/BuyButton.tsx', content: '<span>⏰</span>' },   // U+23F0
+      { filePath: 'app/components/BuyButton.tsx', content: '<span>⏸</span>' },   // U+23F8
+      { filePath: 'app/components/BuyButton.tsx', content: "flag: '🇲🇽'" },       // regional indicators
+    ])
+    expect(offenders.map((o) => o.literal)).toEqual(['🆕', '⏳', '⏰', '⏸', '🇲', '🇽'])
+  })
+
+  test('allowlist fixture: keyboard glyphs in the SAME Unicode block stay legal', () => {
+    // ⌘ ⌥ ⌫ ⏎ live in Miscellaneous Technical alongside ⏳, and they are real text
+    // in a shortcut hint, not icon chrome. Banning a whole block because part of
+    // it is emoji would reject correct output — and a guard that does that gets
+    // bypassed rather than fixed.
+    const offenders = findEmojiChromeOffendersInSourceFiles([
+      { filePath: 'app/components/BuyButton.tsx', content: '<kbd>⌘</kbd> + <kbd>⏎</kbd> para enviar' },
+    ])
+    expect(offenders.map(formatOffense)).toEqual([])
+  })
+
   test('negative fixture: an arrow glyph used for navigation is untouched by this guard (different convention, out of scope)', () => {
     const offenders = findEmojiChromeOffendersInSourceFiles([
       { filePath: 'app/components/BuyButton.tsx', content: '<a href="/back">← Volver</a>' },

@@ -435,7 +435,7 @@ function PaymentPendingRecovery({
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full text-center">
         <div className="w-16 h-16 rounded-[var(--r-pill)] bg-amber-100 flex items-center justify-center mx-auto mb-6">
-          <span className="text-3xl" aria-hidden>⏳</span>
+          <i className="iconoir-hourglass text-3xl" aria-hidden />
         </div>
         <h1 className="text-2xl font-bold mb-1"><BuyerCopyText copyKey="payment.success.page.533331e0" /></h1>
         <p className="text-sm text-[var(--color-muted)] mb-6">

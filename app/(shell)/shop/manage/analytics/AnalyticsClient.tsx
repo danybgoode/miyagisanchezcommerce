@@ -83,14 +83,14 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
       {/* Secondary stats */}
       <div className="grid grid-cols-2 gap-3">
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 flex items-center gap-3">
-          <span className="text-2xl">🆕</span>
+          <i className="iconoir-user-plus text-2xl" aria-hidden />
           <div>
             <p className="text-lg font-bold text-[var(--color-text)]">+{data.newThisMonth}</p>
             <p className="text-xs text-[var(--color-muted)]">nuevos este mes</p>
           </div>
         </div>
         <div className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 flex items-center gap-3">
-          <span className="text-2xl">⏳</span>
+          <i className="iconoir-hourglass text-2xl" aria-hidden />
           <div>
             <p className="text-lg font-bold text-[var(--color-text)]">{data.pendingCount}</p>
             <p className="text-xs text-[var(--color-muted)]">pendientes de confirmación</p>
