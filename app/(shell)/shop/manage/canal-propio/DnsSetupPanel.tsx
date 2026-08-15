@@ -136,6 +136,7 @@ export default function DnsSetupPanel({
                   variant="primary"
                   onClick={onCfAutoConfig}
                   disabled={cfSaving || !cfTokenInput.trim()}
+                  loading={cfSaving}
                   className="whitespace-nowrap"
                 >
                   {cfSaving

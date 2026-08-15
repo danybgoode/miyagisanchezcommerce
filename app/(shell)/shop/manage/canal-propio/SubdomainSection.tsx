@@ -139,7 +139,7 @@ export default function SubdomainSection({
           variant="primary"
           size="sm"
           onClick={activate}
-          disabled={subscribing}
+          loading={subscribing}
         >
           {subscribing
             ? <><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>
@@ -171,6 +171,7 @@ export default function SubdomainSection({
                 size="sm"
                 onClick={() => switchTo(iv)}
                 disabled={switching !== null}
+                loading={switching === iv}
               >
                 {switching === iv && <span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-[var(--color-accent)] border-t-transparent animate-spin" />}
                 {label}

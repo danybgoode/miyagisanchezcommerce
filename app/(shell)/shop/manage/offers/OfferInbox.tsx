@@ -151,7 +151,7 @@ function CounterModal({
             <p className="text-xs text-[var(--info)]">El comprador tiene <strong>24 horas</strong> para responder.</p>
           </div>
 
-          <Button type="button" variant="primary" onClick={submit} disabled={busy} className="w-full">
+          <Button type="button" variant="primary" onClick={submit} loading={busy} className="w-full">
             {busy ? 'Enviando…' : 'Enviar contraoferta'}
           </Button>
         </div>

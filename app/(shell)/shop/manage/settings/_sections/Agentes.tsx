@@ -284,7 +284,7 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
           type="button"
           variant="primary"
           onClick={handleSave}
-          disabled={saving}
+          loading={saving}
         >
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </Button>
@@ -310,9 +310,9 @@ export default function Agentes({ initial }: { initial: AgentesInitial }) {
                 type="button"
                 variant="primary"
                 onClick={handleSave}
-                disabled={saving}
+                loading={saving}
               >
-                {saving ? 'Guardando…' : 'Guardar'}
+                Guardar
               </Button>
             </div>
           </div>
