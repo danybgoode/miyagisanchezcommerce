@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { deriveCatalogStatus } from '@/lib/catalog-status'
 import { deriveChannelBadges } from '@/lib/catalog-channels'
@@ -521,7 +522,13 @@ export default function CatalogTable({
                   <Link href={`/sell/edit/${listing.id}`} className="flex items-center gap-3 no-underline text-[var(--color-foreground)]">
                     <div className="w-10 h-10 flex-shrink-0 rounded-[var(--r-md)] overflow-hidden bg-[var(--color-surface-alt)] border border-[var(--color-border)]">
                       {thumb ? (
-                        <img src={thumb} alt="" className="w-full h-full object-cover" />
+                        // `next/image` rather than a bare <img>: the changed-files lint
+                        // gate runs at --max-warnings 0, so touching this file at all makes
+                        // its pre-existing no-img-element warning blocking. Safe here — the
+                        // project uses a CUSTOM image loader with `hostname: '**'`, so an
+                        // arbitrary seller-image host (an ML import, say) still resolves.
+                        // Fixed 40x40, so explicit dimensions rather than `fill`.
+                        <Image src={thumb} alt="" width={40} height={40} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-lg"><i className="iconoir-package" aria-hidden /></div>
                       )}
