@@ -13,6 +13,7 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import type { MarketCode } from '@/lib/markets'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { listingTypeLabel } from '@/lib/market-vocabulary'
+import { PendingMark } from '@/app/components/LinkPending'
 
 function timeAgo(dateStr: string, language: 'es' | 'en'): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -181,6 +182,8 @@ export async function ListingsPage({
                     </p>
                   </div>
                 </div>
+                  {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+                  <PendingMark showDot={false} />
                 </Link>
                 {/* Favorite button — absolute overlay top-right of image */}
                 <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>

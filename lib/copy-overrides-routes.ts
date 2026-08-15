@@ -9,8 +9,13 @@
  * Playwright-loadable.
  *
  * Verified against the real route files (`grep`, not guessed) — see the
- * epic's Sprint 2 doc. Every `locales/es.json` top-level namespace is covered;
- * `sellerAcquisition`, `sweepstakes`, and `events` each fan out per-section
+ * epic's Sprint 2 doc. Every `locales/es.json` top-level namespace is covered
+ * — a claim this comment made for months while `buyerShell`, `buyerCopy` and
+ * `sellerCopy` (2587 of the dictionary's 3372 keys) were all missing, so the
+ * editor captioned most of itself "sección no reconocida". It is now an
+ * assertion rather than a claim: `e2e/copy-overrides-route-coverage.spec.ts`
+ * enumerates the LIVE dictionary and fails on the first section this map
+ * cannot resolve. `sellerAcquisition`, `sweepstakes`, and `events` each fan out per-section
  * because their sections genuinely render on DIFFERENT surfaces (Sprint 4 —
  * confirmed `sweepstakes.seller`/`events.seller` are the seller-portal
  * management pages and `sweepstakes.email`/`events.email` are transactional
@@ -26,6 +31,8 @@
  * the caller shows `NO_SINGLE_PAGE_LABEL` only for that case now, never for
  * an intentional no-page namespace.
  */
+
+import { sectionForKey, UNMAPPED_SELLER_SECTION } from './copy-overrides-sections'
 
 export interface RouteInfo {
   /** Short human label, es-MX. */
@@ -84,10 +91,130 @@ const EVENTS_SECTIONS: Record<string, RouteInfo | null> = {
   email: { label: 'Eventos — correos', path: '(correo transaccional, no es una página web)' },
 }
 
+/**
+ * `landing` and `application` were MISSING here until the coverage spec found
+ * them — both render on `/us/operators` (the page reads the whole
+ * `partnersRecruiting` namespace and hands `.application` to
+ * `FoundingOperatorApplication.tsx`, confirmed by grep). Two nav entries on a
+ * live surface had been captioned "sección no reconocida" since the namespace
+ * shipped, and nothing said so.
+ */
 const PARTNERS_RECRUITING_SECTIONS: Record<string, RouteInfo | null> = {
+  landing: { label: 'Miyagi Partners — portada', path: '/us/operators' },
+  application: { label: 'Miyagi Partners — solicitud', path: '/us/operators' },
   activation: { label: 'Miyagi Partners — activación', path: '/partner/activate/[token]' },
   workspace: { label: 'Miyagi Partners — espacio de trabajo', path: '/partner' },
   email: { label: 'Miyagi Partners — correos', path: '(correo transaccional, no es una página web)' },
+}
+
+/**
+ * `buyerCopy` — the buyer-facing surfaces. Sections are real first segments
+ * here (not hashes), verified by grepping the actual `copyKey="…"` / `buyerCopy
+ * [...]` call sites rather than inferred from the key name: `l.*` renders on
+ * the PDP and the search bar, `s.*` on the public shop, `account.*` across the
+ * buyer account pages, and so on. Three sections have no single page by
+ * construction and say so instead of resolving to a lie.
+ */
+const BUYER_COPY_SECTIONS: Record<string, RouteInfo | null> = {
+  account: { label: 'Cuenta del comprador', path: '/account' },
+  checkout: { label: 'Pago (checkout)', path: '/checkout' },
+  // Rendered by MakeOfferButton, which appears on the PDP and on shop pages.
+  offers: { label: 'Oferta — calidad del precio', path: '(botón de oferta, en anuncios y tiendas)' },
+  l: { label: 'Anuncio (PDP) y búsqueda', path: '/l/[id]' },
+  // Hand-authored labels read from the shop page and its políticas sibling too,
+  // not only the PDP — a KNOWN multi-page case.
+  listing: { label: 'Etiquetas de anuncio', path: '(anuncios y páginas de tienda)' },
+  market: { label: 'Catálogo — estado del mercado', path: '/mx/l' },
+  MarketRecommendation: { label: 'Selector de mercado — recomendación', path: '/' },
+  messages: { label: 'Mensajes', path: '/messages' },
+  page: { label: 'Selector de mercado', path: '/' },
+  payment: { label: 'Pago — confirmación', path: '/payment/success' },
+  // The shop's own content bodies (acerca, FAQ, políticas, colecciones, convocatoria).
+  shop: { label: 'Tienda — contenido', path: '/s/[slug]' },
+  s: { label: 'Tienda pública', path: '/s/[slug]' },
+  components: { label: 'Componentes compartidos', path: '(se usan en varias páginas)' },
+}
+
+/**
+ * `buyerShell` is the platform chrome — the header, search box, cart drawer,
+ * account menu and mobile tab bar that `PlatformShell` renders on EVERY page.
+ * Every one of its 15 sections has the same destination, so the namespace
+ * resolves uniformly and the nav shows that destination once at the group
+ * header (`uniformRoute`) instead of repeating it fifteen times.
+ */
+const BUYER_SHELL_ROUTE: RouteInfo = {
+  label: 'Barra, menús y carrito',
+  path: '(aparece en toda la plataforma)',
+}
+
+/**
+ * `sellerCopy` sections are PAGE DIRECTORIES derived from the source file, not
+ * dictionary key segments — see `lib/copy-overrides-sections.ts` for why. So
+ * the route is derived from the section itself rather than looked up in a
+ * hand-maintained table: a 33-entry table would go stale the first time a
+ * seller-portal page is added or renamed, and this map's whole job is to not
+ * be the thing that goes stale.
+ */
+function sellerCopyRoute(section: string): RouteInfo | null {
+  if (section === UNMAPPED_SELLER_SECTION) {
+    // Recognized, but deliberately NOT a page: these keys are in the dictionary
+    // and absent from `locales/seller-population.json`. Reaching a non-empty
+    // group here means the two have drifted — that is what the coverage spec asserts.
+    return { label: 'Sin página asignada (revisar seller-population.json)', path: '(no derivado de un archivo fuente)' }
+  }
+  if (!section) return null
+  return { label: sellerPageLabel(section), path: `/${section}` }
+}
+
+/**
+ * `shop/manage/orders/[id]` → `Panel — Pedidos · detalle`. Purely mechanical:
+ * the path IS the label's content, so a new page names itself without an edit here.
+ */
+function sellerPageLabel(section: string): string {
+  const segments = section.split('/')
+  const prefix = segments[0] === 'shop' && segments[1] === 'manage' ? 'Panel' : 'Publicar'
+  const rest = segments.slice(segments[0] === 'shop' && segments[1] === 'manage' ? 2 : 1)
+  if (rest.length === 0) return segments[0] === 'sell' ? 'Publicar (asistente)' : 'Panel de tienda'
+  return `${prefix} — ${rest.map(humanizeRouteSegment).join(' · ')}`
+}
+
+/**
+ * es-MX names for the route segments whose directory name is English or an
+ * abbreviation. Deliberately NOT exhaustive and deliberately fail-soft: an
+ * unlisted segment falls back to the humanized directory name, so a new page
+ * appears in the nav with a slightly plain label instead of not appearing at
+ * all. A missing entry can only cost polish, never correctness — which is why
+ * this table is safe to keep hand-maintained where the 33-entry route table it
+ * replaced would not have been.
+ */
+const SEGMENT_LABELS: Record<string, string> = {
+  analytics: 'Métricas',
+  catalogo: 'Catálogo',
+  collections: 'Colecciones',
+  content: 'Contenido',
+  edit: 'Editar anuncio',
+  import: 'Importar',
+  mercadolibre: 'Mercado Libre',
+  offers: 'Ofertas',
+  orders: 'Pedidos',
+  print: 'Edición impresa',
+  profit: 'Ganancias',
+  promotions: 'Promociones',
+  settings: 'Ajustes',
+  setup: 'Configuración con agente',
+  shopify: 'Shopify',
+  subscriptions: 'Suscripciones',
+  sweepstakes: 'Sorteos',
+  wizard: 'Asistente',
+}
+
+/** `[id]` → `detalle`; `canal-propio` → `Canal propio`; `analytics` → `Métricas`. */
+function humanizeRouteSegment(segment: string): string {
+  if (/^\[.*\]$/.test(segment)) return 'detalle'
+  const named = SEGMENT_LABELS[segment]
+  if (named) return named
+  const words = segment.replace(/-/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 /** A namespace with one single page (no per-section fan-out). */
@@ -118,6 +245,9 @@ export function namespaceLabel(namespace: string): string {
   if (namespace === 'sweepstakes') return 'Sorteos'
   if (namespace === 'events') return 'Eventos'
   if (namespace === 'partnersRecruiting') return 'Miyagi Partners'
+  if (namespace === 'buyerShell') return 'Barra y menús (toda la plataforma)'
+  if (namespace === 'buyerCopy') return 'Compra (todas las páginas)'
+  if (namespace === 'sellerCopy') return 'Panel de tienda (todas las páginas)'
   return SIMPLE_NAMESPACE_ROUTES[namespace]?.label ?? namespace
 }
 
@@ -133,11 +263,14 @@ export function routeForNamespaceSection(namespace: string, section: string): Ro
   if (namespace === 'sweepstakes') return SWEEPSTAKES_SECTIONS[section] ?? null
   if (namespace === 'events') return EVENTS_SECTIONS[section] ?? null
   if (namespace === 'partnersRecruiting') return PARTNERS_RECRUITING_SECTIONS[section] ?? null
+  if (namespace === 'buyerCopy') return BUYER_COPY_SECTIONS[section] ?? null
+  // Every section of the platform chrome resolves to the same destination.
+  if (namespace === 'buyerShell') return BUYER_SHELL_ROUTE
+  if (namespace === 'sellerCopy') return sellerCopyRoute(section)
   return SIMPLE_NAMESPACE_ROUTES[namespace] ?? null
 }
 
 /** Convenience wrapper — derives the section from a full dot-path `key` the same way the editor groups by. */
 export function routeForKey(namespace: string, key: string): RouteInfo | null {
-  const section = key.split('.')[0] ?? key
-  return routeForNamespaceSection(namespace, section)
+  return routeForNamespaceSection(namespace, sectionForKey(namespace, key))
 }

@@ -108,9 +108,9 @@ the production nightly. A missing fixture is a visible skip, not a failure.
 | `MS_TEST_ADMIN_EMAIL` | `admin-seleccion.browser.spec.ts` | Dev Clerk user recognized as an admin by the app. This spec requires its explicit email. |
 | `MS_TEST_PDP_LISTING_ID` | `agent-prompt`, `trust-signals` browser; `ucp-cutover-api` | Public listing; seller exposes a payment or fulfillment method for trust-signals. |
 | `MS_TEST_PERSONALIZED_LISTING_ID` | `personalization`, PDP gallery fallback; `agent-prompt`, `trust-signals`, `ucp-cutover-api` fallbacks | Public listing with a required custom field. |
-| `MS_TEST_GALLERY_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with at least two photos. |
-| `MS_TEST_GALLERY_SINGLE_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with exactly one photo. |
-| `MS_TEST_GALLERY_ZERO_LISTING_ID` | `pdp-gallery.browser.spec.ts` | Public listing with zero photos. |
+| `MS_TEST_GALLERY_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered from the live catalog when unset — a public listing with 2+ photos. |
+| `MS_TEST_GALLERY_SINGLE_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered when unset — a public listing with exactly one photo. |
+| `MS_TEST_GALLERY_ZERO_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered when unset — a public listing with zero photos. None exists in the live catalog as of 2026-08-15, so this spec reports FIXTURE UNAVAILABLE and skips. |
 | `MS_TEST_SHIPPABLE_LISTING_ID` | `checkout-cp-first.browser.spec.ts`, `ucp-checkout-session-shipping-boundary.spec.ts` | Public, priced physical listing with Envía shipping. |
 | `MS_TEST_CLAIMED_SLUG` | `seller-unclaimed-s3.browser.spec.ts`, `collection-isolation.spec.ts` | A real claimed shop slug. |
 | `MS_TEST_UNCLAIMED_LISTING_ID` | `unclaimed-pdp.browser.spec.ts`, `unclaimed-guardrails.spec.ts` | Public listing on a “Sin reclamar” shop. |

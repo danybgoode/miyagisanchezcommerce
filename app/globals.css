@@ -1353,3 +1353,165 @@ html[data-platform-theme] .platform-theme-spot {
 /* ── Utilities ────────────────────────────────────────────────────────────── */
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ============================================================================
+   INTERACTION FEEDBACK — press + pending
+   ----------------------------------------------------------------------------
+   Every clickable thing must answer two questions the instant it is touched:
+   "did that register?" and "is something happening?". Before this block the
+   answer was inconsistent — `.btn` had a press state, but `.card-tile` (every
+   product tile on every catalog page), `.chip`, `.cat-row` and the seller-portal
+   nav had hover-only affordances, so a tap on a phone (where hover does not
+   exist at all) produced no feedback whatsoever between the tap and the next
+   page painting. On a fast connection that is a flicker; on a slow one it reads
+   as a dead link, and people tap again.
+
+   Two distinct signals, deliberately not merged:
+     PRESS   — instant, pure CSS, zero JS. "Your input registered."
+     PENDING — driven by Next's `useLinkStatus()` / an async action's own state.
+               "It registered AND the result is still on its way."
+
+   Both are quiet on purpose. The point is that a user always knows what is
+   going on, not that the interface performs for them.
+============================================================================ */
+
+/* ── Press ──────────────────────────────────────────────────────────────────
+   `--press-scale` is a token so a surface can opt into a gentler squeeze
+   (a full-width row should barely move; a small icon button can move more)
+   without redefining the whole treatment. */
+:root {
+  --press-scale: 0.985;
+  --press-dur: 90ms;
+}
+
+/*
+ * The shared press treatment. Applied to the primitives below AND available as
+ * an opt-in class for one-off interactive surfaces.
+ *
+ * `-webkit-tap-highlight-color: transparent` removes iOS's default grey flash
+ * — NOT to remove feedback, but because we are replacing it with a better one.
+ * Removing it without providing a replacement is how a tap ends up signalling
+ * nothing at all, which is the bug this block exists to fix.
+ */
+.pressable,
+.card-tile,
+.chip,
+.cat-row,
+.press-tile {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.pressable:active,
+.card-tile:active,
+.press-tile:active {
+  transform: scale(var(--press-scale));
+  /* Dim rather than brighten: a pressed control is momentarily "spent", and a
+     dim reads as pressed-in against every one of our backgrounds, where a
+     lighten only reads on the dark ones. */
+  filter: brightness(0.97);
+  transition-duration: var(--press-dur);
+}
+
+/* A tile already lifts on hover; the press has to visibly UNDO that lift, or
+   the two cancel out and a hovering mouse user sees nothing on click. */
+.card-tile:active {
+  transform: scale(var(--press-scale)) translateY(0);
+  box-shadow: none;
+}
+
+.chip:active,
+.cat-row:active {
+  transform: scale(0.99);
+  filter: brightness(0.97);
+  transition-duration: var(--press-dur);
+}
+
+/* Keyboard parity: a link/button activated with Enter or Space never gets
+   `:active` long enough to see on some browsers, but it must still be obvious
+   which element has focus. `.btn` already handles its own focus ring. */
+.pressable:focus-visible,
+.card-tile:focus-visible,
+.press-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Pending ────────────────────────────────────────────────────────────────
+   `data-pending` is set by `LinkPending` (Next's `useLinkStatus`) or by a
+   component's own async state. An ATTRIBUTE, not a class, so it composes with
+   whatever classes a surface already has and is trivially assertable in a spec.
+
+   `cursor: progress` is the part users read without noticing they read it. */
+[data-pending='true'] {
+  cursor: progress;
+  /* Held at a legible opacity — invisible content is not feedback. */
+  opacity: 0.72;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+/* A pending navigation must not be clickable twice. `pointer-events: none`
+   would also kill the cursor above, so the click is swallowed instead by the
+   handler; this only stops the hover affordance re-asserting itself. */
+[data-pending='true']:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/*
+ * The inline pending dot — the Claude-Code-shaped signal: one small mark that
+ * appears where you clicked, rather than a spinner that takes over the screen.
+ * It fades IN after a beat so an instant navigation never flashes it; a
+ * flashing spinner on a fast route is noise that trains people to ignore it.
+ */
+.pending-dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-left: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: baseline;
+  opacity: 0;
+  animation: pending-dot-in 120ms var(--ease-standard) 90ms forwards,
+             pulse-soft 1.1s var(--ease-standard) 210ms infinite;
+}
+
+@keyframes pending-dot-in {
+  to { opacity: 1; }
+}
+
+/*
+ * The route progress bar. Two pixels at the very top of the viewport, above
+ * everything, pointer-transparent.
+ *
+ * It creeps toward 90% and stops there. It never reaches 100% on its own,
+ * because it does not know how long the navigation will take and a bar that
+ * completes before the page does is a lie. The completion to 100% is driven by
+ * the pathname actually changing.
+ */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 9999;
+  pointer-events: none;
+  border-radius: 0 2px 2px 0;
+  transition: width var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pressable:active,
+  .card-tile:active,
+  .press-tile:active,
+  .chip:active,
+  .cat-row:active {
+    /* Keep the feedback, drop the movement — a reduced-motion user still needs
+       to know the tap registered, so the brightness change stays. */
+    transform: none;
+  }
+  .pending-dot { animation: pending-dot-in 1ms linear forwards; opacity: 1; }
+  .route-progress { transition: none; }
+}
