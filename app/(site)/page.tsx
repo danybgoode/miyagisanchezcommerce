@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { MARKETS, MARKET_CODES, marketBasePath } from '@/lib/markets'
 import { marketLandingMetadata, selectorMetadata } from '@/lib/market-seo'
 import MarketRecommendation from './MarketRecommendation'
+import { PendingMark } from '@/app/components/LinkPending'
 
 /**
  * `/` — the master-brand market selector.
@@ -125,6 +126,8 @@ export default function MarketSelectorPage() {
               className="card-tile no-underline block"
               style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}
             >
+              {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+              <PendingMark showDot={false} />
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span aria-hidden style={{ fontSize: 26 }}>{card.flag}</span>
                 <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--fg)' }}>{card.name}</span>

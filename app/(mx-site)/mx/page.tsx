@@ -33,6 +33,7 @@ import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 import type { Metadata } from 'next'
 import { categoryLabel } from '@/lib/market-vocabulary'
+import { PendingMark } from '@/app/components/LinkPending'
 
 // Prerender `/mx` under its es-MX root document as a static CDN asset, revalidated on the curated-content window
 // (= CACHE.LISTING, lib/cache-policy.ts SSOT — kept a literal because Next requires
@@ -236,6 +237,8 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
                         </p>
                       )}
                     </div>
+                    {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+                    <PendingMark showDot={false} />
                   </Link>
                   <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>
                     <FavoriteButton listingId={listing.id} size="sm" />
@@ -406,6 +409,8 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
                       )}
                     </div>
                   </div>
+                  {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+                  <PendingMark showDot={false} />
                 </Link>
                 <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 5 }}>
                   <FavoriteButton listingId={featured.id} size="sm" />
@@ -457,6 +462,8 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
                           </p>
                         )}
                       </div>
+                      {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+                      <PendingMark showDot={false} />
                     </Link>
                     <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 5 }}>
                       <FavoriteButton listingId={listing.id} size="sm" />
