@@ -80,6 +80,7 @@ export default function PromoterCodeField({
           size="sm"
           onClick={preview}
           disabled={checking || !code.trim()}
+          loading={checking}
         >
           {checking ? 'Validando…' : 'Aplicar'}
         </Button>

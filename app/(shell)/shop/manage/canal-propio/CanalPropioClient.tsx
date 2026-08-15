@@ -472,6 +472,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                     size="sm"
                     onClick={handleSlugSave}
                     disabled={slugSaveBlocked}
+                    loading={slugSaving}
                   >
                     {slugSaving ? 'Guardando…' : 'Guardar URL'}
                   </Button>
@@ -546,6 +547,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                         variant="primary"
                         onClick={handleDomainSave}
                         disabled={domainSaving || !domainInput.trim()}
+                        loading={domainSaving}
                         className="flex-1 sm:flex-none whitespace-nowrap"
                       >
                         {domainSaving ? (domainEditing ? 'Reemplazando…' : 'Conectando…') : (domainEditing ? 'Reemplazar' : 'Conectar')}

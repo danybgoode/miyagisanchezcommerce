@@ -24,7 +24,7 @@ export function SectionSaveBar({
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* The top-of-page breadcrumb (<SellerBreadcrumb>) now owns the back affordance. */}
       <div className="flex items-center justify-end mb-24">
-        <Button type="button" variant="primary" onClick={onSave} disabled={saving}>
+        <Button type="button" variant="primary" onClick={onSave} loading={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </div>
@@ -41,8 +41,8 @@ export function SectionSaveBar({
               <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
               </Button>
-              <Button type="button" variant="primary" size="sm" onClick={onSave} disabled={saving}>
-                {saving ? 'Guardando…' : 'Guardar'}
+              <Button type="button" variant="primary" size="sm" onClick={onSave} loading={saving}>
+                Guardar
               </Button>
             </div>
           </div>

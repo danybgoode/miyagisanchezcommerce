@@ -184,7 +184,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
       <div className="flex items-center justify-end mb-24">
-        <Button type="button" variant="primary" onClick={handleSave} disabled={saving}>
+        <Button type="button" variant="primary" onClick={handleSave} loading={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </div>
@@ -201,8 +201,8 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
               <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
               </Button>
-              <Button type="button" variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando…' : 'Guardar'}
+              <Button type="button" variant="primary" size="sm" onClick={handleSave} loading={saving}>
+                Guardar
               </Button>
             </div>
           </div>

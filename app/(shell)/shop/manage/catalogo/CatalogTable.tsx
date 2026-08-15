@@ -131,7 +131,7 @@ function DeleteDialog({
           <Button variant="secondary" onClick={onCancel} disabled={pending}>
             Cancelar
           </Button>
-          <Button variant="danger" onClick={onConfirm} disabled={pending}>
+          <Button variant="danger" onClick={onConfirm} loading={pending}>
             {pending ? 'Eliminando…' : 'Sí, eliminar'}
           </Button>
         </div>
