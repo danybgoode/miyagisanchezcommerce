@@ -37,6 +37,15 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
     direction: 'asc',
   })
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /**
+   * The last lifecycle outcome, held HERE rather than in the row.
+   *
+   * A status change can remove the row from the current filter — reactivating while
+   * filtered to "en pausa" is the obvious case — and the row unmounts with its
+   * message. The partial-restore warning is the most important thing this screen can
+   * say, so it lives above the list and stays until dismissed.
+   */
+  const [report, setReport] = useState<{ shopName: string; message: string; incomplete: boolean } | null>(null)
   // Local copy so a grant/revoke or a status change reflects in place.
   const [rows, setRows] = useState<TenantRow[]>(tenants)
 
@@ -68,6 +77,29 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
         </p>
       </div>
 
+      {report && (
+        <div
+          role="status"
+          className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${
+            report.incomplete
+              ? 'border-[var(--color-warning,#9a6700)] bg-[var(--color-warning-bg,#fff4e5)]'
+              : 'border-[var(--color-border)] bg-[var(--color-bg-subtle)]'
+          }`}
+        >
+          <span className="flex-1">
+            <strong>{report.shopName}:</strong> {report.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReport(null)}
+            className="text-xs underline"
+            aria-label="Descartar"
+          >
+            Descartar
+          </button>
+        </div>
+      )}
+
       <input
         type="search"
         value={filter.q ?? ''}
@@ -86,6 +118,11 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
             ['active', 'Activa'],
             ['paused', 'En pausa'],
             ['deleted', 'Eliminada'],
+            // The two non-status states are filterable too: they are exactly the rows
+            // that need attention, and a distinction an operator cannot isolate is a
+            // decorative one.
+            ['absent', 'Sin vendedor en Medusa'],
+            ['unavailable', 'Estado no disponible'],
           ]}
         />
         <Select
@@ -204,7 +241,11 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
                   <div className="sm:col-span-2">
                     <dt className="text-xs text-[var(--color-muted)]">Ciclo de vida</dt>
                     <dd className="mt-0.5">
-                      <TenantLifecyclePanel row={t} onChanged={(p) => patchRow(t.shopId, p)} />
+                      <TenantLifecyclePanel
+                        row={t}
+                        onChanged={(p) => patchRow(t.shopId, p)}
+                        onReport={setReport}
+                      />
                     </dd>
                   </div>
                   <Field label="Anuncios">{t.listingCount}</Field>

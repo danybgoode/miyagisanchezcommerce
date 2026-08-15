@@ -116,11 +116,11 @@ export async function changeSellerStatus(input: {
     )
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
     if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        message: typeof body?.message === 'string' ? body.message : `Error ${res.status}`,
-      }
+      // The backend's own message is es-MX for the cases it authors deliberately
+      // (a refused transition, a missing seller). Anything else — a proxy error page,
+      // a framework default — is English runtime text that must not reach a Spanish
+      // admin screen verbatim, so it is replaced by copy that says what to do.
+      return { ok: false, status: res.status, message: refusalCopy(res.status, body?.message) }
     }
 
     // VALIDATE THE SUCCESS PAYLOAD. A 2xx is not a contract: malformed JSON, a
@@ -153,10 +153,32 @@ export async function changeSellerStatus(input: {
       complete: body.complete,
     }
   } catch (err) {
+    // A timeout or a network failure produces English runtime text ("The operation
+    // was aborted"). Logged for us, never shown to the operator.
+    console.warn('[tenant-status] change failed:', err)
     return {
       ok: false,
       status: 503,
-      message: err instanceof Error ? err.message : 'No se pudo cambiar el estado.',
+      message: 'No se pudo contactar al backend de comercio. El cambio NO se aplicó; intenta de nuevo.',
     }
   }
+}
+
+/**
+ * es-MX copy for a refusal.
+ *
+ * The backend authors Spanish messages for the refusals it means (an illegal
+ * transition, an unknown seller). A message that is not obviously ours is treated as
+ * runtime noise and replaced — an English stack fragment on an admin screen tells an
+ * operator nothing about what to do next.
+ */
+function refusalCopy(status: number, backendMessage: unknown): string {
+  if (typeof backendMessage === 'string' && backendMessage && /[áéíóúñ¿¡]/i.test(backendMessage)) {
+    return backendMessage
+  }
+  if (status === 409) return 'Ese cambio de estado no es válido para esta tienda.'
+  if (status === 404) return 'Medusa no encontró esta tienda.'
+  if (status === 400) return 'La petición no era válida.'
+  if (status >= 500) return 'El backend de comercio falló. El cambio pudo no aplicarse; verifica antes de reintentar.'
+  return `No se pudo cambiar el estado (error ${status}).`
 }

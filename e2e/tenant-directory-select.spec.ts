@@ -43,7 +43,8 @@ test.describe('filtering', () => {
     // unreachable backend is a retry. Collapsing them, as the first revision did,
     // hid the orphan inside a glitch nobody would go fix.
     const rows = [row({ shopId: 'orphan', status: 'absent' }), row({ shopId: 'glitch', status: 'unavailable' })]
-    expect(selectTenants(rows, { status: 'absent' as never }).map((r) => r.shopId)).toEqual(['orphan'])
+    expect(selectTenants(rows, { status: 'absent' }).map((r) => r.shopId)).toEqual(['orphan'])
+    expect(selectTenants(rows, { status: 'unavailable' }).map((r) => r.shopId)).toEqual(['glitch'])
     expect(selectTenants(rows, {}).map((r) => r.shopId).sort()).toEqual(['glitch', 'orphan'])
   })
 

@@ -29,9 +29,20 @@ type Outcome =
 export default function TenantLifecyclePanel({
   row,
   onChanged,
+  onReport,
 }: {
   row: TenantRow
   onChanged: (patch: Partial<TenantRow>) => void
+  /**
+   * Report the outcome to the PARENT as well as showing it here.
+   *
+   * Changing a status can remove the row from the current filter — reactivating
+   * while filtered to `paused` is the obvious case — and the row unmounts with its
+   * message. The partial-restore warning is the single most important thing this
+   * screen can say, so it must not depend on the row surviving. The parent renders
+   * it above the list where it persists until dismissed.
+   */
+  onReport: (report: { shopName: string; message: string; incomplete: boolean }) => void
 }) {
   const [target, setTarget] = useState<SellerStatus | null>(null)
   const [reason, setReason] = useState('')
@@ -90,16 +101,15 @@ export default function TenantLifecyclePanel({
       }
       const incomplete = body?.complete === false
       const missing: string[] = Array.isArray(body?.missing_products) ? body.missing_products : []
-      setOutcome({
-        kind: 'done',
-        incomplete,
-        message: incomplete
+      const message = incomplete
           ? `Se aplicó el cambio, pero NO se pudo restaurar todo: ${missing.length} producto(s) ya no existen `
             + `(${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}). Revisa antes de darlo por terminado.`
           : target === 'active'
             ? `Reactivada. Se restauraron ${body?.restored ?? 0} vínculo(s) de catálogo.`
-            : `Listo. Se retiraron ${body?.unlinked ?? 0} vínculo(s) de catálogo.`,
-      })
+            : `Listo. Se retiraron ${body?.unlinked ?? 0} vínculo(s) de catálogo.`
+      setOutcome({ kind: 'done', incomplete, message })
+      // Survives this row leaving the filter.
+      onReport({ shopName: row.name, message, incomplete })
       // The SERVER's answer, never the requested target — reporting our own intent
       // back as the result is how a screen lies about what happened.
       onChanged({ status: (body?.to as SellerStatus) ?? target })
@@ -126,8 +136,14 @@ export default function TenantLifecyclePanel({
             <button
               key={option}
               type="button"
+              // Disabled while a change is in flight. Leaving these live let an
+              // operator start "Pausar", switch to "Eliminar" and submit again with
+              // the retained reason — two mutations racing, whose responses could
+              // land out of order and leave the screen showing `paused` while Medusa
+              // held `deleted`.
+              disabled={outcome.kind === 'working'}
               onClick={() => { setTarget(option); setOutcome({ kind: 'idle' }) }}
-              className={`rounded border px-2 py-1 text-xs hover:bg-[var(--color-bg)] ${
+              className={`rounded border px-2 py-1 text-xs hover:bg-[var(--color-bg)] disabled:opacity-40 ${
                 target === option ? 'border-[var(--color-fg)]' : 'border-[var(--color-border)]'
               }`}
             >

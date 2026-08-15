@@ -203,7 +203,14 @@ export function shapeTenantRow(
 
 export type TenantFilter = {
   q?: string
-  status?: SellerStatus | 'any'
+  /**
+   * Includes the two non-status states. If a row can BE `absent` or `unavailable`,
+   * an operator must be able to isolate them — those are precisely the rows that
+   * need attention, and a filter that cannot name them makes the distinction
+   * decorative. (The first revision exposed only the three real statuses; the spec
+   * casting `as never` to test the others was the tell.)
+   */
+  status?: SellerStatus | 'absent' | 'unavailable' | 'any'
   claimed?: 'claimed' | 'unclaimed' | 'any'
   market?: MarketCode | 'unknown' | 'any'
   domain?: TenantDomainStatus | 'any'
