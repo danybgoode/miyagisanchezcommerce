@@ -8,7 +8,7 @@ import FavoriteButton from '@/app/components/FavoriteButton'
 import type { Metadata } from 'next'
 import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
-import { formatPresentationCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
+import { formatPresentationCurrency, marketCodeForCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
 
 export const metadata: Metadata = { title: 'Favoritos — Miyagi Sánchez' }
 
@@ -21,7 +21,11 @@ export default async function FavoritesPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in?redirect_url=/account/favorites')
 
-  const { data } = await db
+  // No `marketplace_shops.market_code` — it has never been a column on the mirror,
+  // and asking for it made PostgREST 400 the whole query. `data` was destructured
+  // without `error`, so this page rendered "no tienes favoritos" to everyone who did
+  // (found 2026-08-15 by scripts/audit-select-columns.mjs, same defect as /messages).
+  const { data, error } = await db
     .from('marketplace_favorites')
     .select(`
       id,
@@ -30,11 +34,15 @@ export default async function FavoritesPage() {
       created_at,
       marketplace_listings (
         id, medusa_product_id, title, price_cents, currency, condition, location, images, status, created_at,
-        marketplace_shops ( name, slug, verified, market_code )
+        marketplace_shops ( name, slug, verified )
       )
     `)
     .eq('clerk_user_id', user.id)
     .order('created_at', { ascending: false })
+
+  // A failed read is not an empty favourites list. Named, so the next outage is
+  // visible instead of looking like a user who never saved anything.
+  if (error) console.error('[favorites] read failed:', error)
 
   const favorites = (data ?? []) as unknown as Array<{
     id: string
@@ -51,7 +59,7 @@ export default async function FavoritesPage() {
       location: string | null
       images: Array<{ url: string }> | null
       status: string
-      marketplace_shops: { name: string; slug: string; verified: boolean; market_code?: string | null } | null
+      marketplace_shops: { name: string; slug: string; verified: boolean } | null
     } | null
   }>
 
@@ -87,7 +95,7 @@ export default async function FavoritesPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }} className="sm:grid-cols-3">
             {active.map(fav => {
               const listing = fav.marketplace_listings!
-              const presentation = resolveMarketPresentation(listing.marketplace_shops?.market_code ?? 'mx')
+              const presentation = resolveMarketPresentation(marketCodeForCurrency(listing.currency) ?? 'mx')
               const formatPrice = (priceCents: number) =>
                 formatPresentationCurrency(presentation, priceCents, listing.currency, { maximumFractionDigits: 0 })
               const priceDrop = fav.price_cents_at_save && listing.price_cents && listing.price_cents < fav.price_cents_at_save

@@ -4,6 +4,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { logNotification } from '@/lib/notifications/log'
 import { Resend } from 'resend'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
@@ -291,11 +292,13 @@ export async function sendWithResult(
 ): Promise<EmailSendResult> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
+    logNotification({ channel: 'email', outcome: 'skipped', recipient: to, subject, reason: 'unconfigured' })
     return { ok: false, reason: 'unconfigured' }
   }
   if (scheduledAt && scheduledAt.getTime() - Date.now() < RESEND_MIN_SCHEDULE_MS) {
     // Too close to fire — skip rather than error (the window already passed).
     console.warn('[email] scheduled send too soon, skipping:', subject)
+    logNotification({ channel: 'email', outcome: 'skipped', recipient: to, subject, reason: 'too_soon' })
     return { ok: false, reason: 'too_soon' }
   }
   // Marking happens HERE, at the single transport, so no sender can forget it and a
@@ -314,9 +317,25 @@ export async function sendWithResult(
     })
     // Resend can accept without echoing an id. That is still a send, so `id` is
     // nullable INSIDE the ok branch rather than collapsing back into a failure.
+    logNotification({
+      channel: 'email',
+      outcome: 'sent',
+      recipient: to,
+      subject: finalSubject,
+      providerId: result.data?.id ?? null,
+      context: sample ? { sample_key: sample.key } : null,
+    })
     return { ok: true, id: result.data?.id ?? null }
   } catch (err) {
     console.error('[email] send failed:', subject, '→', to, err)
+    logNotification({
+      channel: 'email',
+      outcome: 'failed',
+      recipient: to,
+      subject: finalSubject,
+      reason: 'rejected',
+      context: { detail: err instanceof Error ? err.message : String(err) },
+    })
     return { ok: false, reason: 'rejected', detail: err instanceof Error ? err.message : undefined }
   }
 }
@@ -1084,6 +1103,38 @@ export async function sendBuyerReportedPaymentToSeller(ctx: {
     cta('Verificar y confirmar', ctx.orderUrl),
   ].join('')
   await send(ctx.sellerEmail, subject, body)
+}
+
+/**
+ * A message arrived in a conversation.
+ *
+ * This had no email at all until 2026-08-15: starting a conversation sent nothing
+ * whatsoever, and a reply sent web push only. Push is a no-op for anyone without a
+ * subscription — which is most sellers — so a buyer pressing "Preguntar" reached the
+ * seller through NO channel, and the only surface that would have shown it
+ * (`/messages`) was itself broken. One shape for both directions: the recipient is
+ * whoever did not send it.
+ */
+export async function sendConversationMessage(ctx: {
+  to: string
+  /** What the recipient is to the sender: a buyer messages the seller and vice versa. */
+  recipientRole: 'buyer' | 'seller'
+  listingTitle: string
+  messageText: string
+  conversationUrl: string
+}): Promise<void> {
+  const who = ctx.recipientRole === 'seller' ? 'Un comprador' : 'El vendedor'
+  const subject = `💬 ${who} te escribió — ${ctx.listingTitle}`
+  const body = [
+    h1(`${who} te escribió`),
+    table([
+      ['Anuncio', `<a href="${ctx.conversationUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ['Mensaje', esc(ctx.messageText)],
+    ]),
+    p('Responde desde tu bandeja de mensajes para no perder la venta.'),
+    cta('Ver conversación', ctx.conversationUrl),
+  ].join('')
+  await send(ctx.to, subject, body)
 }
 
 // ── Buyer: order shipped notification ─────────────────────────────────────────

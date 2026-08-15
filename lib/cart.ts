@@ -61,11 +61,9 @@ const MEDUSA_BASE = process.env.NEXT_PUBLIC_MEDUSA_STORE_URL
   ?? process.env.MEDUSA_STORE_URL
   ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-// Absolute base for the fire-and-forget manual-order email below — a plain
-// relative fetch() only resolves in a browser; the first true server-to-
-// server caller of startCheckout() (MCP checkout, custom-print-products
-// S4 · 4.2) would otherwise throw with no base and silently never send it.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://miyagisanchez.com'
+// (An absolute SITE_URL used to live here, for a fire-and-forget HTTP call to our own
+// manual-order-email route. That call is gone — see the comment at its old site — and
+// so is the constant.)
 
 function medusaFetch(path: string, options?: RequestInit) {
   return fetch(`${MEDUSA_BASE}${path}`, {
@@ -311,6 +309,14 @@ export interface StartCheckoutParams {
   offerId?: string
   /** Clerk JWT — required for authenticated checkout */
   clerkJwt?: string
+  /**
+   * The buyer's Clerk user id, used only to address the post-order push/Telegram.
+   *
+   * SERVER-DERIVED ONLY. `/api/checkout/start` overwrites whatever the request body
+   * carries with the id from `auth()`, because this value selects who receives a
+   * notification — accepting it from the caller would let anyone notify anyone.
+   */
+  buyerClerkUserId?: string
   /** Buyer-selected fulfillment method from marketplace checkout */
   fulfillmentMethod?: CheckoutFulfillmentMethod
   /** Optional selected pickup spot ID/name from seller settings */
@@ -383,7 +389,7 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
   const {
     productId, variantId, personalization, quantity, items, sellerId,
     provider, manualSubType, buyerEmail, buyerFirstName, buyerLastName,
-    offerAmountCents, couponCode, offerId, clerkJwt, fulfillmentMethod, pickupSpotId, pickupAppointment, shippingAddress, shippingQuote, escrow,
+    offerAmountCents, couponCode, offerId, clerkJwt, buyerClerkUserId, fulfillmentMethod, pickupSpotId, pickupAppointment, shippingAddress, shippingQuote, escrow,
     originDomain,
     support,
     suppressManualEmail,
@@ -552,14 +558,30 @@ export async function startCheckout(params: StartCheckoutParams): Promise<StartC
     if (type === 'order' && order?.id) {
       result.cart_id = order.id // Return order ID so caller can navigate to order page
       // Fire the buyer + seller confirmation emails (manual orders skip the
-      // Stripe/MP webhooks that send them). Fire-and-forget — never block.
+      // Stripe/MP webhooks that send them). Never blocks checkout.
       // Skipped when the caller owns its own manual email (e.g. print-ad flow).
+      //
+      // 🚨 This was `fetch(`${SITE_URL}/api/orders/finalize-manual`)` — an HTTP call
+      // to our OWN route. Correct while `startCheckout` ran in the browser; the
+      // moment PR 244 moved it behind `/api/checkout/start` it became a server-to-
+      // server request with no Clerk cookie, and the route 401'd on EVERY manual
+      // order for a month while `.catch(() => {})` hid it. Do not reintroduce an
+      // authenticated round trip to ourselves for work we can already do in-process.
+      //
+      // Imported dynamically because the target is `server-only` (it sends email) and
+      // four 'use client' components import types from this module — a static import
+      // would drag a server-only module into a client bundle at build time.
       if (!suppressManualEmail) {
-        fetch(`${SITE_URL}/api/orders/finalize-manual`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: order.id }),
-        }).catch(() => { /* non-fatal */ })
+        void import('./orders/manual-order-emails')
+          .then(({ sendManualOrderEmails }) => sendManualOrderEmails({
+            orderId: order.id as string,
+            clerkJwt,
+            buyerClerkUserId,
+          }))
+          .then((r) => {
+            if (!r.ok) console.error('[startCheckout] manual order emails NOT sent:', order.id, r.reason)
+          })
+          .catch((e) => console.error('[startCheckout] manual order emails threw:', e))
       }
     }
   }

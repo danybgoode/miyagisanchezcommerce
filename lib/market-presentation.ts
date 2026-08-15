@@ -1,4 +1,4 @@
-import { requireMarket, type MarketCode } from './markets'
+import { MARKETS, requireMarket, type MarketCode } from './markets'
 import type { Locale } from './dictionary'
 
 export interface MarketPresentation {
@@ -37,6 +37,28 @@ export function resolveMarketPresentation(value: unknown): MarketPresentation {
     currency: market.currency_code.toUpperCase() as MarketPresentation['currency'],
     timezone: market.timezone,
   })
+}
+
+/**
+ * The market a listing's own currency belongs to — for surfaces that hold a priced
+ * row but no market annotation.
+ *
+ * WHY this and not a shop lookup: the operating market is a fact of the **Medusa
+ * seller**, and "a Supabase mirror can enumerate a shop but must never decide its
+ * market" (`market-visibility.ts`). The conversation pages learned that the hard
+ * way — they selected `marketplace_shops.market_code`, a column that has never
+ * existed on the mirror, and PostgREST answered 400 for four days while both pages
+ * rendered as though the user simply had no messages.
+ *
+ * Derived from `MARKETS` rather than a literal currency table, so adding a market
+ * cannot leave a second copy of the mapping behind. Unknown currency ⇒ `null`, and
+ * the caller decides — never a silent slide into Mexico.
+ */
+export function marketCodeForCurrency(currency: unknown): MarketCode | null {
+  if (typeof currency !== 'string' || !currency.trim()) return null
+  const wanted = currency.trim().toLowerCase()
+  const hit = Object.values(MARKETS).find((m) => m.currency_code === wanted)
+  return hit ? hit.code : null
 }
 
 export function formatPresentationCurrency(

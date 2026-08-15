@@ -3,6 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { STAMPS, type StampKey } from '@/lib/stamps'
 import { findOrCreateConversation } from '@/lib/conversations'
+import { notifyConversationMessage } from '@/lib/notifications/conversation'
 
 function isUuid(value: string) {
   return /^[0-9a-f-]{36}$/i.test(value)
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   const listingId = body.listingId?.trim()
   if (!listingId) return NextResponse.json({ error: 'Anuncio no especificado.' }, { status: 400 })
 
-  let query = db
+  const query = db
     .from('marketplace_listings')
     .select('id, title, shop_id, marketplace_shops!inner(id, clerk_user_id)')
     .eq('medusa_product_id', listingId)
@@ -75,6 +76,17 @@ export async function POST(req: NextRequest) {
     }),
     db.from('marketplace_conversations').update({ seller_unread: 1 }).eq('id', conversationId),
   ])
+
+  // Tell the seller. Until 2026-08-15 this route notified NOBODY — the unread badge
+  // was the entire mechanism, on a page that was itself broken. Fire-and-forget: a
+  // question that was stored but not announced is still stored.
+  void notifyConversationMessage({
+    conversationId,
+    recipientClerkUserId: shop.clerk_user_id,
+    recipientRole: 'seller',
+    listingTitle: listing.title as string,
+    messageText: stamp.text,
+  })
 
   return NextResponse.json({ conversationId }, { status: 201 })
 }

@@ -7,7 +7,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { browseUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
-import { formatPresentationCurrency, formatPresentationDate, resolveMarketPresentation, type MarketPresentation } from '@/lib/market-presentation'
+import { formatPresentationCurrency, formatPresentationDate, marketCodeForCurrency, resolveMarketPresentation, type MarketPresentation } from '@/lib/market-presentation'
 
 export const metadata: Metadata = { title: 'Mensajes — Miyagi Sánchez' }
 
@@ -46,18 +46,29 @@ export default async function MessagesPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in?redirect_url=/messages')
 
-  const { data: convs } = await db
+  // NOTE the absent `marketplace_shops.market_code`. That column has never existed
+  // on the mirror — the operating market is a fact of the Medusa seller — and asking
+  // for it made PostgREST answer 400 for every user for four days (PR 351 → 2026-08-15).
+  // Presentation is derived from the listing's OWN currency below instead.
+  const { data: convs, error: convsError } = await db
     .from('marketplace_conversations')
     .select(`
       id, status, last_event_at, buyer_unread, seller_unread,
       buyer_clerk_user_id, seller_clerk_user_id,
       marketplace_listings ( id, title, price_cents, currency, images ),
-      marketplace_shops ( id, name, slug, market_code )
+      marketplace_shops ( id, name, slug )
     `)
     .or(`buyer_clerk_user_id.eq.${user.id},seller_clerk_user_id.eq.${user.id}`)
     .in('status', ['active', 'completed'])
     .order('last_event_at', { ascending: false })
     .limit(100)
+
+  // Three states, never two. A failed read is NOT an empty inbox: rendering "no
+  // tienes mensajes" over a 400 is exactly how this bug survived — the page looked
+  // healthy, and a seller with a waiting buyer saw the same screen as one with none.
+  if (convsError) {
+    console.error('[messages] conversation list read failed:', convsError)
+  }
 
   const conversations = convs ?? []
 
@@ -88,8 +99,8 @@ export default async function MessagesPage() {
 
   function ConversationRow({ conv, role }: { conv: typeof conversations[0]; role: 'buyer' | 'seller' }) {
     const listing = conv.marketplace_listings as unknown as { id: string; title: string; price_cents: number | null; currency: string; images: Array<{ url: string }> | null } | null
-    const shop    = conv.marketplace_shops as unknown as { name: string; slug: string; market_code?: string | null } | null
-    const presentation = resolveMarketPresentation(shop?.market_code ?? 'mx')
+    const shop    = conv.marketplace_shops as unknown as { name: string; slug: string } | null
+    const presentation = resolveMarketPresentation(marketCodeForCurrency(listing?.currency) ?? 'mx')
     const lastEv  = lastEventMap.get(conv.id)
     const unread  = role === 'buyer' ? conv.buyer_unread : conv.seller_unread
     const otherParty = role === 'buyer'
@@ -158,7 +169,23 @@ export default async function MessagesPage() {
         </div>
       </div>
 
-      {conversations.length === 0 ? (
+      {convsError ? (
+        // The failure state the four-day outage did not have. It must never be
+        // mistaken for an empty inbox, so it says what happened and offers a retry
+        // rather than inviting the user to go shopping.
+        <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <i className="iconoir-warning-triangle" style={{ fontSize: 28, color: 'var(--fg-subtle)' }} />
+          </div>
+          <p style={{ fontWeight: 600, fontSize: 17, marginBottom: 6 }}>
+            <BuyerCopyText copyKey="messages.loadFailed.title" /></p>
+          <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
+            <BuyerCopyText copyKey="messages.loadFailed.body" /></p>
+          <Link href="/messages" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+            <i className="iconoir-refresh" style={{ fontSize: 16 }} />
+            <BuyerCopyText copyKey="messages.loadFailed.retry" /></Link>
+        </div>
+      ) : conversations.length === 0 ? (
         <div style={{ paddingTop: 80, textAlign: 'center', padding: '80px 24px' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <i className="iconoir-chat-bubble" style={{ fontSize: 28, color: 'var(--fg-subtle)' }} />

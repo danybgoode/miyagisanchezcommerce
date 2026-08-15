@@ -54,6 +54,10 @@ export const COMMUNICATION_DOMAINS = [
   'promoter',
   'referrals',
   'agent',
+  // Buyer↔seller conversations. Added 2026-08-15: messaging had no communication of
+  // its own because it sent none — starting a conversation notified nobody and a
+  // reply sent web push only.
+  'mensajes',
 ] as const
 export type CommunicationDomain = (typeof COMMUNICATION_DOMAINS)[number]
 
@@ -210,6 +214,13 @@ export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
     from: 'buyer', to: 'seller', channels: ['email', 'push', 'telegram'], domain: 'orders',
     sender: 'sendBuyerReportedPaymentToSeller', origin: 'app/api/orders/[id]/report-payment/route.ts',
     group: 'payments',
+  },
+  // ── Mensajes ────────────────────────────────────────────────────────────────
+  {
+    key: 'mensajes.conversation_message',
+    trigger: 'Alguien escribe en una conversación sobre un anuncio (incluye "Preguntar" en un anuncio).',
+    from: 'buyer', to: 'seller', channels: ['email', 'push', 'telegram'], domain: 'mensajes',
+    sender: 'sendConversationMessage', origin: 'lib/notifications/conversation.ts', group: 'mensajes',
   },
   {
     key: 'order.ml_event_to_seller',
