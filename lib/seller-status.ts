@@ -45,8 +45,13 @@ export function parseSellerStatus(value: unknown): SellerStatus | null {
   return isSellerStatus(value) ? value : null
 }
 
-/** es-MX labels for the directory. `null` is the honestly-unavailable state. */
-export function sellerStatusLabel(status: SellerStatus | null): string {
+/**
+ * es-MX labels. Three non-status states, and they say different things:
+ *  · `absent`      — Medusa has no such seller. Durable; somebody must go fix it.
+ *  · `unavailable` — we could not ask right now. Transient; retry.
+ * Rendering both as "No disponible" would hide an orphaned row inside a glitch.
+ */
+export function sellerStatusLabel(status: SellerStatus | 'absent' | 'unavailable' | null): string {
   switch (status) {
     case 'active':
       return 'Activa'
@@ -54,13 +59,17 @@ export function sellerStatusLabel(status: SellerStatus | null): string {
       return 'En pausa'
     case 'deleted':
       return 'Eliminada'
+    case 'absent':
+      return 'Sin vendedor en Medusa'
     default:
       return 'No disponible'
   }
 }
 
 /** Tone for the status chip. `null` is neutral, never green. */
-export function sellerStatusTone(status: SellerStatus | null): 'ok' | 'warn' | 'danger' | 'muted' {
+export function sellerStatusTone(
+  status: SellerStatus | 'absent' | 'unavailable' | null,
+): 'ok' | 'warn' | 'danger' | 'muted' {
   switch (status) {
     case 'active':
       return 'ok'
@@ -68,6 +77,9 @@ export function sellerStatusTone(status: SellerStatus | null): 'ok' | 'warn' | '
       return 'warn'
     case 'deleted':
       return 'danger'
+    case 'absent':
+      // An orphaned mirror row is a real problem, not a neutral unknown.
+      return 'warn'
     default:
       return 'muted'
   }

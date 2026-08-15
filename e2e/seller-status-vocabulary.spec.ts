@@ -12,14 +12,41 @@
  * backend adds a state, this goes red here rather than the admin silently rendering
  * an unknown status as a blank cell.
  *
- * It SKIPS when the sibling repo is absent (CI clones this repo alone), because a
- * spec that fails for being unable to look is a spec people learn to ignore — but it
- * says so out loud rather than passing quietly.
+ * ── THE CROSS-REPO CHECK IS A DEV-TIME AID, NOT THE PROTECTION ────────────────
+ * It SKIPS when the sibling repo is absent, which is exactly what CI does — so on its
+ * own it would be a drift guard that is green precisely where drift ships. Raised in
+ * review, and correct.
+ *
+ * The real protection is therefore NOT this check: it is that the frontend DEGRADES
+ * correctly when the backend adds a state. An unrecognised status renders as "No
+ * disponible" rather than blank or "Activa", the lifecycle panel refuses to act on
+ * it, and no filter silently matches it. Those properties hold without knowing what
+ * the new state is, and they are asserted below — unskippably, in CI.
+ *
+ * The cross-repo read stays because it turns a silent drift into a loud one for
+ * anyone working in the monorepo, which is where the change would actually be made.
  */
 import { test, expect } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { SELLER_STATUSES, parseSellerStatus, sellerStatusLabel } from '../lib/seller-status'
+import {
+  SELLER_STATUSES,
+  parseSellerStatus,
+  sellerStatusLabel,
+  sellerStatusTone,
+} from '../lib/seller-status'
+import { selectTenants, type TenantRow } from '../lib/admin/tenant-directory'
+
+function row(overrides: Partial<TenantRow> = {}): TenantRow {
+  return {
+    medusaSellerId: 'sel_1', shopId: 'shop_1', slug: 's', name: 'S', claimed: true,
+    customDomain: null, domainStatus: 'none', entitlementReason: 'flag_off', entitled: true,
+    subscriptionUnchecked: false, listingCount: 0, operatingMarketCode: 'mx',
+    operatingMarketLabel: 'México', marketplacePublicationLabel: 'Publicada',
+    createdAt: null, status: 'active', registrationEmail: null,
+    ...overrides,
+  }
+}
 
 const BACKEND_SOURCE = join(process.cwd(), '..', 'backend', 'src', 'lib', 'seller-status.ts')
 
@@ -56,5 +83,30 @@ test.describe('seller status vocabulary', () => {
     expect(parseSellerStatus('suspended')).toBeNull()
     expect(sellerStatusLabel(null)).toBe('No disponible')
     expect(sellerStatusLabel(null)).not.toBe(sellerStatusLabel('active'))
+  })
+})
+
+test.describe('degrading on a status this deploy has never heard of', () => {
+  // THE assertions that hold in CI. A backend that adds `suspended` tomorrow ships
+  // against a frontend that has never heard of it — these are what make that safe.
+
+  test('an unknown status renders as unavailable, never blank and never active', () => {
+    expect(sellerStatusLabel(parseSellerStatus('suspended'))).toBe('No disponible')
+    expect(sellerStatusLabel(parseSellerStatus('suspended')).trim().length).toBeGreaterThan(0)
+    expect(sellerStatusLabel(parseSellerStatus('suspended'))).not.toBe(sellerStatusLabel('active'))
+  })
+
+  test('an unknown status is never toned as OK', () => {
+    // Green is the one colour that would tell an operator "nothing to see here".
+    expect(sellerStatusTone(parseSellerStatus('suspended'))).not.toBe('ok')
+  })
+
+  test('an unknown status matches no status filter', () => {
+    const unknown = row({ shopId: 'x', status: 'unavailable' })
+    for (const status of SELLER_STATUSES) {
+      expect(selectTenants([unknown], { status })).toHaveLength(0)
+    }
+    // …but it is still visible with no filter. Degrading must not HIDE a shop.
+    expect(selectTenants([unknown], {})).toHaveLength(1)
   })
 })

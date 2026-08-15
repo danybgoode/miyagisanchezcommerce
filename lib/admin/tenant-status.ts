@@ -31,6 +31,11 @@ export type TenantStatusRead =
   | { readonly state: 'absent' }
   | { readonly state: 'unavailable'; readonly reason: string }
 
+/** Flatten a read into the value the directory row carries (three states). */
+export function statusForRow(read: TenantStatusRead): SellerStatus | 'absent' | 'unavailable' {
+  return read.state === 'resolved' ? read.status : read.state
+}
+
 export async function readSellerStatus(
   medusaSellerId: string | null | undefined,
 ): Promise<TenantStatusRead> {
@@ -117,14 +122,35 @@ export async function changeSellerStatus(input: {
         message: typeof body?.message === 'string' ? body.message : `Error ${res.status}`,
       }
     }
+
+    // VALIDATE THE SUCCESS PAYLOAD. A 2xx is not a contract: malformed JSON, a
+    // missing field, or a status this deploy has never heard of (the backend ships
+    // separately and may add one) would otherwise be reported as a completed change
+    // — and `from`/`to` would silently default to whatever was REQUESTED, so the
+    // screen would show the operator their own intent as though it were the result.
+    // `complete` is the sharpest case: `body?.complete !== false` treats a MISSING
+    // field as complete, so a truncated response would render a partial restore as
+    // "listo".
+    const from = parseSellerStatus(body?.from)
+    const to = parseSellerStatus(body?.to)
+    if (!from || !to || typeof body?.complete !== 'boolean') {
+      return {
+        ok: false,
+        status: 502,
+        message: 'El backend respondió algo que no entendemos. No confirmes el cambio hasta revisarlo.',
+      }
+    }
+
     return {
       ok: true,
-      from: (body?.from as SellerStatus) ?? input.status,
-      to: (body?.to as SellerStatus) ?? input.status,
-      unlinked: Number(body?.unlinked ?? 0),
-      restored: Number(body?.restored ?? 0),
-      missingProducts: Array.isArray(body?.missing_products) ? (body.missing_products as string[]) : [],
-      complete: body?.complete !== false,
+      from,
+      to,
+      unlinked: Number.isFinite(body.unlinked) ? Number(body.unlinked) : 0,
+      restored: Number.isFinite(body.restored) ? Number(body.restored) : 0,
+      missingProducts: Array.isArray(body.missing_products)
+        ? (body.missing_products as unknown[]).filter((id): id is string => typeof id === 'string')
+        : [],
+      complete: body.complete,
     }
   } catch (err) {
     return {

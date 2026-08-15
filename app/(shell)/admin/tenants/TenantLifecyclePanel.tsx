@@ -46,9 +46,18 @@ export default function TenantLifecyclePanel({
     )
   }
 
-  // A status we could not read is not a status we may act on: the transition would be
-  // decided against an unknown current state.
-  if (row.status === null) {
+  // Neither non-status state may be acted on — the transition would be decided
+  // against an unknown current state — but they need DIFFERENT copy, because one is
+  // a retry and the other is a repair job.
+  if (row.status === 'absent') {
+    return (
+      <p className="text-xs text-[var(--color-muted)]">
+        Medusa no tiene un vendedor para esta tienda, así que no hay ciclo de vida que administrar.
+        La fila del espejo quedó huérfana y hay que repararla.
+      </p>
+    )
+  }
+  if (row.status === 'unavailable') {
     return (
       <p className="text-xs text-[var(--color-muted)]">
         No pudimos leer el estado de esta tienda, así que no se puede cambiar desde aquí. Vuelve a
@@ -91,7 +100,9 @@ export default function TenantLifecyclePanel({
             ? `Reactivada. Se restauraron ${body?.restored ?? 0} vínculo(s) de catálogo.`
             : `Listo. Se retiraron ${body?.unlinked ?? 0} vínculo(s) de catálogo.`,
       })
-      onChanged({ status: body?.to ?? target })
+      // The SERVER's answer, never the requested target — reporting our own intent
+      // back as the result is how a screen lies about what happened.
+      onChanged({ status: (body?.to as SellerStatus) ?? target })
       setTarget(null)
       setReason('')
     } catch {
@@ -152,7 +163,13 @@ export default function TenantLifecyclePanel({
             <button
               type="button"
               onClick={() => { setTarget(null); setReason('') }}
-              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs"
+              // Disabled while the request is in flight. Leaving it live let an
+              // operator dismiss the panel while the backend was still unlinking a
+              // catalog — hiding a mutation that was very much still happening.
+              // Cancelling for real would need an abort the backend honours
+              // mid-unlink, which it cannot; so the honest UI is to wait.
+              disabled={outcome.kind === 'working'}
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs disabled:opacity-40"
             >
               Cancelar
             </button>

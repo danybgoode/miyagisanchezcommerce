@@ -38,6 +38,15 @@ test.describe('filtering', () => {
     expect(selectTenants(rows)).toHaveLength(2)
   })
 
+  test('absent and unavailable are DISTINCT, never collapsed', () => {
+    // An orphaned mirror row (Medusa has no such seller) is a repair job; an
+    // unreachable backend is a retry. Collapsing them, as the first revision did,
+    // hid the orphan inside a glitch nobody would go fix.
+    const rows = [row({ shopId: 'orphan', status: 'absent' }), row({ shopId: 'glitch', status: 'unavailable' })]
+    expect(selectTenants(rows, { status: 'absent' as never }).map((r) => r.shopId)).toEqual(['orphan'])
+    expect(selectTenants(rows, {}).map((r) => r.shopId).sort()).toEqual(['glitch', 'orphan'])
+  })
+
   test('by status', () => {
     const rows = [row({ shopId: 'a', status: 'active' }), row({ shopId: 'b', status: 'paused' })]
     expect(selectTenants(rows, { status: 'paused' }).map((r) => r.shopId)).toEqual(['b'])

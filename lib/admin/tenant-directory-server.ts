@@ -23,7 +23,7 @@ import { mapWithConcurrency, shapeTenantRow, type RawTenantRow, type TenantRow }
 import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket, type PublicSellerMarket } from '@/lib/owned-market'
 import { getSellerEmail } from '@/lib/email'
-import { readSellerStatus } from '@/lib/admin/tenant-status'
+import { readSellerStatus, statusForRow } from '@/lib/admin/tenant-status'
 import { medusaSellerIdOf } from '@/lib/admin/tenant-directory'
 import type { SellerStatus } from '@/lib/seller-status'
 
@@ -104,18 +104,19 @@ export async function listTenants(): Promise<TenantRow[]> {
   // Lifecycle status, from Medusa — the canonical owner of the fact (D1). An
   // unreachable backend yields `null`, which the shaper and the UI render as
   // "no disponible" and never as "activa".
-  const statuses = new Map<string, SellerStatus | null>(await mapWithConcurrency(
+  const statuses = new Map<string, SellerStatus | 'absent' | 'unavailable'>(await mapWithConcurrency(
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {
       const read = await readSellerStatus(medusaSellerIdOf(raw.metadata))
-      if (read.state !== 'resolved') {
-        if (read.state === 'unavailable') {
-          console.warn(`[tenant-directory] status unavailable for ${raw.slug}: ${read.reason}`)
-        }
-        return [raw.id, null] as const
+      if (read.state === 'unavailable') {
+        console.warn(`[tenant-directory] status unavailable for ${raw.slug}: ${read.reason}`)
       }
-      return [raw.id, read.status] as const
+      // `absent` (Medusa has no such seller — an orphaned mirror row, a data-repair
+      // job) and `unavailable` (transient) are carried through DISTINCTLY. Collapsing
+      // them, as the first revision did, meant an orphan read as a glitch nobody
+      // would ever go fix.
+      return [raw.id, statusForRow(read)] as const
     },
   ))
 
@@ -147,7 +148,7 @@ export async function listTenants(): Promise<TenantRow[]> {
       paywallEnabled,
       listingCount: counts.get(raw.id) ?? 0,
       publicSellerMarket: markets.get(raw.id) ?? null,
-      status: statuses.get(raw.id) ?? null,
+      status: statuses.get(raw.id) ?? 'unavailable',
       registrationEmail: emails.get(raw.id) ?? 'unavailable',
     }),
   )

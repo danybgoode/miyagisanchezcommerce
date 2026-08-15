@@ -65,10 +65,17 @@ export type TenantRow = {
   createdAt: string | null
   /**
    * Lifecycle status from the Medusa seller — the canonical owner of this fact
-   * (tenant-lifecycle-admin · D1). `null` when the seller projection was
-   * unavailable, which the UI renders as unavailable and NEVER as "active".
+   * (tenant-lifecycle-admin · D1). THREE non-status states, never two:
+   *
+   *   SellerStatus  — read it
+   *   'absent'      — Medusa has no such seller (an orphaned mirror row). Durable,
+   *                   and a data-repair job.
+   *   'unavailable' — the backend could not be reached. Transient; retry.
+   *
+   * The first revision collapsed the last two into `null`, so an orphaned row read
+   * as a temporary glitch and nobody would ever go fix it. Caught in review.
    */
-  status: SellerStatus | null
+  status: SellerStatus | 'absent' | 'unavailable'
   /**
    * The email this merchant registered with, read from Clerk at request time and
    * never stored (D5).
@@ -152,7 +159,7 @@ export function shapeTenantRow(
     paywallEnabled: boolean
     listingCount: number
     publicSellerMarket?: PublicSellerMarket | null
-    status?: SellerStatus | null
+    status?: SellerStatus | 'absent' | 'unavailable'
     registrationEmail?: string | null | 'unavailable'
   },
 ): TenantRow {
@@ -181,7 +188,9 @@ export function shapeTenantRow(
     // Both come from OUTSIDE the mirror row — the Medusa seller and Clerk — so both
     // default to their unavailable form rather than to a made-up value. `undefined`
     // means the caller did not resolve it, which is not the same as "there is none".
-    status: ctx.status ?? null,
+    // An unspecified status is UNAVAILABLE, not absent: the caller did not resolve
+    // it, which is not the same as Medusa saying there is no such seller.
+    status: ctx.status ?? 'unavailable',
     registrationEmail: ctx.registrationEmail === undefined ? 'unavailable' : ctx.registrationEmail,
   }
 }
@@ -240,7 +249,9 @@ export function matchesTenantFilter(row: TenantRow, filter: TenantFilter): boole
 }
 
 /** Status order for sorting: the ones needing attention first. */
-const STATUS_RANK: Record<string, number> = { paused: 0, deleted: 1, active: 2 }
+const STATUS_RANK: Record<string, number> = {
+  paused: 0, deleted: 1, absent: 2, unavailable: 3, active: 4,
+}
 
 function compareRows(a: TenantRow, b: TenantRow, key: TenantSortKey): number {
   switch (key) {
@@ -250,7 +261,7 @@ function compareRows(a: TenantRow, b: TenantRow, key: TenantSortKey): number {
       // A row with no created_at sorts as oldest rather than throwing the order.
       return (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
     case 'status':
-      return (STATUS_RANK[a.status ?? 'zzz'] ?? 9) - (STATUS_RANK[b.status ?? 'zzz'] ?? 9)
+      return (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9)
     case 'market':
       return (a.operatingMarketCode ?? 'zz').localeCompare(b.operatingMarketCode ?? 'zz')
     case 'name':
