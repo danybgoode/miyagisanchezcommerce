@@ -97,7 +97,7 @@
       "criticality": "medium",
       "enforcement": "frontend",
       "callsites": [
-        "lib/admin/tenant-directory-server.ts:56",
+        "lib/admin/tenant-directory-server.ts:65",
         "lib/domain-entitlement-server.ts:35"
       ]
     },

@@ -29,6 +29,7 @@ import {
 import { marketVisibility } from '@/lib/market-visibility'
 import type { MarketCode } from '@/lib/markets'
 import type { PublicSellerMarket } from '@/lib/owned-market'
+import type { SellerStatus } from '@/lib/seller-status'
 
 /** Custom-domain state of a tenant, for the directory at a glance. */
 export type TenantDomainStatus = 'none' | 'pending' | 'verified'
@@ -62,6 +63,23 @@ export type TenantRow = {
   marketplacePublicationLabel: string
   /** ISO timestamp the mirror row was created. */
   createdAt: string | null
+  /**
+   * Lifecycle status from the Medusa seller — the canonical owner of this fact
+   * (tenant-lifecycle-admin · D1). `null` when the seller projection was
+   * unavailable, which the UI renders as unavailable and NEVER as "active".
+   */
+  status: SellerStatus | null
+  /**
+   * The email this merchant registered with, read from Clerk at request time and
+   * never stored (D5).
+   *
+   *   string        — the address
+   *   null          — unclaimed: there is no Clerk user, so there is no email
+   *   'unavailable' — Clerk could not be reached. Distinct from null on purpose: a
+   *                   blank cell that means "we could not ask" reads as "this
+   *                   merchant has no email", which is a confident falsehood.
+   */
+  registrationEmail: string | null | 'unavailable'
 }
 
 /** The raw `marketplace_shops` row fields the shaper reads. */
@@ -130,7 +148,13 @@ function deriveDomainStatus(domain: string | null, verified: boolean): TenantDom
  */
 export function shapeTenantRow(
   raw: RawTenantRow,
-  ctx: { paywallEnabled: boolean; listingCount: number; publicSellerMarket?: PublicSellerMarket | null },
+  ctx: {
+    paywallEnabled: boolean
+    listingCount: number
+    publicSellerMarket?: PublicSellerMarket | null
+    status?: SellerStatus | null
+    registrationEmail?: string | null | 'unavailable'
+  },
 ): TenantRow {
   const customDomain = trimmed(raw.custom_domain) || null
   const entitlement = deriveDomainEntitlement({
@@ -154,7 +178,105 @@ export function shapeTenantRow(
     operatingMarketLabel: market.operatingMarketLabel,
     marketplacePublicationLabel: market.marketplacePublicationLabel,
     createdAt: trimmed(raw.created_at) || null,
+    // Both come from OUTSIDE the mirror row — the Medusa seller and Clerk — so both
+    // default to their unavailable form rather than to a made-up value. `undefined`
+    // means the caller did not resolve it, which is not the same as "there is none".
+    status: ctx.status ?? null,
+    registrationEmail: ctx.registrationEmail === undefined ? 'unavailable' : ctx.registrationEmail,
   }
+}
+
+// ── Filtering and sorting: the platform's own heuristics (D6) ─────────────────
+//
+// PURE and over the FULL set, never a page. The directory loads every shop, and
+// sorting a page would sort the wrong thing — the top of a name-ordered page is not
+// the shop with the most listings.
+
+export type TenantFilter = {
+  q?: string
+  status?: SellerStatus | 'any'
+  claimed?: 'claimed' | 'unclaimed' | 'any'
+  market?: MarketCode | 'unknown' | 'any'
+  domain?: TenantDomainStatus | 'any'
+  entitlement?: 'entitled' | 'not_entitled' | 'any'
+}
+
+export type TenantSortKey = 'name' | 'listings' | 'created' | 'status' | 'market'
+export type SortDirection = 'asc' | 'desc'
+
+/** The one place a row is matched against the filter. */
+export function matchesTenantFilter(row: TenantRow, filter: TenantFilter): boolean {
+  const q = filter.q?.trim().toLowerCase()
+  if (q) {
+    const haystack = [
+      row.name,
+      row.slug,
+      row.customDomain ?? '',
+      row.medusaSellerId ?? '',
+      // Searching by the address an operator was emailed from is the realistic way
+      // to find a shop from an inbox. Only when it is a real address — the
+      // 'unavailable' sentinel must never be searchable text.
+      typeof row.registrationEmail === 'string' && row.registrationEmail !== 'unavailable'
+        ? row.registrationEmail
+        : '',
+    ].join(' ').toLowerCase()
+    if (!haystack.includes(q)) return false
+  }
+  if (filter.status && filter.status !== 'any' && row.status !== filter.status) return false
+  if (filter.claimed && filter.claimed !== 'any') {
+    if (filter.claimed === 'claimed' && !row.claimed) return false
+    if (filter.claimed === 'unclaimed' && row.claimed) return false
+  }
+  if (filter.market && filter.market !== 'any') {
+    const code = row.operatingMarketCode ?? 'unknown'
+    if (code !== filter.market) return false
+  }
+  if (filter.domain && filter.domain !== 'any' && row.domainStatus !== filter.domain) return false
+  if (filter.entitlement && filter.entitlement !== 'any') {
+    if (filter.entitlement === 'entitled' && !row.entitled) return false
+    if (filter.entitlement === 'not_entitled' && row.entitled) return false
+  }
+  return true
+}
+
+/** Status order for sorting: the ones needing attention first. */
+const STATUS_RANK: Record<string, number> = { paused: 0, deleted: 1, active: 2 }
+
+function compareRows(a: TenantRow, b: TenantRow, key: TenantSortKey): number {
+  switch (key) {
+    case 'listings':
+      return a.listingCount - b.listingCount
+    case 'created':
+      // A row with no created_at sorts as oldest rather than throwing the order.
+      return (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+    case 'status':
+      return (STATUS_RANK[a.status ?? 'zzz'] ?? 9) - (STATUS_RANK[b.status ?? 'zzz'] ?? 9)
+    case 'market':
+      return (a.operatingMarketCode ?? 'zz').localeCompare(b.operatingMarketCode ?? 'zz')
+    case 'name':
+    default:
+      return a.name.localeCompare(b.name, 'es')
+  }
+}
+
+/**
+ * Filter then sort, over the whole set.
+ *
+ * Sorting is STABLE by name within equal keys, so two shops with the same listing
+ * count do not shuffle between renders — an order that changes when nothing changed
+ * makes an operator distrust the screen.
+ */
+export function selectTenants(
+  rows: readonly TenantRow[],
+  filter: TenantFilter = {},
+  sort: { key: TenantSortKey; direction: SortDirection } = { key: 'name', direction: 'asc' },
+): TenantRow[] {
+  const filtered = rows.filter((row) => matchesTenantFilter(row, filter))
+  const sign = sort.direction === 'desc' ? -1 : 1
+  return [...filtered].sort((a, b) => {
+    const primary = compareRows(a, b, sort.key) * sign
+    return primary !== 0 ? primary : a.name.localeCompare(b.name, 'es')
+  })
 }
 
 /**

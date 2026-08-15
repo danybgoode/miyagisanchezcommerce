@@ -1,0 +1,171 @@
+'use client'
+
+import { useState } from 'react'
+import type { TenantRow } from '@/lib/admin/tenant-directory'
+import { statusChangeConfirmation } from '@/lib/admin/tenant-actions'
+import { sellerStatusLabel, type SellerStatus } from '@/lib/seller-status'
+
+/**
+ * Pause, reactivate and remove a shop (tenant-lifecycle-admin · S3.3).
+ *
+ * Three properties this component is responsible for, all of them about honesty:
+ *
+ *  1. **The confirmation names the consequence.** "¿Seguro?" tells nobody what is
+ *     about to happen, so the copy comes from `statusChangeConfirmation` and says
+ *     what pausing does versus what removing does.
+ *  2. **A reason is required before the button enables.** The audit row is the only
+ *     record of why a shop went dark, and "paused by admin" with no cause is what
+ *     makes an incident six months later unresolvable.
+ *  3. **A partial outcome is reported as partial.** When the backend replays a
+ *     reactivation and cannot restore everything, it answers `complete: false` with
+ *     the product ids it could not reach — and this says so instead of "listo".
+ */
+type Outcome =
+  | { kind: 'idle' }
+  | { kind: 'working' }
+  | { kind: 'done'; message: string; incomplete: boolean }
+  | { kind: 'error'; message: string }
+
+export default function TenantLifecyclePanel({
+  row,
+  onChanged,
+}: {
+  row: TenantRow
+  onChanged: (patch: Partial<TenantRow>) => void
+}) {
+  const [target, setTarget] = useState<SellerStatus | null>(null)
+  const [reason, setReason] = useState('')
+  const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' })
+
+  if (!row.medusaSellerId) {
+    return (
+      <p className="text-xs text-[var(--color-muted)]">
+        Esta tienda todavía no existe en Medusa (gema sin importar), así que no tiene ciclo de vida
+        que administrar.
+      </p>
+    )
+  }
+
+  // A status we could not read is not a status we may act on: the transition would be
+  // decided against an unknown current state.
+  if (row.status === null) {
+    return (
+      <p className="text-xs text-[var(--color-muted)]">
+        No pudimos leer el estado de esta tienda, así que no se puede cambiar desde aquí. Vuelve a
+        cargar en unos minutos.
+      </p>
+    )
+  }
+
+  const options: SellerStatus[] = row.status === 'active'
+    ? ['paused', 'deleted']
+    : row.status === 'paused'
+      ? ['active', 'deleted']
+      // `deleted` is terminal in the backend, so no transition is offered. Saying so
+      // beats offering a button that will be refused.
+      : []
+
+  async function submit() {
+    if (!target || !reason.trim()) return
+    setOutcome({ kind: 'working' })
+    try {
+      const res = await fetch(`/api/admin/tenants/${row.shopId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: target, reason: reason.trim() }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        setOutcome({ kind: 'error', message: body?.error ?? `Error ${res.status}` })
+        return
+      }
+      const incomplete = body?.complete === false
+      const missing: string[] = Array.isArray(body?.missing_products) ? body.missing_products : []
+      setOutcome({
+        kind: 'done',
+        incomplete,
+        message: incomplete
+          ? `Se aplicó el cambio, pero NO se pudo restaurar todo: ${missing.length} producto(s) ya no existen `
+            + `(${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}). Revisa antes de darlo por terminado.`
+          : target === 'active'
+            ? `Reactivada. Se restauraron ${body?.restored ?? 0} vínculo(s) de catálogo.`
+            : `Listo. Se retiraron ${body?.unlinked ?? 0} vínculo(s) de catálogo.`,
+      })
+      onChanged({ status: body?.to ?? target })
+      setTarget(null)
+      setReason('')
+    } catch {
+      setOutcome({ kind: 'error', message: 'No se pudo completar el cambio.' })
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs">
+        Estado actual: <strong>{sellerStatusLabel(row.status)}</strong>
+      </p>
+
+      {options.length === 0 ? (
+        <p className="text-xs text-[var(--color-muted)]">
+          Una tienda eliminada no se restaura desde aquí.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => { setTarget(option); setOutcome({ kind: 'idle' }) }}
+              className={`rounded border px-2 py-1 text-xs hover:bg-[var(--color-bg)] ${
+                target === option ? 'border-[var(--color-fg)]' : 'border-[var(--color-border)]'
+              }`}
+            >
+              {option === 'active' ? 'Reactivar' : option === 'paused' ? 'Pausar' : 'Eliminar'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {target && (
+        <div className="space-y-2 rounded border border-[var(--color-border)] p-2">
+          <p className="text-xs">{statusChangeConfirmation(row.name, target)}</p>
+          <label className="block text-xs">
+            <span className="text-[var(--color-muted)]">Motivo (queda en la auditoría)</span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Por qué haces este cambio"
+              className="mt-1 w-full rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={submit}
+              // The reason gates the action, not a validation message after the fact.
+              disabled={!reason.trim() || outcome.kind === 'working'}
+              className="rounded bg-[var(--color-fg)] px-2 py-1 text-xs text-[var(--color-bg)] disabled:opacity-40"
+            >
+              {outcome.kind === 'working' ? 'Aplicando…' : 'Confirmar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTarget(null); setReason('') }}
+              className="rounded border border-[var(--color-border)] px-2 py-1 text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {outcome.kind === 'done' && (
+        <p className={`text-xs ${outcome.incomplete ? 'text-amber-700' : 'text-[#1d6f42]'}`}>
+          {outcome.message}
+        </p>
+      )}
+      {outcome.kind === 'error' && <p className="text-xs text-red-600">{outcome.message}</p>}
+    </div>
+  )
+}
