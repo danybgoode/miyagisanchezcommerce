@@ -197,3 +197,34 @@ test.describe('the surface itself', () => {
     expect(fn.slice(0, 900)).toContain('h1(')
   })
 })
+
+/**
+ * The reply path. Every email the platform sends comes from `noreply@`, so without
+ * an explicit Reply-To a user who answers one — the most natural response when
+ * something is wrong — writes into a void, and we never learn they tried.
+ */
+test.describe('every email is replyable', () => {
+  const CONTACT = 'hola@miyagisanchez.com'
+
+  test('Reply-To is set at the single TRANSPORT, so no sender can forget it', () => {
+    const source = read('lib/email.ts')
+    const call = source.slice(source.indexOf('resend().emails.send({'), source.indexOf('resend().emails.send({') + 400)
+    expect(call).toContain('replyTo: REPLY_TO')
+    expect(source).toContain(`const REPLY_TO = '${CONTACT}'`)
+  })
+
+  test('the contact address is NOT the from address — that is why Reply-To exists', () => {
+    // If these ever became the same, the header would be redundant rather than wrong;
+    // this pins the reason the indirection is there.
+    const source = read('lib/email.ts')
+    expect(source).toContain("const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'")
+  })
+
+  test('the footer names the address in BOTH locales, so it survives a copy-paste', () => {
+    const source = read('lib/email.ts')
+    const footer = source.slice(source.indexOf('const contact ='), source.indexOf('return `<!DOCTYPE html>'))
+    expect(footer).toContain('Questions? Write to')
+    expect(footer).toContain('¿Dudas? Escríbenos a')
+    expect(footer).toContain('mailto:${REPLY_TO}')
+  })
+})
