@@ -151,10 +151,16 @@ export async function changeSellerStatus(input: {
     // "listo".
     const from = parseSellerStatus(body?.from)
     const to = parseSellerStatus(body?.to)
-    // An INCOMPLETE outcome without its product list is not a usable report: the UI
-    // would render "0 producto(s) ya no existen ()" — a warning that names nothing,
-    // which is worse than no warning because it looks answered.
-    const missingIsUsable = body?.complete !== false || Array.isArray(body?.missing_products)
+    // An INCOMPLETE outcome must carry a USABLE product list. `Array.isArray` alone
+    // was not enough: `[null]` passed, filtered to `[]`, and rendered "0 producto(s)
+    // ya no existen ()" — a warning that names nothing, which is worse than no
+    // warning because it looks answered. Every entry must be a string, and there must
+    // be at least one, or we do not have the report we are claiming to relay.
+    const missingRaw = body?.missing_products
+    const missingIsUsable = body?.complete !== false
+      || (Array.isArray(missingRaw)
+        && missingRaw.length > 0
+        && missingRaw.every((id) => typeof id === 'string' && id !== ''))
     if (!from || !to || typeof body?.complete !== 'boolean' || !missingIsUsable) {
       return {
         ok: false,
@@ -169,8 +175,10 @@ export async function changeSellerStatus(input: {
       to,
       unlinked: Number.isFinite(body.unlinked) ? Number(body.unlinked) : 0,
       restored: Number.isFinite(body.restored) ? Number(body.restored) : 0,
-      missingProducts: Array.isArray(body.missing_products)
-        ? (body.missing_products as unknown[]).filter((id): id is string => typeof id === 'string')
+      // Validated above when `complete` is false; the filter is belt-and-braces for
+      // the complete case, where an empty list is legitimate.
+      missingProducts: Array.isArray(missingRaw)
+        ? (missingRaw as unknown[]).filter((id): id is string => typeof id === 'string' && id !== '')
         : [],
       complete: body.complete,
     }

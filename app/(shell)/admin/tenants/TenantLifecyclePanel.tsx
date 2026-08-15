@@ -96,42 +96,74 @@ export default function TenantLifecyclePanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: target, reason: reason.trim() }),
       })
-      const body = await res.json().catch(() => null)
+      // The BROWSER transport needs the same three-state discipline as the server
+      // client. Both defects below were fixed one round earlier in
+      // `lib/admin/tenant-status.ts` and left standing here — guard the population,
+      // not the door you found.
+      let body: Record<string, unknown> | null = null
+      let parseFailed = false
+      try {
+        body = (await res.json()) as Record<string, unknown> | null
+      } catch {
+        parseFailed = true
+      }
+
+      if (res.ok && (parseFailed || !body || typeof body.complete !== 'boolean')) {
+        // A 200 whose body we cannot read is NOT a success we may report. Saying
+        // "Listo" and patching the row with the requested target would show the
+        // operator their own intent as a confirmed result.
+        const message = 'El backend respondió, pero no pudimos leer el resultado. '
+          + 'Recarga y verifica el estado de la tienda antes de reintentar.'
+        setOutcome({ kind: 'unknown', message })
+        onReport({ shopName: row.name, message, incomplete: true })
+        return
+      }
+
       if (!res.ok) {
         const unknown = body?.applied === 'unknown'
         setOutcome({
           kind: unknown ? 'unknown' : 'error',
-          message: body?.error ?? `Error ${res.status}`,
+          message: (body?.error as string) ?? `Error ${res.status}`,
         })
         // An unknown outcome is reported UPWARD too: it must survive the row
         // unmounting for the same reason a partial restore must.
         if (unknown) {
           onReport({
             shopName: row.name,
-            message: body?.error ?? 'No sabemos si el cambio se aplicó.',
+            message: (body?.error as string) ?? 'No sabemos si el cambio se aplicó.',
             incomplete: true,
           })
         }
         return
       }
-      const incomplete = body?.complete === false
-      const missing: string[] = Array.isArray(body?.missing_products) ? body.missing_products : []
+      // Past the guard above, `body` is present and `complete` is a real boolean.
+      const incomplete = body!.complete === false
+      const missing: string[] = Array.isArray(body!.missing_products)
+        ? (body!.missing_products as unknown[]).filter((id): id is string => typeof id === 'string' && id !== '')
+        : []
       const message = incomplete
           ? `Se aplicó el cambio, pero NO se pudo restaurar todo: ${missing.length} producto(s) ya no existen `
             + `(${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}). Revisa antes de darlo por terminado.`
           : target === 'active'
-            ? `Reactivada. Se restauraron ${body?.restored ?? 0} vínculo(s) de catálogo.`
-            : `Listo. Se retiraron ${body?.unlinked ?? 0} vínculo(s) de catálogo.`
+            ? `Reactivada. Se restauraron ${Number(body!.restored ?? 0)} vínculo(s) de catálogo.`
+            : `Listo. Se retiraron ${Number(body!.unlinked ?? 0)} vínculo(s) de catálogo.`
       setOutcome({ kind: 'done', incomplete, message })
       // Survives this row leaving the filter.
       onReport({ shopName: row.name, message, incomplete })
       // The SERVER's answer, never the requested target — reporting our own intent
       // back as the result is how a screen lies about what happened.
-      onChanged({ status: (body?.to as SellerStatus) ?? target })
+      onChanged({ status: (body!.to as SellerStatus) ?? target })
       setTarget(null)
       setReason('')
     } catch {
-      setOutcome({ kind: 'error', message: 'No se pudo completar el cambio.' })
+      // The request left the browser and we never heard back. Medusa may well have
+      // applied it — the connection dropping is not evidence that it did not — so
+      // this is UNKNOWN, not failed. Telling an operator "no se pudo" invites a retry
+      // against a shop that is already deleted.
+      const message = 'Se perdió la conexión antes de recibir respuesta. NO sabemos si el cambio '
+        + 'se aplicó: recarga y verifica el estado de la tienda antes de reintentar.'
+      setOutcome({ kind: 'unknown', message })
+      onReport({ shopName: row.name, message, incomplete: true })
     }
   }
 
