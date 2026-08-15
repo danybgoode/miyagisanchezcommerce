@@ -228,3 +228,46 @@ test.describe('every email is replyable', () => {
     expect(footer).toContain('mailto:${REPLY_TO}')
   })
 })
+
+/**
+ * Why a seller could not be reached.
+ *
+ * `getSellerEmail` used to swallow everything into `null`, so "this account has no
+ * address" and "Clerk was unreachable" were the same answer. Every seller
+ * notification in the product resolves its recipient through it, so that collapse
+ * hid failures everywhere — and on the broadcast preview it would tell an operator
+ * to go chase fourteen merchants about an account problem none of them have.
+ */
+test.describe('seller email lookup reports WHY it failed', () => {
+  test('the two reasons are distinct, and a failure is logged', () => {
+    // Slice the FUNCTION BODY, not the file: the first version of this guard matched
+    // the reason strings in the type declaration and stayed green when the runtime
+    // branch that returns them was deleted. A guard that cannot see the mutation is
+    // not a guard.
+    const source = read('lib/email.ts')
+    const start = source.indexOf('export async function getSellerEmailResult')
+    const body = source.slice(start, source.indexOf('export async function getSellerEmail(', start))
+    expect(start).toBeGreaterThan(-1)
+
+    // The account genuinely has no address → that exact reason, from a real branch.
+    expect(body).toMatch(/email\s*\?\s*\{ email \}\s*:\s*\{ email: null, reason: 'no_email_on_account' \}/)
+    // The lookup threw → the other reason, and it is LOGGED. The bare
+    // `catch { return null }` this replaces is what made it invisible everywhere.
+    expect(body).toContain("reason: 'lookup_failed'")
+    expect(body).toContain('[getSellerEmail] Clerk lookup failed for')
+  })
+
+  test('the old single-value helper still exists for its existing callers', () => {
+    // ~12 call sites only need the address; widening all of them would be a bigger
+    // change than the bug warrants.
+    expect(read('lib/email.ts')).toContain('export async function getSellerEmail(')
+  })
+
+  test('the preview surfaces the reason rather than flattening it', () => {
+    const source = read('lib/notifications/broadcast-recipients.ts')
+    expect(source).toContain('la cuenta no tiene correo')
+    expect(source).toContain('no se pudo consultar Clerk')
+    // A flattened reason would read as a merchant problem in every case.
+    expect(source).not.toContain("reason: 'sin correo en Clerk'")
+  })
+})

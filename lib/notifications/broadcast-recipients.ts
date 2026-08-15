@@ -9,7 +9,7 @@ import 'server-only'
  * the failures this week's audit spent a day unpicking.
  */
 import { db } from '@/lib/supabase'
-import { getSellerEmail } from '@/lib/email'
+import { getSellerEmailResult } from '@/lib/email'
 import type { BroadcastAudience } from '@/lib/notifications/broadcast'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
@@ -71,13 +71,18 @@ async function resolveSellers(): Promise<RecipientResolution> {
     CLERK_CONCURRENCY,
     async ([clerkUserId, names]) => {
       const label = names.join(', ')
-      try {
-        const email = await getSellerEmail(clerkUserId)
-        return email
-          ? { recipient: { email, clerkUserId, label } }
-          : { skip: { label, reason: 'sin correo en Clerk' } }
-      } catch {
-        return { skip: { label, reason: 'no se pudo leer el correo' } }
+      // The REASON is passed through, not flattened. "This account has no address"
+      // is a merchant problem; "Clerk did not answer" is ours, and telling an
+      // operator the wrong one sends them chasing the wrong people.
+      const lookup = await getSellerEmailResult(clerkUserId)
+      if (lookup.email) return { recipient: { email: lookup.email, clerkUserId, label } }
+      return {
+        skip: {
+          label,
+          reason: lookup.reason === 'no_email_on_account'
+            ? 'la cuenta no tiene correo'
+            : 'no se pudo consultar Clerk (falla temporal, reintenta)',
+        },
       }
     },
   )
