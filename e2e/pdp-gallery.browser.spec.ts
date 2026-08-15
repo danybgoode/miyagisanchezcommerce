@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
-import { requireEnv } from './_helpers/auth'
+import { expectListingFound } from './_helpers/auth'
+import { resolveGalleryListing, type GalleryFixture } from './_helpers/gallery-fixture'
 
 /**
  * PDP interactive image gallery — real-browser smoke, ANONYMOUS (no auth).
@@ -7,23 +8,37 @@ import { requireEnv } from './_helpers/auth'
  * only a browser sees the main image swap on a thumbnail/arrow/keyboard step and
  * the fullscreen lightbox open/close.
  *
- * Fixture: MS_TEST_GALLERY_LISTING_ID — a PUBLIC listing with 2+ photos. Skips
- * cleanly when unset (mirrors MS_TEST_PERSONALIZED_LISTING_ID). Also self-skips
- * if the listing happens to carry <2 photos, so it never false-fails on data.
+ * Fixture: DISCOVERED from the live public catalog by photo count
+ * (`_helpers/gallery-fixture.ts`), with MS_TEST_GALLERY_LISTING_ID as an
+ * optional pin. It used to be the secret alone, and on 2026-08-15 that took the
+ * nightly red for six hours over two listings an admin had deliberately deleted
+ * — the specs reported it as a gallery regression. Discovery cannot rot that
+ * way: a listing that is not in the catalog has no PDP to test in the first place.
  *
  * The island reads no channel header (pure images/title/overlay props), so this
  * marketplace-PDP smoke exercises the same component every channel renders; the
  * live custom-domain/subdomain white-label look stays owed to Daniel.
  */
-const LISTING_ID = process.env.MS_TEST_GALLERY_LISTING_ID
-
 const mainImg = (page: Page) => page.getByTestId('gallery-main-desktop')
 const thumbs = (page: Page) => page.getByTestId('gallery-thumb')
 
+/**
+ * Skips ONLY when the catalog genuinely holds no listing of this shape, and
+ * says so in the skip reason. An unavailable fixture and a passing test must
+ * never look the same in the log — that is the whole point of carrying a
+ * `reason` rather than a bare null.
+ */
+function requireFixture(fixture: GalleryFixture): string {
+  test.skip(fixture.listingId === null, `FIXTURE UNAVAILABLE — ${fixture.reason ?? 'no reason given'}`)
+  return fixture.listingId as string
+}
+
 test.describe('pdp · interactive gallery (browser)', () => {
-  test.beforeEach(async ({ page }) => {
-    requireEnv(LISTING_ID, 'MS_TEST_GALLERY_LISTING_ID')
-    await page.goto(`/l/${LISTING_ID}`)
+  test.beforeEach(async ({ page, request }) => {
+    const fixture = await resolveGalleryListing(request, 'multi', process.env.MS_TEST_GALLERY_LISTING_ID)
+    const listingId = requireFixture(fixture)
+    await page.goto(`/l/${listingId}`)
+    await expectListingFound(page, `the ${fixture.source} multi-photo fixture ${listingId}`)
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
     const n = await thumbs(page).count()
     test.skip(n < 2, 'listing has <2 photos — nothing to step through')
@@ -96,16 +111,16 @@ test.describe('pdp · interactive gallery (browser)', () => {
  * thumbs for a 1-length array), so this asserts it gets the lightbox + back/
  * share for free while the multi-image-only chrome stays absent.
  *
- * Fixture: MS_TEST_GALLERY_SINGLE_LISTING_ID — a PUBLIC listing with exactly 1
- * photo. Skips cleanly when unset; self-skips if the listing actually has 2+
- * (wrong fixture configured), mirroring the <2 self-skip above.
+ * Fixture: DISCOVERED — the first public listing with exactly one photo, with
+ * MS_TEST_GALLERY_SINGLE_LISTING_ID as an optional pin. This is the pairing
+ * that went red on 2026-08-15 when its pinned shop was deleted.
  */
-const SINGLE_LISTING_ID = process.env.MS_TEST_GALLERY_SINGLE_LISTING_ID
-
 test.describe('pdp · single-image gallery parity (browser)', () => {
-  test.beforeEach(async ({ page }) => {
-    requireEnv(SINGLE_LISTING_ID, 'MS_TEST_GALLERY_SINGLE_LISTING_ID')
-    await page.goto(`/l/${SINGLE_LISTING_ID}`)
+  test.beforeEach(async ({ page, request }) => {
+    const fixture = await resolveGalleryListing(request, 'single', process.env.MS_TEST_GALLERY_SINGLE_LISTING_ID)
+    const listingId = requireFixture(fixture)
+    await page.goto(`/l/${listingId}`)
+    await expectListingFound(page, `the ${fixture.source} single-photo fixture ${listingId}`)
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
     const n = await thumbs(page).count()
     test.skip(n > 0, 'listing has 2+ photos — wrong fixture for the single-image case')
@@ -142,15 +157,21 @@ test.describe('pdp · single-image gallery parity (browser)', () => {
  * count===0 placeholder branch had the same back/share gap as the 1-image
  * branch (there's still a PDP to leave/share even with no photo).
  *
- * Fixture: MS_TEST_GALLERY_ZERO_LISTING_ID — a PUBLIC listing with no photos.
- * Skips cleanly when unset.
+ * Fixture: DISCOVERED — a public listing with no photos, with
+ * MS_TEST_GALLERY_ZERO_LISTING_ID as an optional pin.
+ *
+ * ⚠️ As of 2026-08-15 the live catalog contains ZERO such listings (all 66 have
+ * at least one photo), so this spec reports FIXTURE UNAVAILABLE and skips. That
+ * is a gap in the test data, not a passing test, and the skip reason says so
+ * rather than reading as a quiet green. It needs either one public no-photo
+ * listing to exist, or this spec retired — a product-owner call, not a test one.
  */
-const ZERO_LISTING_ID = process.env.MS_TEST_GALLERY_ZERO_LISTING_ID
-
 test.describe('pdp · zero-image placeholder parity (browser)', () => {
-  test('back + share render over the placeholder', async ({ page }) => {
-    requireEnv(ZERO_LISTING_ID, 'MS_TEST_GALLERY_ZERO_LISTING_ID')
-    await page.goto(`/l/${ZERO_LISTING_ID}`)
+  test('back + share render over the placeholder', async ({ page, request }) => {
+    const fixture = await resolveGalleryListing(request, 'zero', process.env.MS_TEST_GALLERY_ZERO_LISTING_ID)
+    const listingId = requireFixture(fixture)
+    await page.goto(`/l/${listingId}`)
+    await expectListingFound(page, `the ${fixture.source} zero-photo fixture ${listingId}`)
     await expect(page.getByTestId('pdp-gallery')).toBeVisible()
 
     await expect(page.getByTestId('gallery-back')).toBeVisible()
