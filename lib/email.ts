@@ -17,6 +17,16 @@ import {
 } from '@/lib/founding-operator-invitation-outcome'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
+
+/**
+ * Where a reply actually goes.
+ *
+ * Every email this platform has ever sent came from `noreply@` with no Reply-To, so
+ * a seller who answered one — the most natural thing to do when something is wrong —
+ * was writing into a void, and we never knew they had tried. Set at the single
+ * transport, so all 63 senders inherit it and none can forget.
+ */
+const REPLY_TO = 'hola@miyagisanchez.com'
 const SITE = 'https://miyagisanchez.com'
 
 // ── Resend client (lazy) ──────────────────────────────────────────────────────
@@ -61,10 +71,13 @@ const DEFAULT_BRAND: Brand = { url: SITE, label: 'miyagisanchez.com' }
 type EmailLanguage = 'es' | 'en'
 
 function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND, language: EmailLanguage = 'es'): string {
+  // The contact address is named in the footer AND set as Reply-To, so it works
+  // whether someone hits reply or copies the address out.
+  const contact = `<a href="mailto:${REPLY_TO}" style="color:#1d6f42;text-decoration:none">${REPLY_TO}</a>`
   const footer = language === 'en'
-    ? `This email was sent because of activity on your account.<br>
+    ? `This email was sent because of activity on your account. Questions? Write to ${contact}.<br>
     <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a>`
-    : `Este correo fue enviado por actividad en tu cuenta.<br>
+    : `Este correo fue enviado por actividad en tu cuenta. ¿Dudas? Escríbenos a ${contact}.<br>
     <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.`
   return `<!DOCTYPE html>
 <html lang="${language}">
@@ -310,6 +323,7 @@ export async function sendWithResult(
   try {
     const result = await resend().emails.send({
       from: FROM,
+      replyTo: REPLY_TO,
       to,
       subject: finalSubject,
       html: html(finalSubject, finalBody, brand, language),
