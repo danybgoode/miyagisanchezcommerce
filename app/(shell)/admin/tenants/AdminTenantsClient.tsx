@@ -12,7 +12,9 @@ import {
   type SortDirection,
 } from '@/lib/admin/tenant-directory'
 import { sellerStatusLabel, sellerStatusTone, type SellerStatus } from '@/lib/seller-status'
+import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
 import TenantLifecyclePanel from './TenantLifecyclePanel'
+import AdminPagination from '../_components/AdminPagination'
 import type { DomainGrant, DomainEntitlementReason } from '@/lib/domain-entitlement'
 
 /**
@@ -30,8 +32,12 @@ type EntitlementResponse = {
   grant: DomainGrant | null
 }
 
+// Keep the expensive tenant directory bounded to a practical operator page.
+const TENANTS_PAGE_SIZE = 25
+
 export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }) {
   const [filter, setFilter] = useState<TenantFilter>({})
+  const [page, setPage] = useState(1)
   const [sort, setSort] = useState<{ key: TenantSortKey; direction: SortDirection }>({
     key: 'name',
     direction: 'asc',
@@ -61,8 +67,13 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
   // The SAME pure selector the api spec asserts over, so the screen and the spec
   // cannot disagree about what "unclaimed, sorted by listings" means.
   const filtered = useMemo(() => selectTenants(rows, filter, sort), [rows, filter, sort])
+  const pagination = useMemo(
+    () => paginate(filtered, page, TENANTS_PAGE_SIZE),
+    [filtered, page],
+  )
 
   function updateFilter(patch: Partial<TenantFilter>) {
+    setPage(ADMIN_LIST_FIRST_PAGE)
     setFilter((prev) => {
       const next = { ...prev, ...patch }
       for (const key of Object.keys(next) as (keyof TenantFilter)[]) {
@@ -70,6 +81,11 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
       }
       return next
     })
+  }
+
+  function updateSort(patch: Partial<{ key: TenantSortKey; direction: SortDirection }>) {
+    setPage(ADMIN_LIST_FIRST_PAGE)
+    setSort((prev) => ({ ...prev, ...patch }))
   }
 
   function patchRow(shopId: string, partial: Partial<TenantRow>) {
@@ -156,7 +172,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
         <Select
           label="Ordenar por"
           value={sort.key}
-          onChange={(v) => setSort((prev) => ({ ...prev, key: v as TenantSortKey }))}
+          onChange={(v) => updateSort({ key: v as TenantSortKey })}
           options={[
             ['name', 'Nombre'],
             ['listings', 'Anuncios'],
@@ -167,7 +183,7 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
         />
         <button
           type="button"
-          onClick={() => setSort((prev) => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+          onClick={() => updateSort({ direction: sort.direction === 'asc' ? 'desc' : 'asc' })}
           className="rounded border border-[var(--color-border)] px-2 py-1 hover:bg-[var(--color-bg-subtle)]"
           aria-label="Invertir orden"
         >
@@ -178,10 +194,11 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
       <p className="text-xs text-[var(--color-muted)]">
         {filtered.length} {filtered.length === 1 ? 'tienda' : 'tiendas'}
         {Object.keys(filter).length ? ` (de ${rows.length})` : ''}
+        {' · '}página {pagination.page} de {pagination.totalPages}
       </p>
 
       <div className="space-y-2">
-        {filtered.map((t) => {
+        {pagination.pageItems.map((t) => {
           const open = t.shopId === selectedId
           return (
             <div key={t.shopId} className="rounded-lg border border-[var(--color-border)] overflow-hidden">
@@ -292,6 +309,12 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
           </p>
         )}
       </div>
+
+      <AdminPagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onPageChange={setPage}
+      />
     </div>
   )
 }
