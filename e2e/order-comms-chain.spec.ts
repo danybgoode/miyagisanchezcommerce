@@ -240,7 +240,7 @@ test.describe('notification_log', () => {
   })
 
   test('the migration records skips and failures, not only sends', () => {
-    const sql = read('supabase/migrations/20260815060000_notification_log.sql')
+    const sql = read('supabase/migrations/20260815045409_notification_log.sql')
     expect(sql).toContain("check (outcome in ('sent', 'skipped', 'failed'))")
     expect(sql).toContain('enable row level security')
   })
