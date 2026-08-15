@@ -51,7 +51,9 @@ export function parseSellerStatus(value: unknown): SellerStatus | null {
  *  · `unavailable` — we could not ask right now. Transient; retry.
  * Rendering both as "No disponible" would hide an orphaned row inside a glitch.
  */
-export function sellerStatusLabel(status: SellerStatus | 'absent' | 'unavailable' | null): string {
+export function sellerStatusLabel(
+  status: SellerStatus | 'not_imported' | 'absent' | 'unavailable' | null,
+): string {
   switch (status) {
     case 'active':
       return 'Activa'
@@ -59,8 +61,12 @@ export function sellerStatusLabel(status: SellerStatus | 'absent' | 'unavailable
       return 'En pausa'
     case 'deleted':
       return 'Eliminada'
+    case 'not_imported':
+      // A scraped gem nobody imported. Normal, not a fault.
+      return 'Sin importar a Medusa'
     case 'absent':
-      return 'Sin vendedor en Medusa'
+      // Medusa was asked and denied the id: a genuine orphan.
+      return 'Vendedor huérfano en Medusa'
     default:
       return 'No disponible'
   }
@@ -68,7 +74,7 @@ export function sellerStatusLabel(status: SellerStatus | 'absent' | 'unavailable
 
 /** Tone for the status chip. `null` is neutral, never green. */
 export function sellerStatusTone(
-  status: SellerStatus | 'absent' | 'unavailable' | null,
+  status: SellerStatus | 'not_imported' | 'absent' | 'unavailable' | null,
 ): 'ok' | 'warn' | 'danger' | 'muted' {
   switch (status) {
     case 'active':
@@ -77,6 +83,9 @@ export function sellerStatusTone(
       return 'warn'
     case 'deleted':
       return 'danger'
+    case 'not_imported':
+      // Normal resting state for a scraped gem — neutral, not a warning.
+      return 'muted'
     case 'absent':
       // An orphaned mirror row is a real problem, not a neutral unknown.
       return 'warn'

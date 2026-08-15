@@ -104,7 +104,7 @@ export async function listTenants(): Promise<TenantRow[]> {
   // Lifecycle status, from Medusa — the canonical owner of the fact (D1). An
   // unreachable backend yields `null`, which the shaper and the UI render as
   // "no disponible" and never as "activa".
-  const statuses = new Map<string, SellerStatus | 'absent' | 'unavailable'>(await mapWithConcurrency(
+  const statuses = new Map<string, SellerStatus | 'not_imported' | 'absent' | 'unavailable'>(await mapWithConcurrency(
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {

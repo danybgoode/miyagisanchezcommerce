@@ -28,18 +28,31 @@ const TIMEOUT_MS = 5_000
 
 export type TenantStatusRead =
   | { readonly state: 'resolved'; readonly status: SellerStatus; readonly pausedLinkCount: number }
+  /** The mirror row has no Medusa seller id: a scraped gem nobody imported yet. */
+  | { readonly state: 'not_imported' }
+  /** Medusa was ASKED and said no such seller: an orphaned mirror row. */
   | { readonly state: 'absent' }
   | { readonly state: 'unavailable'; readonly reason: string }
 
-/** Flatten a read into the value the directory row carries (three states). */
-export function statusForRow(read: TenantStatusRead): SellerStatus | 'absent' | 'unavailable' {
+/**
+ * Flatten a read into the value the directory row carries.
+ *
+ * `not_imported` and `absent` are kept apart deliberately. A scraped gem that nobody
+ * has imported is a NORMAL state — most of the directory's unclaimed rows are exactly
+ * that — while an id that Medusa denies is a genuine orphan needing repair. The first
+ * revision collapsed them, so every un-imported gem appeared under "Sin vendedor en
+ * Medusa" in the attention filter, burying the real orphans in noise.
+ */
+export function statusForRow(
+  read: TenantStatusRead,
+): SellerStatus | 'not_imported' | 'absent' | 'unavailable' {
   return read.state === 'resolved' ? read.status : read.state
 }
 
 export async function readSellerStatus(
   medusaSellerId: string | null | undefined,
 ): Promise<TenantStatusRead> {
-  if (!medusaSellerId) return { state: 'absent' }
+  if (!medusaSellerId) return { state: 'not_imported' }
   if (!INTERNAL_SECRET) {
     // An unconfigured secret is an OPERATOR fault, and saying "unavailable" is the
     // honest answer. Reporting every shop as active because we hold no credential
@@ -161,11 +174,17 @@ export async function changeSellerStatus(input: {
       || (Array.isArray(missingRaw)
         && missingRaw.length > 0
         && missingRaw.every((id) => typeof id === 'string' && id !== ''))
-    if (!from || !to || typeof body?.complete !== 'boolean' || !missingIsUsable) {
+    const countsUsable = Number.isFinite(body?.unlinked) && Number.isFinite(body?.restored)
+    if (!from || !to || typeof body?.complete !== 'boolean' || !missingIsUsable || !countsUsable) {
+      // UNKNOWN, not a failure. Medusa returned 2xx, so it very likely APPLIED the
+      // change and merely described it in a way we cannot read — a truncated body, or
+      // a forward-version payload from a backend that deployed ahead of us. Calling
+      // that `ok: false` would invite a retry against a shop that is already paused
+      // or deleted. Same lesson as the timeout, one layer further in.
       return {
-        ok: false,
-        status: 502,
-        message: 'El backend respondió algo que no entendemos. No confirmes el cambio hasta revisarlo.',
+        ok: 'unknown',
+        message: 'El backend respondió algo que no entendemos, así que NO sabemos si el cambio '
+          + 'se aplicó. Recarga y verifica el estado de la tienda antes de reintentar.',
       }
     }
 
@@ -173,8 +192,9 @@ export async function changeSellerStatus(input: {
       ok: true,
       from,
       to,
-      unlinked: Number.isFinite(body.unlinked) ? Number(body.unlinked) : 0,
-      restored: Number.isFinite(body.restored) ? Number(body.restored) : 0,
+      // Validated above — never a silent 0 standing in for a number we did not get.
+      unlinked: Number(body.unlinked),
+      restored: Number(body.restored),
       // Validated above when `complete` is false; the filter is belt-and-braces for
       // the complete case, where an empty list is legitimate.
       missingProducts: Array.isArray(missingRaw)

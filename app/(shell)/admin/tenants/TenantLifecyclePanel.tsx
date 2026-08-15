@@ -62,6 +62,14 @@ export default function TenantLifecyclePanel({
   // Neither non-status state may be acted on — the transition would be decided
   // against an unknown current state — but they need DIFFERENT copy, because one is
   // a retry and the other is a repair job.
+  if (row.status === 'not_imported') {
+    return (
+      <p className="text-xs text-[var(--color-muted)]">
+        Esta tienda todavía no se importa a Medusa (gema sin importar), así que no tiene ciclo de
+        vida que administrar.
+      </p>
+    )
+  }
   if (row.status === 'absent') {
     return (
       <p className="text-xs text-[var(--color-muted)]">
@@ -116,6 +124,11 @@ export default function TenantLifecyclePanel({
           + 'Recarga y verifica el estado de la tienda antes de reintentar.'
         setOutcome({ kind: 'unknown', message })
         onReport({ shopName: row.name, message, incomplete: true })
+        // Clear the form: leaving the target and reason primed means Confirm is one
+        // click away from a SECOND attempt against a shop that may already have been
+        // changed. Verification has to come first, and that means a reload.
+        setTarget(null)
+        setReason('')
         return
       }
 
@@ -133,6 +146,8 @@ export default function TenantLifecyclePanel({
             message: (body?.error as string) ?? 'No sabemos si el cambio se aplicó.',
             incomplete: true,
           })
+          setTarget(null)
+          setReason('')
         }
         return
       }
@@ -164,6 +179,8 @@ export default function TenantLifecyclePanel({
         + 'se aplicó: recarga y verifica el estado de la tienda antes de reintentar.'
       setOutcome({ kind: 'unknown', message })
       onReport({ shopName: row.name, message, incomplete: true })
+      setTarget(null)
+      setReason('')
     }
   }
 
@@ -188,7 +205,10 @@ export default function TenantLifecyclePanel({
               // the retained reason — two mutations racing, whose responses could
               // land out of order and leave the screen showing `paused` while Medusa
               // held `deleted`.
-              disabled={outcome.kind === 'working'}
+              // Also locked after an UNKNOWN outcome: the change may have applied, so
+              // the next action is to reload and verify, not to pick another
+              // transition. Clicking one used to clear the warning that said so.
+              disabled={outcome.kind === 'working' || outcome.kind === 'unknown'}
               onClick={() => { setTarget(option); setOutcome({ kind: 'idle' }) }}
               className={`rounded border px-2 py-1 text-xs hover:bg-[var(--color-bg)] disabled:opacity-40 ${
                 target === option ? 'border-[var(--color-fg)]' : 'border-[var(--color-border)]'
@@ -246,7 +266,12 @@ export default function TenantLifecyclePanel({
         </p>
       )}
       {outcome.kind === 'unknown' && (
-        <p className="text-xs text-amber-700">{outcome.message}</p>
+        <p className="text-xs text-amber-700">
+          {outcome.message}{' '}
+          <button type="button" onClick={() => window.location.reload()} className="underline">
+            Recargar
+          </button>
+        </p>
       )}
       {outcome.kind === 'error' && <p className="text-xs text-red-600">{outcome.message}</p>}
     </div>

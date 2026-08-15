@@ -75,7 +75,7 @@ export type TenantRow = {
    * The first revision collapsed the last two into `null`, so an orphaned row read
    * as a temporary glitch and nobody would ever go fix it. Caught in review.
    */
-  status: SellerStatus | 'absent' | 'unavailable'
+  status: SellerStatus | 'not_imported' | 'absent' | 'unavailable'
   /**
    * The email this merchant registered with, read from Clerk at request time and
    * never stored (D5).
@@ -159,7 +159,7 @@ export function shapeTenantRow(
     paywallEnabled: boolean
     listingCount: number
     publicSellerMarket?: PublicSellerMarket | null
-    status?: SellerStatus | 'absent' | 'unavailable'
+    status?: SellerStatus | 'not_imported' | 'absent' | 'unavailable'
     registrationEmail?: string | null | 'unavailable'
   },
 ): TenantRow {
@@ -210,7 +210,7 @@ export type TenantFilter = {
    * decorative. (The first revision exposed only the three real statuses; the spec
    * casting `as never` to test the others was the tell.)
    */
-  status?: SellerStatus | 'absent' | 'unavailable' | 'any'
+  status?: SellerStatus | 'not_imported' | 'absent' | 'unavailable' | 'any'
   claimed?: 'claimed' | 'unclaimed' | 'any'
   market?: MarketCode | 'unknown' | 'any'
   domain?: TenantDomainStatus | 'any'
@@ -257,7 +257,9 @@ export function matchesTenantFilter(row: TenantRow, filter: TenantFilter): boole
 
 /** Status order for sorting: the ones needing attention first. */
 const STATUS_RANK: Record<string, number> = {
-  paused: 0, deleted: 1, absent: 2, unavailable: 3, active: 4,
+  // Attention first. `not_imported` sits with `active` rather than with the problems:
+  // an unimported scraped gem is a normal resting state, not a defect.
+  paused: 0, deleted: 1, absent: 2, unavailable: 3, active: 4, not_imported: 5,
 }
 
 function compareRows(a: TenantRow, b: TenantRow, key: TenantSortKey): number {

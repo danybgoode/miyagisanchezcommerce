@@ -121,7 +121,8 @@ export default function AdminTenantsClient({ tenants }: { tenants: TenantRow[] }
             // The two non-status states are filterable too: they are exactly the rows
             // that need attention, and a distinction an operator cannot isolate is a
             // decorative one.
-            ['absent', 'Sin vendedor en Medusa'],
+            ['not_imported', 'Sin importar a Medusa'],
+            ['absent', 'Vendedor huérfano en Medusa'],
             ['unavailable', 'Estado no disponible'],
           ]}
         />
