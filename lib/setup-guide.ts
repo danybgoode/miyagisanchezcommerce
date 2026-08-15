@@ -153,7 +153,12 @@ const STEP_META: StepMeta[] = [
     body: 'Conecta Mercado Pago, Stripe o SPEI. Sin esto tus compradores no pueden pagarte.',
     estimate: '~4 min',
     ctaLabel: 'Configurar cobros',
-    ctaHref: '/shop/manage/settings/pagos/wizard',
+    // The settings page, not `/pagos/wizard`. The wizard is one guided path
+    // through a section that also holds the direct Stripe/Mercado Pago/SPEI
+    // controls, the connection status of each, and the disconnect action — a
+    // merchant sent straight into the wizard could not see what was already
+    // connected, and the wizard is reachable from the section in one click.
+    ctaHref: '/shop/manage/settings/pagos',
   },
   {
     id: 'envios',

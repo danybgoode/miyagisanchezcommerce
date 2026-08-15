@@ -7,6 +7,7 @@ import { getShop } from '@/lib/listings'
 import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import AcercaBody from '../_shop-content/AcercaBody'
 import type { Metadata } from 'next'
+import { CONTACT_EMAIL } from '@/lib/contact'
 
 const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/acerca'
@@ -73,6 +74,10 @@ export default async function AcercaPage({ searchParams }: AcercaPageProps) {
     '@type': 'Organization',
     name: 'Miyagi Sánchez',
     url: BASE_URL,
+    // schema.org/Organization.email — the machine-readable half of the same
+    // fact the page states in words below. An agent asking "how do I reach
+    // this marketplace" should not have to scrape a footer.
+    email: CONTACT_EMAIL,
     description,
     inLanguage: locale === 'en' ? 'en' : 'es-MX',
   }

@@ -58,7 +58,8 @@
       "createAccount": "Create account",
       "agentApi": "Agent API",
       "about": "About",
-      "terms": "Terms"
+      "terms": "Terms",
+      "contact": "Contact"
     }
   },
   "buyerCopy": {
@@ -2591,6 +2592,10 @@
       {
         "title": "Responsible use",
         "body": "Do not use Miyagi for fraud, spam, impersonation, prohibited items, misleading promotions, or illegal activity. We may limit features or suspend accounts and campaigns to protect users and shops."
+      },
+      {
+        "title": "Contact",
+        "body": "If you have a question, a problem with an order or something to report, write to hola@miyagisanchez.com. A person answers."
       }
     ]
   },
@@ -3300,7 +3305,6 @@
     "s_2b58b818be75efd0": "Ring the bell on the 3rd floor",
     "s_2b5b539ac46cff32": "The rejection percentage (",
     "s_2bfbedb6646a826b": "Select a category…",
-    "s_2c576ea011dd254a": "⏸ This ad is paused — not visible to buyers. Activate it from \"My store\".",
     "s_2c856dc138142dbd": "You still don't receive manuscripts. Share your call page to get started.",
     "s_2c92f2a8dc234329": "Suggested price",
     "s_2ca9b074fb57c0ab": "This is a root domain (without \"www\"): your DNS provider needs to support a CNAME (or ALIAS/ANAME) record at the root — most modern providers allow this (Cloudflare, and many others via \"flattening\").",
@@ -3634,6 +3638,7 @@
     "s_5d83c4c048f2806c": "Delete dimension",
     "s_5d8bcb3cda380575": "Ex: 123456789012",
     "s_5dc090d65e90b81b": "Configuring DNS — automatically checking every 8 seconds…",
+    "s_5e53fc953165319a": "This ad is paused — not visible to buyers. Activate it from \"My store\".",
     "s_5e77e1785d574f9b": "List",
     "s_5e875bc90a360147": "Shopify",
     "s_5e94724018aac487": "Publish in the marketplace",

@@ -531,9 +531,9 @@
       "file": "app/(shell)/sell/edit/[id]/page.tsx",
       "keys": [
         "s_e59174a537c808b4",
+        "s_5e53fc953165319a",
         "s_b1439e30496d1755",
-        "s_a27d42e1cec53392",
-        "s_2c576ea011dd254a"
+        "s_a27d42e1cec53392"
       ]
     },
     {
@@ -3934,10 +3934,6 @@
       "source": "Selecciona una categoría…"
     },
     {
-      "key": "s_2c576ea011dd254a",
-      "source": "⏸ Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;."
-    },
-    {
       "key": "s_2c856dc138142dbd",
       "source": "Aún no recibes manuscritos. Comparte tu página de convocatoria para empezar."
     },
@@ -5268,6 +5264,10 @@
     {
       "key": "s_5dc090d65e90b81b",
       "source": "Configurando DNS — comprobando automáticamente cada 8 segundos…"
+    },
+    {
+      "key": "s_5e53fc953165319a",
+      "source": "Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;."
     },
     {
       "key": "s_5e77e1785d574f9b",

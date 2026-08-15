@@ -147,7 +147,7 @@ function CounterModal({
           />
 
           <div className="flex items-center gap-2 bg-[var(--info-soft)] border border-[var(--info)] rounded-[var(--r-lg)] px-3 py-2 mb-4">
-            <span className="text-sm">⏰</span>
+            <i className="iconoir-alarm text-sm" aria-hidden />
             <p className="text-xs text-[var(--info)]">El comprador tiene <strong>24 horas</strong> para responder.</p>
           </div>
 

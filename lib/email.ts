@@ -6,6 +6,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { logNotification } from '@/lib/notifications/log'
 import { Resend } from 'resend'
+import { CONTACT_EMAIL } from '@/lib/contact'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
@@ -26,7 +27,11 @@ const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
  * was writing into a void, and we never knew they had tried. Set at the single
  * transport, so all 63 senders inherit it and none can forget.
  */
-const REPLY_TO = 'hola@miyagisanchez.com'
+// Imported, never restated. The same address is now shown on the site itself
+// (footer, 404, /acerca, /terminos), and two copies of a support address
+// eventually become two addresses — the wrong half of that pair being a
+// channel nobody reads. `lib/contact.ts` is the single source.
+const REPLY_TO = CONTACT_EMAIL
 const SITE = 'https://miyagisanchez.com'
 
 // ── Resend client (lazy) ──────────────────────────────────────────────────────

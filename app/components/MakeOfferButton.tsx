@@ -80,7 +80,7 @@ function ActiveOfferCard({
     return (
       <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--warning)', background: 'var(--warning-soft)' }}>
         <div className="flex items-start gap-3">
-          <span style={{ fontSize: 20, marginTop: 2 }}>⏳</span>
+          <i className="iconoir-hourglass" style={{ fontSize: 20, marginTop: 2 }} aria-hidden />
           <div className="flex-1 min-w-0">
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)' }}><BuyerCopyText copyKey="components.MakeOfferButton.502009eb" /></div>
             <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>

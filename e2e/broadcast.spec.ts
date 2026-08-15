@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { CONTACT_EMAIL } from '../lib/contact'
 import {
   BROADCAST_CONFIRM_PHRASE,
   BROADCAST_MAX_RECIPIENTS,
@@ -204,13 +205,21 @@ test.describe('the surface itself', () => {
  * something is wrong — writes into a void, and we never learn they tried.
  */
 test.describe('every email is replyable', () => {
-  const CONTACT = 'hola@miyagisanchez.com'
+  // Taken from the module that now DEFINES it, rather than restated here. The
+  // address is also rendered on the site (footer, 404, /terminos, /acerca), so
+  // it stopped being an email-only fact — see `e2e/contact-address.spec.ts`.
+  const CONTACT = CONTACT_EMAIL
 
   test('Reply-To is set at the single TRANSPORT, so no sender can forget it', () => {
     const source = read('lib/email.ts')
     const call = source.slice(source.indexOf('resend().emails.send({'), source.indexOf('resend().emails.send({') + 400)
     expect(call).toContain('replyTo: REPLY_TO')
-    expect(source).toContain(`const REPLY_TO = '${CONTACT}'`)
+    // Asserts the WIRING, not the literal: this used to pin
+    // `const REPLY_TO = 'hola@…'`, which would have to be edited — and could be
+    // edited WRONG — every time the address moved. What matters is that the
+    // transport's Reply-To is the one contact address the site also shows.
+    expect(source).toContain('const REPLY_TO = CONTACT_EMAIL')
+    expect(CONTACT).toBe('hola@miyagisanchez.com')
   })
 
   test('the contact address is NOT the from address — that is why Reply-To exists', () => {
