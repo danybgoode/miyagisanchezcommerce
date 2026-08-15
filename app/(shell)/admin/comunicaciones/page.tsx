@@ -1,4 +1,5 @@
 import ComunicacionesClient from './ComunicacionesClient'
+import DifusionPanel from './DifusionPanel'
 import { requireAdmin } from '@/lib/admin/guard'
 import { COMMUNICATION_CATALOG } from '@/lib/notifications/catalog'
 import { COMMUNICATION_FIXTURES } from '@/lib/notifications/fixtures'
@@ -26,5 +27,14 @@ export default async function AdminComunicacionesPage() {
     // rather than presenting a button that would refuse.
     sendable: fixtures.has(entry.key),
   }))
-  return <ComunicacionesClient rows={rows} recipients={[...SAMPLE_RECIPIENTS]} />
+  return (
+    <div className="max-w-6xl mx-auto px-4 pt-8 space-y-6">
+      {/* Difusión sits HERE, not in /admin/contenido: contenido publishes what lives
+          ON the site, comunicaciones is what the platform SENDS. A broadcast is a
+          send, and this page already owns the catalog, the sample sender and the
+          admin guard for exactly that. */}
+      <DifusionPanel />
+      <ComunicacionesClient rows={rows} recipients={[...SAMPLE_RECIPIENTS]} />
+    </div>
+  )
 }

@@ -245,6 +245,17 @@ export const COMMUNICATION_FIXTURES: Record<string, CommunicationFixture> = {
     buyerEmail: to,
     orderUrl: ORDER,
   }),
+  'difusion.platform_broadcast': (to) => email.sendPlatformBroadcast({
+    to,
+    subject: 'Aviso de la plataforma',
+    headline: 'Un aviso del equipo de Miyagi Sánchez',
+    paragraphs: [
+      'Así se ve un aviso operativo enviado desde Difusión.',
+      'El texto lo escribe quien lo envía; el diseño es el mismo de siempre.',
+    ],
+    ctaLabel: 'Ir a mi tienda',
+    ctaUrl: `${URL}/shop/manage`,
+  }),
   'mensajes.conversation_message': (to) => email.sendConversationMessage({
     to,
     recipientRole: 'seller',

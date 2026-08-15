@@ -54,6 +54,9 @@ export const COMMUNICATION_DOMAINS = [
   'promoter',
   'referrals',
   'agent',
+  // Operator-composed, not automated. Its own domain so it never hides among the
+  // triggered messages an operator is auditing.
+  'difusion',
   // Buyer↔seller conversations. Added 2026-08-15: messaging had no communication of
   // its own because it sent none — starting a conversation notified nobody and a
   // reply sent web push only.
@@ -216,6 +219,13 @@ export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
     group: 'payments',
   },
   // ── Mensajes ────────────────────────────────────────────────────────────────
+  // ── Difusión ────────────────────────────────────────────────────────────────
+  {
+    key: 'difusion.platform_broadcast',
+    trigger: 'Un admin redacta y envía un aviso operativo desde /admin/comunicaciones → Difusión.',
+    from: 'admin', to: 'seller', channels: ['email'], domain: 'difusion',
+    sender: 'sendPlatformBroadcast', origin: 'app/api/admin/comunicaciones/broadcast/route.ts',
+  },
   {
     key: 'mensajes.conversation_message',
     trigger: 'Alguien escribe en una conversación sobre un anuncio (incluye "Preguntar" en un anuncio).',
