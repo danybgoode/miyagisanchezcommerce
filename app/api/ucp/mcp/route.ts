@@ -120,10 +120,25 @@ import {
 import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' with { type: 'json' }
 import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
 import { MARKETS, type MarketCode } from '@/lib/markets'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
 const MEDUSA_HEADERS = { 'x-publishable-api-key': PUB_KEY }
+
+function marketMedusaHeaders(market: MarketCode): Record<string, string> | null {
+  const key = resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV)
+  return key.status === 'resolved' ? { 'x-publishable-api-key': key.token } : null
+}
+
+function marketKeyUnavailable(market: (typeof MARKETS)[MarketCode]) {
+  return {
+    unavailable: true as const,
+    market_code: market.code,
+    marketplace_status: market.marketplace_status,
+    reason: 'market_filter_unavailable' as const,
+  }
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -164,19 +179,19 @@ const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDatas
 const TOOLS = [
   {
     name: 'search_listings',
-    description: 'Search a Miyagi Sánchez country-market catalog. Mexico is the active market. `market` temporarily defaults to `mx`; pass it explicitly for durable integrations. Returns listings with market_code, prices, trust signals, and canonical checkout URLs.',
+    description: 'Search an active Miyagi Sánchez country-market catalog. Pass `market=mx` or `market=us`; omitted market retains the legacy mx default. Returns listings with market_code, localized prices, trust signals, commerce readiness, and canonical URLs.',
     inputSchema: {
       type: 'object',
       properties: {
-        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
-        q:            { type: 'string', description: 'Search query in Spanish (e.g. "iPhone 14 pro" or "taller mecánico CDMX")' },
+        market:       { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. Legacy default: mx.' },
+        q:            { type: 'string', description: 'Search query in the selected market language' },
         category:     { type: 'string', enum: ['autos','inmuebles','electronica','hogar','moda','deportes','servicios','mascotas','herramientas','negocios','otros'], description: 'Product category' },
         listing_type: { type: 'string', enum: ['product','service','rental','digital'], description: 'Type of listing' },
-        state:        { type: 'string', description: 'Mexican state e.g. "Ciudad de México", "Jalisco", "Nuevo León"' },
+        state:        { type: 'string', description: 'State in the selected market, e.g. "Jalisco" or "New York"' },
         location:     { type: 'string', description: 'City or neighborhood e.g. "Polanco", "Monterrey"' },
         condition:    { type: 'string', enum: ['new','like_new','good','fair','parts'], description: 'Item condition' },
-        min_price:    { type: 'number', description: 'Minimum price in MXN pesos' },
-        max_price:    { type: 'number', description: 'Maximum price in MXN pesos' },
+        min_price:    { type: 'number', description: 'Minimum amount in the selected market currency (MXN or USD)' },
+        max_price:    { type: 'number', description: 'Maximum amount in the selected market currency (MXN or USD)' },
         limit:        { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of results' },
         sort:         { type: 'string', enum: ['reciente','precio_asc','precio_desc','popular','year_desc','year_asc','marca'], default: 'reciente', description: 'Sort order (year_desc/year_asc/marca are autos-specific)' },
         brand:        { type: 'string', description: 'Car marca — alias/casing-aware, e.g. "Volkswagen" also matches "VW" (use with category=autos)' },
@@ -192,11 +207,11 @@ const TOOLS = [
   },
   {
     name: 'get_neighborhood_pulse',
-    description: 'Read one country market’s public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.',
+    description: 'Read one active country market’s public neighborhood pulse: opted-in community items, trending listings, and merchants gaining local attention. Omitted market retains the legacy mx default.',
     inputSchema: {
       type: 'object',
       properties: {
-        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. Legacy default: mx.' },
         community_limit: { type: 'number', minimum: 1, maximum: 24, default: 12, description: 'Number of community items to return' },
         trending_limit: { type: 'number', minimum: 1, maximum: 20, default: 8, description: 'Number of trending listings to return' },
         shop_limit: { type: 'number', minimum: 1, maximum: 12, default: 6, description: 'Number of merchant spotlights to return' },
@@ -205,13 +220,13 @@ const TOOLS = [
   },
   {
     name: 'get_listing',
-    description: 'Get full market-scoped details for a specific listing by ID, including market_code, trust signals, seller info, available payment methods, and checkout URLs. `market` temporarily defaults to mx.',
+    description: 'Get full market-scoped details for a listing, including market_code, trust signals, seller info, payment methods, commerce readiness, and checkout URLs when ready.',
     inputSchema: {
       type: 'object',
       required: ['id'],
       properties: {
         id: { type: 'string', description: 'Listing UUID from search_listings results' },
-        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
+        market: { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Legacy default: mx.' },
       },
     },
   },
@@ -223,7 +238,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
-        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. US returns named checkout_not_available until its direct-charge rail ships.' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
         buyer_email: { type: 'string', description: 'Buyer email (optional)' },
         check_in:    { type: 'string', description: 'Rental check-in date, YYYY-MM-DD. Only applies to rental listings — send with check_out for an exact bookable total.' },
@@ -239,7 +254,7 @@ const TOOLS = [
       required: ['listing_id'],
       properties: {
         listing_id:  { type: 'string', description: 'Listing UUID' },
-        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Invitation markets return structured unavailable.' },
+        market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. US returns named checkout_not_available until its direct-charge rail ships.' },
         method:      { type: 'string', enum: ['mercadopago','stripe'], default: 'mercadopago', description: 'Payment method' },
         buyer_email: { type: 'string', description: 'Buyer email (optional, pre-fills checkout form)' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — uses negotiated price instead of list price' },
@@ -279,14 +294,14 @@ const TOOLS = [
   },
   {
     name: 'make_offer',
-    description: "Submit a price offer on a listing in one country market. `market` temporarily defaults to `mx`. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, use create_checkout with the returned offer_id to buy at the negotiated price.",
+    description: "Submit a price offer on a listing in one active country market. Omitted market retains the legacy mx default. Requires an authenticated Miyagi buyer session. The seller is notified and has 48 hours to accept, counter, or decline. If accepted, read commerce_readiness before attempting checkout.",
     inputSchema: {
       type: 'object',
       required: ['listing_id', 'offer_amount', 'buyer_name', 'buyer_email'],
       properties: {
-        market:        { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx.' },
+        market:        { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. Legacy default: mx.' },
         listing_id:    { type: 'string', description: 'Listing UUID' },
-        offer_amount:  { type: 'number', description: 'Your offer in MXN pesos (e.g. 1500 = $1,500)' },
+        offer_amount:  { type: 'number', description: 'Your offer in the selected market currency (MXN or USD), in major units.' },
         buyer_name:    { type: 'string', description: 'Your name' },
         buyer_email:   { type: 'string', description: 'Buyer email for account matching and receipts; do not expose it as seller contact info' },
         message:       { type: 'string', description: 'Optional message to the seller' },
@@ -295,12 +310,12 @@ const TOOLS = [
   },
   {
     name: 'get_shop',
-    description: "Get a seller's shop profile and their listings in one country market. `market` temporarily defaults to `mx`; invitation markets return a structured unavailable response.",
+    description: "Get a seller's shop profile and listings in one active country market. Omitted market retains the legacy mx default.",
     inputSchema: {
       type: 'object',
       required: ['shop_slug'],
       properties: {
-        market:    { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Country market code. Temporarily defaults to mx; us is an invitation market and returns a structured unavailable response.' },
+        market:    { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. Legacy default: mx.' },
         shop_slug: { type: 'string', description: 'Shop slug from listing.shop.slug in search results' },
         limit:     { type: 'number', minimum: 1, maximum: 20, default: 10, description: 'Number of listings to return' },
       },
@@ -317,7 +332,7 @@ const TOOLS = [
         listing_id: { type: 'string', description: 'Listing UUID' },
         date_from:  { type: 'string', description: 'Start date to check (YYYY-MM-DD). Defaults to today.' },
         date_to:    { type: 'string', description: 'End date to check (YYYY-MM-DD). Defaults to 7 days from today.' },
-        timezone:   { type: 'string', description: 'IANA timezone. Defaults to America/Mexico_City.' },
+        timezone:   { type: 'string', description: 'IANA timezone. Defaults to the selected market timezone.' },
       },
     },
   },
@@ -334,7 +349,7 @@ const TOOLS = [
         buyer_name:  { type: 'string', description: 'Full name of the person booking' },
         buyer_email: { type: 'string', description: 'Email to send booking confirmation to' },
         notes:       { type: 'string', description: 'Optional notes for the seller (e.g., "Interested in test driving")' },
-        timezone:    { type: 'string', description: 'IANA timezone. Defaults to America/Mexico_City.' },
+        timezone:    { type: 'string', description: 'IANA timezone. Defaults to the selected market timezone.' },
       },
     },
   },
@@ -997,6 +1012,8 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const medusaHeaders = marketMedusaHeaders(marketDecision.market.code)
+  if (!medusaHeaders) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(marketDecision.market), null, 2) }] }
 
   const params = new URLSearchParams()
   params.set('market', marketDecision.market.code)
@@ -1021,7 +1038,7 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
 
   let data: { listings?: Listing[]; market_code?: unknown }
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: medusaHeaders })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Search failed: ${res.status}` }] }
     data = await res.json() as { listings?: Listing[]; market_code?: unknown }
   } catch (e) {
@@ -1045,15 +1062,16 @@ async function handleSearchListings(args: Record<string, unknown>, baseUrl: stri
     return { content: [{ type: 'text', text: JSON.stringify({ listings: [], market_code: marketDecision.market.code }, null, 2) }] }
   }
 
+  const english = marketDecision.market.default_locale === 'en-US'
   const summary = items.map(item => {
-    const price = item.price ? item.price.formatted : 'Precio a consultar'
+    const price = item.price ? item.price.formatted : (english ? 'Ask for price' : 'Precio a consultar')
     const flags = [
-      item.actions.buy_now && '💳 comprar ahora',
-      item.actions.make_offer && '🤝 hacer oferta',
-      item.actions.escrow_available && '🛡️ pago protegido',
-      item.trust.verified_seller && '✓ verificado',
+      item.actions.buy_now && (english ? '💳 buy now' : '💳 comprar ahora'),
+      item.actions.make_offer && (english ? '🤝 make an offer' : '🤝 hacer oferta'),
+      item.actions.escrow_available && (english ? '🛡️ protected payment' : '🛡️ pago protegido'),
+      item.trust.verified_seller && (english ? '✓ verified' : '✓ verificado'),
     ].filter(Boolean).join(' · ')
-    return `**${item.title}**\n${price} · ${item.location ?? item.state ?? 'México'} · ${item.condition ?? item.listing_type}\n${flags}\nID: \`${item.id}\` | ${item.url}`
+    return `**${item.title}**\n${price} · ${item.location ?? item.state ?? (english ? 'United States' : 'México')} · ${item.condition ?? item.listing_type}\n${flags}\nID: \`${item.id}\` | ${item.url}`
   }).join('\n\n---\n\n')
 
   return { content: [{ type: 'text', text: `Found ${items.length} listings in market ${marketDecision.market.code}:\n\n${summary}` }, { type: 'text', text: JSON.stringify({ listings: items, market_code: marketDecision.market.code }, null, 2) }] }
@@ -1064,6 +1082,9 @@ async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const medusaHeaders = marketMedusaHeaders(marketDecision.market.code)
+  if (!medusaHeaders) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(marketDecision.market), null, 2) }] }
+  const english = marketDecision.market.default_locale === 'en-US'
   const pulse = await getNeighborhoodPulseAgentView(baseUrl, {
     itemLimit: Number(args.community_limit ?? 12),
     listingLimit: Number(args.trending_limit ?? 8),
@@ -1074,25 +1095,25 @@ async function handleGetNeighborhoodPulse(args: Record<string, unknown>, baseUrl
     `• ${item.caption} — ${item.type_label}, ${item.zone}`,
   )
   const listings = pulse.trending_listings.slice(0, 5).map((item) =>
-    `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (${item.shop.name})`,
+    `• ${item.title} — ${item.price?.formatted ?? (english ? 'Ask for price' : 'A consultar')} (${item.shop.name})`,
   )
   const shops = pulse.spotlight_shops.slice(0, 5).map((shop) =>
     `• ${shop.name} — ${shop.tagline} · ${shop.colonia}`,
   )
 
   const summary = [
-    '## Pulso del vecindario',
+    english ? '## Neighborhood pulse' : '## Pulso del vecindario',
     '',
-    `**Solo lectura:** ${pulse._meta.read_only ? 'sí' : 'no'}`,
+    `**${english ? 'Read only' : 'Solo lectura'}:** ${pulse._meta.read_only ? (english ? 'yes' : 'sí') : 'no'}`,
     '',
-    '### Aportes de la comunidad',
-    community.length ? community.join('\n') : 'Sin aportes visibles por ahora.',
+    english ? '### Community posts' : '### Aportes de la comunidad',
+    community.length ? community.join('\n') : (english ? 'No visible community posts yet.' : 'Sin aportes visibles por ahora.'),
     '',
-    '### Tendencias',
-    listings.length ? listings.join('\n') : 'Sin tendencias disponibles por ahora.',
+    english ? '### Trending' : '### Tendencias',
+    listings.length ? listings.join('\n') : (english ? 'No trends available yet.' : 'Sin tendencias disponibles por ahora.'),
     '',
-    '### Comercios que destacan',
-    shops.length ? shops.join('\n') : 'Sin comercios destacados por ahora.',
+    english ? '### Shops gaining attention' : '### Comercios que destacan',
+    shops.length ? shops.join('\n') : (english ? 'No highlighted shops yet.' : 'Sin comercios destacados por ahora.'),
   ].join('\n')
 
   return {
@@ -1109,10 +1130,12 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const medusaHeaders = marketMedusaHeaders(marketDecision.market.code)
+  if (!medusaHeaders) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(marketDecision.market), null, 2) }] }
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${id}?${marketDecision.query}`, { headers: medusaHeaders })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Listing ${id} not found.` }] }
     const data = await res.json() as { listing?: Listing; market_code?: unknown }
     const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
@@ -1132,13 +1155,14 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
   )
   const inventoryChannelsEnabled = await isEnabled('catalog.inventory_channels_enabled')
   const item = toUcpListing(listing, baseUrl, priceGrid, inventoryChannelsEnabled, marketDecision.market.code)
+  const english = marketDecision.market.default_locale === 'en-US'
 
   // Configurator options/tiers + the file-upload contract (custom-print-products
   // S4 · 4.2) — spelled out in plain text so an agent doesn't have to parse the
   // JSON blob just to learn a listing needs a variant_id + artwork_url.
   const configuratorLines: string[] = []
   if (item.price_grid && item.price_grid.variants.length > 0) {
-    configuratorLines.push('', '**Opciones y precios por cantidad:**')
+    configuratorLines.push('', english ? '**Options and quantity pricing:**' : '**Opciones y precios por cantidad:**')
     for (const v of item.price_grid.variants) {
       const optionsLabel = Object.entries(v.options).map(([k, val]) => `${k}: ${val}`).join(', ')
       const tiers = v.tiers.map(t =>
@@ -1151,23 +1175,25 @@ async function handleGetListing(args: Record<string, unknown>, baseUrl: string) 
   if (fileField) {
     configuratorLines.push(
       '',
-      `**Arte requerido:** ${fileField.required ? 'obligatorio' : 'opcional'} — formatos ${(fileField.allowed_formats ?? []).join(', ').toUpperCase() || 'estándar'}, máx ${fileField.max_size_mb ?? '?'} MB. Pásalo como \`artwork_url\` en create_checkout (el servidor lo descarga y valida).`,
+      english
+        ? `**Artwork:** ${fileField.required ? 'required' : 'optional'} — formats ${(fileField.allowed_formats ?? []).join(', ').toUpperCase() || 'standard'}, max ${fileField.max_size_mb ?? '?'} MB. Pass it as \`artwork_url\` to create_checkout.`
+        : `**Arte requerido:** ${fileField.required ? 'obligatorio' : 'opcional'} — formatos ${(fileField.allowed_formats ?? []).join(', ').toUpperCase() || 'estándar'}, máx ${fileField.max_size_mb ?? '?'} MB. Pásalo como \`artwork_url\` en create_checkout (el servidor lo descarga y valida).`,
     )
   }
 
   const details = [
     `# ${item.title}`,
-    `**Precio:** ${item.price?.formatted ?? 'A consultar'}`,
-    `**Condición:** ${item.condition ?? 'No especificada'} · **Tipo:** ${item.listing_type}`,
-    `**Ubicación:** ${item.location ?? item.state ?? 'No especificada'}`,
-    `**Vendedor:** ${item.shop.name}${item.trust.verified_seller ? ' ✓ verificado' : ''}`,
+    `**${english ? 'Price' : 'Precio'}:** ${item.price?.formatted ?? (english ? 'Ask for price' : 'A consultar')}`,
+    `**${english ? 'Condition' : 'Condición'}:** ${item.condition ?? (english ? 'Not specified' : 'No especificada')} · **${english ? 'Type' : 'Tipo'}:** ${item.listing_type}`,
+    `**${english ? 'Location' : 'Ubicación'}:** ${item.location ?? item.state ?? (english ? 'Not specified' : 'No especificada')}`,
+    `**${english ? 'Seller' : 'Vendedor'}:** ${item.shop.name}${item.trust.verified_seller ? (english ? ' ✓ verified' : ' ✓ verificado') : ''}`,
     '',
-    `**Acciones:**`,
-    item.actions.buy_now ? `✅ Comprar ahora` : `❌ Compra directa no disponible`,
-    item.actions.make_offer ? `✅ Hacer oferta` : `❌ Ofertas no disponibles`,
+    `**${english ? 'Actions' : 'Acciones'}:**`,
+    item.actions.buy_now ? (english ? '✅ Buy now' : `✅ Comprar ahora`) : (english ? `❌ Buy now unavailable (${item.commerce_readiness.reason})` : `❌ Compra directa no disponible (${item.commerce_readiness.reason})`),
+    item.actions.make_offer ? (english ? '✅ Make an offer' : `✅ Hacer oferta`) : (english ? '❌ Offers unavailable' : `❌ Ofertas no disponibles`),
     item.actions.escrow_required ? `🛡️ Pago protegido OBLIGATORIO` : item.actions.escrow_available ? `🛡️ Pago protegido disponible (opcional)` : '',
-    `**Métodos:** ${[item.payment_methods.mercadopago && 'Mercado Pago', item.payment_methods.stripe && 'Stripe'].filter(Boolean).join(', ') || 'Ninguno configurado'}`,
-    item.description ? `\n**Descripción:** ${item.description}` : '',
+    `**${english ? 'Methods' : 'Métodos'}:** ${[item.payment_methods.mercadopago && 'Mercado Pago', item.payment_methods.stripe && 'Stripe'].filter(Boolean).join(', ') || (english ? 'None configured' : 'Ninguno configurado')}`,
+    item.description ? `\n**${english ? 'Description' : 'Descripción'}:** ${item.description}` : '',
     `**URL:** ${item.url}`,
     ...configuratorLines,
   ].filter(s => s !== '').join('\n')
@@ -1183,6 +1209,9 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
   const marketDecision = planMarketCatalogRead(args.market)
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
+  if (marketDecision.market.code === 'us') {
+    return { content: [{ type: 'text', text: JSON.stringify({ market_code: 'us', commerce_readiness: { ready: false, market_code: 'us', reason: 'checkout_not_available' } }, null, 2) }] }
   }
 
   const body: Record<string, string> = {
@@ -1272,6 +1301,9 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   const marketDecision = planMarketCatalogRead(args.market)
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
+  }
+  if (marketDecision.market.code === 'us') {
+    return { content: [{ type: 'text', text: JSON.stringify({ market_code: 'us', commerce_readiness: { ready: false, market_code: 'us', reason: 'checkout_not_available' } }, null, 2) }] }
   }
 
   // A configured listing must prove its price ladder in the requested market
@@ -1423,7 +1455,9 @@ async function handleCreateConfiguredCheckout(
 
   let listing: Listing | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
+    const headers = marketMedusaHeaders(marketCode)
+    if (!headers) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(MARKETS[marketCode]), null, 2) }] }
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers })
     if (res.ok) {
       const data = await res.json() as { listing?: Listing; market_code?: unknown }
       if (!verifyMarketFilter(MARKETS[marketCode], data)) {
@@ -1566,10 +1600,12 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const medusaHeaders = marketMedusaHeaders(marketDecision.market.code)
+  if (!medusaHeaders) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(marketDecision.market), null, 2) }] }
 
-  let listing: { id: string; title: string; price_cents: number | null; listing_type: string } | null = null
+  let listing: { id: string; title: string; price_cents: number | null; listing_type: string; currency?: string | null } | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?${marketDecision.query}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?${marketDecision.query}`, { headers: medusaHeaders })
     if (res.ok) {
       const data = await res.json() as { listing?: Listing; market_code?: unknown }
       const unconfirmedMarket = verifyMarketFilter(marketDecision.market, data)
@@ -1603,7 +1639,12 @@ async function handleMakeOffer(args: Record<string, unknown>, baseUrl: string, a
   }
   if (!res.ok || !offerId) return { isError: true, content: [{ type: 'text', text: `Offer failed: ${data.error ?? 'Unknown error'}` }] }
 
-  return { content: [{ type: 'text', text: `✅ Offer submitted!\n\n**Offer ID:** \`${offerId}\`\n**Amount:** $${amount.toLocaleString('es-MX')} MXN\n**Listing:** ${listing.title}\n\nSeller has 48h to respond. If accepted → call create_checkout with offer_id="${offerId}"` }] }
+  const english = marketDecision.market.default_locale === 'en-US'
+  const currency = (listing.currency ?? marketDecision.market.currency_code).toUpperCase()
+  const formattedAmount = new Intl.NumberFormat(marketDecision.market.default_locale, { style: 'currency', currency }).format(amount)
+  return { content: [{ type: 'text', text: english
+    ? `✅ Offer submitted!\n\n**Offer ID:** \`${offerId}\`\n**Amount:** ${formattedAmount}\n**Listing:** ${listing.title}\n\nThe seller has 48 hours to respond. If accepted, read commerce_readiness before attempting checkout.`
+    : `✅ Oferta enviada.\n\n**ID de oferta:** \`${offerId}\`\n**Monto:** ${formattedAmount}\n**Anuncio:** ${listing.title}\n\nEl vendedor tiene 48 horas para responder. Si acepta, revisa commerce_readiness antes de intentar el checkout.` }] }
 }
 
 async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
@@ -1613,10 +1654,12 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const medusaHeaders = marketMedusaHeaders(marketDecision.market.code)
+  if (!medusaHeaders) return { content: [{ type: 'text', text: JSON.stringify(marketKeyUnavailable(marketDecision.market), null, 2) }] }
 
   let seller: Record<string, unknown> | null = null
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/sellers/${slug}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/sellers/${slug}`, { headers: medusaHeaders })
     if (!res.ok) return { isError: true, content: [{ type: 'text', text: `Shop "${slug}" not found.` }] }
     const d = await res.json() as { seller?: Record<string, unknown> }
     seller = d.seller ?? null
@@ -1636,7 +1679,7 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
       limit: String(limit),
     })
     params.set('market', marketDecision.market.code)
-    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: MEDUSA_HEADERS })
+    const res = await fetch(`${MEDUSA_BASE}/store/listings?${params.toString()}`, { headers: medusaHeaders })
     if (!res.ok) {
       return { isError: true, content: [{ type: 'text', text: `Shop catalog failed: ${res.status}` }] }
     }
@@ -1660,14 +1703,15 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
 
   const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
+  const english = marketDecision.market.default_locale === 'en-US'
   const profile = [
-    `# ${seller.name}${seller.verified ? ' ✓ verificado' : ''}`,
+    `# ${seller.name}${seller.verified ? (english ? ' ✓ verified' : ' ✓ verificado') : ''}`,
     seller.description ? `\n${seller.description}\n` : '',
-    `**Ubicación:** ${seller.location ?? 'No especificada'}`,
-    `**Tienda reclamada:** ${isClaimed ? 'Sí' : 'No'}`,
+    `**${english ? 'Location' : 'Ubicación'}:** ${seller.location ?? (english ? 'Not specified' : 'No especificada')}`,
+    `**${english ? 'Claimed shop' : 'Tienda reclamada'}:** ${isClaimed ? (english ? 'Yes' : 'Sí') : 'No'}`,
     `**URL:** ${baseUrl}/${marketDecision.market.code}/s/${seller.slug}`,
-    `\n**${listings.length} anuncios activos:**`,
-    ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? 'A consultar'} (ID: \`${item.id}\`)`),
+    `\n**${listings.length} ${english ? 'active listings' : 'anuncios activos'}:**`,
+    ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? (english ? 'Ask for price' : 'A consultar')} (ID: \`${item.id}\`)`),
   ].filter(s => s !== '').join('\n')
 
   return {
@@ -1682,7 +1726,9 @@ async function getShopCalcom(listingId: string, marketCode: MarketCode): Promise
   apiKey: string; eventTypeId: number; bookingUrl: string; listing: { title: string; category: string | null }
 } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
+    const headers = marketMedusaHeaders(marketCode)
+    if (!headers) return null
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers })
     if (!res.ok) return null
     const data = await res.json() as { listing?: Listing; market_code?: unknown }
     if (verifyMarketFilter(MARKETS[marketCode], data)) return null
@@ -1713,7 +1759,9 @@ async function getShopSchedulingLinks(
   marketCode: MarketCode,
 ): Promise<{ bookingUrl: string; label: string; title: string } | null> {
   try {
-    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers: MEDUSA_HEADERS })
+    const headers = marketMedusaHeaders(marketCode)
+    if (!headers) return null
+    const res = await fetch(`${MEDUSA_BASE}/store/listings/${listingId}?market=${marketCode}`, { headers })
     if (!res.ok) return null
     const data = await res.json() as { listing?: Listing; market_code?: unknown }
     if (verifyMarketFilter(MARKETS[marketCode], data)) return null
@@ -1736,6 +1784,7 @@ async function handleCheckAvailability(args: Record<string, unknown>) {
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const english = marketDecision.market.default_locale === 'en-US'
 
   const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
@@ -1748,7 +1797,7 @@ async function handleCheckAvailability(args: Record<string, unknown>) {
       content: [{
         type: 'text',
         text: [
-          `## Agendamiento — ${linkSchedule.title}`,
+          `## ${english ? 'Scheduling' : 'Agendamiento'} — ${linkSchedule.title}`,
           '',
           `This seller uses a **manual booking link** (${linkSchedule.label}). Real-time availability checking is not available, but you can book directly:`,
           '',
@@ -1768,7 +1817,7 @@ async function handleCheckAvailability(args: Record<string, unknown>) {
   const today    = new Date()
   const dateFrom = String(args.date_from ?? today.toISOString().slice(0, 10))
   const dateTo   = String(args.date_to ?? new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10))
-  const timezone = String(args.timezone ?? 'America/Mexico_City')
+  const timezone = String(args.timezone ?? marketDecision.market.timezone)
 
   let slots: Record<string, Array<{ time: string }>>
   try {
@@ -1783,17 +1832,17 @@ async function handleCheckAvailability(args: Record<string, unknown>) {
   }
 
   const summary = [
-    `## Disponibilidad para ${cal.listing.title}`,
-    `📅 **${days.length} día${days.length > 1 ? 's' : ''} disponibles** (${dateFrom} → ${dateTo})`,
+    `## ${english ? 'Availability for' : 'Disponibilidad para'} ${cal.listing.title}`,
+    `📅 **${days.length} ${english ? `available day${days.length === 1 ? '' : 's'}` : `día${days.length > 1 ? 's' : ''} disponibles`}** (${dateFrom} → ${dateTo})`,
     '',
     ...days.map(([date, daySlots]) => {
       const d = new Date(date)
-      const dayLabel = d.toLocaleDateString('es-MX', { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone })
+      const dayLabel = d.toLocaleDateString(marketDecision.market.default_locale, { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone })
       const times = daySlots.slice(0, 8).map(s => {
         const t = new Date(s.time)
-        return t.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: timezone })
+        return t.toLocaleTimeString(marketDecision.market.default_locale, { hour: '2-digit', minute: '2-digit', timeZone: timezone })
       }).join(' · ')
-      return `**${dayLabel}**\n${times}${daySlots.length > 8 ? ` +${daySlots.length - 8} más` : ''}`
+      return `**${dayLabel}**\n${times}${daySlots.length > 8 ? ` +${daySlots.length - 8} ${english ? 'more' : 'más'}` : ''}`
     }),
     '',
     '→ Use `book_appointment` with the `start_time` in ISO 8601 format to confirm a slot.',
@@ -1807,7 +1856,6 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   const startTime  = String(args.start_time ?? '')
   const buyerName  = String(args.buyer_name ?? '')
   const buyerEmail = String(args.buyer_email ?? '')
-  const timezone   = String(args.timezone ?? 'America/Mexico_City')
 
   if (!listingId || !startTime || !buyerName || !buyerEmail) {
     return { isError: true, content: [{ type: 'text', text: 'Required: listing_id, start_time, buyer_name, buyer_email' }] }
@@ -1816,6 +1864,8 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   if (isMarketUnavailable(marketDecision)) {
     return { content: [{ type: 'text', text: JSON.stringify(marketDecision, null, 2) }] }
   }
+  const timezone = String(args.timezone ?? marketDecision.market.timezone)
+  const english = marketDecision.market.default_locale === 'en-US'
 
   const cal = await getShopCalcom(listingId, marketDecision.market.code)
   if (!cal) {
@@ -1856,22 +1906,24 @@ async function handleBookAppointment(args: Record<string, unknown>) {
   }
 
   const startDate = new Date(booking.startTime)
-  const formattedDate = startDate.toLocaleString('es-MX', {
+  const formattedDate = startDate.toLocaleString(marketDecision.market.default_locale, {
     weekday: 'long', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZone: timezone,
   })
   const agendarLabel = cal.listing.category === 'autos' ? 'prueba de manejo'
     : cal.listing.category === 'inmuebles' ? 'visita' : 'cita'
 
+  const englishAppointment = cal.listing.category === 'autos' ? 'Test drive'
+    : cal.listing.category === 'inmuebles' ? 'Visit' : 'Appointment'
   const summary = [
-    `## ✅ ${agendarLabel.charAt(0).toUpperCase() + agendarLabel.slice(1)} agendada`,
+    `## ✅ ${english ? `${englishAppointment} booked` : `${agendarLabel.charAt(0).toUpperCase() + agendarLabel.slice(1)} agendada`}`,
     '',
-    `**Anuncio:** ${cal.listing.title}`,
-    `**Fecha:** ${formattedDate}`,
-    `**Confirmación enviada a:** ${buyerEmail}`,
+    `**${english ? 'Listing' : 'Anuncio'}:** ${cal.listing.title}`,
+    `**${english ? 'Date' : 'Fecha'}:** ${formattedDate}`,
+    `**${english ? 'Confirmation sent to' : 'Confirmación enviada a'}:** ${buyerEmail}`,
     `**Booking ID:** \`${booking.uid}\``,
     '',
-    `El vendedor también recibió una notificación. Revisa tu correo para más detalles.`,
+    english ? 'The seller was notified too. Check your email for details.' : 'El vendedor también recibió una notificación. Revisa tu correo para más detalles.',
   ].join('\n')
 
   return { content: [{ type: 'text', text: summary }, { type: 'text', text: JSON.stringify(booking, null, 2) }] }
@@ -4087,7 +4139,7 @@ async function handleMcpMethod(
       protocolVersion: '2024-11-05',
       capabilities: { tools: {}, resources: {} },
       serverInfo: { name: 'miyagisanchez', version: '1.0.0' },
-      instructions: 'Miyagi Sánchez is a commerce system with country markets and independent owned-shop channels. Mexico (`mx`) is the active country marketplace; United States (`us`) is invitation-only and returns a structured unavailable result. BUYER workflow: search_listings(market) → get_neighborhood_pulse for local context → get_listing(id, market) → get_checkout_options (payment methods: MP, Stripe, SPEI, cash, WhatsApp) → create_checkout or make_offer. If the listing has scheduling: check_availability → book_appointment. Use get_buyer_trust(email) before recommending a transaction. SELLER workflow stays shop-scoped and market-neutral: with a shop agent token (Authorization: Bearer ms_agent_…, generated in shop settings → Agentes), get_store_configuration to read your shop config, then patch_store_configuration to adjust it. Payments/domain/Cal.com stay manual.',
+      instructions: 'Miyagi Sánchez is a commerce system with active Mexico (`mx`) and United States (`us`) country marketplaces plus independent owned-shop channels. BUYER workflow: search_listings(market) → get_listing(id, market). Read each listing’s commerce_readiness before presenting buy_now: US checkout remains unavailable until the direct-charge rail ships, and the named reason is authoritative. Mexico checkout continues through get_checkout_options → create_checkout or make_offer. If a listing has scheduling: check_availability → book_appointment. SELLER workflow stays shop-scoped and market-neutral: use a shop agent token for get_store_configuration and patch_store_configuration. Payments/domain/Cal.com stay manual.',
     }
   }
 

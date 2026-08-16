@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 
 /**
@@ -53,7 +54,7 @@ export default function AgentHandoff({
           onClick={copy}
           className="flex-1 text-sm font-semibold py-2.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text)] bg-[var(--color-background)] hover:bg-[var(--color-surface-alt)] transition-colors flex items-center justify-center gap-1.5"
         >
-          {copied ? <><i className="iconoir-check" aria-hidden /> ¡Copiado!</> : <><i className="iconoir-copy" aria-hidden /> Copiar prompt</>}
+          {copied ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="components.AgentHandoff.a90b41fb" /></> : <><i className="iconoir-copy" aria-hidden /> <BuyerCopyText copyKey="components.AgentHandoff.7d387f68" /></>}
         </button>
         <a
           href={claudeUrl}
@@ -71,8 +72,7 @@ export default function AgentHandoff({
         rel="noopener noreferrer"
         className="block text-center text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline mt-2"
       >
-        ¿Qué puede hacer mi agente? · Ficha del marketplace →
-      </a>
+        <BuyerCopyText copyKey="components.AgentHandoff.d7052502" /></a>
     </div>
   )
 }

@@ -1,3 +1,5 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
+/* eslint-disable @next/next/no-img-element -- seller-hosted logos are rendered from arbitrary remote domains. */
 /**
  * ChannelLayout — white-label shell for custom domain ("own channel") requests.
  *
@@ -7,6 +9,7 @@
  */
 
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 
 interface Props {
   shopName: string
@@ -24,7 +27,7 @@ interface Props {
   children: ReactNode
 }
 
-export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, trust, children }: Props) {
+export default function ChannelLayout({ shopName, accentColor, logoUrl, trust, children }: Props) {
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -41,7 +44,7 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           {/* Logo + name */}
-          <a href="/" className="flex items-center gap-2.5 no-underline min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 no-underline min-w-0">
             {logoUrl ? (
               <img
                 src={logoUrl}
@@ -59,7 +62,7 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
             <span className="font-semibold text-sm truncate" style={{ color: 'var(--embed-fg)' }}>
               {shopName}
             </span>
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -71,8 +74,7 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
             <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-x-3 gap-y-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--embed-fg-muted)' }}>
                 <i className="iconoir-shield-check" style={{ fontSize: 13 }} />
-                Pago seguro · Compra protegida
-              </span>
+                <BuyerCopyText copyKey="s.slug.ChannelLayout.607fd824" /></span>
               {trust}
             </div>
           </div>
@@ -92,8 +94,7 @@ export default function ChannelLayout({ shopName, accentColor, logoUrl, domain, 
             className="no-underline hover:opacity-70 transition-opacity"
             style={{ color: 'var(--fg-subtle)' }}
           >
-            Tienda impulsada por Miyagi Sánchez
-          </a>
+            <BuyerCopyText copyKey="s.slug.ChannelLayout.bb1173f1" /></a>
         </div>
       </footer>
     </div>

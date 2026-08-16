@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 /**
  * ExcerptPanel — the inline "Lee un adelanto" reader (bookshop launchpad S2.1).
  *
@@ -39,11 +40,9 @@ export default function ExcerptPanel({ text }: { text: string }) {
         <i className="iconoir-book" style={{ fontSize: 20, color: 'var(--agent)', flexShrink: 0 }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: 'var(--agent)' }}>
-            Lee un adelanto
-          </span>
+            <BuyerCopyText copyKey="l.id.ExcerptPanel.1a9b4f90" /></span>
           <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-            Un fragmento gratuito antes de comprar
-          </span>
+            <BuyerCopyText copyKey="l.id.ExcerptPanel.a0be0648" /></span>
         </span>
         <i
           className={open ? 'iconoir-nav-arrow-up' : 'iconoir-nav-arrow-down'}

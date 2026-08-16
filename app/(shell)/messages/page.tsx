@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- conversation thumbnails preserve arbitrary seller-hosted image URLs */
 import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
@@ -6,10 +7,11 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { browseUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { formatPresentationCurrency, formatPresentationDate, marketCodeForCurrency, resolveMarketPresentation, type MarketPresentation } from '@/lib/market-presentation'
 
 export const metadata: Metadata = { title: 'Mensajes — Miyagi Sánchez' }
 
-function timeAgo(iso: string) {
+function timeAgo(iso: string, presentation: MarketPresentation) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
   if (m < 2)  return 'ahora'
@@ -18,11 +20,13 @@ function timeAgo(iso: string) {
   if (h < 24) return `${h} h`
   const d = Math.floor(h / 24)
   if (d < 7)  return `${d} d`
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+  return formatPresentationDate(presentation, iso, { day: 'numeric', month: 'short' })
 }
 
-function lastEventSummary(eventType: string, actor: string, metadata: Record<string, unknown>) {
-  const amt = metadata?.amount_cents ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: (metadata.currency as string) ?? 'MXN', maximumFractionDigits: 0 }).format((metadata.amount_cents as number) / 100) : ''
+function lastEventSummary(eventType: string, actor: string, metadata: Record<string, unknown>, presentation: MarketPresentation) {
+  const amt = metadata?.amount_cents
+    ? formatPresentationCurrency(presentation, metadata.amount_cents as number, (metadata.currency as string) ?? presentation.currency, { maximumFractionDigits: 0 })
+    : ''
   switch (eventType) {
     case 'offer_sent':      return `Oferta enviada: ${amt}`
     case 'offer_countered': return `Contraoferta: ${amt}`
@@ -42,7 +46,11 @@ export default async function MessagesPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in?redirect_url=/messages')
 
-  const { data: convs } = await db
+  // NOTE the absent `marketplace_shops.market_code`. That column has never existed
+  // on the mirror — the operating market is a fact of the Medusa seller — and asking
+  // for it made PostgREST answer 400 for every user for four days (PR 351 → 2026-08-15).
+  // Presentation is derived from the listing's OWN currency below instead.
+  const { data: convs, error: convsError } = await db
     .from('marketplace_conversations')
     .select(`
       id, status, last_event_at, buyer_unread, seller_unread,
@@ -54,6 +62,13 @@ export default async function MessagesPage() {
     .in('status', ['active', 'completed'])
     .order('last_event_at', { ascending: false })
     .limit(100)
+
+  // Three states, never two. A failed read is NOT an empty inbox: rendering "no
+  // tienes mensajes" over a 400 is exactly how this bug survived — the page looked
+  // healthy, and a seller with a waiting buyer saw the same screen as one with none.
+  if (convsError) {
+    console.error('[messages] conversation list read failed:', convsError)
+  }
 
   const conversations = convs ?? []
 
@@ -85,9 +100,12 @@ export default async function MessagesPage() {
   function ConversationRow({ conv, role }: { conv: typeof conversations[0]; role: 'buyer' | 'seller' }) {
     const listing = conv.marketplace_listings as unknown as { id: string; title: string; price_cents: number | null; currency: string; images: Array<{ url: string }> | null } | null
     const shop    = conv.marketplace_shops as unknown as { name: string; slug: string } | null
+    const presentation = resolveMarketPresentation(marketCodeForCurrency(listing?.currency) ?? 'mx')
     const lastEv  = lastEventMap.get(conv.id)
     const unread  = role === 'buyer' ? conv.buyer_unread : conv.seller_unread
-    const otherParty = role === 'buyer' ? (shop?.name ?? 'Vendedor') : 'Comprador'
+    const otherParty = role === 'buyer'
+      ? (shop?.name ?? <BuyerCopyText copyKey="messages.seller" />)
+      : <BuyerCopyText copyKey="messages.buyer" />
 
     return (
       <Link href={`/messages/${conv.id}`} className="no-underline block" style={{ borderRadius: 'var(--r-md)', overflow: 'hidden' }}>
@@ -115,14 +133,14 @@ export default async function MessagesPage() {
               <span style={{ fontSize: 14, fontWeight: unread > 0 ? 700 : 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {otherParty}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--fg-muted)', flexShrink: 0 }}>{timeAgo(conv.last_event_at)}</span>
+              <span style={{ fontSize: 11, color: 'var(--fg-muted)', flexShrink: 0 }}>{timeAgo(conv.last_event_at, presentation)}</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
               {listing?.title}
             </p>
             {lastEv && (
               <p style={{ fontSize: 12, color: unread > 0 ? 'var(--accent)' : 'var(--fg-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2, fontWeight: unread > 0 ? 600 : 400 }}>
-                {lastEventSummary(lastEv.event_type, lastEv.actor, lastEv.metadata as Record<string, unknown>)}
+                {lastEventSummary(lastEv.event_type, lastEv.actor, lastEv.metadata as Record<string, unknown>, presentation)}
               </p>
             )}
           </div>
@@ -142,7 +160,7 @@ export default async function MessagesPage() {
       {/* Header */}
       <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
-          <h1 style={{ fontWeight: 700, fontSize: 22 }}>Mensajes</h1>
+          <h1 style={{ fontWeight: 700, fontSize: 22 }}><BuyerCopyText copyKey="messages.page.9ac46f17" /></h1>
           {totalUnread > 0 && (
             <span style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
               {totalUnread}
@@ -151,19 +169,33 @@ export default async function MessagesPage() {
         </div>
       </div>
 
-      {conversations.length === 0 ? (
+      {convsError ? (
+        // The failure state the four-day outage did not have. It must never be
+        // mistaken for an empty inbox, so it says what happened and offers a retry
+        // rather than inviting the user to go shopping.
+        <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <i className="iconoir-warning-triangle" style={{ fontSize: 28, color: 'var(--fg-subtle)' }} />
+          </div>
+          <p style={{ fontWeight: 600, fontSize: 17, marginBottom: 6 }}>
+            <BuyerCopyText copyKey="messages.loadFailed.title" /></p>
+          <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
+            <BuyerCopyText copyKey="messages.loadFailed.body" /></p>
+          <Link href="/messages" className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
+            <i className="iconoir-refresh" style={{ fontSize: 16 }} />
+            <BuyerCopyText copyKey="messages.loadFailed.retry" /></Link>
+        </div>
+      ) : conversations.length === 0 ? (
         <div style={{ paddingTop: 80, textAlign: 'center', padding: '80px 24px' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <i className="iconoir-chat-bubble" style={{ fontSize: 28, color: 'var(--fg-subtle)' }} />
           </div>
-          <p style={{ fontWeight: 600, fontSize: 17, marginBottom: 6 }}>Sin mensajes todavía</p>
+          <p style={{ fontWeight: 600, fontSize: 17, marginBottom: 6 }}><BuyerCopyText copyKey="messages.page.8e777de8" /></p>
           <p style={{ fontSize: 14, color: 'var(--fg-muted)', marginBottom: 24 }}>
-            Cuando hagas o recibas una oferta, la conversación aparecerá aquí.
-          </p>
+            <BuyerCopyText copyKey="messages.page.7641a7f4" /></p>
           <Link href={browseUrlFor(SITE_ORIGIN)} className="btn btn-primary no-underline" style={{ display: 'inline-flex' }}>
             <i className="iconoir-search" style={{ fontSize: 16 }} />
-            Explorar anuncios
-          </Link>
+            <BuyerCopyText copyKey="messages.page.5e800fd1" /></Link>
         </div>
       ) : (
         <div>
@@ -172,8 +204,7 @@ export default async function MessagesPage() {
             <div>
               {selling.length > 0 && (
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '12px 16px 4px' }}>
-                  Comprando
-                </p>
+                  <BuyerCopyText copyKey="messages.page.bdda231f" /></p>
               )}
               {buying.map(conv => <ConversationRow key={conv.id} conv={conv} role="buyer" />)}
             </div>
@@ -184,8 +215,7 @@ export default async function MessagesPage() {
             <div>
               {buying.length > 0 && (
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '16px 16px 4px' }}>
-                  Vendiendo
-                </p>
+                  <BuyerCopyText copyKey="messages.page.f647ffca" /></p>
               )}
               {selling.map(conv => <ConversationRow key={conv.id} conv={conv} role="seller" />)}
             </div>

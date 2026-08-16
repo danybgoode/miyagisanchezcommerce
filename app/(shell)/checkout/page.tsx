@@ -1,9 +1,10 @@
+import { BuyerCopyText, BuyerPresentationProvider } from '@/app/components/BuyerPresentationContext'
 /* eslint-disable @next/next/no-img-element -- checkout previews preserve arbitrary seller-hosted image URLs */
 import { redirect, notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
-import { getListing, getPriceGrid, formatPrice } from '@/lib/listings'
+import { getListing, getPriceGrid } from '@/lib/listings'
 import { unitPriceCentsFor } from '@/lib/price-grid'
 import { isShopClaimed } from '@/lib/claim'
 import { db } from '@/lib/supabase'
@@ -11,11 +12,14 @@ import { isEnabled } from '@/lib/flags'
 import { clampTicketQuantity } from '@/lib/ticket-quantity'
 import { readEventDetails } from '@/lib/event-listing'
 import { resolveRentalCheckoutDisplay } from '@/lib/rental-checkout-display'
-import { rentalUnitsLabel, formatRentalCents, type RentalPrice } from '@/lib/rental-pricing'
+import { rentalUnitsLabel, type RentalPrice } from '@/lib/rental-pricing'
+import { formatPresentationCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
 import { browseUrlFor, listingUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 import CheckoutExperience from './CheckoutExperience'
 import type { CheckoutProvider } from '@/lib/cart'
+import { getDictionary } from '@/lib/dictionary'
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets'
 
 type SearchParams = {
   listingId?: string
@@ -30,14 +34,7 @@ type SearchParams = {
   /** Rental: the buyer's chosen date range (from the PDP date picker). */
   checkIn?: string
   checkOut?: string
-}
-
-function formatCents(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
+  market?: string
 }
 
 async function resolvePublicListingId(listingId: string) {
@@ -78,6 +75,7 @@ async function getAcceptedOfferPrice(offerId: string | undefined, listingId: str
 
 export default async function CheckoutPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
+  const market = isMarketCode(params.market) ? params.market : DEFAULT_MARKET
   // Next.js gives `string[]` for a repeated query key (?variantId=A&variantId=B)
   // regardless of the declared `SearchParams` type — coerce defensively into a
   // local so a malformed/duplicated URL can never reach unitPriceCentsFor() or
@@ -114,10 +112,14 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const listingId = await resolvePublicListingId(rawListingId)
 
   const user = await currentUser()
-  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}${checkIn ? `&checkIn=${checkIn}` : ''}${checkOut ? `&checkOut=${checkOut}` : ''}`)}`)
+  if (!user) redirect(`/sign-in?redirect_url=${encodeURIComponent(`/checkout?listingId=${listingId}&market=${market}${offerId ? `&offerId=${offerId}` : ''}${params.provider ? `&provider=${params.provider}` : ''}${params.qty ? `&qty=${params.qty}` : ''}${variantId ? `&variantId=${variantId}` : ''}${params.origin ? `&origin=${encodeURIComponent(params.origin)}` : ''}${checkIn ? `&checkIn=${checkIn}` : ''}${checkOut ? `&checkOut=${checkOut}` : ''}`)}`)
 
-  const listing = await getListing(listingId)
+  const listing = await getListing(listingId, market)
   if (!listing) notFound()
+  const presentation = resolveMarketPresentation(listing.shop?.market_code ?? 'mx')
+  const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
+  const formatCents = (cents: number, currency: string) =>
+    formatPresentationCurrency(presentation, cents, currency, { maximumFractionDigits: 0 })
   const listingPath = new URL(listingUrlFor(marketOrigin, listing.id)).pathname
 
   // Last-line money-path guard: /checkout is directly URL-reachable (the deep-link
@@ -227,19 +229,19 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   }
 
   return (
+    <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}>
     <main className="max-w-[760px] mx-auto px-4 py-5 md:py-8">
       <div style={{ marginBottom: 18 }}>
         <Link href={listingPath} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}>
           <i className="iconoir-arrow-left" style={{ fontSize: 16 }} />
-          Volver al anuncio
-        </Link>
+          <BuyerCopyText copyKey="checkout.page.d94b0842" /></Link>
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
           <div style={{ padding: 16, borderBottom: '1px solid var(--border)' }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800 }}>Revisar compra</h1>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>Confirma el precio, entrega y método de pago antes de continuar.</p>
+            <h1 style={{ fontSize: 22, fontWeight: 800 }}><BuyerCopyText copyKey="checkout.page.93682cf2" /></h1>
+            <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}><BuyerCopyText copyKey="checkout.page.403c8753" /></p>
           </div>
           <div style={{ padding: 16, display: 'flex', gap: 12 }}>
             <div style={{ width: 88, height: 88, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-sunk)', flexShrink: 0 }}>
@@ -250,25 +252,25 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 3 }}>{listing.shop?.name}</p>
               {isRentalCheckout && rentalBreakdown ? (
                 <div style={{ marginTop: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>Reserva de renta</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}><BuyerCopyText copyKey="checkout.page.fd7fe0e5" /></p>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
                     {checkIn} → {checkOut} · {rentalUnitsLabel(rentalBreakdown.units, rentalBreakdown.period)}
                   </p>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>
-                    {formatRentalCents(listing.price_cents ?? 0, listing.currency)} × {rentalUnitsLabel(rentalBreakdown.units, rentalBreakdown.period)} = {formatRentalCents(rentalBreakdown.rentCents, listing.currency)}
+                    {formatCents(listing.price_cents ?? 0, listing.currency)} × {rentalUnitsLabel(rentalBreakdown.units, rentalBreakdown.period)} = {formatCents(rentalBreakdown.rentCents, listing.currency)}
                   </p>
                   {rentalBreakdown.depositCents > 0 && (
                     <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-                      Depósito reembolsable: {formatRentalCents(rentalBreakdown.depositCents, listing.currency)}
+                      <BuyerCopyText copyKey="checkout.page.64c10dc6" />{' '}{formatCents(rentalBreakdown.depositCents, listing.currency)}
                     </p>
                   )}
                   <p style={{ fontSize: 22, fontWeight: 800, marginTop: 6 }}>{formatCents(amountCents, listing.currency)}</p>
                 </div>
               ) : isOfferCheckout ? (
                 <div style={{ marginTop: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>Precio acordado</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}><BuyerCopyText copyKey="checkout.page.2bca536c" /></p>
                   <p style={{ fontSize: 22, fontWeight: 800 }}>{formatCents(amountCents, listing.currency)}</p>
-                  {listing.price_cents && <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Original: <span style={{ textDecoration: 'line-through' }}>{formatPrice(listing)}</span></p>}
+                  {listing.price_cents && <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.page.78f3647e" />{' '}<span style={{ textDecoration: 'line-through' }}>{formatCents(listing.price_cents, listing.currency)}</span></p>}
                 </div>
               ) : (
                 <p style={{ fontSize: 22, fontWeight: 800, marginTop: 8 }}>
@@ -294,8 +296,10 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
           offerAmountCents={offerPriceCents ?? undefined}
           originDomain={params.origin}
           rental={isRentalCheckout ? { check_in: checkIn!, check_out: checkOut! } : undefined}
+          market={market}
         />
       </div>
     </main>
+    </BuyerPresentationProvider>
   )
 }

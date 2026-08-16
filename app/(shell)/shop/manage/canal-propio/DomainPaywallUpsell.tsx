@@ -118,7 +118,7 @@ export default function DomainPaywallUpsell({
         variant="primary"
         size="sm"
         onClick={handleActivateDomain}
-        disabled={subscribing}
+        loading={subscribing}
       >
         {subscribing
           ? <><span className="inline-block w-3 h-3 rounded-[var(--r-pill)] border-2 border-white border-t-transparent animate-spin" />Redirigiendo…</>

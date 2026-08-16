@@ -54,6 +54,50 @@ export interface PublicShopPaymentAvailability {
   readonly dimo: boolean
 }
 
+/**
+ * Is this shop's Stripe connection able to take a charge?
+ *
+ * TWO ACCOUNT GENERATIONS, and they describe the same fact with different keys.
+ *
+ * MX shops are Stripe v1 Express accounts and persist `connected` + `charges_enabled`.
+ * US shops are Accounts v2 `merchant` accounts (D14) and persist what
+ * `projectStripeV2Account` reads from `/v2/core/accounts`: `api_generation`,
+ * `merchant_configuration`, `card_payments_status` and the requirement lists. A v2
+ * account has NO `connected` and NO `charges_enabled` key at all.
+ *
+ * Checking only the v1 keys — which is what this did — meant a fully onboarded US
+ * seller with `card_payments: active` read as "no payment method", so
+ * `resolveCommerceReadiness` returned `seller_payment_unavailable` and the storefront
+ * and every agent surface suppressed `buy_now` permanently. The shop would have been
+ * browsable and unbuyable, with no error anywhere: the backend was ready to charge and
+ * the storefront never offered the button.
+ *
+ * The v2 branch mirrors the backend's `resolveStripeReadiness` — country and
+ * capability, not merely "an account exists" — so the two halves agree about what
+ * "connected" means.
+ */
+function stripeIsAvailable(stripe: Record<string, unknown>): boolean {
+  // The seller's own opt-out is authoritative in BOTH generations.
+  if (stripe.enabled === false) return false
+
+  if (stripe.api_generation === 'v2') {
+    // Deliberately NOT "an account id exists". The population guard in
+    // `public-shop-commerce.spec.ts` bans inferring availability from a private
+    // coordinate, and it is right on the merits too: an account id proves an account
+    // was created, not that Stripe will accept a charge. `card_payments_status`
+    // proves that, and it cannot be `active` without an account.
+    return (
+      stripe.merchant_configuration === 'active' &&
+      stripe.card_payments_status === 'active' &&
+      // A blocking requirement is exactly the state where Stripe will refuse the
+      // charge. Offering buy_now here would send the buyer into a failure.
+      (!Array.isArray(stripe.blocking_requirements) || stripe.blocking_requirements.length === 0)
+    )
+  }
+
+  return stripe.connected === true && stripe.charges_enabled === true
+}
+
 export function publicShopPaymentAvailability(
   metadata: PublicShopMetadata | Record<string, unknown> | null | undefined,
 ): PublicShopPaymentAvailability {
@@ -66,10 +110,7 @@ export function publicShopPaymentAvailability(
   const dimo = objectValue(checkout.dimo)
 
   return Object.freeze({
-    stripe:
-      stripe.connected === true &&
-      stripe.charges_enabled === true &&
-      stripe.enabled !== false,
+    stripe: stripeIsAvailable(stripe),
     // Mirrors backend sellerMpConnected: `connected` is the safe public proxy
     // for connected+token, while the stale nested `enabled` flag is ignored.
     // The top-level platform opt-out remains authoritative because /api/mp/checkout

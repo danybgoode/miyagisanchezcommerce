@@ -1,5 +1,7 @@
 'use client'
 
+// Colocated with the founding-operator recruiting route; language-switch copy remains dictionary data.
+
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { canonicalCandidateShopUrl } from '@/lib/candidate-shop-url'

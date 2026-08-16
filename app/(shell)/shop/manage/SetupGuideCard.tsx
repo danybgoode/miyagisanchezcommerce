@@ -128,9 +128,25 @@ export default function SetupGuideCard({
               </span>
               {step.done ? (
                 <StatusBadge token="success" className="flex-shrink-0"><i className="iconoir-check" aria-hidden /></StatusBadge>
-              ) : step.open && step.estimate ? (
-                <StatusBadge token="neutral" className="flex-shrink-0">{step.estimate}</StatusBadge>
-              ) : null}
+              ) : step.open ? (
+                // The open step's action is the full-size CTA below, so this
+                // slot shows only its estimate — never a second, competing link.
+                step.estimate ? <StatusBadge token="neutral" className="flex-shrink-0">{step.estimate}</StatusBadge> : null
+              ) : (
+                // EVERY unfinished step is reachable, not just the open one.
+                // Only the open step used to render a CTA, so four of the five
+                // rows were inert text — a checklist you cannot act on. Daniel
+                // hit this on "Comparte tu tienda", which sits last and is
+                // therefore the row that is open least often, but the same was
+                // true of any step that was not the current one.
+                <Link
+                  href={step.ctaHref}
+                  aria-label={`${step.ctaLabel} — ${step.label}`}
+                  className="pressable flex-shrink-0 text-xs no-underline text-[var(--color-accent)] hover:underline"
+                >
+                  {step.ctaLabel} <i className="iconoir-arrow-right" aria-hidden />
+                </Link>
+              )}
             </div>
 
             {step.open && !step.done && (

@@ -3,9 +3,12 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SellWizard from './SellWizard'
+import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
 import { isEnabled } from '@/lib/flags'
 import { getTenantIntake } from '@/lib/tenant-intake'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -37,11 +40,20 @@ export const metadata = {
   description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
 }
 
-export default async function SellPage() {
+export default async function SellPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  // A not-yet-created seller has no Medusa market. The explicit, validated
+  // signup market is the existing S5 authority for this one pre-seller state.
+  const params = (await searchParams) ?? {}
+  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
+  const signupMarket = resolveSellerSignupMarket(marketParam)
   const user = await currentUser()
 
   if (!user) {
-    return (
+    const content = (
       <div className="max-w-2xl mx-auto px-4 py-16">
         {/* Hero */}
         <div className="text-center mb-12">
@@ -101,6 +113,9 @@ export default async function SellPage() {
         </p>
       </div>
     )
+    if (signupMarket !== 'us') return content
+    const copy = (await getDictionary('en')).sellerCopy
+    return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
   }
 
   // Medusa is the source of truth for sellers (same as /shop/manage). Checking it
@@ -134,14 +149,20 @@ export default async function SellPage() {
     }
   }
 
-  return (
+  const content = (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {!existingShop && <AgentSetupNudge />}
       <SellWizard
         existingShop={existingShop}
         arrangedOnlyEnabled={arrangedOnlyEnabled}
         ownedShopOnlyEnabled={ownedShopOnlyEnabled}
+        signupMarket={signupMarket}
       />
     </div>
   )
+  // Existing US shops are wrapped by the layout from their Medusa market. This
+  // branch is only for a fresh seller whose validated signup market is US.
+  if (existingShop || signupMarket !== 'us') return content
+  const copy = (await getDictionary('en')).sellerCopy
+  return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
 }

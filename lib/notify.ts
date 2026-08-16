@@ -1,6 +1,7 @@
 import 'server-only'
 import webpush from 'web-push'
 import { db } from '@/lib/supabase'
+import { logNotification } from '@/lib/notifications/log'
 
 /**
  * Notification seam. Today: VAPID web push. Swappable to Novu/etc. later —
@@ -56,12 +57,21 @@ export type NotifyEvent = {
 /** Fire a push to all of a user's registered devices. No-op if push isn't
  *  configured or the user has no subscriptions. Prunes dead subscriptions. */
 export async function notify(userId: string, event: NotifyEvent): Promise<void> {
-  if (!ensureVapid()) return
+  // Both early returns below are the reason this function looked like it worked for
+  // years: an unconfigured transport and a user with no devices are indistinguishable
+  // from a delivered push at the call site. They are now recorded as SKIPS.
+  if (!ensureVapid()) {
+    logNotification({ channel: 'push', outcome: 'skipped', clerkUserId: userId, subject: event.title, reason: 'unconfigured' })
+    return
+  }
   const { data: subs } = await db
     .from('push_subscriptions')
     .select('id, endpoint, p256dh, auth')
     .eq('clerk_user_id', userId)
-  if (!subs?.length) return
+  if (!subs?.length) {
+    logNotification({ channel: 'push', outcome: 'skipped', clerkUserId: userId, subject: event.title, reason: 'no_subscription' })
+    return
+  }
 
   const payload = JSON.stringify({
     title: event.title,
@@ -70,6 +80,8 @@ export async function notify(userId: string, event: NotifyEvent): Promise<void> 
     tag: event.tag ?? event.kind,
   })
 
+  let delivered = 0
+  let failed = 0
   await Promise.all(
     subs.map(async (s) => {
       try {
@@ -77,7 +89,9 @@ export async function notify(userId: string, event: NotifyEvent): Promise<void> 
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           payload,
         )
+        delivered += 1
       } catch (err: unknown) {
+        failed += 1
         const code = (err as { statusCode?: number }).statusCode
         if (code === 404 || code === 410) {
           await db.from('push_subscriptions').delete().eq('id', s.id)
@@ -85,4 +99,15 @@ export async function notify(userId: string, event: NotifyEvent): Promise<void> 
       }
     }),
   )
+
+  // A partial fan-out is a send, not a failure — but the counts are kept so an
+  // audit can tell one device from five.
+  logNotification({
+    channel: 'push',
+    outcome: delivered > 0 ? 'sent' : 'failed',
+    clerkUserId: userId,
+    subject: event.title,
+    reason: delivered > 0 ? null : 'all_endpoints_rejected',
+    context: { kind: event.kind, delivered, failed },
+  })
 }

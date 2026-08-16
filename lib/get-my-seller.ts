@@ -19,6 +19,8 @@
 import 'server-only'
 import { cache } from 'react'
 import { currentUser, auth } from '@clerk/nextjs/server'
+import { DEFAULT_MARKET, isMarketCode, type MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -28,6 +30,22 @@ export interface MySeller {
   slug: string
   name: string
   location: string | null
+  /**
+   * The shop's operating market, and the presentation that follows from it
+   * (us-marketplace S5.1 / D17).
+   *
+   * FROM MEDUSA, not from the browser. The seller portal previously had no market at
+   * all in its canonical projection, so every seller surface that wanted to know
+   * reached for a locale — and `normalizeLocale('en-US')` returns `es`, so a US
+   * merchant's own dashboard would have decided it was Mexican. The market is a fact
+   * about the shop; the language is derived from it, never the other way round (D9).
+   *
+   * `mx` when the row is unreadable: the documented legacy default, and the market
+   * every seller on the platform today is explicitly stamped with.
+   */
+  market: MarketCode
+  locale: string
+  currency: string
 }
 
 /**
@@ -54,12 +72,22 @@ export const getMySeller = cache(async (): Promise<MySeller | null> => {
   if (!res.ok) return null
 
   const { seller } = await res.json() as {
-    seller: { id: string; slug: string; name: string; location: string | null }
+    seller: {
+      id: string; slug: string; name: string; location: string | null
+      metadata?: { operating_market?: unknown } | null
+    }
   }
+  const market = isMarketCode(seller.metadata?.operating_market)
+    ? seller.metadata.operating_market
+    : DEFAULT_MARKET
+  const presentation = resolveMarketPresentation(market)
   return {
     id: seller.id,
     slug: seller.slug,
     name: seller.name,
     location: seller.location ?? null,
+    market,
+    locale: presentation.htmlLang,
+    currency: presentation.currency,
   }
 })

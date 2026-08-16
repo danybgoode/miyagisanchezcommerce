@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- offer previews preserve arbitrary seller-hosted image URLs. */
+
+import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
@@ -27,11 +30,16 @@ interface MakeOfferButtonProps {
 // ── Quality bar ───────────────────────────────────────────────────────────────
 
 function QualityBar({ offerCents, askingCents }: { offerCents: number; askingCents: number }) {
+  const buyerCopy = useBuyerCopy()
   if (offerCents <= 0 || offerCents >= askingCents) return null
   const pct = Math.round((offerCents / askingCents) * 100)
   const barWidth = Math.max(0, Math.min(100, ((pct - 30) / 70) * 100))
   const color = pct >= 85 ? 'var(--success)' : pct >= 70 ? 'var(--warning)' : 'var(--danger)'
-  const label = pct >= 85 ? 'Oferta razonable' : pct >= 70 ? 'Algo por debajo' : 'Oferta baja'
+  const label = pct >= 85
+    ? buyerCopy('offers.qualityReasonable')
+    : pct >= 70
+      ? buyerCopy('offers.qualityBelow')
+      : buyerCopy('offers.qualityLow')
   return (
     <div className="mt-1.5">
       <div style={{ height: 4, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
@@ -39,7 +47,7 @@ function QualityBar({ offerCents, askingCents }: { offerCents: number; askingCen
       </div>
       <div className="flex justify-between" style={{ fontSize: 11, marginTop: 3, color }}>
         <span>{label}</span>
-        <span style={{ fontFamily: 'var(--font-mono)' }}>{pct}% del precio</span>
+        <span style={{ fontFamily: 'var(--font-mono)' }}>{pct}<BuyerCopyText copyKey="components.MakeOfferButton.6512eb2a" /></span>
       </div>
     </div>
   )
@@ -65,21 +73,20 @@ function ActiveOfferCard({
   }, [])
 
   const viewThread = conversationId
-    ? <button type="button" onClick={() => router.push(`/messages/${conversationId}`)} className="text-xs underline mt-2 block" style={{ color: 'var(--accent)' }}>Ver conversación →</button>
+    ? <button type="button" onClick={() => router.push(`/messages/${conversationId}`)} className="text-xs underline mt-2 block" style={{ color: 'var(--accent)' }}><BuyerCopyText copyKey="components.MakeOfferButton.690978c1" /></button>
     : null
 
   if (offer.status === 'pending') {
     return (
       <div className="w-full rounded-xl p-4" style={{ border: '1.5px solid var(--warning)', background: 'var(--warning-soft)' }}>
         <div className="flex items-start gap-3">
-          <span style={{ fontSize: 20, marginTop: 2 }}>⏳</span>
+          <i className="iconoir-hourglass" style={{ fontSize: 20, marginTop: 2 }} aria-hidden />
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)' }}>Oferta enviada</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)' }}><BuyerCopyText copyKey="components.MakeOfferButton.502009eb" /></div>
             <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-              Tu oferta de <strong>{formatOfferAmount(offer.offer_amount_cents, listing.currency)}</strong> espera respuesta del vendedor.
-            </div>
+              <BuyerCopyText copyKey="components.MakeOfferButton.ef2d5f17" />{' '}<strong>{formatOfferAmount(offer.offer_amount_cents, listing.currency)}</strong> <BuyerCopyText copyKey="components.MakeOfferButton.addf75b4" /></div>
             {offer.expires_at && (
-              <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>Expira en {timeUntil(offer.expires_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}><BuyerCopyText copyKey="components.MakeOfferButton.e5589288" />{' '}{timeUntil(offer.expires_at)}</div>
             )}
           </div>
         </div>
@@ -91,8 +98,7 @@ function ActiveOfferCard({
           style={{ fontSize: 11, color: 'var(--warning)', marginTop: 8, textDecoration: 'underline' }}
           className="disabled:opacity-50"
         >
-          Retirar oferta
-        </button>
+          <BuyerCopyText copyKey="components.MakeOfferButton.99c4887a" /></button>
       </div>
     )
   }
@@ -104,13 +110,13 @@ function ActiveOfferCard({
         <div className="flex items-start gap-3 mb-3">
           <span style={{ fontSize: 20, marginTop: 2 }}>↩</span>
           <div className="flex-1 min-w-0">
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info)' }}>El vendedor contraoferta</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--info)' }}><BuyerCopyText copyKey="components.MakeOfferButton.414d2431" /></div>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--info)', marginTop: 4 }}>
               {formatOfferAmount(offer.counter_amount_cents, listing.currency)}
             </div>
             <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>
-              Tu oferta: {formatOfferAmount(offer.offer_amount_cents, listing.currency)}
-              {' · '}Precio: {formatOfferAmount(listing.price_cents, listing.currency)}
+              <BuyerCopyText copyKey="components.MakeOfferButton.ce2afb99" />{' '}{formatOfferAmount(offer.offer_amount_cents, listing.currency)}
+              {' · '}<BuyerCopyText copyKey="components.MakeOfferButton.dd84aa06" />{' '}{formatOfferAmount(listing.price_cents, listing.currency)}
             </div>
             {offer.counter_message && (
               <blockquote style={{ fontSize: 13, color: 'var(--info)', borderLeft: '2px solid var(--info)', paddingLeft: 10, marginTop: 8, fontStyle: 'italic' }}>
@@ -119,7 +125,7 @@ function ActiveOfferCard({
             )}
             {offer.counter_expires_at && !counterExpired && (
               <div style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, marginTop: 6 }}>
-                ⏰ Expira en {timeUntil(offer.counter_expires_at)}
+                <BuyerCopyText copyKey="components.MakeOfferButton.96c1f6ce" />{' '}{timeUntil(offer.counter_expires_at)}
               </div>
             )}
           </div>
@@ -134,7 +140,7 @@ function ActiveOfferCard({
               className="flex-1 font-semibold py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
               style={{ background: 'var(--accent)', color: 'var(--fg-inverse)' }}
             >
-              {busy ? '…' : <><i className="iconoir-check" aria-hidden /> Aceptar trato</>}
+              {busy ? '…' : <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="components.MakeOfferButton.2a6ea9c8" /></>}
             </button>
             <button
               type="button"
@@ -143,8 +149,7 @@ function ActiveOfferCard({
               className="flex-1 font-medium py-2.5 rounded-lg text-sm disabled:opacity-50 transition-colors"
               style={{ border: '1px solid var(--border)', color: 'var(--fg)', background: 'var(--bg-elevated)' }}
             >
-              Rechazar
-            </button>
+              <BuyerCopyText copyKey="components.MakeOfferButton.72d9ce8e" /></button>
           </div>
         )}
       </div>
@@ -158,13 +163,13 @@ function ActiveOfferCard({
         <div className="flex items-start gap-3">
           <i className="iconoir-check-circle" aria-hidden style={{ fontSize: 20, marginTop: 2 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>¡Oferta aceptada!</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}><BuyerCopyText copyKey="components.MakeOfferButton.1d132262" /></div>
             <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-              Ya puedes completar la compra al precio acordado:{' '}
+              <BuyerCopyText copyKey="components.MakeOfferButton.8593ee9f" />{' '}
               <strong>{formatOfferAmount(agreedCents, listing.currency)}</strong>.
             </div>
             {offer.checkout_expires_at && (
-              <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>⏰ Expira en {timeUntil(offer.checkout_expires_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}><BuyerCopyText copyKey="components.MakeOfferButton.96c1f6ce" />{' '}{timeUntil(offer.checkout_expires_at)}</div>
             )}
           </div>
         </div>
@@ -180,7 +185,8 @@ function ActiveOfferCard({
 
 type ModalStep = 'idle' | 'form' | 'submitting' | 'success' | 'error'
 
-export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: MakeOfferButtonProps) {
+export default function MakeOfferButton({ listing, isSignedIn }: MakeOfferButtonProps) {
+  const copy = useBuyerCopy()
   const pathname = usePathname()
   const router = useRouter()
   const [step, setStep] = useState<ModalStep>('idle')
@@ -315,8 +321,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
         style={{ border: '2px solid var(--fg)', color: 'var(--fg)', background: 'transparent' }}
       >
         <i className="iconoir-log-in" style={{ fontSize: 16 }} />
-        Inicia sesión para hacer oferta
-      </a>
+        <BuyerCopyText copyKey="components.MakeOfferButton.63530bbc" /></a>
     )
   }
 
@@ -342,8 +347,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
         style={{ border: '2px solid var(--fg)', color: 'var(--fg)', background: 'transparent' }}
       >
         <i className="iconoir-message-text" style={{ fontSize: 16 }} />
-        Hacer oferta
-      </button>
+        <BuyerCopyText copyKey="components.MakeOfferButton.669a6bcc" /></button>
 
       {step !== 'idle' && createPortal(
         <div
@@ -354,16 +358,16 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
           <div
             className="w-full max-w-md overflow-y-auto"
             style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--r-xl)', boxShadow: 'var(--shadow-4)', maxHeight: '90vh' }}
-            role="dialog" aria-modal="true" aria-label="Hacer oferta"
+            role="dialog" aria-modal="true" aria-label={copy('components.MakeOfferButton.669a6bcc')}
           >
             {/* Header */}
             <div className="flex items-center justify-between" style={{ padding: '20px 20px 12px' }}>
-              <h2 style={{ fontWeight: 700, fontSize: 18 }}>Hacer oferta</h2>
+              <h2 style={{ fontWeight: 700, fontSize: 18 }}><BuyerCopyText copyKey="components.MakeOfferButton.669a6bcc" /></h2>
               <button
                 type="button"
                 onClick={() => setStep('idle')}
                 style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-sunk)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-muted)' }}
-                aria-label="Cerrar"
+                aria-label={copy('components.MakeOfferButton.3b3b1379')}
               >
                 <i className="iconoir-xmark" style={{ fontSize: 16 }} />
               </button>
@@ -381,7 +385,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
               <div className="min-w-0">
                 <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{listing.title}</div>
                 <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
-                  Precio: <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{formatOfferAmount(listing.price_cents, listing.currency)}</span>
+                  <BuyerCopyText copyKey="components.MakeOfferButton.dd84aa06" />{' '}<span style={{ fontWeight: 600, color: 'var(--accent)' }}>{formatOfferAmount(listing.price_cents, listing.currency)}</span>
                 </div>
               </div>
             </div>
@@ -392,9 +396,9 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--success-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <i className="iconoir-check-circle" style={{ fontSize: 28, color: 'var(--success)' }} />
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>¡Oferta enviada!</h3>
-                <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 20 }}>El vendedor tiene 48 horas para responder. Te avisaremos por correo.</p>
-                <button type="button" onClick={() => setStep('idle')} className="btn btn-primary" style={{ padding: '10px 32px' }}>Entendido</button>
+                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}><BuyerCopyText copyKey="components.MakeOfferButton.559234fa" /></h3>
+                <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 20 }}><BuyerCopyText copyKey="components.MakeOfferButton.da7fc46b" /></p>
+                <button type="button" onClick={() => setStep('idle')} className="btn btn-primary" style={{ padding: '10px 32px' }}><BuyerCopyText copyKey="components.MakeOfferButton.081e6d07" /></button>
               </div>
             )}
 
@@ -404,9 +408,9 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <i className="iconoir-warning-triangle" style={{ fontSize: 28, color: 'var(--danger)' }} />
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Algo salió mal</h3>
+                <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}><BuyerCopyText copyKey="components.MakeOfferButton.415ec45c" /></h3>
                 <p style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 20 }}>{errorMsg}</p>
-                <button type="button" onClick={() => setStep('form')} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>Intentar de nuevo</button>
+                <button type="button" onClick={() => setStep('form')} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}><BuyerCopyText copyKey="components.MakeOfferButton.d47b212e" /></button>
               </div>
             )}
 
@@ -414,7 +418,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
             {(step === 'form' || step === 'submitting') && (
               <div style={{ padding: '0 20px 20px' }}>
                 {/* Anchor quick-select */}
-                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Selección rápida</p>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}><BuyerCopyText copyKey="components.MakeOfferButton.a516a735" /></p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
                   {OFFER_ANCHORS.map(({ pct, label }) => {
                     const cents = anchorAmount(listing.price_cents, pct)
@@ -434,7 +438,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                       >
                         <span style={{ fontSize: 13, fontWeight: 700, color: sel ? 'var(--accent)' : 'var(--fg)' }}>{label}</span>
                         <span style={{ fontSize: 12, fontWeight: 600, marginTop: 2, color: sel ? 'var(--accent)' : 'var(--fg)' }}>{formatOfferAmount(cents, listing.currency)}</span>
-                        <span style={{ fontSize: 10, color: 'var(--fg-muted)', marginTop: 2 }}>ahorras {formatOfferAmount(listing.price_cents - cents, listing.currency)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--fg-muted)', marginTop: 2 }}><BuyerCopyText copyKey="components.MakeOfferButton.56e11373" />{' '}{formatOfferAmount(listing.price_cents - cents, listing.currency)}</span>
                       </button>
                     )
                   })}
@@ -442,7 +446,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
 
                 {/* Custom amount */}
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>O ingresa tu oferta</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}><BuyerCopyText copyKey="components.MakeOfferButton.a84c2713" /></label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--fg-muted)', fontWeight: 500 }}>$</span>
                     <input
@@ -474,9 +478,7 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                 <div className="flex items-start gap-2" style={{ padding: '10px 12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', marginBottom: 16 }}>
                   <i className="iconoir-clock" style={{ fontSize: 14, color: 'var(--fg-muted)', marginTop: 2, flexShrink: 0 }} />
                   <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-                    Tu oferta expira en <strong>48 horas</strong> si el vendedor no responde.
-                    Si aceptan, recibirás un enlace de pago.
-                  </p>
+                    <BuyerCopyText copyKey="components.MakeOfferButton.dcac319c" />{' '}<strong><BuyerCopyText copyKey="components.MakeOfferButton.f25d9676" /></strong> <BuyerCopyText copyKey="components.MakeOfferButton.7da616d7" /></p>
                 </div>
 
                 <button
@@ -487,17 +489,16 @@ export default function MakeOfferButton({ listing, buyerInfo, isSignedIn }: Make
                   style={{ background: 'var(--accent)', color: 'var(--fg-inverse)', padding: '13px 0', fontSize: 14 }}
                 >
                   {step === 'submitting' ? (
-                    <><span className="animate-spin inline-block">⟳</span> Enviando oferta…</>
+                    <><span className="animate-spin inline-block">⟳</span> <BuyerCopyText copyKey="components.MakeOfferButton.ac57b623" /></>
                   ) : (
                     <>
                       <i className="iconoir-message-text" style={{ fontSize: 16 }} />
-                      Enviar oferta — {offerCents > 0 ? formatOfferAmount(offerCents, listing.currency) : '…'}
+                      <BuyerCopyText copyKey="components.MakeOfferButton.90ad3be0" />{' '}{offerCents > 0 ? formatOfferAmount(offerCents, listing.currency) : '…'}
                     </>
                   )}
                 </button>
                 <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--fg-subtle)', marginTop: 8 }}>
-                  Sin comisiones · El vendedor tiene 48 horas para responder
-                </p>
+                  <BuyerCopyText copyKey="components.MakeOfferButton.95effd72" /></p>
               </div>
             )}
           </div>

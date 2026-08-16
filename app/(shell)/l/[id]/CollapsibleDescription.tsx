@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 
 /**
@@ -52,7 +53,7 @@ export default function CollapsibleDescription({ text }: { text: string }) {
             color: 'var(--accent)',
           }}
         >
-          {expanded ? 'Ver menos' : 'Ver más'}
+          {expanded ? <BuyerCopyText copyKey="l.id.CollapsibleDescription.d587022f" /> : <BuyerCopyText copyKey="l.id.CollapsibleDescription.32e540cb" />}
         </button>
       )}
     </div>

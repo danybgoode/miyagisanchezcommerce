@@ -3,7 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { canAcceptCounter, canWithdraw, formatOfferAmount } from '@/lib/offers'
 import { stripe } from '@/lib/stripe'
-import { sendOfferAccepted, sendCounterAccepted, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
+import { sendOfferAccepted, sendCounterAccepted, sendOfferWithdrawn, sendBuyerPaymentExpiryWarning, cancelScheduledEmail, getSellerEmail } from '@/lib/email'
 import { notify } from '@/lib/notify'
 import { dispatchToBuyer } from '@/lib/notifications/dispatch'
 import { buildBuyerMessage } from '@/lib/notifications/buyer-messages'
@@ -93,6 +93,26 @@ export async function PATCH(
     }
     await db.from('marketplace_offers').update({ status: 'withdrawn' }).eq('id', id)
     emitConvEvent('offer_withdrawn', 'buyer', {}, true).catch(e => console.error('[conv] withdraw event:', e))
+
+    // Tell the seller the buyer walked away. Until now this branch emitted only the
+    // in-conversation event, so a seller who was not watching the thread kept an
+    // offer open in their head — and `sendOfferWithdrawn` sat in lib/email.ts with
+    // no call site, written for exactly this moment. Fire-and-forget, like every
+    // other notification here: a mail failure must never fail the withdrawal.
+    if (listing.marketplace_shops.clerk_user_id) {
+      const clerkUserId = listing.marketplace_shops.clerk_user_id
+      getSellerEmail(clerkUserId).then(sellerEmail => {
+        if (!sellerEmail) return
+        return sendOfferWithdrawn({
+          sellerEmail,
+          listingTitle: listing.title,
+          listingUrl: listingUrlFor(origin, listing.id),
+          offerAmount: formatOfferAmount(offer.offer_amount_cents, listing.currency),
+          buyerName: offer.buyer_name,
+        })
+      }).catch(e => console.error('[email] offer-withdrawn seller:', e))
+    }
+
     return NextResponse.json({ status: 'withdrawn' })
   }
 

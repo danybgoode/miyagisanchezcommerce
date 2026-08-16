@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -18,6 +19,7 @@ import ClosetListingCard from '../s/[slug]/ClosetListingCard'
 import type { AnnouncementSettings } from '@/lib/shop-settings/types'
 import type { Shop } from '@/lib/types'
 import type { MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 /**
  * Shared body for both collection-page routes (own-shop premium
@@ -51,7 +53,7 @@ export default async function CollectionPage({
   if (!isLikelyCollectionSlug(collectionShortSlug)) notFound()
 
   const [allCollections, listingRead] = await Promise.all([
-    getShopCollections(shop.slug),
+    getShopCollections(shop.slug, market),
     market
       ? getMarketplaceShopListings(shop.slug, market)
       : getShopListings(shop.slug).then((listings) => ({
@@ -116,7 +118,7 @@ export default async function CollectionPage({
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
             <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
-            <p className="font-medium">Esta colección todavía no tiene anuncios.</p>
+            <p className="font-medium"><BuyerCopyText copyKey="shop.collection.CollectionPage.22fbd5c9" /></p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -141,7 +143,7 @@ export default async function CollectionPage({
                     spei: paymentAvailability.bankTransfer,
                   },
                   href: `${marketBasePath}/l/${listing.id}`,
-                  formattedPrice: formatPrice(listing),
+                  formattedPrice: formatPrice(listing, resolveMarketPresentation(market ?? 'mx').htmlLang),
                   status: listing.status,
                   hasExcerpt: hasExcerpt(listing.metadata),
                 }}

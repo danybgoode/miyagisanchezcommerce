@@ -54,6 +54,20 @@ export function requireEnv<T>(value: T | null | undefined, what: string): T {
   return value as T
 }
 
+/**
+ * Fails fast with a clear diagnosis when a fixture listing has been deleted or
+ * unpublished on the target environment. `/l/[id]` 404s to the global not-found
+ * page in that case, and every element these specs assert on lives inside the PDP
+ * — so without this check, a stale fixture and a genuine gallery regression both
+ * surface as the same opaque `toBeVisible()` timeout on `getByTestId('pdp-gallery')`.
+ */
+export async function expectListingFound(page: Page, envVar: string): Promise<void> {
+  const notFound = page.getByText('El anuncio o tienda que buscas no existe o fue eliminado.')
+  if (await notFound.isVisible().catch(() => false)) {
+    throw new Error(`${envVar} points to a listing that no longer resolves (404) — rotate the fixture secret to a live public listing.`)
+  }
+}
+
 /** Ticket-based sign-in.
  *  - Arm the testing-token FAPI bypass BEFORE navigating, so clerk-js's load-time
  *    Frontend API calls carry it (otherwise bot protection blocks them and

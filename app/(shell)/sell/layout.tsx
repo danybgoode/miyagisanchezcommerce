@@ -1,5 +1,8 @@
 import { headers } from 'next/headers'
 import SellerShellChrome from '@/app/(shell)/shop/manage/_components/SellerShellChrome'
+import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import { getDictionary } from '@/lib/dictionary'
+import { getMySeller } from '@/lib/get-my-seller'
 import { sellShellEligible } from '@/lib/seller-shell-gate'
 
 /**
@@ -28,16 +31,21 @@ export default async function SellLayout({ children }: { children: React.ReactNo
   const channel = hdrs.get('x-miyagi-channel')
   const isChannel = channel === 'custom' || channel === 'subdomain'
   const whiteLabel = isEmbed || isChannel
-
-  // White-label host → the root ChannelLayout already owns the chrome.
-  if (whiteLabel) return <>{children}</>
+  const seller = await getMySeller()
+  const market = seller?.market ?? 'mx'
 
   const platformPath = hdrs.get('x-miyagi-path') ?? '/'
   const eligible = await sellShellEligible(platformPath)
 
-  // Not eligible (signed out, flag off, no shop, or not /sell|/sell/setup) →
-  // render plainly; the root layout's PlatformShell wraps this as buyer chrome.
-  if (!eligible) return <>{children}</>
+  const content = whiteLabel || !eligible
+    ? children
+    : <SellerShellChrome>{children}</SellerShellChrome>
 
-  return <SellerShellChrome>{children}</SellerShellChrome>
+  // MX is the authored tree, byte for byte: no boundary and no dictionary are
+  // introduced into its render path. Existing shops are owned by Medusa market.
+  if (market !== 'us') return content
+
+  const copy = (await getDictionary('en')).sellerCopy
+
+  return <SellerCopyBoundary market={market} copy={copy}>{content}</SellerCopyBoundary>
 }

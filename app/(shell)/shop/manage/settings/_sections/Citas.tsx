@@ -297,6 +297,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                   type="button"
                   variant="primary"
                   disabled={!calcomPickEventTypeId || calcomConnecting}
+                  loading={calcomConnecting}
                   onClick={() => calcomPickEventTypeId && handleCalcomConnect(calcomPickEventTypeId)}
                   className="flex-1"
                 >
@@ -330,6 +331,7 @@ export default function Citas({ initial }: { initial: CitasInitial }) {
                     type="button"
                     variant="primary"
                     disabled={!calcomApiKey.trim() || calcomConnecting}
+                    loading={calcomConnecting}
                     onClick={() => handleCalcomConnect()}
                     className="whitespace-nowrap"
                   >

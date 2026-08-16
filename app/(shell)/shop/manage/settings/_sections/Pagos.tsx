@@ -84,10 +84,22 @@ export default function Pagos({
   const [bankName, setBankName]         = useState(bt?.bank_name ?? '')
   const [accountHolder, setAccountHolder] = useState(bt?.account_holder ?? '')
   const [bankIsOther, setBankIsOther]   = useState(!!bt?.bank_name && !MX_BANKS.includes(bt.bank_name))
-  const dimoCfg = (initial.checkout as any)?.dimo ?? {}
+  // `dimo` and `cash_pickup` are written by this section's save but are NOT on
+  // `CheckoutSettings` — a real gap in the shared settings type, flagged rather
+  // than fixed here (widening that contract is a change to every consumer of
+  // it, not to this file). Narrowed to their actual shape instead of `any`,
+  // which is both more accurate and what the changed-files lint gate requires
+  // the moment this file is touched at all.
+  const checkoutExtras = initial.checkout as
+    | (NonNullable<typeof initial.checkout> & {
+        dimo?: { enabled?: boolean; phone?: string }
+        cash_pickup?: { enabled?: boolean; note?: string }
+      })
+    | undefined
+  const dimoCfg = checkoutExtras?.dimo ?? {}
   const [dimoEnabled, setDimoEnabled]   = useState<boolean>(dimoCfg.enabled ?? false)
   const [dimoPhone, setDimoPhone]       = useState<string>(dimoCfg.phone ?? '')
-  const cashCfg = (initial.checkout as any)?.cash_pickup ?? {}
+  const cashCfg = checkoutExtras?.cash_pickup ?? {}
   const [cashPickupEnabled, setCashPickupEnabled] = useState<boolean>(cashCfg.enabled ?? true)
   const [cashPickupNote, setCashPickupNote]       = useState<string>(cashCfg.note ?? '')
   const localPickup = initial.local_pickup ?? true
@@ -530,7 +542,7 @@ export default function Pagos({
       {/* ── Save button ───────────────────────────────────────────────────── */}
       {/* Back affordance now lives in the top-of-page breadcrumb (<SellerBreadcrumb>). */}
       <div className="flex items-center justify-end mb-24">
-        <Button type="button" variant="primary" onClick={handleSave} disabled={saving}>
+        <Button type="button" variant="primary" onClick={handleSave} loading={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </Button>
       </div>
@@ -547,8 +559,8 @@ export default function Pagos({
               <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
                 Descartar
               </Button>
-              <Button type="button" variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? 'Guardando…' : 'Guardar'}
+              <Button type="button" variant="primary" size="sm" onClick={handleSave} loading={saving}>
+                Guardar
               </Button>
             </div>
           </div>

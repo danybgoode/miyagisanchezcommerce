@@ -222,7 +222,7 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
 
       {listing.status === 'paused' && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-[var(--r-md)] px-4 py-3 text-sm mb-6">
-          ⏸ Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;.
+          <i className="iconoir-pause" aria-hidden /> Este anuncio está pausado — no es visible para compradores. Actívalo desde &quot;Mi tienda&quot;.
         </div>
       )}
 

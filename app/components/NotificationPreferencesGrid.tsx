@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import type { Channel } from '@/lib/notifications/preferences'
 
 /**
@@ -80,7 +81,7 @@ export default function NotificationPreferencesGrid({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-left">
-            <th className="py-2 pr-3 font-medium">Evento</th>
+            <th className="py-2 pr-3 font-medium"><BuyerCopyText copyKey="components.NotificationPreferencesGrid.93f6b5a0" /></th>
             {channels.map(ch => {
               const hint = channelHint?.(ch)
               return (

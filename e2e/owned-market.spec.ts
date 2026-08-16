@@ -36,7 +36,10 @@ test.describe('owned shop market projection', () => {
     expect(readPublicSellerMarket({ ...valid, market_code: undefined })).toBeNull()
     expect(readPublicSellerMarket({ ...valid, currency_code: 'mxn' })).toBeNull()
     expect(readPublicSellerMarket({ ...valid, country_code: 'mx' })).toBeNull()
-    expect(readPublicSellerMarket({ ...valid, marketplace_status: 'active' })).toBeNull()
+    // Must stay the NEGATION of the registry's current US status: the guard rejects a
+    // projection that disagrees with the registry, whichever way the disagreement runs.
+    expect(MARKETS.us.marketplace_status).toBe('active')
+    expect(readPublicSellerMarket({ ...valid, marketplace_status: 'invitation' })).toBeNull()
     expect(readPublicSellerMarket({ ...valid, market_code: 'US' })).toBeNull()
   })
 })

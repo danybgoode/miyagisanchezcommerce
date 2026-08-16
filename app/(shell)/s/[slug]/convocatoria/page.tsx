@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { isEnabled } from '@/lib/flags'
@@ -9,17 +10,10 @@ import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { marketCatalogCanonical } from '@/lib/market-seo'
 import type { MarketCode } from '@/lib/markets'
+import { getDictionary } from '@/lib/dictionary'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 export const dynamic = 'force-dynamic'
-
-// Copyright / takedown posture shown on the portal (confirmed 2026-07-07):
-// the writer keeps copyright and grants the shop a non-exclusive license; the
-// shop/platform can take any work down on request or complaint.
-const TERMS = `Al enviar tu obra confirmas que eres el autor o que tienes los derechos para compartirla.
-
-Conservas los derechos de autor de tu manuscrito. Al enviarlo, concedes a la librería y a Miyagi Sánchez una licencia no exclusiva para leerlo y revisarlo y —solo si se aprueba y publica— para ofrecerlo como libro digital o impreso.
-
-Puedes pedir que retiremos tu obra en cualquier momento escribiéndonos, y la librería puede retirar cualquier obra a su criterio o ante una reclamación de derechos.`
 
 export async function generateConvocatoriaMetadata({
   params,
@@ -31,7 +25,7 @@ export async function generateConvocatoriaMetadata({
   marketBasePath?: string
 }): Promise<Metadata> {
   const { slug } = await params
-  const [launchpadShop, shop] = await Promise.all([getLaunchpadShopBySlug(slug), getShop(slug)])
+  const [launchpadShop, shop] = await Promise.all([getLaunchpadShopBySlug(slug), getShop(slug, market)])
   if (market && readPublicSellerMarket(shop)?.market_code !== market) {
     return { title: 'Convocatoria', robots: { index: false } }
   }
@@ -48,7 +42,7 @@ function StateMessage({ title, body }: { title: string; body: string }) {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-12 bg-[var(--color-background)]">
       <div className="max-w-md w-full border border-[var(--color-border)] rounded-xl p-6 text-center">
-        <Link href="/" className="text-xs text-[var(--color-muted)] no-underline hover:underline">miyagisanchez.com</Link>
+        <Link href="/" className="text-xs text-[var(--color-muted)] no-underline hover:underline"><BuyerCopyText copyKey="s.slug.convocatoria.page.d51591f3" /></Link>
         <h1 className="mt-4 text-xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-muted)] leading-6">{body}</p>
       </div>
@@ -69,17 +63,19 @@ export async function ConvocatoriaPage({
   const [enabled, shop, seller] = await Promise.all([
     isEnabled('launchpad.enabled'),
     getLaunchpadShopBySlug(slug),
-    getShop(slug),
+    getShop(slug, market),
   ])
+  const presentationMarket = market ?? readPublicSellerMarket(seller)?.market_code ?? 'mx'
+  const copy = (await getDictionary(resolveMarketPresentation(presentationMarket).language)).buyerCopy
 
   if (!enabled) {
-    return <StateMessage title="Convocatoria no disponible" body="Esta función no está disponible en este momento." />
+    return <StateMessage title={copy['s.slug.convocatoria.page.d8d969db']} body={copy['shop.submissionsUnavailableBody']} />
   }
   if (!shop) {
-    return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
+    return <StateMessage title={copy['s.slug.convocatoria.page.22c71655']} body={copy['shop.checkLinkBody']} />
   }
   if (market && readPublicSellerMarket(seller)?.market_code !== market) {
-    return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
+    return <StateMessage title={copy['s.slug.convocatoria.page.22c71655']} body={copy['shop.checkLinkBody']} />
   }
   // Consent-safe previews: this is the ONE shop sub-page middleware rewrites onto
   // the subdomain + custom-domain channels, so a preview-private shop would
@@ -88,13 +84,13 @@ export async function ConvocatoriaPage({
   // is only enabled on a claimed, set-up shop, so a preview-private (unclaimed)
   // shop can't reach this; the by-id path still re-reads clerk_user_id.
   if (await isShopPreviewPrivateBySlug(slug, null)) {
-    return <StateMessage title="No encontramos esta tienda" body="Revisa el enlace e inténtalo de nuevo." />
+    return <StateMessage title={copy['s.slug.convocatoria.page.22c71655']} body={copy['shop.checkLinkBody']} />
   }
   if (!shop.acceptsManuscripts) {
     return (
       <StateMessage
-        title={`${shop.name} no está recibiendo manuscritos`}
-        body="Esta tienda no tiene una convocatoria abierta por ahora. Vuelve más tarde."
+        title={copy['s.slug.convocatoria.page.45829866'].replace('{0}', shop.name)}
+        body={copy['shop.noOpenSubmissionsBody']}
       />
     )
   }
@@ -106,10 +102,9 @@ export async function ConvocatoriaPage({
           <Link href={`${marketBasePath}/s/${shop.slug}`} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
             ← {shop.name}
           </Link>
-          <h1 className="text-3xl sm:text-4xl font-bold mt-3 leading-tight">Convocatoria de manuscritos</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold mt-3 leading-tight"><BuyerCopyText copyKey="s.slug.convocatoria.page.1194d92b" /></h1>
           <p className="text-base text-[var(--color-muted)] leading-7 mt-2">
-            {shop.name} recibe obras de escritores. Envía la tuya y, si la aprueban, se publica como libro digital.
-          </p>
+            {shop.name} <BuyerCopyText copyKey="s.slug.convocatoria.page.b9c06d3a" /></p>
         </div>
 
         <ConvocatoriaClient
@@ -120,11 +115,11 @@ export async function ConvocatoriaPage({
         />
 
         <div className="mt-6 border border-[var(--color-border)] rounded-xl p-5">
-          <h3 className="font-semibold text-sm mb-2">Términos de la convocatoria</h3>
-          <p className="text-xs leading-5 text-[var(--color-muted)] whitespace-pre-line">{TERMS}</p>
+          <h3 className="font-semibold text-sm mb-2"><BuyerCopyText copyKey="s.slug.convocatoria.page.fd1018d4" /></h3>
+          <p className="text-xs leading-5 text-[var(--color-muted)] whitespace-pre-line"><BuyerCopyText copyKey="shop.manuscriptTerms" /></p>
           <p className="text-xs text-[var(--color-muted)] mt-3">
-            Consulta también los{' '}
-            <Link href="/terminos" className="underline">términos generales</Link>.
+            <BuyerCopyText copyKey="s.slug.convocatoria.page.49e2830e" />{' '}
+            <Link href="/terminos" className="underline"><BuyerCopyText copyKey="s.slug.convocatoria.page.a9e527dd" /></Link>.
           </p>
         </div>
       </div>

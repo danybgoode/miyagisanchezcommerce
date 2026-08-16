@@ -8,6 +8,7 @@ import { SELLER_NAV } from '@/lib/seller-nav'
 import { db } from '@/lib/supabase'
 import { computeShopCompletion, completedSectionKeys, type ShopRow } from '@/lib/setup-guide'
 import { orderedSections } from '@/lib/shop-settings/taxonomy'
+import { getMySeller } from '@/lib/get-my-seller'
 
 /**
  * The seller-distinct shell chrome — dark brand top bar ("Volver a comprar") +
@@ -61,6 +62,14 @@ export default async function SellerShellChrome({ children }: { children: React.
   let badges: Partial<Record<string, number>> = {}
   let configIncomplete = false
   const shopSlug = (shop?.slug as string | undefined) ?? null
+
+  // The nav language comes from MEDUSA, not from the Supabase mirror above (D17).
+  // The mirror is a projection and is explicitly not authoritative for
+  // `operating_market`; reading it here would make the portal's language depend on
+  // whether a sync had run. `getMySeller` is request-memoized, and the seller shell
+  // already calls it upstream, so this costs no extra round-trip.
+  const seller = await getMySeller()
+  const market = seller?.market ?? 'mx'
 
   if (shop?.id) {
     const [{ count: pendingOrdersCount, error: ordersError }, { count: pendingOffersCount, error: offersError }] = await Promise.all([
@@ -147,7 +156,7 @@ export default async function SellerShellChrome({ children }: { children: React.
           paddingTop: 20,
         }}
       >
-        <SellerNav enabledFlags={enabledFlags} badges={badges} configIncomplete={configIncomplete} shopSlug={shopSlug} />
+        <SellerNav enabledFlags={enabledFlags} badges={badges} configIncomplete={configIncomplete} shopSlug={shopSlug} market={market} />
         <main
           style={{
             flex: 1,

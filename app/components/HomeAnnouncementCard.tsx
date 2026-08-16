@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect -- the existing dismissal mirror reads localStorage after mount. */
+
+import { useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useState } from 'react'
 import { readDismissed, writeDismissed } from '@/lib/announcement-dismiss'
 
@@ -23,6 +26,7 @@ export type BuyerAnnouncement = {
  * the opposite direction (pop-out instead of pop-in).
  */
 export default function HomeAnnouncementCard({ announcement }: { announcement: BuyerAnnouncement | null }) {
+  const copy = useBuyerCopy()
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
@@ -53,7 +57,7 @@ export default function HomeAnnouncementCard({ announcement }: { announcement: B
       </div>
       <button
         type="button"
-        aria-label="Descartar"
+        aria-label={copy('components.HomeAnnouncementCard.757d84de')}
         onClick={() => {
           writeDismissed(announcement.id)
           setDismissed(true)

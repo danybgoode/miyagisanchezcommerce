@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 /**
  * app/components/TrustSignals.tsx
  *
@@ -134,13 +135,13 @@ export default function TrustSignals(props: TrustSignalsProps) {
           {vis.showProcessingPill && (
             <span style={{ fontSize: 12, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <i className="iconoir-box" style={{ fontSize: 11 }} />
-              Lista en {props.processingLabel}
+              <BuyerCopyText copyKey="components.TrustSignals.e37469f5" />{' '}{props.processingLabel}
             </span>
           )}
           {vis.showReturnsPill && (
             <span style={{ fontSize: 12, background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 'var(--r-pill)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <i className="iconoir-undo" style={{ fontSize: 11 }} />
-              Devoluciones: {props.returnsLabel}
+              <BuyerCopyText copyKey="components.TrustSignals.5f3c217b" />{' '}{props.returnsLabel}
             </span>
           )}
         </div>

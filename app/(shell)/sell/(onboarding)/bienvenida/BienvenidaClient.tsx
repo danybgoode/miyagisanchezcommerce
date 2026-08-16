@@ -135,7 +135,7 @@ export default function BienvenidaClient({ firstName }: { firstName: string | nu
       </Card>
 
       <div className="flex flex-col items-center gap-3 mt-8">
-        <Button variant="primary" size="lg" onClick={handleContinue} disabled={saving} className="w-full">
+        <Button variant="primary" size="lg" onClick={handleContinue} loading={saving} className="w-full">
           {saving ? 'Guardando…' : 'Continuar'}
         </Button>
         <button type="button" onClick={handleSkip} className="btn btn-ghost text-sm">

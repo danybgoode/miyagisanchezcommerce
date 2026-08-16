@@ -82,6 +82,29 @@ export async function POST(req: NextRequest) {
   const isPhysical = listing.listing_type === 'product'
 
   // ── Create Stripe Checkout Session ────────────────────────────────────────
+  // ── Market guard: this legacy rail is MX-only ─────────────────────────────
+  //
+  // Everything below hard-codes a DESTINATION charge (`transfer_data` +
+  // `application_fee_amount`) in platform context, and collects a Mexican shipping
+  // address. That is correct for MX and wrong for US, where the seller is merchant of
+  // record and the charge must be DIRECT on their connected account.
+  //
+  // A US seller sold through an agent would otherwise get a destination charge
+  // against an Accounts v2 merchant account, bypassing every guard in the Medusa
+  // `start-checkout` rail — wrong money movement, silently.
+  //
+  // US checkout belongs on that Medusa rail, not here, so this refuses rather than
+  // grows a second charge-strategy implementation. Refusing is also what D13 already
+  // promises agents: commerce readiness suppresses US buy_now until its rail exists.
+  const listingCurrency = (listing.currency ?? 'MXN').toUpperCase()
+  if (listingCurrency !== 'MXN') {
+    return NextResponse.json({
+      error: 'Checkout for this market is not available on this endpoint.',
+      code: 'CHECKOUT_MARKET_UNSUPPORTED',
+      detail: 'Non-MXN listings check out through the Medusa start-checkout rail.',
+    }, { status: 422 })
+  }
+
   // Zero commission: full amount transferred to seller, platform_fee = 0
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',

@@ -8,14 +8,8 @@ import type { CheckoutFulfillmentMethod, CheckoutProvider, CheckoutShippingAddre
 import type { CartItem } from './CartContext'
 import type { PersonalizationPayload } from '@/lib/personalization'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
-
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
-}
+import { useBuyerFormatters } from './BuyerPresentationContext'
+import type { MarketCode } from '@/lib/markets'
 
 const PAY_LABEL: Record<CheckoutProvider, string> = {
   mercadopago: 'Pagar con Mercado Pago',
@@ -55,6 +49,7 @@ interface CheckoutPayButtonProps {
   rental?: { check_in: string; check_out: string }
   disabled?: boolean
   onStarted?: () => void
+  market?: MarketCode
 }
 
 export default function CheckoutPayButton({
@@ -80,7 +75,9 @@ export default function CheckoutPayButton({
   rental,
   disabled,
   onStarted,
+  market = 'mx',
 }: CheckoutPayButtonProps) {
+  const formatters = useBuyerFormatters()
   const router = useRouter()
   const { getToken } = useAuth()
   const { user } = useUser()
@@ -95,6 +92,7 @@ export default function CheckoutPayButton({
     couponDiscountCents,
     shippingCents: shippingQuote?.amountCents ?? 0,
   })
+  const formattedTotal = formatters.currency(total, currency, { maximumFractionDigits: 0 })
 
   async function pay() {
     setLoading(true)
@@ -124,6 +122,7 @@ export default function CheckoutPayButton({
         shippingQuote,
         originDomain,
         rental,
+        market,
       })
       onStarted?.()
       if (result.redirect_url) {
@@ -161,7 +160,7 @@ export default function CheckoutPayButton({
         {loading ? (
           <span className="animate-spin inline-block">⟳</span>
         ) : (
-          <>{PAY_LABEL[provider]} — {formatPrice(total, currency)}</>
+          <>{PAY_LABEL[provider]} — {formattedTotal}</>
         )}
       </button>
       {error && <p className="text-[var(--danger)] text-xs mt-2 text-center"><i className="iconoir-warning-triangle" aria-hidden /> {error}</p>}

@@ -1,6 +1,6 @@
 /** Server-only persistence/read seam for the Golden Beans durable snapshot. */
 import 'server-only'
-import type { FlagSnapshot } from '@golden-beans/sdk'
+import type { FlagSnapshot } from '@golden-frijoles/sdk'
 import { db } from '@/lib/supabase'
 import { parseGoldenFlagEnvironment, type GoldenFlagEnvironment } from '@/lib/flag-provider-mode'
 import { parseDurableGoldenSnapshot, retainNewestGoldenSnapshot } from '@/lib/golden-flag-mirror'

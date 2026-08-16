@@ -1,11 +1,21 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { LISTING_TYPE_FILTERS } from '@/lib/listing-query'
 import type { SearchParams } from '@/lib/types'
+import { listingTypeLabel, type BuyerLanguage } from '@/lib/market-vocabulary'
 
 type Props = {
   params: SearchParams
   className?: string
   marketBasePath?: string
+  /**
+   * Taken as a PROP, exactly like the sibling `CategoryChips`, rather than read
+   * from `useBuyerPresentation()`. This is a server component: calling that hook
+   * here threw "Attempted to call useBuyerPresentation() from the server" at
+   * request time and 500'd every `/l` browse page in production. `BuyerCopyText`
+   * below is a component, not a hook, so it stays fine to render from the server.
+   */
+  language?: BuyerLanguage
 }
 
 // Build an /l href from the current params, setting (or clearing) listing_type.
@@ -22,13 +32,13 @@ function hrefFor(params: SearchParams, value: string | null, marketBasePath: str
   return qs ? `${marketBasePath}/l?${qs}` : `${marketBasePath}/l`
 }
 
-export default function ListingTypeChips({ params, className, marketBasePath = '' }: Props) {
+export default function ListingTypeChips({ params, className, marketBasePath = '', language = 'es' }: Props) {
   const active = params.listing_type ?? ''
   return (
     <div className={`chip-rail${className ? ` ${className}` : ''}`}>
       {/* "Todos" — clears the type filter */}
       <Link href={hrefFor(params, null, marketBasePath)} className={`chip${!active ? ' is-selected' : ''}`}>
-        <span>Todos</span>
+        <span><BuyerCopyText copyKey="components.ListingTypeChips.6609e719" /></span>
       </Link>
 
       {LISTING_TYPE_FILTERS.map(t => (
@@ -37,7 +47,7 @@ export default function ListingTypeChips({ params, className, marketBasePath = '
           href={hrefFor(params, t.value, marketBasePath)}
           className={`chip${t.value === active ? ' is-selected' : ''}`}
         >
-          <span>{t.label}</span>
+          <span>{listingTypeLabel(t.value, t.label, language)}</span>
         </Link>
       ))}
     </div>

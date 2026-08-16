@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability, react-hooks/exhaustive-deps -- S2 mechanically localizes this pre-existing checkout state machine; changing its sequencing belongs to a dedicated money-path change. */
+
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import CheckoutPayButton from '@/app/components/CheckoutPayButton'
@@ -11,6 +14,7 @@ import { shouldOfferCoordinatedFallback, pickManualPaymentId, isCoordDeliverySel
 import { raceWithTimeout, isTimeoutError } from '@/lib/fetch-timeout'
 import { computeCheckoutTotal } from '@/lib/checkout-total'
 import { PICKUP_WINDOWS } from '@/lib/pickup-appointment'
+import type { MarketCode } from '@/lib/markets'
 
 // ── Shapes returned by /api/checkout/options (Medusa source of truth) ────────
 type PickupSpot = { id: string; name?: string; address?: string; hours?: string; scheduling_url?: string; notes?: string }
@@ -71,12 +75,8 @@ function radioDot(active: boolean): CSSProperties {
   return { width: 18, height: 18, borderRadius: '50%', border: `5px solid ${active ? 'var(--accent)' : 'var(--border)'}`, flexShrink: 0, marginTop: 1 }
 }
 
-function formatCents(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function blankAddress(): CheckoutShippingAddress {
-  return { country: 'MX', name: '', phone: '', line1: '', ext_number: '', int_number: '', line2: '', city: '', state: '', state_code: '', postal_code: '' }
+function blankAddress(market: MarketCode): CheckoutShippingAddress {
+  return { country: market === 'us' ? 'US' : 'MX', name: '', phone: '', line1: '', ext_number: '', int_number: '', line2: '', city: '', state: '', state_code: '', postal_code: '' }
 }
 
 export default function CheckoutExperience({
@@ -95,6 +95,7 @@ export default function CheckoutExperience({
   originDomain,
   rental,
   onStarted,
+  market = 'mx',
 }: {
   sellerId: string
   listingId?: string
@@ -116,7 +117,11 @@ export default function CheckoutExperience({
   /** Rental: buyer's chosen date range. ONLY dates — never an amount. */
   rental?: { check_in: string; check_out: string }
   onStarted?: () => void
+  market?: MarketCode
 }) {
+  const formatters = useBuyerFormatters()
+  const formatCents = (cents: number, currency: string) => formatters.currency(cents, currency, { maximumFractionDigits: 0 })
+  const copy = useBuyerCopy()
   // Single-item event admissions can be N units; the bundle path keeps quantity 1
   // (each bundle item carries its own). itemsCents drives the coupon base, the
   // summary subtotal, and the CTA total so all three reflect N × unit.
@@ -134,7 +139,7 @@ export default function CheckoutExperience({
 
   useEffect(() => {
     let cancelled = false
-    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital), deliveryMode })
+    const qs = new URLSearchParams({ sellerId, listingType, isDigital: String(isDigital), deliveryMode, market })
     fetch(`/api/checkout/options?${qs}`)
       .then(r => r.json())
       .then((data: CheckoutOptions & { error?: string }) => {
@@ -146,7 +151,7 @@ export default function CheckoutExperience({
       })
       .catch(() => { if (!cancelled) setOptionsError('No se pudieron cargar las opciones de pago.') })
     return () => { cancelled = true }
-  }, [sellerId, listingType, isDigital, deliveryMode])
+  }, [sellerId, listingType, isDigital, deliveryMode, market])
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<CheckoutFulfillmentMethod>('none')
   const [selectedPickupSpotId, setSelectedPickupSpotId] = useState<string | null>(null)
@@ -154,7 +159,7 @@ export default function CheckoutExperience({
   const [pickupDate, setPickupDate] = useState('')
   const [pickupWindow, setPickupWindow] = useState('')
   const [selectedPaymentId, setSelectedPaymentId] = useState<CheckoutProvider | null>(null)
-  const [address, setAddress] = useState<CheckoutShippingAddress>(blankAddress)
+  const [address, setAddress] = useState<CheckoutShippingAddress>(() => blankAddress(market))
 
   // CP-first lookup state
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
@@ -228,7 +233,7 @@ export default function CheckoutExperience({
     [paymentMethods, selectedPaymentId],
   )
 
-  const cpResolved = Boolean(cpResult?.stateCode)
+  const cpResolved = market === 'us' || Boolean(cpResult?.stateCode)
   const addressReady = !selectedDelivery?.requires_address || Boolean(
     address.name?.trim() && address.line1?.trim() && address.ext_number?.trim() && address.state_code?.trim() && address.postal_code?.trim(),
   )
@@ -432,10 +437,9 @@ export default function CheckoutExperience({
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <i className="iconoir-package" aria-hidden style={{ fontSize: 20, flexShrink: 0 }} />
             <div>
-              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Este vendedor aún no configura la entrega</p>
+              <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.f44e2af5" /></p>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-                Todavía no hay una opción de envío o recolección disponible para este artículo. Vuelve más tarde o escríbele al vendedor.
-              </p>
+                <BuyerCopyText copyKey="checkout.CheckoutExperience.40981279" /></p>
             </div>
           </div>
         </section>
@@ -444,7 +448,7 @@ export default function CheckoutExperience({
       {/* ── Delivery section ───────────────────────────────────────────────── */}
       {deliveryMethods.length > 0 && (
         <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Elige entrega</h2>
+          <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.f966c4ce" /></h2>
           <div style={{ display: 'grid', gap: 8 }}>
             {deliveryMethods.map(option => (
               <button key={option.id} type="button" onClick={() => setSelectedDeliveryId(option.id)} style={optionButtonStyle(selectedDelivery?.id === option.id)}>
@@ -460,21 +464,20 @@ export default function CheckoutExperience({
           {/* Pickup spot picker — deterministic list of where you can recoger */}
           {selectedDelivery?.id === 'local_pickup' && (selectedDelivery.pickup_spots?.length ?? 0) > 0 && (
             <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
-              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>¿Dónde quieres recogerlo?</p>
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.2ce52737" /></p>
               {selectedDelivery.pickup_spots!.map(spot => {
                 const active = selectedPickupSpotId === spot.id
                 return (
                   <button key={spot.id} type="button" onClick={() => setSelectedPickupSpotId(spot.id)} style={optionButtonStyle(active)}>
                     <span aria-hidden style={radioDot(active)} />
                     <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{spot.name ?? 'Punto de entrega'}</span>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{spot.name ?? <BuyerCopyText copyKey="checkout.CheckoutExperience.8ac686ce" />}</span>
                       {spot.address && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{spot.address}</span>}
                       {spot.hours && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}><i className="iconoir-clock" aria-hidden /> {spot.hours}</span>}
                       {spot.notes && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-subtle)', marginTop: 2 }}>{spot.notes}</span>}
                       {spot.scheduling_url && active && (
                         <a href={spot.scheduling_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>
-                          Agendar horario →
-                        </a>
+                          <BuyerCopyText copyKey="checkout.CheckoutExperience.f6c423f5" /></a>
                       )}
                     </span>
                   </button>
@@ -487,7 +490,7 @@ export default function CheckoutExperience({
               external scheduling link. The seller confirms or reschedules after placing. */}
           {selectedDelivery?.id === 'local_pickup' && (
             <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
-              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>¿Cuándo quieres recogerlo?</p>
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.86b7aa9f" /></p>
               <input
                 type="date"
                 value={pickupDate}
@@ -507,8 +510,7 @@ export default function CheckoutExperience({
                 })}
               </div>
               <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-                Propones la hora; el vendedor la confirma o sugiere otra.
-              </p>
+                <BuyerCopyText copyKey="checkout.CheckoutExperience.95b7fbaa" /></p>
             </div>
           )}
 
@@ -522,7 +524,7 @@ export default function CheckoutExperience({
                   <input
                     value={address.postal_code ?? ''}
                     onChange={e => handleCpChange(e.target.value)}
-                    placeholder="Código postal (CP)"
+                    placeholder={copy('checkout.CheckoutExperience.5a3a6431')}
                     inputMode="numeric"
                     maxLength={5}
                     style={{ ...inputStyle, paddingRight: 34, border: `1px solid ${cpLookupError ? 'var(--danger)' : cpResolved ? 'var(--success)' : 'var(--border)'}` }}
@@ -532,29 +534,29 @@ export default function CheckoutExperience({
                 </div>
                 {cpLookupError && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{cpLookupError}</p>}
                 {!cpResolved && !cpLookupError && (
-                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>Empieza con tu código postal — llenamos estado, alcaldía y colonias.</p>
+                  <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.ce529c42" /></p>
                 )}
               </div>
 
               {cpResolved && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder="Nombre de quien recibe" style={inputStyle} />
-                    <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder="Teléfono" inputMode="tel" style={inputStyle} />
+                    <input value={address.name ?? ''} onChange={e => setAddress({ ...address, name: e.target.value })} placeholder={copy('checkout.CheckoutExperience.6493099f')} style={inputStyle} />
+                    <input value={address.phone ?? ''} onChange={e => setAddress({ ...address, phone: e.target.value })} placeholder={copy('checkout.CheckoutExperience.e0dc125a')} inputMode="tel" style={inputStyle} />
                   </div>
 
                   {cpResult && (
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
-                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Estado</p>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.451e916f" /></p>
                           <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 12, color: 'var(--success)' }}><i className="iconoir-check" aria-hidden /></span>
                             <span style={{ fontSize: 13 }}>{cpResult.stateName}</span>
                           </div>
                         </div>
                         <div>
-                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}>Alcaldía / Municipio</p>
+                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 3 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.a2751ff1" /></p>
                           <div style={{ ...inputStyle, background: 'var(--bg-sunk)', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 12, color: 'var(--success)' }}><i className="iconoir-check" aria-hidden /></span>
                             <span style={{ fontSize: 13 }}>{cpResult.alcaldia}</span>
@@ -564,17 +566,17 @@ export default function CheckoutExperience({
 
                       {cpResult.colonias.length > 0 && (
                         <select value={address.line2 ?? ''} onChange={e => setAddress({ ...address, line2: e.target.value })} style={inputStyle as CSSProperties}>
-                          <option value="">Selecciona colonia</option>
+                          <option value=""><BuyerCopyText copyKey="checkout.CheckoutExperience.a5f5ec3a" /></option>
                           {cpResult.colonias.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       )}
                     </>
                   )}
 
-                  <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder="Calle" style={inputStyle} />
+                  <input value={address.line1 ?? ''} onChange={e => setAddress({ ...address, line1: e.target.value })} placeholder={copy('checkout.CheckoutExperience.ac32dc77')} style={inputStyle} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <input value={address.ext_number ?? ''} onChange={e => setAddress({ ...address, ext_number: e.target.value })} placeholder="No. exterior" style={inputStyle} />
-                    <input value={address.int_number ?? ''} onChange={e => setAddress({ ...address, int_number: e.target.value })} placeholder="No. interior (opcional)" style={inputStyle} />
+                    <input value={address.ext_number ?? ''} onChange={e => setAddress({ ...address, ext_number: e.target.value })} placeholder={copy('checkout.CheckoutExperience.862d2c75')} style={inputStyle} />
+                    <input value={address.int_number ?? ''} onChange={e => setAddress({ ...address, int_number: e.target.value })} placeholder={copy('checkout.CheckoutExperience.8fd9c87c')} style={inputStyle} />
                   </div>
                 </>
               )}
@@ -582,8 +584,8 @@ export default function CheckoutExperience({
               {addressReady && needsShippingRate && (
                 <div style={{ display: 'grid', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}>Opciones de paquetería</p>
-                    {shippingRatesLoading && <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Cotizando...</p>}
+                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.e08e0036" /></p>
+                    {shippingRatesLoading && <p style={{ fontSize: 12, color: 'var(--fg-subtle)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.065c6061" /></p>}
                   </div>
 
                   {shippingRatesLoading && shippingRates.length === 0 && (
@@ -595,7 +597,7 @@ export default function CheckoutExperience({
                   {shippingRatesError && !shippingRatesLoading && (
                     <div style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 8, padding: 10 }}>
                       <p style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>{shippingRatesError}</p>
-                      <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}>También puedes coordinar la entrega directamente con el vendedor.</p>
+                      <p style={{ fontSize: 11, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.3dd0e30b" /></p>
                     </div>
                   )}
 
@@ -613,7 +615,7 @@ export default function CheckoutExperience({
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>{rate.carrier.toUpperCase()} · {rate.service}</span>
                           <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-                            {rate.deliveryLabel ? `Entrega estimada: ${rate.deliveryLabel}` : 'Entrega estimada por paquetería'}
+                            {rate.deliveryLabel ? <BuyerCopyText copyKey="checkout.CheckoutExperience.5a116d9d" values={[rate.deliveryLabel]} /> : <BuyerCopyText copyKey="checkout.CheckoutExperience.aa650f82" />}
                           </span>
                         </span>
                         <strong style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{formatCents(rate.amountCents, rate.currency)}</strong>
@@ -627,17 +629,16 @@ export default function CheckoutExperience({
                       <button type="button" onClick={selectCoordinatedFallback} style={optionButtonStyle(coordinatedActive)}>
                         <span aria-hidden style={radioDot(coordinatedActive)} />
                         <span style={{ minWidth: 0, flex: 1 }}>
-                          <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}>Entrega acordada</span>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 800 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.3b2c5986" /></span>
                           <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-                            Coordina la entrega directamente con el vendedor. Sin costo de paquetería.
-                          </span>
+                            <BuyerCopyText copyKey="checkout.CheckoutExperience.4692ee2e" /></span>
                         </span>
                       </button>
                       {coordinatedActive && (
                         <p style={{ fontSize: 11.5, color: 'var(--fg-subtle)', lineHeight: 1.5 }}>
                           {manualPaymentId
-                            ? 'La entrega acordada se paga con pago directo (SPEI / efectivo); cambiamos tu método de pago.'
-                            : 'Este vendedor no tiene pago directo configurado — escríbele para acordar pago y entrega.'}
+                            ? <BuyerCopyText copyKey="checkout.CheckoutExperience.5104dad5" />
+                            : <BuyerCopyText copyKey="checkout.CheckoutExperience.71322f2f" />}
                         </p>
                       )}
                     </div>
@@ -648,25 +649,24 @@ export default function CheckoutExperience({
           )}
 
           {options.preparation && (
-            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 10 }}><i className="iconoir-package" aria-hidden /> Tiempo de preparación: {options.preparation}</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 10 }}><i className="iconoir-package" aria-hidden /> <BuyerCopyText copyKey="checkout.CheckoutExperience.9cca4011" />{' '}{options.preparation}</p>
           )}
         </section>
       )}
 
       {/* ── Payment section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Elige pago</h2>
+        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.e04fb7d1" /></h2>
 
         {paymentMethods.length === 0 ? (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <i className="iconoir-community" aria-hidden style={{ fontSize: 20, flexShrink: 0 }} />
             <div>
               <p style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>
-                {options.only_coordinated ? 'Este vendedor coordina pago y entrega juntos' : 'Pagos en línea no disponibles'}
+                {options.only_coordinated ? <BuyerCopyText copyKey="checkout.CheckoutExperience.5e428788" /> : <BuyerCopyText copyKey="checkout.CheckoutExperience.99c8151f" />}
               </p>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
-                Escríbele directamente al vendedor para acordar el método de pago y la entrega antes de cerrar la venta.
-              </p>
+                <BuyerCopyText copyKey="checkout.CheckoutExperience.c1ade5f3" /></p>
             </div>
           </div>
         ) : (
@@ -678,8 +678,7 @@ export default function CheckoutExperience({
                 so paymentMethods.length is never 0 here). */}
             {options.only_coordinated && (
               <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginBottom: 2 }}>
-                <i className="iconoir-community" aria-hidden /> Este vendedor coordina la entrega — el pago se acuerda directamente (SPEI / efectivo).
-              </p>
+                <i className="iconoir-community" aria-hidden /> <BuyerCopyText copyKey="checkout.CheckoutExperience.7d779f09" /></p>
             )}
             {paymentMethods.map(option => {
               const active = selectedPayment?.id === option.id
@@ -705,7 +704,7 @@ export default function CheckoutExperience({
                           color: option.protected ? 'var(--success-strong)' : 'var(--fg-muted)',
                           border: `1px solid ${option.protected ? 'var(--success)' : 'var(--border)'}`,
                         }}>
-                          {option.protected ? 'Protegido por Miyagi' : 'Acuerdo directo'}
+                          {option.protected ? <BuyerCopyText copyKey="checkout.CheckoutExperience.07b3ef16" /> : <BuyerCopyText copyKey="checkout.CheckoutExperience.c5ec516b" />}
                         </span>
                       </span>
                       <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{option.note}</span>
@@ -731,8 +730,7 @@ export default function CheckoutExperience({
                         </div>
                       ))}
                       <p style={{ fontSize: 11.5, color: 'var(--fg-subtle)', lineHeight: 1.5 }}>
-                        Verás los datos exactos para pagar (CLABE, teléfono) en tu pedido, justo después de confirmarlo.
-                      </p>
+                        <BuyerCopyText copyKey="checkout.CheckoutExperience.c343b18c" /></p>
                     </div>
                   )}
                 </div>
@@ -744,30 +742,30 @@ export default function CheckoutExperience({
 
       {/* ── Summary section ────────────────────────────────────────────────── */}
       <section style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}>Resumen</h2>
+        <h2 style={{ fontSize: 'var(--t-base)', fontWeight: 800, marginBottom: 10 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.c6e967ad" /></h2>
         <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? `Artículos (${items.length})` : quantity > 1 ? `Boletos (${quantity})` : 'Producto'}</span>
+            <span style={{ color: 'var(--fg-muted)' }}>{items?.length ? <BuyerCopyText copyKey="checkout.CheckoutExperience.f0cc03dd" values={[items.length]} /> : quantity > 1 ? <BuyerCopyText copyKey="checkout.CheckoutExperience.d217bfe5" values={[quantity]} /> : <BuyerCopyText copyKey="checkout.CheckoutExperience.7bd49bef" />}</span>
             <strong>{formatCents(itemsCents, currency)}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>Entrega</span>
-            <strong>{selectedDelivery?.label ?? 'Por coordinar'}</strong>
+            <span style={{ color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.674b5195" /></span>
+            <strong>{selectedDelivery?.label ?? <BuyerCopyText copyKey="checkout.CheckoutExperience.376cf3ff" />}</strong>
           </div>
           {needsShippingRate && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, gap: 12 }}>
-              <span style={{ color: 'var(--fg-muted)' }}>Envío</span>
+              <span style={{ color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.c98c769a" /></span>
               <strong style={{ textAlign: 'right' }}>
-                {selectedShippingRate ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}` : 'Selecciona una tarifa'}
+                {selectedShippingRate ? `${selectedShippingRate.carrier.toUpperCase()} ${formatCents(selectedShippingRate.amountCents, selectedShippingRate.currency)}` : <BuyerCopyText copyKey="checkout.CheckoutExperience.8cf23a2c" />}
               </strong>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>Pago</span>
-            <strong>{selectedPayment?.label ?? 'No disponible'}</strong>
+            <span style={{ color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.ab0e974f" /></span>
+            <strong>{selectedPayment?.label ?? <BuyerCopyText copyKey="checkout.CheckoutExperience.ef50e1d9" />}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: 'var(--fg-muted)' }}>Comisión Miyagi</span>
+            <span style={{ color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.e2c77520" /></span>
             <strong>$0</strong>
           </div>
 
@@ -783,8 +781,7 @@ export default function CheckoutExperience({
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <i className="iconoir-edit-pencil" style={{ fontSize: 13, color: 'var(--accent)' }} />
-                  Personalización
-                </p>
+                  <BuyerCopyText copyKey="checkout.CheckoutExperience.32e6e589" /></p>
                 {blocks.map((b, bi) => (
                   <div key={bi} style={{ marginBottom: bi < blocks.length - 1 ? 6 : 0 }}>
                     {b.title && <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{b.title}</p>}
@@ -807,13 +804,12 @@ export default function CheckoutExperience({
               {appliedCoupon ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, gap: 12 }}>
                   <span style={{ color: 'var(--fg-muted)' }}>
-                    Cupón <strong style={{ color: 'var(--fg)', fontFamily: 'monospace' }}>{appliedCoupon.code}</strong>
+                    <BuyerCopyText copyKey="checkout.CheckoutExperience.0d2cfcfb" />{' '}<strong style={{ color: 'var(--fg)', fontFamily: 'monospace' }}>{appliedCoupon.code}</strong>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <strong style={{ color: 'var(--success-ink)' }}>−{formatCents(couponDiscountCents, currency)}</strong>
                     <button type="button" onClick={removeCoupon} style={{ background: 'none', border: 'none', color: 'var(--fg-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
-                      Quitar
-                    </button>
+                      <BuyerCopyText copyKey="checkout.CheckoutExperience.db971e8f" /></button>
                   </span>
                 </div>
               ) : (
@@ -823,7 +819,7 @@ export default function CheckoutExperience({
                       value={couponInput}
                       onChange={e => { setCouponInput(e.target.value.toUpperCase()); if (couponError) setCouponError(null) }}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
-                      placeholder="Código de descuento"
+                      placeholder={copy('checkout.CheckoutExperience.aafeaa30')}
                       maxLength={24}
                       style={{ ...inputStyle, flex: 1, fontFamily: 'monospace', letterSpacing: '0.04em' }}
                     />
@@ -833,7 +829,7 @@ export default function CheckoutExperience({
                       disabled={couponValidating || !couponInput.trim()}
                       style={{ padding: '0 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: couponValidating || !couponInput.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}
                     >
-                      {couponValidating ? '…' : 'Aplicar'}
+                      {couponValidating ? '…' : <BuyerCopyText copyKey="checkout.CheckoutExperience.d3ef0dd2" />}
                     </button>
                   </div>
                   {couponError && <p style={{ fontSize: 12, color: 'var(--danger-strong)', marginTop: 6 }}>{couponError}</p>}
@@ -843,7 +839,7 @@ export default function CheckoutExperience({
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
-            <span style={{ fontWeight: 800 }}>Total</span>
+            <span style={{ fontWeight: 800 }}><BuyerCopyText copyKey="checkout.CheckoutExperience.c6da623f" /></span>
             <strong>{formatCents(totalCents, currency)}</strong>
           </div>
         </div>
@@ -870,11 +866,12 @@ export default function CheckoutExperience({
             shippingQuote={isCoordCheckout ? undefined : (needsShippingRate ? selectedShippingQuote : undefined)}
             originDomain={originDomain}
             rental={rental}
+            market={market}
             disabled={!canPay}
             onStarted={onStarted}
           />
         ) : (
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Este vendedor todavía no tiene pagos en línea activos.</p>
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}><BuyerCopyText copyKey="checkout.CheckoutExperience.182b86ba" /></p>
         )}
       </section>
     </>

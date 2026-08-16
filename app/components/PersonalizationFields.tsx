@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useRef, useImperativeHandle, forwardRef } from 'react'
 import {
   type CustomFieldDef,
@@ -66,7 +67,7 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
               {def.label}
               {def.required
                 ? <span style={{ color: 'var(--danger)', marginLeft: 3 }}>*</span>
-                : <span style={{ color: 'var(--fg-subtle)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}>(opcional)</span>}
+                : <span style={{ color: 'var(--fg-subtle)', fontWeight: 400, marginLeft: 6, fontSize: 12 }}><BuyerCopyText copyKey="components.PersonalizationFields.0d9efafd" /></span>}
             </label>
             {def.type !== 'select' && def.type !== 'file' && (
               <span style={{ fontSize: 11, color: value.length >= max ? 'var(--warning)' : 'var(--fg-subtle)' }}>
@@ -116,7 +117,7 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
                   fontFamily: 'var(--font-sans)', fontSize: 14,
                 }}
               >
-                <option value="">{def.placeholder || 'Elige una opción…'}</option>
+                <option value="">{def.placeholder || <BuyerCopyText copyKey="components.PersonalizationFields.78fe101f" />}</option>
                 {(def.options ?? []).map(opt => (
                   <option key={opt} value={opt} style={{ color: 'var(--fg)' }}>{opt}</option>
                 ))}
@@ -139,8 +140,7 @@ const PersonalizationFields = forwardRef<PersonalizationFieldsHandle, {
             )}
             {isMissing && (
               <p style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
-                Completa este campo para continuar.
-              </p>
+                <BuyerCopyText copyKey="components.PersonalizationFields.37c217cb" /></p>
             )}
           </div>
         )

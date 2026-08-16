@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import type { Spec } from '@/lib/listing-attributes'
 
 /**
@@ -11,7 +12,7 @@ export default function SpecsTable({ rows }: { rows: Spec[] }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}>Especificaciones</h2>
+      <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', marginBottom: 8 }}><BuyerCopyText copyKey="l.id.SpecsTable.9bdf343d" /></h2>
       <dl
         style={{
           border: '1px solid var(--border)',

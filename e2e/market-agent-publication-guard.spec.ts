@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { MARKETS } from '../lib/markets'
 import { agentMarketplacePublicationBlock } from '../lib/market-publication'
 import { readPublicSellerMarket } from '../lib/owned-market'
 
@@ -21,13 +22,29 @@ test.describe('seller-agent marketplace publication boundary', () => {
       market_code: 'mx', country_code: 'mx', currency_code: 'mxn', marketplace_status: 'active',
     })
     const us = readPublicSellerMarket({
-      market_code: 'us', country_code: 'us', currency_code: 'usd', marketplace_status: 'invitation',
+      market_code: 'us', country_code: 'us', currency_code: 'usd', marketplace_status: 'active',
     })
 
+    // Both registered marketplaces are open, so both publish. The block is derived from
+    // marketplace_status rather than a per-market literal, which is why opening US needed
+    // no change here — only this fixture, which had pinned the invitation-era registry.
     expect(agentMarketplacePublicationBlock(mx)).toBeNull()
-    expect(agentMarketplacePublicationBlock(us)).toContain('marketplace de US aún no está disponible')
-    expect(agentMarketplacePublicationBlock(us)).toContain('Tu tienda propia sigue activa')
+    expect(agentMarketplacePublicationBlock(us)).toBeNull()
     expect(agentMarketplacePublicationBlock(null)).toContain('no pudimos verificar el mercado operativo')
+  })
+
+  // The refusal branch is unreachable through readPublicSellerMarket while every registered
+  // market is active; exercised directly so the copy and the boundary stay covered.
+  test('refuses publication for a market whose marketplace has not opened', () => {
+    const closed = agentMarketplacePublicationBlock({
+      market: { ...MARKETS.us, marketplace_status: 'invitation' },
+      market_code: 'us',
+      country_code: 'us',
+      currency_code: 'usd',
+      marketplace_status: 'invitation',
+    })
+    expect(closed).toContain('marketplace de US aún no está disponible')
+    expect(closed).toContain('Tu tienda propia sigue activa')
   })
 
   test('refuses create_listing before image ingestion or a product write', () => {

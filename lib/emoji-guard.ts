@@ -23,7 +23,34 @@ export type VoiceAllowlistRule = {
 // markers, sort carets) are a different, far more pervasive convention than
 // colorful emoji and were scoped out of the emoji-to-iconoir-sweep epic (see its
 // README) — sweeping them would be a much larger, unrelated refactor.
-const emojiChromePattern = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu
+//
+// ── Three blocks added 2026-08-15, because the guard could not see its own
+//    enforced files ─────────────────────────────────────────────────────────────
+// `app/(shell)/shop/manage/analytics/AnalyticsClient.tsx` has been in
+// `enforcedSweptPaths` since the sweep shipped and carried 🆕 and ⏳ the whole
+// time, green, because neither glyph is in the ranges above. That is the
+// "guard the population, not the door you found" failure in its purest form:
+// the file list was right and the DETECTOR had a hole, so widening the list
+// would never have found it. The three additions:
+//
+//   U+1F000-U+1F2FF — Mahjong/Domino/Cards, Enclosed Alphanumeric Supplement
+//                     (🆕 🆗 🆒 …) and Enclosed Ideographic Supplement. This
+//                     range also contains the REGIONAL INDICATORS U+1F1E6-U+1F1FF,
+//                     which is how a pair of them makes a flag emoji (🇲🇽 = U+1F1F2
+//                     U+1F1FD) — the market selector's country flags, now gone.
+//   U+231A/U+231B, U+23E9-U+23F3, U+23F8-U+23FA — the emoji-presentation subset
+//                     of Miscellaneous Technical (⌚ ⌛ ⏩ ⏰ ⏳ ⏸ ⏺ …). Deliberately
+//                     NOT the whole 2300-23FF block: ⌘ ⌥ ⌫ ⏎ are keyboard glyphs
+//                     that legitimately render as text in a shortcut hint, and a
+//                     guard that rejects correct output is worse than one that
+//                     misses a rare fault.
+//
+// U+FE0F (the emoji variation selector) is NOT matched on its own: it only ever
+// follows a base character, and every base worth banning is already in a range
+// above — matching it alone would report an offense at a column where there is
+// no visible glyph, which is a confusing false positive rather than a catch.
+const emojiChromePattern =
+  /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{231A}\u{231B}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}]/gu
 
 // The sweep only ever touches app/ and components/ (JSX render surfaces) — never
 // lib/, where legitimate voice copy lives (email templates, Telegram notification
@@ -83,6 +110,12 @@ export const voiceAllowlist: VoiceAllowlistRule[] = [
 //     render site (a `{meta.message}`/`{opt.label}` interpolation, or a toast
 //     string). Converting these needs a data-model change (split the field into
 //     `{ icon, label }` and update the call site), not a character swap — pass 2.
+//   `sell/edit/[id]/page.tsx` and `shop/manage/offers/OfferInbox.tsx` had their
+//   chrome emoji (⏸, ⏰) converted on 2026-08-15 and were CONSIDERED for this set,
+//   then left out on the evidence: the widened pattern showed both still carry
+//   pass-2 emoji inside plain TS strings (a `listing-type` label config, and
+//   OfferInbox's STATUS_LABEL/toast ✓). Adding them would have made this gate red
+//   on work it was never asked to do.
 //   - embed/s/[slug]/page.tsx, CopyButton.tsx, SlugField.tsx — the only remaining
 //     match is inside a code COMMENT (never rendered), a naive-text-scan false
 //     positive the same way `lib/design-token-audit.ts` has to self-exclude for

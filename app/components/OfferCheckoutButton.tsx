@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { CheckoutProvider } from '@/lib/cart'
@@ -50,8 +51,7 @@ export default function OfferCheckoutButton({
         style={{ background: 'var(--accent)', color: 'var(--fg-inverse)' }}
       >
         <i className="iconoir-log-in" style={{ fontSize: 16 }} />
-        Inicia sesión para comprar
-      </a>
+        <BuyerCopyText copyKey="components.OfferCheckoutButton.12b95163" /></a>
     )
   }
 

@@ -32,10 +32,18 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       name: 'miyagisanchez-ucp',
-      description: 'Miyagi Sánchez — Universal Commerce Protocol API for a commerce system with country markets and independent owned-shop channels. Mexico is the active marketplace; other markets fail closed until opened.',
+      description: 'Miyagi Sánchez — Universal Commerce Protocol API for active Mexico and United States country marketplaces plus independent owned-shop channels.',
       version: '1.0',
       base_url: base,
       default_market: 'mx',
+      commerce_readiness: {
+        listing_field: 'commerce_readiness',
+        direct_checkout: {
+          mx: { available: true },
+          us: { available: false, reason: 'checkout_not_available', planned_sprint: 4 },
+        },
+        instruction: 'Treat commerce_readiness as authoritative. Never present buy_now or checkout URLs when ready is false.',
+      },
 
       // Canonical capability slugs — single source of truth in lib/ucp/capabilities.ts.
       capabilities: UCP_CAPABILITIES,
@@ -51,18 +59,18 @@ export async function GET(req: NextRequest) {
         catalog: {
           method: 'GET',
           url: `${base}/api/ucp/catalog`,
-          description: 'Search and filter active listings in one country market. `market` temporarily defaults to mx; invitation markets return a structured unavailable response.',
+          description: 'Search and filter active listings in one country market. Pass `market=mx` or `market=us`; omitted market retains the documented legacy mx default.',
           auth: 'none',
           params: {
-            market:        'mx | us (temporary default: mx; us is invitation-only)',
-            q:            'Full-text search query (Spanish websearch syntax)',
+            market:        'mx | us (legacy default: mx)',
+            q:            'Full-text search query',
             category:     'autos | inmuebles | electronica | hogar | moda | deportes | servicios | mascotas | herramientas | negocios | otros',
             listing_type: 'product | service | rental | digital',
-            state:        'Mexican state (e.g. "Ciudad de México", "Jalisco")',
+            state:        'State name in the selected market (e.g. "Jalisco" or "New York")',
             location:     'City or neighborhood (partial match)',
             condition:    'new | like_new | good | fair | parts',
-            min_price:    'Minimum price in MXN pesos',
-            max_price:    'Maximum price in MXN pesos',
+            min_price:    'Minimum amount in the selected market currency (MXN or USD)',
+            max_price:    'Maximum amount in the selected market currency (MXN or USD)',
             limit:        '1–50 (default 20)',
             cursor:       'Pagination cursor (created_at of last item from previous response)',
             sort:         'reciente | precio_asc | precio_desc | popular | year_desc | year_asc | marca',
@@ -83,7 +91,7 @@ export async function GET(req: NextRequest) {
           description: 'Get full UCP detail for a single listing including all trust signals, payment methods, and checkout URLs.',
           auth: 'none',
           params: {
-            market: 'mx | us (temporary default: mx)',
+            market: 'mx | us (legacy default: mx)',
           },
         },
 

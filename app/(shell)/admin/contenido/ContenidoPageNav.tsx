@@ -31,6 +31,20 @@ function navHref(namespace: string, section: string): string {
  *
  * `guard` (wired by Story 3.2) lets the caller block navigation while there
  * are unsaved batched-save drafts; omitted, every click navigates normally.
+ *
+ * 2026-08-15: each namespace is now a `<details>`, open only when it holds the
+ * active section. Repairing the `sellerCopy` grouping took the nav from ~2600
+ * entries to 110 — a vast improvement and still a long scroll in a 220px
+ * column, which is what Daniel meant by listing this page as "not paginated".
+ * Twelve collapsed headers with one expanded group is the right shape for a
+ * page-first nav: you scan domains, then pages, instead of scanning 110 links.
+ *
+ * No React state backs it, deliberately: the server already knows which group
+ * is active from the URL, so there is nothing to synchronise. React writes
+ * `open` only when the value it computes CHANGES, which means a group opened by
+ * hand (React's prop stayed `false` throughout) survives re-renders, while
+ * navigating to another group closes this one. Holding it in state instead
+ * would slam a hand-opened group shut on the next render.
  */
 export default function ContenidoPageNav({
   groups,
@@ -46,33 +60,62 @@ export default function ContenidoPageNav({
   return (
     <nav aria-label="Páginas de contenido" style={{ width: 220, flexShrink: 0 }}>
       {groups.map((group) => (
-        <div key={group.namespace} style={{ marginBottom: 16 }}>
-          <div style={{ padding: '2px 8px 4px' }}>
-            <div
+        <details
+          key={group.namespace}
+          // Open on the group holding the active section. React writes the
+          // `open` attribute only when this VALUE changes between renders, so
+          // navigating to another group closes this one (true → false) while a
+          // group the user opened by hand — where React's prop stayed false the
+          // whole time — is left alone. That is the behaviour we want, and it
+          // is a property of how React reconciles `open`, not of `key`.
+          open={group.namespace === activeNamespace}
+          style={{ marginBottom: 8 }}
+        >
+          <summary
+            data-testid={`nav-group-${group.namespace}`}
+            className="pressable"
+            style={{
+              padding: '4px 8px',
+              cursor: 'pointer',
+              borderRadius: 'var(--r-md)',
+              listStyle: 'none',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              gap: 8,
+            }}
+          >
+            <span
               style={{
                 fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
-                color: 'var(--fg-subtle)',
+                color: group.namespace === activeNamespace ? 'var(--accent-ink)' : 'var(--fg-subtle)',
               }}
             >
               {group.label}
+            </span>
+            {/* The group's own size, so a collapsed group still says how much is
+                inside it — otherwise collapsing just hides information. */}
+            <span style={{ fontSize: 10, color: 'var(--fg-subtle)', flexShrink: 0 }}>{group.count}</span>
+          </summary>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ padding: '2px 8px 4px' }}>
+              {group.uniformRoute && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--fg-subtle)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {group.uniformRoute.path}
+                </div>
+              )}
             </div>
-            {group.uniformRoute && (
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--fg-subtle)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {group.uniformRoute.path}
-              </div>
-            )}
-          </div>
           {group.sections.map((entry) => {
             const active = group.namespace === activeNamespace && entry.section === activeSection
             return (
@@ -130,7 +173,8 @@ export default function ContenidoPageNav({
               </Link>
             )
           })}
-        </div>
+          </div>
+        </details>
       ))}
     </nav>
   )

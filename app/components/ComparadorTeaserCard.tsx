@@ -1,5 +1,8 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect -- existing mount-only UTM attribution is preserved during the copy-only extraction. */
+
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { pushAnalyticsEvent } from '@/lib/analytics-events'
@@ -53,18 +56,14 @@ export default function ComparadorTeaserCard() {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
-          Comparador de costos
-        </p>
+          <BuyerCopyText copyKey="components.ComparadorTeaserCard.4d535d23" /></p>
         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
-          ¿Cuánto pagas hoy contra Miyagi?
-        </p>
+          <BuyerCopyText copyKey="components.ComparadorTeaserCard.c1f239c6" /></p>
         <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          Compara Shopify, Mercado Libre, WooCommerce o Tiendanube con tus propios números.
-        </p>
+          <BuyerCopyText copyKey="components.ComparadorTeaserCard.348a35be" /></p>
       </div>
       <span style={{ flexShrink: 0, fontSize: 13, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-        Comparar →
-      </span>
+        <BuyerCopyText copyKey="components.ComparadorTeaserCard.2a858063" /></span>
     </Link>
   )
 }

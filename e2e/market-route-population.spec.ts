@@ -21,11 +21,14 @@ function filesBelow(relativeDir: string): string[] {
 }
 
 test.describe('market route population', () => {
-  test('literal MX routes share the legacy page system while tenant routes remain present', () => {
+  test('literal MX and US routes share the legacy page system while tenant routes remain present', () => {
     const required = [
       'app/(site)/page.tsx',
-      'app/(site)/mx/page.tsx',
-      'app/(site)/us/page.tsx',
+      'app/(mx-site)/mx/page.tsx',
+      'app/(us-site)/us/page.tsx',
+      'app/(us-shell)/us/l/page.tsx',
+      'app/(us-shell)/us/l/[id]/page.tsx',
+      'app/(us-shell)/us/s/[slug]/page.tsx',
       'app/(shell)/l/[id]/page.tsx',
       'app/(shell)/s/[slug]/page.tsx',
       'app/(shell)/c/[collection]/page.tsx',
@@ -40,17 +43,21 @@ test.describe('market route population', () => {
     expect(isMarketPrefixablePath('/c/editorial')).toBe(false)
   })
 
-  test('the invitation market has exactly one static route, never a catalog subtree', () => {
-    const usRoutes = filesBelow('app')
-      .map((file) => path.relative(ROOT, file).replace(/\\/g, '/'))
-      .filter((file) => /\/(?:us)(?:\/|$)/.test(file))
-      .filter((file) => /\/(?:page|route)\.(?:ts|tsx)$/.test(file))
+  test('the US adapter population mirrors every literal MX catalog route', () => {
+    const routeTail = (file: string, market: 'mx' | 'us') => {
+      const relative = path.relative(ROOT, file).replace(/\\/g, '/')
+      return relative.slice(relative.indexOf(`/${market}/`) + market.length + 2)
+    }
+    const mx = filesBelow('app/(shell)/mx')
+      .filter((file) => file.endsWith('/page.tsx'))
+      .map((file) => routeTail(file, 'mx'))
       .sort()
-
-    // D9: route-entrypoint absence is the guard. Colocated components are allowed,
-    // but a later `/us/l`, `/us/s`, search, or category route cannot quietly become
-    // a plausible-but-empty US marketplace.
-    expect(usRoutes).toEqual(['app/(site)/us/page.tsx'])
+    const us = filesBelow('app/(us-shell)/us')
+      .filter((file) => file.endsWith('/page.tsx'))
+      .map((file) => routeTail(file, 'us'))
+      .sort()
+    expect(mx.length, 'the MX adapter scan found nothing').toBeGreaterThan(5)
+    expect(us).toEqual(mx)
   })
 
   test('the root selector is a zero-catalog static surface', () => {
@@ -86,12 +93,15 @@ test.describe('market route population', () => {
     // it is the defect wearing the escape hatch's clothes. Caught by the fresh
     // reviewer on PR #345 by mutation, not by reasoning; re-verify the same way.
     //
-    // `(site)` IS the whole population, and here is why it isn't an arbitrary root:
+    // The three `*-site` groups are the whole static population; the language split
+    // deliberately moved MX and US out of the shared selector group.
     // `app/(shell)/layout.tsx` reads `headers()`, so everything under `(shell)`
     // renders per-request (verified live — `/vende`, `/terminos` and a 404 all return
     // `private, no-cache, no-store`). A future sibling route group with a static
     // layout WOULD escape this, so it must be added here when one appears.
-    const pages = filesBelow('app/(site)').filter((file) => file.endsWith('/page.tsx'))
+    const pages = ['app/(site)', 'app/(mx-site)', 'app/(us-site)']
+      .flatMap(filesBelow)
+      .filter((file) => file.endsWith('/page.tsx'))
 
     // A scan that silently finds nothing must not read as a pass — AGENTS.md rule 5.
     // Matches the sibling assertion at the MX-shop-route test below.
@@ -180,6 +190,15 @@ test.describe('market route population', () => {
       .map((file) => path.relative(ROOT, file))
     expect(offenders).toEqual([])
   })
+
+  test('every literal US shop route passes a market decision, not only a URL prefix', () => {
+    const wrappers = filesBelow('app/(us-shell)/us/s').filter((file) => file.endsWith('/page.tsx'))
+    expect(wrappers.length).toBeGreaterThan(5)
+    const offenders = wrappers
+      .filter((file) => !readFileSync(file, 'utf8').includes("market: 'us'"))
+      .map((file) => path.relative(ROOT, file))
+    expect(offenders).toEqual([])
+  })
 })
 
 test.describe('post-authentication destination', () => {
@@ -189,21 +208,17 @@ test.describe('post-authentication destination', () => {
   // looked like it configured this (NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL) does not
   // exist in @clerk/nextjs v7, so the value must live in the layout.
   test('sign-in lands on a market, never back on the selector', () => {
-    const source = readFileSync(path.join(ROOT, 'app/layout.tsx'), 'utf8')
-
-    const home = /const POST_AUTH_HOME = '([^']+)'/.exec(source)
-    expect(home, 'POST_AUTH_HOME must stay a single named destination').not.toBeNull()
-    expect(home![1]).not.toBe('/')
-    // An OPEN market, not merely a known one. `/us` is a registry-valid code whose
-    // marketplace_status is 'invitation' — no Region, no USD price, no checkout — so
-    // landing a signed-in user there is a dead end of a different shape than `/`.
+    const source = readFileSync(path.join(ROOT, 'app/components/MarketDocument.tsx'), 'utf8')
+    // An OPEN market, not merely a known one. A future scaffolded market may have a
+    // registry-valid code without a live marketplace and must not become a default.
     const openHomes = openMarketCodes().map((code) => marketBasePath(code))
     expect(openHomes, 'no open market to land on').not.toEqual([])
-    expect(openHomes).toContain(home![1])
+    expect(openHomes).toContain(marketBasePath('mx'))
+    expect(source).toContain('isMarketplaceOpen(market) ? market : DEFAULT_MARKET')
 
     // Both halves wired, or a signed-up user still strands on the selector.
-    expect(source).toContain('signInFallbackRedirectUrl={POST_AUTH_HOME}')
-    expect(source).toContain('signUpFallbackRedirectUrl={POST_AUTH_HOME}')
+    expect(source).toContain('signInFallbackRedirectUrl={postAuthHome}')
+    expect(source).toContain('signUpFallbackRedirectUrl={postAuthHome}')
 
     // FALLBACK, not FORCE — force overrides `redirect_url` and would break the
     // "sign in to continue" hop back into checkout.

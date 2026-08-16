@@ -1,3 +1,4 @@
+import { BuyerCopyText, BuyerPresentationProvider } from '@/app/components/BuyerPresentationContext'
 import { redirect, notFound } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
@@ -6,9 +7,11 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getShopStripe } from '@/lib/stripe'
 import { sellerHasMpConnected } from '@/lib/mercadopago-connect'
-import { resolveConversationLedger, type ConversationLedger } from '@/lib/conversation-ledger'
+import { resolveConversationLedger } from '@/lib/conversation-ledger'
 import type { LedgerOffer } from '@/lib/transaction-ledger'
 import { returnsWindowLabel } from '@/lib/trust-signals'
+import { marketCodeForCurrency, resolveMarketPresentation } from '@/lib/market-presentation'
+import { getDictionary } from '@/lib/dictionary'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -27,7 +30,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   if (!user) redirect(`/sign-in?redirect_url=/messages/${id}`)
 
   // ── Fetch conversation (no offers embed — offers table has no currency column) ──
-  const { data: conv } = await db
+  // `marketplace_shops.market_code` is deliberately ABSENT: it has never been a
+  // column on the mirror (the operating market is a fact of the Medusa seller), and
+  // selecting it made PostgREST answer 400 — which this page turned into a 404. Every
+  // buyer who pressed "Preguntar" got the conversation created and then a not-found
+  // page (PR 351 → 2026-08-15). Presentation comes from the listing's own currency.
+  const { data: conv, error: convError } = await db
     .from('marketplace_conversations')
     .select(`
       id, status, buyer_clerk_user_id, seller_clerk_user_id, last_event_at,
@@ -38,6 +46,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     .eq('id', id)
     .maybeSingle()
 
+  // A read that FAILED is not a conversation that does not exist. Collapsing the two
+  // is what made a live outage indistinguishable from a bad link — 404 tells the user
+  // the thing is gone, which was false and unactionable. Throw instead, so the error
+  // boundary offers a retry and the failure is visible in logs and Sentry.
+  if (convError) {
+    console.error('[messages/:id] conversation read failed:', convError)
+    throw new Error(`No se pudo leer la conversación: ${convError.message}`)
+  }
   if (!conv) notFound()
 
   const isBuyer  = conv.buyer_clerk_user_id === user.id
@@ -76,6 +92,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     metadata?: Record<string, unknown> | null
     mp_enabled?: boolean | null
   } | null
+  const presentation = resolveMarketPresentation(marketCodeForCurrency(listingCurrency) ?? 'mx')
+  const buyerCopy = (await getDictionary(presentation.language)).buyerCopy
   const stripeSettings = getShopStripe(shopRaw?.metadata ?? null)
   const sellerHasStripe = !!(stripeSettings.charges_enabled && stripeSettings.account_id && stripeSettings.enabled !== false)
   const sellerHasMp = sellerHasMpConnected(shopRaw?.metadata ?? null)
@@ -121,13 +139,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const initialTransaction = await resolveConversationLedger(ledgerOffer, offerId, role, medusaOrderIdHint)
 
   return (
+    <BuyerPresentationProvider presentation={presentation} copy={buyerCopy}>
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 72px)' }}>
       {/* Back nav */}
       <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-elevated)', flexShrink: 0 }}>
         <Link href="/messages" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
           <i className="iconoir-arrow-left" style={{ fontSize: 18 }} />
-          Mensajes
-        </Link>
+          <BuyerCopyText copyKey="messages.id.page.a13f054b" /></Link>
       </div>
 
       <ConversationClient
@@ -141,5 +159,6 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         trustCapsule={trustCapsule}
       />
     </div>
+    </BuyerPresentationProvider>
   )
 }

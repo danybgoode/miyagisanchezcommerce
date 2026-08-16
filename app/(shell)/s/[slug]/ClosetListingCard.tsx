@@ -1,13 +1,10 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element -- listing thumbnails may be seller-hosted on arbitrary remote domains. */
+
+import { BuyerCopyText, useBuyerCopy, useBuyerFormatters } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { useCart, type CartItem } from '@/app/components/CartContext'
-
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency', currency, maximumFractionDigits: 0,
-  }).format(cents / 100)
-}
 
 /**
  * Listing card for the seller closet (/s/[slug]).
@@ -21,6 +18,8 @@ export default function ClosetListingCard({
   item: CartItem & { href: string; imageUrl: string | null; formattedPrice?: string; status?: string; hasExcerpt?: boolean }
   accent: string
 }) {
+  const copy = useBuyerCopy()
+  const formatters = useBuyerFormatters()
   const { addItem, removeItem, items: cartItems } = useCart()
   const inCart = cartItems.some(ci => ci.productId === item.productId)
   const showCartButton = item.listing_type === 'product' && item.price_cents > 0
@@ -37,11 +36,10 @@ export default function ClosetListingCard({
           <p className="text-xs font-medium text-[var(--color-text)] line-clamp-2 leading-snug">{item.title}</p>
           {item.hasExcerpt && (
             <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
-              <i className="iconoir-book" aria-hidden /> Adelanto
-            </span>
+              <i className="iconoir-book" aria-hidden /> <BuyerCopyText copyKey="s.slug.ClosetListingCard.3def2049" /></span>
           )}
           <p className="text-sm font-bold mt-1" style={{ color: accent }}>
-            {item.formattedPrice ?? formatPrice(item.price_cents, item.currency)}
+            {item.formattedPrice ?? formatters.currency(item.price_cents, item.currency, { maximumFractionDigits: 0 })}
           </p>
         </div>
       </Link>
@@ -56,9 +54,9 @@ export default function ClosetListingCard({
                 ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
                 : 'bg-transparent text-[var(--color-accent)] border-[var(--color-accent)]/40 hover:bg-[var(--color-accent-soft)]'
             }`}
-            aria-label={inCart ? 'Quitar del paquete' : 'Agregar al paquete'}
+            aria-label={inCart ? copy('s.slug.ClosetListingCard.b9f3829e') : copy('s.slug.ClosetListingCard.6a22e5f0')}
           >
-            {inCart ? <><i className="iconoir-check" aria-hidden /> En paquete</> : '+ Agregar al paquete'}
+            {inCart ? <><i className="iconoir-check" aria-hidden /> <BuyerCopyText copyKey="s.slug.ClosetListingCard.ee7138da" /></> : <BuyerCopyText copyKey="s.slug.ClosetListingCard.ce395d34" />}
           </button>
         </div>
       )}

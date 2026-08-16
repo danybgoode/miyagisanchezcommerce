@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { useHomePersonalization } from './HomePersonalizationProvider'
 import { sellerModule } from '@/lib/home-personalization'
@@ -72,14 +73,13 @@ export default function HomeSellerModule() {
             <i className="iconoir-shop" style={{ fontSize: 22, color: 'var(--accent)' }} aria-hidden />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Tu tienda esta semana</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}><BuyerCopyText copyKey="components.HomeSellerModule.b649cb90" /></p>
             <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-              {visitas} visita{visitas === 1 ? '' : 's'} · {ofertasNuevas} oferta{ofertasNuevas === 1 ? '' : 's'} nueva{ofertasNuevas === 1 ? '' : 's'}
+              {visitas} <BuyerCopyText copyKey="components.HomeSellerModule.6abadc8f" />{visitas === 1 ? '' : <BuyerCopyText copyKey="components.HomeSellerModule.28b22a64" />} · {ofertasNuevas} <BuyerCopyText copyKey="components.HomeSellerModule.22bf0008" />{ofertasNuevas === 1 ? '' : <BuyerCopyText copyKey="components.HomeSellerModule.28b22a64" />} <BuyerCopyText copyKey="components.HomeSellerModule.60ba8371" />{ofertasNuevas === 1 ? '' : <BuyerCopyText copyKey="components.HomeSellerModule.28b22a64" />}
             </p>
           </div>
           <Link href="/sell" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
-            Publicar otro
-          </Link>
+            <BuyerCopyText copyKey="components.HomeSellerModule.530036b0" /></Link>
         </div>
       </section>
     )
@@ -93,14 +93,12 @@ export default function HomeSellerModule() {
     >
       <div className="card-tile" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>¿Vendes algo?</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}><BuyerCopyText copyKey="components.HomeSellerModule.08fb47c3" /></p>
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
-            Abre tu tienda gratis y empieza a vender en minutos.
-          </p>
+            <BuyerCopyText copyKey="components.HomeSellerModule.4348dc4e" /></p>
         </div>
         <Link href="/vende" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
-          Abre tu tienda
-        </Link>
+          <BuyerCopyText copyKey="components.HomeSellerModule.dc4b6d05" /></Link>
       </div>
     </section>
   )

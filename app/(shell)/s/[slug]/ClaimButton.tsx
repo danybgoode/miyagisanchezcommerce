@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 
 /**
@@ -23,7 +24,6 @@ export default function ClaimButton({ href, accent }: { href: string; accent: st
         el.style.color = accent
       }}
     >
-      ¿Es tu tienda? Reclamar →
-    </Link>
+      <BuyerCopyText copyKey="s.slug.ClaimButton.a91cf3b7" /></Link>
   )
 }

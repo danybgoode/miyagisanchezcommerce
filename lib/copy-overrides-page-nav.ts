@@ -28,6 +28,7 @@
  */
 import { humanizeSectionName } from './copy-overrides-labels'
 import { namespaceLabel, routeForNamespaceSection, type RouteInfo } from './copy-overrides-routes'
+import { sectionForKey } from './copy-overrides-sections'
 
 export interface NavSectionEntry {
   section: string
@@ -66,7 +67,10 @@ function computeUniformRoute(sections: readonly { route: RouteInfo | null }[]): 
 export function buildPageNavGroups(keys: readonly NavSourceKey[]): NavNamespaceGroup[] {
   const byNamespace = new Map<string, Map<string, number>>()
   for (const k of keys) {
-    const section = k.key.split('.')[0] || k.key
+    // The ONE section rule (`copy-overrides-sections.ts`) — the same call
+    // `filterKeysBySection` makes. If these two ever disagree, a nav group
+    // opens onto an empty field list, which is how this surface broke before.
+    const section = sectionForKey(k.namespace, k.key)
     const bySection = byNamespace.get(k.namespace) ?? new Map<string, number>()
     bySection.set(section, (bySection.get(section) ?? 0) + 1)
     byNamespace.set(k.namespace, bySection)

@@ -72,7 +72,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
   })
 
   test('the homepage LCP element (Selección featured card) uses next/image with priority', () => {
-    const page = read('app/(site)/mx/page.tsx')
+    const page = read('app/(mx-site)/mx/page.tsx')
     expect(page).toMatch(/import Image from 'next\/image'/)
     const featuredBlock = page.slice(page.indexOf('Featured card'), page.indexOf('Grid — price 16px'))
     expect(featuredBlock).not.toMatch(/<img\s/)
@@ -83,12 +83,12 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     // closes that gap.
     const imageTag = featuredBlock.match(/<Image\b[\s\S]*?\/>/)?.[0]
     expect(imageTag, 'expected a self-closing <Image ... /> tag in the featured-card block').toBeTruthy()
-    expect(imageTag).toMatch(/\bpriority\b/)
+    expect(imageTag).toMatch(/\bpriority(?:=\{true\})?(?=\s|\/>)/)
     expect(imageTag).toMatch(/\bsizes=/)
   })
 
   test('the Selección grid marks only the first row (idx < 2) as priority', () => {
-    const page = read('app/(site)/mx/page.tsx')
+    const page = read('app/(mx-site)/mx/page.tsx')
     const gridBlock = page.slice(page.indexOf('Grid — price 16px'), page.indexOf('Categorías —'))
     expect(gridBlock).not.toMatch(/<img\s/)
     // Same tag-scoping as the featured-card check above.
@@ -185,7 +185,7 @@ test.describe('perf-budget · S2.2 source-code checks — Clerk UI lazy-mount + 
   })
 
   test('Clerk AUTH itself is untouched — ClerkProvider still wraps the root layout, useAuth/useUser hooks unchanged (AGENTS.md rule #4)', () => {
-    const layout = read('app/layout.tsx')
+    const layout = read('app/components/MarketDocument.tsx')
     expect(layout).toMatch(/import \{ ClerkProvider \} from '@clerk\/nextjs'/)
     expect(layout).toMatch(/<ClerkProvider/)
     // Spot-check a couple of hook-only consumers (no UI bundle cost) stayed
@@ -232,13 +232,13 @@ function attrValue(tag: string, attrName: string): string | undefined {
 }
 
 test.describe('perf-budget · S2.3 source-code checks — the render-blocking-CDN regression guard', () => {
-  test("app/layout.tsx's <head> has no external stylesheet <link> besides the accepted Google Fonts one", () => {
+  test("MarketDocument's <head> has no external stylesheet <link> besides the accepted Google Fonts one", () => {
     // Deterministic, no-network guard against the EXACT regression class this
     // sprint fixed: a large third-party stylesheet (jsDelivr's iconoir.css)
     // re-appearing in the shared root layout's <head>. Google Fonts stays
     // allow-listed by name (small, already preconnected, a deliberate
     // trade-off, not the class of asset this guard is watching for).
-    const layout = read('app/layout.tsx')
+    const layout = read('app/components/MarketDocument.tsx')
     const headBlock = layout.slice(layout.indexOf('<head>'), layout.indexOf('</head>'))
     const stylesheetHrefs = extractTags(headBlock, 'link')
       .filter((tag) => attrValue(tag, 'rel') === 'stylesheet')

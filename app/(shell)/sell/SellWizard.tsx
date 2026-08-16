@@ -1268,12 +1268,19 @@ export default function SellWizard({
   existingShop,
   arrangedOnlyEnabled = false,
   ownedShopOnlyEnabled = false,
+  signupMarket,
 }: {
   existingShop: ExistingShop | null
   /** Arranged-only delivery (epic, S1.2) — gates the "Entrega" toggle's visibility. */
   arrangedOnlyEnabled?: boolean
   /** catalog.owned_shop_only_enabled (owned-shop-operating-channel epic, D8) — gates the "Solo mi tienda" checkbox. */
   ownedShopOnlyEnabled?: boolean
+  /**
+   * The market this merchant is signing up from (us-marketplace S5.2 / D17), resolved
+   * by the server page. Sent with the shop create; the API route narrows it and the
+   * backend is the authority. Undefined ⇒ the documented MX legacy default.
+   */
+  signupMarket?: string
 }) {
   const hasShopStep = existingShop === null
   const initialStep = hasShopStep ? 1 : 2
@@ -1373,6 +1380,10 @@ export default function SellWizard({
           state: shopState,
           city: shopCity.trim() || undefined,
           description: shopDescription.trim() || undefined,
+          // Where this merchant is signing up FROM (D17). The route narrows it to a
+          // real, open market and the backend refuses anything it does not like, so
+          // this is an intent, not an assertion. Omitted ⇒ the MX legacy default.
+          market: signupMarket,
         }),
       })
       const data = await res.json() as { shopSlug?: string; error?: string; field?: string }

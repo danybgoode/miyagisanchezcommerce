@@ -1,8 +1,10 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { MARKETS, MARKET_CODES, marketBasePath } from '@/lib/markets'
 import { marketLandingMetadata, selectorMetadata } from '@/lib/market-seo'
 import MarketRecommendation from './MarketRecommendation'
+import { PendingMark } from '@/app/components/LinkPending'
 
 /**
  * `/` — the master-brand market selector.
@@ -26,14 +28,10 @@ import MarketRecommendation from './MarketRecommendation'
  * `@/lib/{listings,medusa,supabase}` import) is the part that actually gates.
  *
  * ── What the copy may and may not claim ──────────────────────────────────────
- * Mexico is an operating marketplace. The United States is an invitation-only
- * private pilot (`lib/markets.ts` → `marketplace_status: 'invitation'`), and
- * there is no US Medusa Region, no USD price, no US payment or shipping
- * capability (D0). The copy therefore describes what a shop is (borderless,
- * yours, no marketplace admission needed) and what a Miyagi Market is
- * (country-specific, currently Mexico), and claims no worldwide operational
- * readiness anywhere. The US card says "por invitación" in its own label so the
- * status is legible before the click, not after it.
+ * Mexico and the United States are operating marketplaces. Country context still
+ * matters: inventory, prices and fulfillment are market-owned, and US direct
+ * checkout remains unavailable until its separate rail ships. The selector says
+ * exactly that instead of collapsing catalog availability into payment readiness.
  *
  * The Spanish copy is deliberate: `AGENTS.md` rule 5 — es-MX is the default and
  * this surface is not on the bilingual allow-list. Sprint 3's `/us` page is the
@@ -64,30 +62,42 @@ export const revalidate = 60
 export const metadata: Metadata = {
   title: 'Miyagi Sánchez — Tu tienda propia y los mercados por país',
   description:
-    'Abre tu propia tienda con Miyagi y véndele a quien quieras. Los Miyagi Markets son por país: México está activo; Estados Unidos es un piloto por invitación.',
+    'Explora los mercados Miyagi de México y Estados Unidos, o abre tu propia tienda y véndele a quien quieras.',
   ...selectorMetadata(),
 }
 
-/** Per-market selector copy. Status/locale facts come from the registry, never restated here. */
+/**
+ * Per-market selector copy. Status/locale facts come from the registry, never restated here.
+ *
+ * There is no `flag` here any more. The cards used flag EMOJI (a pair of Unicode
+ * regional indicators, U+1F1F2 U+1F1FD and U+1F1FA U+1F1F8 — named by codepoint
+ * so this comment does not itself trip the emoji guard, which scans source text
+ * and cannot tell a comment from a render) as their identifying mark. That fails
+ * three ways at once: it renders as a completely different thing per platform —
+ * a coloured flag on Apple, a two-letter box on most of Windows, and nothing at
+ * all where the font lacks the pair — it is a national flag standing in for a
+ * MARKET (the /us market is not "the United States", it is where USD listings
+ * and manual-carrier delivery live), and it is exactly the emoji-as-chrome the
+ * platform swept out everywhere else. The ISO code below is the mark instead:
+ * one CSS pill, identical on every device, and legible at 11px where a
+ * two-glyph flag is not.
+ */
 const MARKET_CARDS: Record<(typeof MARKET_CODES)[number], {
-  flag: string
   name: string
   lede: string
   cta: string
   href: string
 }> = {
   mx: {
-    flag: '🇲🇽',
     name: 'México',
     lede: 'El mercado Miyagi activo. Compra y vende en pesos, con pago protegido, envíos y entrega local.',
     cta: 'Entrar a Miyagi México',
     href: marketBasePath('mx'),
   },
   us: {
-    flag: '🇺🇸',
     name: 'Estados Unidos',
-    lede: 'Piloto privado por invitación. Todavía no hay mercado abierto ni checkout en dólares.',
-    cta: 'Conocer el piloto',
+    lede: 'Mercado abierto para explorar tiendas y productos en dólares. El checkout directo llegará pronto.',
+    cta: 'Entrar a Miyagi Estados Unidos',
     href: marketBasePath('us'),
   },
 }
@@ -106,14 +116,9 @@ export default function MarketSelectorPage() {
             margin: '0 0 12px',
           }}
         >
-          Tu tienda es tuya. El mercado es por país.
-        </h1>
+          <BuyerCopyText copyKey="page.5b78d70c" /></h1>
         <p style={{ fontSize: 15, color: 'var(--fg-muted)', lineHeight: 1.5, margin: 0 }}>
-          Con Miyagi abres una tienda propia —tu dominio, tu marca, tus reglas— y no necesitas permiso
-          de ningún marketplace para venderle a tu gente. Los <strong style={{ color: 'var(--fg)' }}>Miyagi
-          Markets</strong> son distintos: cada uno es un mercado de un país, con su moneda, sus pagos y
-          sus envíos. Elige por cuál quieres entrar.
-        </p>
+          <BuyerCopyText copyKey="page.bf77921b" /><strong style={{ color: 'var(--fg)' }}><BuyerCopyText copyKey="page.881db298" /></strong> <BuyerCopyText copyKey="page.ac4888c2" /></p>
       </section>
 
       <section
@@ -133,15 +138,37 @@ export default function MarketSelectorPage() {
               className="card-tile no-underline block"
               style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}
             >
+              {/* Keeps the tile dimmed for the whole navigation, not just while the finger is down. */}
+              <PendingMark showDot={false} />
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span aria-hidden style={{ fontSize: 26 }}>{card.flag}</span>
+                {/* The market's ISO code as a quiet monospace pill. `aria-hidden`
+                    because the market's real name is the very next element —
+                    a screen reader announcing "M X México" is noise. */}
+                <span
+                  aria-hidden
+                  data-testid={`market-code-${code}`}
+                  style={{
+                    fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    lineHeight: 1,
+                    padding: '5px 7px',
+                    borderRadius: 'var(--r-sm)',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-sunk)',
+                    color: 'var(--fg-muted)',
+                  }}
+                >
+                  {code.toUpperCase()}
+                </span>
                 <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--fg)' }}>{card.name}</span>
                 <span
                   className="badge badge-soft"
                   data-testid={`market-status-${code}`}
                   style={{ fontSize: 11 }}
                 >
-                  {open ? 'Mercado activo' : 'Por invitación'}
+                  {open ? <BuyerCopyText copyKey="page.89b515ec" /> : <BuyerCopyText copyKey="page.7aa89a8b" />}
                 </span>
                 <MarketRecommendation market={code} />
               </span>
@@ -158,17 +185,11 @@ export default function MarketSelectorPage() {
 
       <section className="card-panel" style={{ padding: 18 }}>
         <h2 style={{ fontWeight: 600, fontSize: 'var(--t-base)', color: 'var(--fg)', marginBottom: 8 }}>
-          ¿Tienda propia o Miyagi Market?
-        </h2>
+          <BuyerCopyText copyKey="page.7b6fe1dd" /></h2>
         <p style={{ fontSize: 13.5, color: 'var(--fg-muted)', lineHeight: 1.5, marginBottom: 12 }}>
-          Son dos cosas distintas y puedes tener las dos. Tu tienda vive en tu propio dominio o
-          subdominio y no depende de que ningún mercado te admita. Publicar en un Miyagi Market es un
-          paso aparte: ahí entras al catálogo de ese país, con la moneda y los métodos de pago de ese
-          país.
-        </p>
+          <BuyerCopyText copyKey="page.3cc39e5f" /></p>
         <Link href="/vende" className="btn btn-primary btn-sm" data-testid="market-selector-sell-cta">
-          Abrir mi tienda
-        </Link>
+          <BuyerCopyText copyKey="page.b5f692e9" /></Link>
       </section>
     </div>
   )

@@ -18,7 +18,8 @@ import {
   type MarketScopedMeta,
   type MarketUnavailable,
 } from './market-catalog'
-import { requireMarket, type MarketRecord } from './markets'
+import { requireMarket, type MarketCode, type MarketRecord } from './markets'
+import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from './market-medusa'
 import {
   readOwnedPriceGridPayload,
   readPublicSellerMarket,
@@ -74,8 +75,30 @@ function ownershipScopedFetch(path: string, options?: RequestInit) {
  * `planMarketCatalogRead` — by the time this runs, the market is known-open.
  */
 function marketCatalogFetch(marketQuery: string, path: string, options?: RequestInit) {
+  const market = requireMarket(new URLSearchParams(marketQuery).get('market'))
+  const key = resolvePublishableKeyForMarket(market.code, PROCESS_MARKET_ENV)
+  if (key.status !== 'resolved') throw new Error(key.reason)
   const separator = path.includes('?') ? '&' : '?'
-  return medusaFetch(`${path}${separator}${marketQuery}`, options)
+  return medusaFetch(`${path}${separator}${marketQuery}`, {
+    ...options,
+    headers: {
+      'x-publishable-api-key': key.token,
+      ...(options?.headers ?? {}),
+    },
+  })
+}
+
+/** Missing market-owned credentials are an outage, never an empty catalog. */
+function marketCredentialUnavailable(market: MarketRecord): MarketUnavailable | null {
+  const key = resolvePublishableKeyForMarket(market.code, PROCESS_MARKET_ENV)
+  return key.status === 'resolved'
+    ? null
+    : {
+        unavailable: true,
+        market_code: market.code,
+        marketplace_status: market.marketplace_status,
+        reason: 'market_filter_unavailable',
+      }
 }
 
 /**
@@ -142,6 +165,10 @@ export async function searchListings(
   if (isMarketUnavailable(decision)) {
     return { listings: [], total: 0, page, ...marketMetaUnavailable(decision) }
   }
+  const unconfigured = marketCredentialUnavailable(decision.market)
+  if (unconfigured) {
+    return { listings: [], total: 0, page, ...marketMetaUnavailable(unconfigured) }
+  }
   const qs = buildQuery({ ...params, page: String(page), limit: 24 })
 
   const res = await marketCatalogFetch(decision.query, `/store/listings${qs}`, {
@@ -182,6 +209,8 @@ export async function countListings(
   if (isMarketUnavailable(decision)) {
     return { total: 0, ...marketMetaUnavailable(decision) }
   }
+  const unconfigured = marketCredentialUnavailable(decision.market)
+  if (unconfigured) return { total: 0, ...marketMetaUnavailable(unconfigured) }
   const qs = buildQuery({ ...params, page: '1', limit: 1 })
 
   const res = await marketCatalogFetch(decision.query, `/store/listings${qs}`, {
@@ -217,6 +246,7 @@ export async function getAutoFacets(marca?: string, market?: unknown): Promise<C
   // all — `null` is already this function's "no rail, fall back to the free-text
   // panel" answer, and it is fail-closed (it can render no rows).
   if (isMarketUnavailable(decision)) return null
+  if (marketCredentialUnavailable(decision.market)) return null
 
   const res = await marketCatalogFetch(decision.query, `/store/listings?category=autos&facets=1`, {
     next: { revalidate: CACHE.CATEGORY, tags: ['listings'] },
@@ -451,8 +481,12 @@ export async function getOwnedListingCustomFieldsUncached(
 }
 
 export const getShop = unstable_cache(
-  async (slug: string): Promise<Shop | null> => {
-    const res = await medusaFetch(`/store/sellers/${slug}`)
+  async (slug: string, market?: MarketCode): Promise<Shop | null> => {
+    const key = market ? resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV) : null
+    if (key?.status === 'unconfigured') return null
+    const res = await medusaFetch(`/store/sellers/${slug}`, key ? {
+      headers: { 'x-publishable-api-key': key.token },
+    } : undefined)
     if (!res.ok) return null
     const data = await res.json()
     return data.seller ?? null
@@ -644,6 +678,8 @@ export async function getMarketplaceShopListings(
   if (isMarketUnavailable(decision)) {
     return { listings: [], ...marketMetaUnavailable(decision) }
   }
+  const unconfigured = marketCredentialUnavailable(decision.market)
+  if (unconfigured) return { listings: [], ...marketMetaUnavailable(unconfigured) }
   const qs = new URLSearchParams({ seller_slug: sellerSlug, limit: '100' })
   const res = await marketCatalogFetch(
     decision.query,
@@ -678,9 +714,12 @@ export async function getMarketplaceShopListings(
  * nav strip on every channel (marketplace/subdomain/custom domain).
  */
 export const getShopCollections = unstable_cache(
-  async (sellerSlug: string): Promise<Array<{ id: string; handle: string; name: string; sort_order: number }>> => {
+  async (sellerSlug: string, market?: MarketCode): Promise<Array<{ id: string; handle: string; name: string; sort_order: number }>> => {
+    const key = market ? resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV) : null
+    if (key?.status === 'unconfigured') return []
     const res = await medusaFetch(`/store/sellers/${sellerSlug}/collections`, {
       next: { revalidate: CACHE.LISTING, tags: ['listings'] },
+      ...(key ? { headers: { 'x-publishable-api-key': key.token } } : {}),
     } as RequestInit)
     if (!res.ok) return []
     const data = await res.json()
@@ -840,16 +879,22 @@ export async function getCategoryCounts(market?: unknown): Promise<CategoryCount
   return getCategoryCountsCached(decision.market.code)
 }
 
-export function formatPrice(listing: Listing): string {
-  if (listing.price_cents == null) return 'Precio a consultar'
-  return new Intl.NumberFormat('es-MX', {
+export function formatPrice(listing: Listing, locale = 'es-MX'): string {
+  if (listing.price_cents == null) return locale === 'en-US' ? 'Ask for price' : 'Precio a consultar'
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: listing.currency ?? 'MXN',
   }).format(listing.price_cents / 100)
 }
 
-export function conditionLabel(condition: Listing['condition']): string {
-  const map: Record<string, string> = {
+export function conditionLabel(condition: Listing['condition'], language: 'es' | 'en' = 'es'): string {
+  const map: Record<string, string> = language === 'en' ? {
+    new: 'New',
+    like_new: 'Like new',
+    good: 'Good',
+    fair: 'Fair',
+    parts: 'For parts',
+  } : {
     new: 'Nuevo',
     like_new: 'Como nuevo',
     good: 'Buen estado',

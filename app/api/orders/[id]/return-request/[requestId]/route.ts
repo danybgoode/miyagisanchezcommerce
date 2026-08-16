@@ -16,6 +16,7 @@ import { db } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe'
 import { isEnabled } from '@/lib/flags'
 import { resolveBuyerClerkId } from '@/lib/order-buyer'
+import { formatOrderCurrency } from '@/lib/market-presentation'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY    = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -84,7 +85,9 @@ export async function PATCH(
         const buyerEmail   = (order.buyer_email as string) ?? ''
         const shopName     = 'Tu tienda'
         const refundAmountCents = data.refund_amount_cents ?? data.return_request?.refund_amount_cents ?? 0
-        const refundFormatted   = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(refundAmountCents / 100)
+        // The order's OWN currency. This was hardcoded 'MXN', so a US refund email
+        // would have quoted the buyer a peso figure for a dollar refund.
+        const refundFormatted   = formatOrderCurrency(refundAmountCents, order.currency as string | null | undefined)
 
         // Buyer pref gating (buyer-notifications-money-path S1) — flag-gated read
         // of the now-resolved buyer_clerk_user_id (normalizeMedusaOrder, S1.1).
@@ -159,7 +162,10 @@ export async function PATCH(
 
   const { data: returnReq } = await db
     .from('marketplace_return_requests')
-    .select('id, status, buyer_email, buyer_name, buyer_clerk_user_id, order_id')
+    // No `buyer_name` — that column exists on `marketplace_orders`, never on this
+    // table, and asking for it 400'd the whole read (found 2026-08-15 by a mechanical
+    // code-vs-schema scan). Nothing below consumed it.
+    .select('id, status, buyer_email, buyer_clerk_user_id, order_id')
     .eq('id', requestId).eq('order_id', id).maybeSingle()
 
   if (!returnReq) return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 })
@@ -199,7 +205,7 @@ export async function PATCH(
       } catch (err) { console.error('[return] stripe refund error:', err) }
     }
     await db.from('marketplace_return_requests').update({ status: stripeRefundId ? 'refunded' : 'accepted', refund_amount_cents: order.amount_cents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
-    const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(order.amount_cents / 100)
+    const refundFormatted = formatOrderCurrency(order.amount_cents, order.currency ?? 'MXN')
     const m = buildBuyerMessage('return_accepted', { listingTitle: listing.title, url: buyerOrderUrl, refundAmount: refundFormatted, isPartial: false })
     void dispatchToBuyer(returnBuyer, {
       group: 'buyer.devoluciones',
@@ -221,7 +227,7 @@ export async function PATCH(
       try { const r = await stripe.refunds.create({ payment_intent: stripePaymentIntentId, amount: refundCents, reason: 'requested_by_customer' }); stripeRefundId = r.id } catch (e) { console.error('[return] partial refund error:', e) }
     }
     await db.from('marketplace_return_requests').update({ status: 'partial_refund', refund_amount_cents: refundCents, seller_note: body.seller_note?.trim() || null, stripe_refund_id: stripeRefundId, updated_at: new Date().toISOString() }).eq('id', requestId)
-    const refundFormatted = new Intl.NumberFormat('es-MX', { style: 'currency', currency: order.currency ?? 'MXN', maximumFractionDigits: 0 }).format(refundCents / 100)
+    const refundFormatted = formatOrderCurrency(refundCents, order.currency ?? 'MXN')
     const m = buildBuyerMessage('return_accepted', { listingTitle: listing.title, url: buyerOrderUrl, refundAmount: refundFormatted, isPartial: true })
     void dispatchToBuyer(returnBuyer, {
       group: 'buyer.devoluciones',

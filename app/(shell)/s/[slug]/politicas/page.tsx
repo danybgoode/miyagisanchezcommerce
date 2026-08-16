@@ -9,6 +9,8 @@ import { marketCatalogCanonical } from '@/lib/market-seo'
 import PoliticasBody from '../../../_shop-content/PoliticasBody'
 import type { MarketCode } from '@/lib/markets'
 import type { Metadata } from 'next'
+import { getDictionary } from '@/lib/dictionary'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
 
 export const revalidate = 120
 
@@ -22,18 +24,19 @@ export async function generateShopPoliciesMetadata({
   marketBasePath?: string
 }): Promise<Metadata> {
   const { slug } = await params
-  if (!isLikelyShopSlug(slug)) return { title: 'Página no encontrada' }
-  const shop = await getShop(slug)
-  if (!shop) return { title: 'Página no encontrada' }
+  const missingTitle = market === 'us' ? 'Page not found' : 'Página no encontrada'
+  if (!isLikelyShopSlug(slug)) return { title: missingTitle }
+  const shop = await getShop(slug, market)
+  if (!shop) return { title: missingTitle }
   if (market && readPublicSellerMarket(shop)?.market_code !== market) {
-    return { title: 'Página no encontrada' }
+    return { title: missingTitle }
   }
   // Don't leak a preview-private shop's name in the <title>. Guarded explicitly
   // rather than relying on Next discarding metadata when the body notFound()s —
   // that behavior was asserted in review but never actually verified.
-  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: 'Página no encontrada' }
+  if (await isShopPreviewPrivateBySlug(shop.slug, shop.clerk_user_id)) return { title: missingTitle }
   return {
-    title: `Políticas — ${shop.name}`,
+    title: `${market === 'us' ? 'Policies' : 'Políticas'} — ${shop.name}`,
     ...(marketBasePath ? marketCatalogCanonical(`${marketBasePath}/s/${slug}/politicas`) : {}),
   }
 }
@@ -54,7 +57,7 @@ export async function ShopPoliticasPage({
 }) {
   const { slug } = await params
   if (!isLikelyShopSlug(slug)) notFound()
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) {
     const current = await getSlugRedirect(slug)
     if (current) permanentRedirect(`${marketBasePath}/s/${current}/politicas`)
@@ -69,7 +72,15 @@ export async function ShopPoliticasPage({
     if (domain) permanentRedirect(`https://${domain}/politicas`)
   }
 
-  return <PoliticasBody shop={shop} basePath={`${marketBasePath}/s/${shop.slug}`} />
+  const presentationMarket = market ?? readPublicSellerMarket(shop)?.market_code ?? 'mx'
+  const buyerCopy = (await getDictionary(resolveMarketPresentation(presentationMarket).language)).buyerCopy
+  const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
+  const returnsLabel = returnsPolicy?.window === '7d' ? buyerCopy['listing.returnWindow7']
+    : returnsPolicy?.window === '14d' ? buyerCopy['listing.returnWindow14']
+    : returnsPolicy?.window === '30d' ? buyerCopy['listing.returnWindow30']
+    : undefined
+  return <PoliticasBody shop={shop} basePath={`${marketBasePath}/s/${shop.slug}`} returnsLabel={returnsLabel} />
 }
 
 export default ShopPoliticasPage

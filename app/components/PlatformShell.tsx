@@ -9,7 +9,9 @@ import PlatformBrand from '@/app/components/PlatformBrand'
 import PlatformThemeToggle from '@/app/components/PlatformThemeToggle'
 import CartButton from '@/app/components/CartButton'
 import { getDictionary } from '@/lib/dictionary'
-import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
+import { marketBasePath, type MarketCode } from '@/lib/markets'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 
 /**
  * The marketplace buyer chrome — sticky glass header (search, brand, cart, account,
@@ -24,14 +26,20 @@ import { NEIGHBORHOOD_PULSE_COPY } from '@/lib/neighborhood-pulse'
  * account menu, matching the old layout's behavior.
  */
 export default async function PlatformShell({
+  market,
   platformThemeEligible,
   children,
 }: {
+  market: MarketCode
   platformThemeEligible: boolean
   children: React.ReactNode
 }) {
-  const dict = await getDictionary('es')
+  const presentation = resolveMarketPresentation(market)
+  const dict = await getDictionary(presentation.language)
   const themeToggleLabels = dict.platformTheme.toggle
+  const copy = dict.buyerShell
+  const marketHome = marketBasePath(market)
+  const browsePath = `${marketHome}/l`
   return (
     <>
       {/* ── Sticky header ── */}
@@ -69,14 +77,14 @@ export default async function PlatformShell({
               className="flex md:hidden"
               style={{ alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}
             >
-              <PlatformBrand variant="mobile" />
+              <PlatformBrand variant="mobile" market={market} ariaLabel={copy.brandHome} />
 
               {/* Search bar — stays on mobile web, but HIDDEN in the installed
                   PWA standalone, where the bottom-sheet search is the single
                   primary control (PWA Liquid-Glass Nav Polish S2.2). Desktop
                   search is a separate block below and is untouched. */}
               <form
-                action="/mx/l"
+                action={browsePath}
                 method="GET"
                 className="pwa-hidden"
                 style={{ flex: 1, minWidth: 0 }}
@@ -98,7 +106,7 @@ export default async function PlatformShell({
                   <input
                     name="q"
                     type="search"
-                    placeholder="¿Qué estás buscando?"
+                    placeholder={copy.searchPlaceholder}
                     style={{
                       width: '100%',
                       height: 38,
@@ -113,7 +121,7 @@ export default async function PlatformShell({
                     }}
                   />
                   {/* In-search agent affordance — same sheet as the desktop AIAgentButton */}
-                  <AIAgentButton variant="search" />
+                  <AIAgentButton variant="search" copy={copy.agent} />
                 </div>
               </form>
 
@@ -123,7 +131,7 @@ export default async function PlatformShell({
                   affordance in every mode, no dead space. */}
               <div className="pwa-only" aria-hidden="true" style={{ flex: 1 }} />
               <span className="pwa-only">
-                <AIAgentButton variant="icon" />
+                <AIAgentButton variant="icon" copy={copy.agent} />
               </span>
 
               {/* Sell affordance — publish action when signed in, the labeled "Vende" pitch when signed out */}
@@ -131,34 +139,36 @@ export default async function PlatformShell({
                 <Link
                   href="/sell"
                   className="icon-btn accent"
-                  title="Publicar anuncio"
+                  title={copy.publishListingTitle}
                 >
                   <i className="iconoir-plus-circle" style={{ fontSize: 22 }} />
                 </Link>
               </AuthShow>
               <AuthShow when="signed-out">
                 <Link href="/vende" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
-                  Vende
+                  {copy.sell}
                 </Link>
               </AuthShow>
 
               <Link
                 href="/vecindario"
                 className="icon-btn"
-                title={NEIGHBORHOOD_PULSE_COPY.navLabel}
-                aria-label={NEIGHBORHOOD_PULSE_COPY.navLabel}
+                title={copy.neighborhood}
+                aria-label={copy.neighborhood}
               >
                 <i className="iconoir-community" style={{ fontSize: 22 }} />
               </Link>
 
               {/* Cart */}
-              <CartButton />
+              <CartButton label={copy.cart} />
 
               {/* Cuenta hub — all account actions (theme, favoritos, agent…) in one menu.
                   Mobile-header instance: drop the Favoritos row in the installed PWA bar
                   (the bottom tab carries it there); it stays in the menu on mobile web. */}
               <AuthShow when="signed-in">
                 <CuentaMenu
+                  accountLabel={copy.account}
+                  itemLabels={copy.accountItems}
                   themeEligible={platformThemeEligible}
                   hideFavoritesInPwa
                   themeSlot={
@@ -187,7 +197,7 @@ export default async function PlatformShell({
               className="hidden md:flex"
               style={{ alignItems: 'center', width: '100%', gap: 16 }}
             >
-              <PlatformBrand variant="desktop" />
+              <PlatformBrand variant="desktop" market={market} ariaLabel={copy.brandHome} />
 
               {/* Centered persistent search + the single agent affordance */}
               <div
@@ -200,7 +210,7 @@ export default async function PlatformShell({
                   minWidth: 0,
                 }}
               >
-                <form action="/mx/l" method="GET" style={{ flex: 1, maxWidth: 440, minWidth: 0 }}>
+                <form action={browsePath} method="GET" style={{ flex: 1, maxWidth: 440, minWidth: 0 }}>
                   <div style={{ position: 'relative' }}>
                     <i
                       className="iconoir-search"
@@ -218,7 +228,7 @@ export default async function PlatformShell({
                     <input
                       name="q"
                       type="search"
-                      placeholder="¿Qué estás buscando?"
+                      placeholder={copy.searchPlaceholder}
                       style={{
                         width: '100%',
                         height: 38,
@@ -234,7 +244,7 @@ export default async function PlatformShell({
                     />
                   </div>
                 </form>
-                <AIAgentButton variant="affordance" />
+                <AIAgentButton variant="affordance" copy={copy.agent} />
               </div>
 
               {/* Right nav */}
@@ -244,24 +254,26 @@ export default async function PlatformShell({
                   style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                   className="hover:text-[var(--fg)]"
                 >
-                  {NEIGHBORHOOD_PULSE_COPY.navLabel}
+                  {copy.neighborhood}
                 </Link>
                 <AuthShow when="signed-in">
                   <Link
                     href="/messages"
                     style={{ position: 'relative', fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                     className="hover:text-[var(--fg)]"
-                    title="Mensajes"
+                    title={copy.messages}
                   >
                     <i className="iconoir-chat-bubble" style={{ fontSize: 15, verticalAlign: 'middle' }} />
                     <DesktopUnreadBadge />
                   </Link>
-                  <CartButton />
+                  <CartButton label={copy.cart} />
                   <Link href="/sell" className="btn btn-primary btn-sm">
                     <i className="iconoir-plus" style={{ fontSize: 14 }} />
-                    Publicar
+                    {copy.publish}
                   </Link>
                   <CuentaMenu
+                    accountLabel={copy.account}
+                    itemLabels={copy.accountItems}
                     themeEligible={platformThemeEligible}
                     themeSlot={
                       <PlatformThemeToggle
@@ -282,14 +294,14 @@ export default async function PlatformShell({
                     initialEligible={platformThemeEligible}
                   />
                   <Link href="/vende" className="btn btn-primary btn-sm">
-                    Publicar gratis
+                    {copy.publishFree}
                   </Link>
                   <Link
                     href="/sign-in"
                     style={{ fontSize: 13, color: 'var(--fg-muted)', textDecoration: 'none' }}
                     className="hover:text-[var(--fg)]"
                   >
-                    Iniciar sesión
+                    {copy.signIn}
                   </Link>
                 </AuthShow>
               </nav>
@@ -311,23 +323,37 @@ export default async function PlatformShell({
           className="app-shell"
           style={{ paddingTop: 24, paddingBottom: 24, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}
         >
-          <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>© 2026 Miyagi Sánchez</span>
-          <Link href="/mx/l" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Anuncios</Link>
-          <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{NEIGHBORHOOD_PULSE_COPY.navLabel}</Link>
-          <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Vende gratis</Link>
+          <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{copy.footer.copyright}</span>
+          <Link href={browsePath} style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.listings}</Link>
+          <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.neighborhood}</Link>
+          <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.sellFree}</Link>
           <AuthShow when="signed-out">
-            <Link href="/sign-up" data-testid="footer-signup" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Crear cuenta</Link>
+            <Link href="/sign-up" data-testid="footer-signup" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.createAccount}</Link>
           </AuthShow>
           <Link href="/agent" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">
-            Agent API
+            {copy.footer.agentApi}
           </Link>
-          <Link href="/acerca" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Acerca de</Link>
-          <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">Términos</Link>
+          <Link href="/acerca" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.about}</Link>
+          <Link href="/terminos" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.terms}</Link>
+          {/* A plain mailto, not a contact form. The platform had no reachable
+              address anywhere on the site — the only way to reach a person was to
+              reply to an email we had already sent, which a visitor with a
+              question has never received. `title` carries the address so it is
+              readable on hover without clicking into a mail client. */}
+          <a
+            href={contactMailto('Miyagi Sánchez')}
+            title={CONTACT_EMAIL}
+            data-testid="footer-contact"
+            style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }}
+            className="hover:text-[var(--fg)]"
+          >
+            {copy.footer.contact}
+          </a>
         </div>
       </footer>
 
       {/* Floating glass tab bar — PWA only (hidden in browser via .pwa-only CSS) */}
-      <MobileTabBar search={dict.pwaSearch} />
+      <MobileTabBar search={dict.pwaSearch} labels={copy.tabs} />
     </>
   )
 }

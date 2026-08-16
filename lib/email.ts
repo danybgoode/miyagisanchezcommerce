@@ -3,7 +3,10 @@
  * Text-first. No decorative elements. Every line earns its place.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { logNotification } from '@/lib/notifications/log'
 import { Resend } from 'resend'
+import { CONTACT_EMAIL } from '@/lib/contact'
 import { getDictionary, type Locale } from '@/lib/dictionary'
 import { ticketQrPath, type EventTicket } from '@/lib/event-ticket-state'
 import { buildMerchantCloseReceipt, type CloseReceiptItem } from '@/lib/promoter-close-receipt'
@@ -15,6 +18,20 @@ import {
 } from '@/lib/founding-operator-invitation-outcome'
 
 const FROM = 'Miyagi Sánchez <noreply@miyagisanchez.com>'
+
+/**
+ * Where a reply actually goes.
+ *
+ * Every email this platform has ever sent came from `noreply@` with no Reply-To, so
+ * a seller who answered one — the most natural thing to do when something is wrong —
+ * was writing into a void, and we never knew they had tried. Set at the single
+ * transport, so all 63 senders inherit it and none can forget.
+ */
+// Imported, never restated. The same address is now shown on the site itself
+// (footer, 404, /acerca, /terminos), and two copies of a support address
+// eventually become two addresses — the wrong half of that pair being a
+// channel nobody reads. `lib/contact.ts` is the single source.
+const REPLY_TO = CONTACT_EMAIL
 const SITE = 'https://miyagisanchez.com'
 
 // ── Resend client (lazy) ──────────────────────────────────────────────────────
@@ -31,15 +48,39 @@ function resend(): Resend {
 
 // ── Seller email lookup via Clerk Management API ──────────────────────────────
 
-export async function getSellerEmail(clerkUserId: string): Promise<string | null> {
+/**
+ * Why a seller could not be emailed.
+ *
+ * `no_email_on_account` (the account genuinely carries no address) and
+ * `lookup_failed` (Clerk was unreachable, rate-limited, or the id is unknown to
+ * THIS instance) are different facts with different fixes, and the bare
+ * `catch { return null }` this replaces collapsed them. That collapse is not
+ * cosmetic: the admin broadcast preview shows an operator who cannot be reached and
+ * why, and reporting "sin correo" over a transient outage would send them chasing
+ * fourteen merchants about an account problem none of them have.
+ */
+export type SellerEmailLookup =
+  | { email: string; reason?: undefined }
+  | { email: null; reason: 'no_email_on_account' | 'lookup_failed'; detail?: string }
+
+export async function getSellerEmailResult(clerkUserId: string): Promise<SellerEmailLookup> {
   try {
     const { clerkClient } = await import('@clerk/nextjs/server')
     const client = await clerkClient()
     const user = await client.users.getUser(clerkUserId)
-    return user.emailAddresses[0]?.emailAddress ?? null
-  } catch {
-    return null
+    const email = user.emailAddresses[0]?.emailAddress
+    return email ? { email } : { email: null, reason: 'no_email_on_account' }
+  } catch (e) {
+    // Said out loud. Every seller notification in the product resolves its recipient
+    // through here, so a silent failure here is a silent failure everywhere.
+    console.error('[getSellerEmail] Clerk lookup failed for', clerkUserId, e)
+    return { email: null, reason: 'lookup_failed', detail: e instanceof Error ? e.message : String(e) }
   }
+}
+
+/** The long-standing shape, kept for the callers that only need the address. */
+export async function getSellerEmail(clerkUserId: string): Promise<string | null> {
+  return (await getSellerEmailResult(clerkUserId)).email
 }
 
 // ── Base template ─────────────────────────────────────────────────────────────
@@ -59,10 +100,13 @@ const DEFAULT_BRAND: Brand = { url: SITE, label: 'miyagisanchez.com' }
 type EmailLanguage = 'es' | 'en'
 
 function html(subject: string, body: string, brand: Brand = DEFAULT_BRAND, language: EmailLanguage = 'es'): string {
+  // The contact address is named in the footer AND set as Reply-To, so it works
+  // whether someone hits reply or copies the address out.
+  const contact = `<a href="mailto:${REPLY_TO}" style="color:#1d6f42;text-decoration:none">${REPLY_TO}</a>`
   const footer = language === 'en'
-    ? `This email was sent because of activity on your account.<br>
+    ? `This email was sent because of activity on your account. Questions? Write to ${contact}.<br>
     <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a>`
-    : `Este correo fue enviado por actividad en tu cuenta.<br>
+    : `Este correo fue enviado por actividad en tu cuenta. ¿Dudas? Escríbenos a ${contact}.<br>
     <a href="${brand.url}" style="color:#1d6f42;text-decoration:none">${esc(brand.label)}</a> · sin comisiones, sin intermediarios.`
   return `<!DOCTYPE html>
 <html lang="${language}">
@@ -228,6 +272,118 @@ function divider(): string {
 
 const RESEND_MIN_SCHEDULE_MS = 16 * 60 * 1000 // 16 min buffer
 
+/**
+ * Why this is a discriminated result and `send` below is not
+ * (marketplace-communications · D4).
+ *
+ * `send` returns `string | null`, and `null` meant three completely different
+ * things: the API key is unset, Resend rejected the message, or a scheduled send
+ * landed inside Resend's 16-minute window. On a rail the product owner asked to make
+ * bulletproof, "I could not check", "it did not send" and "there was nothing to
+ * send" are different facts — collapsing them is the confident falsehood
+ * `LEARNINGS.md` keeps recording.
+ *
+ * Rather than churn 62 call sites that legitimately ignore the value,
+ * `sendWithResult` carries the honest answer and `send` stays the thin adapter the
+ * fire-and-forget senders already use. The sample sender in
+ * `/admin/comunicaciones` uses the honest one, because reporting "sent" for an
+ * unconfigured key is precisely what would make that surface untrustworthy.
+ */
+/**
+ * Sample-send marking (marketplace-communications · D6).
+ *
+ * `/admin/comunicaciones` sends a real template with fixture data so the product
+ * owner can see exactly what a merchant receives. Those messages MUST be
+ * unmistakable: an operator who finds one in an inbox six months from now must not
+ * read it as a real order notification.
+ *
+ * The marking has to reach 62 senders that each build their own subject, and the
+ * alternatives were both bad — threading a parameter through every signature, or a
+ * module-level mutable flag that two concurrent requests would trample. AsyncLocal-
+ * Storage is request-scoped by construction, so a sample send cannot mark a real
+ * notification happening at the same moment on another request.
+ */
+const sampleContext = new AsyncLocalStorage<{ key: string }>()
+
+/** Run `fn` with every email it sends marked as a sample. */
+export function runAsSampleSend<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  return sampleContext.run({ key }, fn)
+}
+
+const SAMPLE_SUBJECT_PREFIX = '[PRUEBA] '
+
+function sampleBanner(key: string): string {
+  return `<div style="margin:0 0 18px;padding:10px 14px;background:#fffbeb;border-left:3px solid #f59e0b;font-size:13px;color:#92400e">
+    <strong>Correo de prueba.</strong> Se envió desde <code>/admin/comunicaciones</code> con datos de muestra
+    para revisar cómo se ve esta plantilla. No corresponde a ningún pedido, oferta ni pago real.<br>
+    <span style="color:#a16207">Plantilla: <code>${esc(key)}</code></span>
+  </div>`
+}
+
+export type EmailSendResult =
+  | { ok: true; id: string | null }
+  | { ok: false; reason: 'unconfigured' | 'rejected' | 'too_soon'; detail?: string }
+
+export async function sendWithResult(
+  to: string,
+  subject: string,
+  body: string,
+  scheduledAt?: Date,
+  brand?: Brand,
+  language: EmailLanguage = 'es',
+): Promise<EmailSendResult> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
+    logNotification({ channel: 'email', outcome: 'skipped', recipient: to, subject, reason: 'unconfigured' })
+    return { ok: false, reason: 'unconfigured' }
+  }
+  if (scheduledAt && scheduledAt.getTime() - Date.now() < RESEND_MIN_SCHEDULE_MS) {
+    // Too close to fire — skip rather than error (the window already passed).
+    console.warn('[email] scheduled send too soon, skipping:', subject)
+    logNotification({ channel: 'email', outcome: 'skipped', recipient: to, subject, reason: 'too_soon' })
+    return { ok: false, reason: 'too_soon' }
+  }
+  // Marking happens HERE, at the single transport, so no sender can forget it and a
+  // new sender inherits it for free.
+  const sample = sampleContext.getStore()
+  const finalSubject = sample ? `${SAMPLE_SUBJECT_PREFIX}${subject}` : subject
+  const finalBody = sample ? `${sampleBanner(sample.key)}${body}` : body
+
+  try {
+    const result = await resend().emails.send({
+      from: FROM,
+      replyTo: REPLY_TO,
+      to,
+      subject: finalSubject,
+      html: html(finalSubject, finalBody, brand, language),
+      ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
+    })
+    // Resend can accept without echoing an id. That is still a send, so `id` is
+    // nullable INSIDE the ok branch rather than collapsing back into a failure.
+    logNotification({
+      channel: 'email',
+      outcome: 'sent',
+      recipient: to,
+      subject: finalSubject,
+      providerId: result.data?.id ?? null,
+      context: sample ? { sample_key: sample.key } : null,
+    })
+    return { ok: true, id: result.data?.id ?? null }
+  } catch (err) {
+    console.error('[email] send failed:', subject, '→', to, err)
+    logNotification({
+      channel: 'email',
+      outcome: 'failed',
+      recipient: to,
+      subject: finalSubject,
+      reason: 'rejected',
+      context: { detail: err instanceof Error ? err.message : String(err) },
+    })
+    return { ok: false, reason: 'rejected', detail: err instanceof Error ? err.message : undefined }
+  }
+}
+
+/** The fire-and-forget adapter every existing sender uses. Unchanged contract. */
 async function send(
   to: string,
   subject: string,
@@ -236,28 +392,8 @@ async function send(
   brand?: Brand,
   language: EmailLanguage = 'es',
 ): Promise<string | null> {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
-    return null
-  }
-  if (scheduledAt && scheduledAt.getTime() - Date.now() < RESEND_MIN_SCHEDULE_MS) {
-    // Too close to fire — just skip rather than error (window already passed)
-    console.warn('[email] scheduled send too soon, skipping:', subject)
-    return null
-  }
-  try {
-    const result = await resend().emails.send({
-      from: FROM,
-      to,
-      subject,
-      html: html(subject, body, brand, language),
-      ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
-    })
-    return result.data?.id ?? null
-  } catch (err) {
-    console.error('[email] send failed:', subject, '→', to, err)
-    return null
-  }
+  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language)
+  return result.ok ? result.id : null
 }
 
 // ── Cancel a scheduled email by Resend ID ─────────────────────────────────────
@@ -729,30 +865,14 @@ export async function sendCounterAccepted(ctx: {
   await send(ctx.sellerEmail, subject, body)
 }
 
-// ── 7. Seller: counter declined / offer withdrawn ────────────────────────────
-export async function sendCounterDeclined(ctx: {
-  sellerEmail: string
-  listingTitle: string
-  listingUrl: string
-  offerAmount: string
-  counterAmount: string
-  buyerName: string
-}): Promise<void> {
-  const subject = `El comprador rechazó tu contraoferta — ${ctx.listingTitle}`
-  const body = [
-    h1('El comprador no aceptó la contraoferta'),
-    table([
-      ['Anuncio',       `<a href="${ctx.listingUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
-      ['Oferta inicial', ctx.offerAmount],
-      ['Tu contraoferta', ctx.counterAmount],
-      ['Comprador',      ctx.buyerName],
-    ]),
-    p('El anuncio sigue activo y disponible para nuevas ofertas o compra directa.'),
-    cta('Ver anuncio', ctx.listingUrl),
-  ].join('')
-  await send(ctx.sellerEmail, subject, body)
-}
-
+// ── 7. Seller: offer withdrawn ───────────────────────────────────────────────
+//
+// There is deliberately no `sendCounterDeclined` here. It existed, unwired, for a
+// buyer action the product does not have: `buyer-respond` accepts exactly
+// `accept-counter` and `withdraw`, so a buyer who does not want the counteroffer
+// withdraws. Sending "El comprador rechazó tu contraoferta" for a withdrawal would
+// describe an action nobody took, so the template was removed rather than wired to
+// the nearest available trigger.
 export async function sendOfferWithdrawn(ctx: {
   sellerEmail: string
   listingTitle: string
@@ -1026,6 +1146,65 @@ export async function sendBuyerReportedPaymentToSeller(ctx: {
     cta('Verificar y confirmar', ctx.orderUrl),
   ].join('')
   await send(ctx.sellerEmail, subject, body)
+}
+
+/**
+ * A message arrived in a conversation.
+ *
+ * This had no email at all until 2026-08-15: starting a conversation sent nothing
+ * whatsoever, and a reply sent web push only. Push is a no-op for anyone without a
+ * subscription — which is most sellers — so a buyer pressing "Preguntar" reached the
+ * seller through NO channel, and the only surface that would have shown it
+ * (`/messages`) was itself broken. One shape for both directions: the recipient is
+ * whoever did not send it.
+ */
+export async function sendConversationMessage(ctx: {
+  to: string
+  /** What the recipient is to the sender: a buyer messages the seller and vice versa. */
+  recipientRole: 'buyer' | 'seller'
+  listingTitle: string
+  messageText: string
+  conversationUrl: string
+}): Promise<void> {
+  const who = ctx.recipientRole === 'seller' ? 'Un comprador' : 'El vendedor'
+  const subject = `💬 ${who} te escribió — ${ctx.listingTitle}`
+  const body = [
+    h1(`${who} te escribió`),
+    table([
+      ['Anuncio', `<a href="${ctx.conversationUrl}" style="color:#1d6f42;text-decoration:none">${esc(ctx.listingTitle)}</a>`],
+      ['Mensaje', esc(ctx.messageText)],
+    ]),
+    p('Responde desde tu bandeja de mensajes para no perder la venta.'),
+    cta('Ver conversación', ctx.conversationUrl),
+  ].join('')
+  await send(ctx.to, subject, body)
+}
+
+/**
+ * An operational broadcast from the platform team (admin → sellers or buyers).
+ *
+ * Uses the SAME `html()` shell as all 62 other senders — wordmark, green rule,
+ * footer — so a message from the team is visibly the same product as a message
+ * about an order. There is no second design here on purpose.
+ *
+ * Paragraphs arrive as plain text and are escaped by `p()`. The composer never
+ * accepts markup: an outage notice written under pressure must not be able to
+ * inject HTML into a message going to everyone.
+ */
+export async function sendPlatformBroadcast(ctx: {
+  to: string
+  headline: string
+  paragraphs: string[]
+  ctaLabel?: string | null
+  ctaUrl?: string | null
+  subject: string
+}): Promise<void> {
+  const body = [
+    h1(ctx.headline),
+    ...ctx.paragraphs.map((text) => p(text)),
+    ctx.ctaLabel && ctx.ctaUrl ? cta(ctx.ctaLabel, ctx.ctaUrl) : '',
+  ].join('')
+  await send(ctx.to, ctx.subject, body)
 }
 
 // ── Buyer: order shipped notification ─────────────────────────────────────────

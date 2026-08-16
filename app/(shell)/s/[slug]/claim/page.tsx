@@ -1,3 +1,4 @@
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getShop } from '@/lib/listings'
@@ -16,7 +17,7 @@ export async function ClaimPage({
   marketBasePath?: string
 }) {
   const { slug } = await params
-  const shop = await getShop(slug)
+  const shop = await getShop(slug, market)
   if (!shop) notFound()
   if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
   // Consent-safe previews: a preview-private shop must not expose its name — nor a
@@ -29,7 +30,7 @@ export async function ClaimPage({
         <nav className="text-sm text-[var(--color-muted)] mb-6">
           <Link href={`${marketBasePath}/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
           {' › '}
-          <span>Reclamar tienda</span>
+          <span><BuyerCopyText copyKey="s.slug.claim.page.9d65fc41" /></span>
         </nav>
 
         {/* Already claimed — Google My Business pattern */}
@@ -39,11 +40,10 @@ export async function ClaimPage({
             <i className="iconoir-shop text-2xl" aria-hidden />
             <div>
               <p className="font-bold text-[var(--color-text)]">{shop.name}</p>
-              <p className="text-xs text-[var(--color-muted)]">miyagisanchez.com{marketBasePath}/s/{slug}</p>
+              <p className="text-xs text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.claim.page.7b23458e" />{marketBasePath}<BuyerCopyText copyKey="s.slug.claim.page.3c747a4a" />{slug}</p>
             </div>
             <span className="ml-auto text-xs font-semibold bg-[var(--accent)] text-[color:var(--fg-inverse)] px-2 py-0.5 rounded">
-              Reclamada
-            </span>
+              <BuyerCopyText copyKey="s.slug.claim.page.1d7a0f48" /></span>
           </div>
 
           {/* Body: is it you? */}
@@ -52,17 +52,14 @@ export async function ClaimPage({
               <i className="iconoir-user text-xl mt-0.5" aria-hidden />
               <div>
                 <p className="text-sm font-semibold text-[var(--color-text)] mb-1">
-                  ¿Ya tienes cuenta y fuiste tú quien la reclamó?
-                </p>
+                  <BuyerCopyText copyKey="s.slug.claim.page.9d497a0a" /></p>
                 <p className="text-xs text-[var(--color-muted)] mb-3">
-                  Accede directamente a tu panel para gestionar esta tienda.
-                </p>
+                  <BuyerCopyText copyKey="s.slug.claim.page.afb27b70" /></p>
                 <a
                   href="https://dashboard.despachobonsai.com/dashboard/commerce"
                   className="btn btn-primary"
                 >
-                  Ir a mi panel de ventas →
-                </a>
+                  <BuyerCopyText copyKey="s.slug.claim.page.bf32221c" /></a>
               </div>
             </div>
 
@@ -70,17 +67,14 @@ export async function ClaimPage({
               <i className="iconoir-warning-triangle text-xl mt-0.5" aria-hidden />
               <div>
                 <p className="text-sm font-semibold text-[var(--color-text)] mb-1">
-                  ¿Eres el dueño real pero no fuiste tú?
-                </p>
+                  <BuyerCopyText copyKey="s.slug.claim.page.a448fe6f" /></p>
                 <p className="text-xs text-[var(--color-muted)] mb-2">
-                  Escríbenos y recuperamos tu tienda en menos de 24 horas.
-                </p>
+                  <BuyerCopyText copyKey="s.slug.claim.page.073db7eb" /></p>
                 <a
                   href="mailto:miyagi@despachobonsai.com?subject=Recuperar%20tienda%3A%20{slug}&body=Hola%2C%20soy%20el%20due%C3%B1o%20de%20{shop.name}%20y%20necesito%20recuperar%20acceso."
                   className="text-sm font-semibold text-amber-700 no-underline hover:underline"
                 >
-                  miyagi@despachobonsai.com
-                </a>
+                  <BuyerCopyText copyKey="s.slug.claim.page.dbdc2f7f" /></a>
               </div>
             </div>
           </div>
@@ -88,8 +82,7 @@ export async function ClaimPage({
           {/* Footer */}
           <div className="px-5 py-3 border-t border-[var(--color-border)] bg-[var(--color-background)]">
             <Link href={`${marketBasePath}/s/${slug}`} className="text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] no-underline">
-              ← Ver tienda
-            </Link>
+              <BuyerCopyText copyKey="s.slug.claim.page.9004ef36" /></Link>
           </div>
         </div>
       </div>
@@ -101,13 +94,12 @@ export async function ClaimPage({
       <nav className="text-sm text-[var(--color-muted)] mb-6">
         <Link href={`${marketBasePath}/s/${slug}`} className="hover:text-[var(--color-text)]">{shop.name}</Link>
         {' › '}
-        <span>Reclamar tienda</span>
+        <span><BuyerCopyText copyKey="s.slug.claim.page.9d65fc41" /></span>
       </nav>
-      <h1 className="text-xl font-bold mb-1">¿Es tuya esta tienda?</h1>
+      <h1 className="text-xl font-bold mb-1"><BuyerCopyText copyKey="s.slug.claim.page.a55f87d9" /></h1>
       <p className="text-base font-semibold text-[var(--color-text)] mb-1">{shop.name}</p>
       <p className="text-sm text-[var(--color-muted)] mb-6">
-        Reclamarla te da acceso a un panel de ventas gratuito: gestiona tus anuncios, recibe pedidos y publica en otros canales. Solo necesitas tu correo.
-      </p>
+        <BuyerCopyText copyKey="s.slug.claim.page.753ab0d9" /></p>
       <ClaimForm shopId={shop.id} shopSlug={slug} shopName={shop.name} />
     </div>
   )

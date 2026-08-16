@@ -1,5 +1,6 @@
 'use client'
 
+import { BuyerCopyText, useBuyerCopy, useBuyerPresentation } from '@/app/components/BuyerPresentationContext'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CATEGORIES, CITIES_BY_STATE } from '@/lib/types'
@@ -7,6 +8,7 @@ import { ESTADOS } from '@/lib/mx-locations'
 import { buildQuery, resultCountLabel } from '@/lib/listing-query'
 import type { SearchParams, SortOption } from '@/lib/types'
 import type { CarFacets } from '@/lib/car-facets'
+import { categoryLabel, conditionFilterLabel, propertyTypeLabel, sortLabel } from '@/lib/market-vocabulary'
 
 type SearchBarProps = {
   initialQ?: string
@@ -65,6 +67,8 @@ function BuyerShellPortal({ open, children }: { open: boolean; children: ReactNo
 }
 
 export default function SearchBar({ initialQ, initialCategory, initialState, params, initialTotal, carFacets, marketBasePath = '' }: SearchBarProps) {
+  const copy = useBuyerCopy()
+  const presentation = useBuyerPresentation()
   const [category, setCategory] = useState(initialCategory ?? '')
   const [selectedState, setSelectedState] = useState(initialState ?? '')
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(
@@ -161,8 +165,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         onClick={() => setOpen(true)}
         className="sm:hidden sticky top-2 z-30 w-full flex items-center justify-center gap-2 bg-[var(--claim-accent)] text-white font-semibold text-sm rounded-[var(--r-md)] px-4 py-2.5 mb-4 shadow-sm"
       >
-        <i className="iconoir-filter-list" /> Filtrar y ordenar
-      </button>
+        <i className="iconoir-filter-list" /> <BuyerCopyText copyKey="l.SearchBar.88f86b8f" /></button>
 
       {/* Mobile-only backdrop behind the sheet. */}
       {open && (
@@ -191,11 +194,11 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
       >
         {/* Sheet header (mobile only). */}
         <div className="sm:hidden flex items-center justify-between mb-3">
-          <span className="text-white font-semibold text-sm">Filtros</span>
+          <span className="text-white font-semibold text-sm"><BuyerCopyText copyKey="l.SearchBar.2fa5f285" /></span>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="Cerrar filtros"
+            aria-label={copy('l.SearchBar.48e5db9f')}
             className="text-white/80 hover:text-white text-lg leading-none px-1"
           >
             <i className="iconoir-xmark" />
@@ -214,7 +217,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             name="q"
             type="search"
             defaultValue={initialQ ?? ''}
-            placeholder="¿Qué buscas?"
+            placeholder={copy('l.SearchBar.b47430e0')}
             className={inputClass + ' w-full'}
           />
         </div>
@@ -226,35 +229,45 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             onChange={e => setCategory(e.target.value)}
             className={selectClass}
           >
-            <option value="">Todas las categorías</option>
+            <option value=""><BuyerCopyText copyKey="l.SearchBar.5b5412a0" /></option>
             {CATEGORIES.map(cat => (
-              <option key={cat.key} value={cat.key}>{cat.label}</option>
+              <option key={cat.key} value={cat.key}>{categoryLabel(cat.key, presentation.language)}</option>
             ))}
           </select>
         </div>
 
         <div className="sm:w-40">
+          {presentation.market === 'mx' ? (
           <select
             name="state"
             value={selectedState}
             onChange={e => setSelectedState(e.target.value)}
             className={selectClass}
           >
-            <option value="">Todo México</option>
+            <option value=""><BuyerCopyText copyKey="l.SearchBar.637b2fb5" /></option>
             {ESTADOS.map(e => (
               <option key={e.inegi_code} value={e.name}>{e.name}</option>
             ))}
           </select>
+          ) : (
+            <input
+              name="state"
+              value={selectedState}
+              onChange={e => setSelectedState(e.target.value)}
+              placeholder={copy('market.statePlaceholder')}
+              className={inputClass}
+            />
+          )}
         </div>
 
-        {selectedState && (
+        {selectedState && presentation.market === 'mx' && (
           <div className="sm:w-40">
             <select
               name="municipio"
               defaultValue={params.municipio ?? ''}
               className={selectClass}
             >
-              <option value="">Todos los municipios</option>
+              <option value=""><BuyerCopyText copyKey="l.SearchBar.89730cbf" /></option>
               {(CITIES_BY_STATE[selectedState] ?? []).map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
@@ -269,7 +282,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
             className={selectClass}
           >
             {(category === 'autos' ? [...SORT_OPTIONS, ...AUTO_SORT_OPTIONS] : SORT_OPTIONS).map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
+              <option key={s.value} value={s.value}>{sortLabel(s.value, s.label, presentation.language)}</option>
             ))}
           </select>
         </div>
@@ -278,13 +291,12 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           type="submit"
           className="hidden sm:block bg-[var(--fg-inverse)] text-[var(--claim-accent)] font-semibold px-5 py-1.5 rounded-[var(--r-md)] text-sm hover:bg-white/90 transition-colors shrink-0"
         >
-          Buscar
-        </button>
+          <BuyerCopyText copyKey="l.SearchBar.e4c94833" /></button>
       </div>
 
       {/* Search tip */}
       <p className="text-white/60 text-xs mb-3">
-        Tip: usa - para excluir palabras: <em>guitarra -rota</em>
+        <BuyerCopyText copyKey="l.SearchBar.e327d56a" />{' '}<em><BuyerCopyText copyKey="l.SearchBar.99d2505e" /></em>
       </p>
 
       {/* Category-specific filters */}
@@ -292,28 +304,28 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="space-y-2 border-t border-white/20 pt-3">
           <div className="flex flex-wrap gap-2">
             <div className="flex-1 min-w-32">
-              <label className={labelClass}>Marca</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.e7a09d7d" /></label>
               {/* Derived facet options + counts when the rail loaded; else free text. */}
               {carFacets && carFacets.marca.length > 0 ? (
                 <select name="brand" defaultValue={params.brand ?? ''} className={selectClass}>
-                  <option value="">Todas las marcas</option>
+                  <option value=""><BuyerCopyText copyKey="l.SearchBar.22f692e8" /></option>
                   {carFacets.marca.map(o => (
                     <option key={o.value} value={o.value}>{o.label} ({o.count})</option>
                   ))}
                 </select>
               ) : (
-                <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder="Toyota, Honda..." className={inputClass} />
+                <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder={copy('l.SearchBar.635c0f43')} className={inputClass} />
               )}
             </div>
             <div className="flex-1 min-w-32">
-              <label className={labelClass}>Modelo</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.64453d17" /></label>
               {/* Free-text input with datalist suggestions scoped to the applied marca. */}
               <input
                 name="model"
                 type="text"
                 list="cars-modelo-options"
                 defaultValue={params.model ?? ''}
-                placeholder={params.brand ? 'Elige o escribe' : 'Corolla, Jetta...'}
+                placeholder={params.brand ? copy('l.SearchBar.b1acd91e') : copy('l.SearchBar.af5a241f')}
                 className={inputClass}
               />
               {carFacets && carFacets.modelo.length > 0 && (
@@ -331,52 +343,52 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="w-28">
-              <label className={labelClass}>Precio mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.8ae193f9" /></label>
               <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder={carFacets?.precio ? String(carFacets.precio.min) : '0'} className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.86fcc169" /></label>
               <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder={carFacets?.precio ? String(carFacets.precio.max) : '∞'} className={inputClass} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="w-24">
-              <label className={labelClass}>Año desde</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.dbbb0625" /></label>
               <input name="year_from" type="number" defaultValue={params.year_from ?? ''} placeholder={carFacets?.anio ? String(carFacets.anio.min) : '2000'} maxLength={4} className={inputClass} />
             </div>
             <div className="w-24">
-              <label className={labelClass}>Año hasta</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.72d587f2" /></label>
               <input name="year_to" type="number" defaultValue={params.year_to ?? ''} placeholder={carFacets?.anio ? String(carFacets.anio.max) : '2025'} maxLength={4} className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Kms desde</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.ec8aa63b" /></label>
               <input name="km_from" type="number" defaultValue={params.km_from ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Kms hasta</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.6960b615" /></label>
               <input name="km_to" type="number" defaultValue={params.km_to ?? ''} placeholder={carFacets?.km ? String(carFacets.km.max) : '∞'} className={inputClass} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <div className="w-36">
-              <label className={labelClass}>Transmisión</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.a9a3d267" /></label>
               {/* Values match the capture-form attrs slugs (lib/listing-attributes.ts). */}
               <select name="transmission" defaultValue={params.transmission ?? ''} className={selectClass}>
-                <option value="">Cualquiera</option>
-                <option value="manual">Manual</option>
-                <option value="automatico">Automático</option>
-                <option value="cvt">CVT</option>
+                <option value=""><BuyerCopyText copyKey="l.SearchBar.dc595838" /></option>
+                <option value="manual"><BuyerCopyText copyKey="l.SearchBar.cbfa4ef4" /></option>
+                <option value="automatico"><BuyerCopyText copyKey="l.SearchBar.608ec59f" /></option>
+                <option value="cvt"><BuyerCopyText copyKey="l.SearchBar.aa16adc4" /></option>
               </select>
             </div>
             <div className="w-36">
-              <label className={labelClass}>Combustible</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.e1292953" /></label>
               <select name="fuel" defaultValue={params.fuel ?? ''} className={selectClass}>
-                <option value="">Cualquiera</option>
-                <option value="gasolina">Gasolina</option>
-                <option value="diesel">Diésel</option>
-                <option value="electrico">Eléctrico</option>
-                <option value="hibrido">Híbrido</option>
-                <option value="gas_lp">Gas LP</option>
+                <option value=""><BuyerCopyText copyKey="l.SearchBar.dc595838" /></option>
+                <option value="gasolina"><BuyerCopyText copyKey="l.SearchBar.5877318e" /></option>
+                <option value="diesel"><BuyerCopyText copyKey="l.SearchBar.cc5ab61c" /></option>
+                <option value="electrico"><BuyerCopyText copyKey="l.SearchBar.70931de3" /></option>
+                <option value="hibrido"><BuyerCopyText copyKey="l.SearchBar.a5638636" /></option>
+                <option value="gas_lp"><BuyerCopyText copyKey="l.SearchBar.68912874" /></option>
               </select>
             </div>
           </div>
@@ -387,32 +399,32 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="space-y-2 border-t border-white/20 pt-3">
           <div className="flex flex-wrap gap-2">
             <div className="w-28">
-              <label className={labelClass}>Precio mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.8ae193f9" /></label>
               <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.86fcc169" /></label>
               <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder="∞" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Hab. mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.43fb3712" /></label>
               <input name="rooms_min" type="number" defaultValue={params.rooms_min ?? ''} placeholder="1" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Hab. máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.dbcfcb47" /></label>
               <input name="rooms_max" type="number" defaultValue={params.rooms_max ?? ''} placeholder="∞" className={inputClass} />
             </div>
             <div className="w-32">
-              <label className={labelClass}>Superficie mín m²</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.98891781" /></label>
               <input name="surface_min" type="number" defaultValue={params.surface_min ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-32">
-              <label className={labelClass}>Superficie máx m²</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.b8078514" /></label>
               <input name="surface_max" type="number" defaultValue={params.surface_max ?? ''} placeholder="∞" className={inputClass} />
             </div>
           </div>
           <div>
-            <label className={labelClass}>Tipo de propiedad</label>
+            <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.80f06d38" /></label>
             <div className="flex flex-wrap gap-2 mt-1">
               {PROPERTY_TYPES.map(pt => (
                 <label key={pt.value} className="flex items-center gap-1.5 text-white text-xs cursor-pointer">
@@ -422,7 +434,7 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
                     onChange={() => togglePropertyType(pt.value)}
                     className="rounded-[var(--r-xs)]"
                   />
-                  {pt.label}
+                  {propertyTypeLabel(pt.value, pt.label, presentation.language)}
                 </label>
               ))}
             </div>
@@ -434,21 +446,21 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="border-t border-white/20 pt-3">
           <div className="flex flex-wrap gap-2">
             <div className="flex-1 min-w-32">
-              <label className={labelClass}>Marca</label>
-              <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder="Apple, Samsung..." className={inputClass} />
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.e7a09d7d" /></label>
+              <input name="brand" type="text" defaultValue={params.brand ?? ''} placeholder={copy('l.SearchBar.6505e4ed')} className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.8ae193f9" /></label>
               <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.86fcc169" /></label>
               <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder="∞" className={inputClass} />
             </div>
             <div className="w-40">
-              <label className={labelClass}>Condición</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.da9dff7b" /></label>
               <select name="condition" defaultValue={params.condition ?? ''} className={selectClass}>
-                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{conditionFilterLabel(c.value, c.label, presentation.language)}</option>)}
               </select>
             </div>
           </div>
@@ -460,17 +472,17 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="border-t border-white/20 pt-3">
           <div className="flex flex-wrap gap-2">
             <div className="w-28">
-              <label className={labelClass}>Precio mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.8ae193f9" /></label>
               <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.86fcc169" /></label>
               <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder="∞" className={inputClass} />
             </div>
             <div className="w-40">
-              <label className={labelClass}>Condición</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.da9dff7b" /></label>
               <select name="condition" defaultValue={params.condition ?? ''} className={selectClass}>
-                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{conditionFilterLabel(c.value, c.label, presentation.language)}</option>)}
               </select>
             </div>
           </div>
@@ -481,11 +493,11 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
         <div className="border-t border-white/20 pt-3">
           <div className="flex flex-wrap gap-2">
             <div className="w-28">
-              <label className={labelClass}>Precio mín</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.8ae193f9" /></label>
               <input name="min_price" type="number" defaultValue={params.min_price ?? ''} placeholder="0" className={inputClass} />
             </div>
             <div className="w-28">
-              <label className={labelClass}>Precio máx</label>
+              <label className={labelClass}><BuyerCopyText copyKey="l.SearchBar.86fcc169" /></label>
               <input name="max_price" type="number" defaultValue={params.max_price ?? ''} placeholder="∞" className={inputClass} />
             </div>
           </div>
@@ -499,13 +511,12 @@ export default function SearchBar({ initialQ, initialCategory, initialState, par
           onClick={clearFilters}
           className="text-white/80 hover:text-white text-sm font-medium shrink-0"
         >
-          Limpiar
-        </button>
+          <BuyerCopyText copyKey="l.SearchBar.0dd9823c" /></button>
         <button
           type="submit"
           className="flex-1 bg-[var(--fg-inverse)] text-[var(--claim-accent)] font-semibold px-5 py-2 rounded-[var(--r-md)] text-sm hover:bg-white/90 transition-colors"
         >
-          {resultCountLabel(count)}
+          {resultCountLabel(count, presentation.language)}
         </button>
       </div>
       </form>
