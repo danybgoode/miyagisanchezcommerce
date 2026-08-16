@@ -17,6 +17,22 @@ const LISTING_ID = process.env.MS_TEST_PDP_LISTING_ID || process.env.MS_TEST_PER
 
 test.describe('agent hand-off card · PDP names the product (browser)', () => {
   test('opening the card on a PDP yields a prompt that names the product + URL', async ({ page }) => {
+    // Same 30s-budget problem as the sibling in this PR: a full PDP navigation
+    // against production, where `page.goto` waits for `load` and therefore for
+    // every image on the page. It timed out in the same 2026-08-10 nightly run
+    // (all three failures that night were `Test timeout of 30000ms exceeded`;
+    // not one was an assertion failure) and the draft that became this PR
+    // dismissed it as "flaky, no action needed" — five days before its
+    // neighbours went genuinely red for the same reason.
+    //
+    // Deliberately NOT applied to `pdp-gallery.browser.spec.ts`, which timed out
+    // in that run too: its real cause was found and fixed in #370 — fixture
+    // discovery was picking a ten-image PDP, and taking the cheapest qualifying
+    // listing instead took that file from 31s to 8s. A timeout with a known,
+    // fixed cause does not want a bigger budget; this one, whose fixture is a
+    // pinned env id we do not choose, still does.
+    test.slow()
+
     requireEnv(LISTING_ID, 'MS_TEST_PDP_LISTING_ID')
     await page.goto(`/l/${LISTING_ID}`)
 
