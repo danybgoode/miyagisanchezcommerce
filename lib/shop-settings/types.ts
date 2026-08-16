@@ -62,6 +62,30 @@ export interface ShopSettingsData {
           bank_name?: string | null
           account_holder?: string | null
         }
+        /**
+         * DiMo (transfer-by-phone) and cash-on-pickup — the two manual methods
+         * that sit beside `bank_transfer` in the payments section.
+         *
+         * These were WRITTEN by `_sections/Pagos.tsx`'s save and read back by
+         * `lib/store-config.ts`, `lib/settings-import.ts` and `lib/email.ts`
+         * while being absent from this type entirely, so every call site
+         * reached them through a cast. Added 2026-08-16.
+         *
+         * `phone` and `note` are `string | null`, not `string | undefined`: the
+         * save writes `… || null` explicitly, and production confirms it — of
+         * the 7 shops carrying these blocks, several hold `{"phone": null}`.
+         * An earlier inline cast in `Pagos.tsx` guessed `phone?: string | null` and
+         * was simply wrong about the data. Same nullable-string convention as
+         * `bank_transfer` above, for one shape across all four manual methods.
+         */
+        dimo?: {
+          enabled: boolean
+          phone?: string | null
+        }
+        cash_pickup?: {
+          enabled: boolean
+          note?: string | null
+        }
       }
       shipping?: {
         local_pickup?: boolean
