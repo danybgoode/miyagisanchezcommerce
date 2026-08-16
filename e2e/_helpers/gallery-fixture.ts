@@ -25,6 +25,17 @@ import type { APIRequestContext } from '@playwright/test'
  * listing is not in it, there is no PDP to test. So the fixture is discovered,
  * and the secret becomes an optional override for pinning a specific listing.
  *
+ * ── The pin is checked, never trusted ───────────────────────────────────────
+ * The override shipped 2026-08-15 as a blind pass-through: any non-empty env
+ * var short-circuited discovery entirely. `MS_TEST_GALLERY_SINGLE_LISTING_ID`
+ * and `MS_TEST_GALLERY_ZERO_LISTING_ID` were never cleared from the workflow
+ * after that rotted once already, so the smoke kept trusting the same
+ * hand-rotated secrets discovery was built to stop depending on — and went red
+ * again on 2026-08-16 the same way. A pin is now cross-checked against the
+ * catalog page(s) already being fetched (right shape, still present) before
+ * it is used; a pin that fails that check is treated as absent and discovery
+ * runs instead, same as if the secret had never been set.
+ *
  * ── Three states, never two ─────────────────────────────────────────────────
  * `resolveGalleryListing` returns a listing id, or `null` with a `reason`. It
  * never conflates "the catalog has no listing of this shape" with "the catalog
@@ -75,8 +86,6 @@ export async function resolveGalleryListing(
   photos: PhotoCount,
   envOverride?: string,
 ): Promise<GalleryFixture> {
-  if (envOverride) return { listingId: envOverride, source: 'env' }
-
   const items: CatalogItem[] = []
   for (const page of PAGES) {
     let response
@@ -104,6 +113,17 @@ export async function resolveGalleryListing(
     if (page_items.length < 50) break
   }
 
+  // A pin only counts if the catalog still lists it WITH the right photo
+  // count — anything else (deleted, unpublished, edited to a different photo
+  // count, or just outside the two pages fetched above) is indistinguishable
+  // from "never pinned" and falls through to discovery below.
+  if (envOverride) {
+    const pinned = items.find((item) => item.id === envOverride)
+    if (pinned && MATCHES[photos]((pinned.images ?? []).length)) {
+      return { listingId: envOverride, source: 'env' }
+    }
+  }
+
   const match = pickFixtureListing(items, photos)
   if (match) return { listingId: match, source: 'catalog' }
 
@@ -112,7 +132,9 @@ export async function resolveGalleryListing(
     source: 'unavailable',
     reason:
       `no public listing with ${DESCRIPTION[photos]} exists in the catalog ` +
-      `(searched ${items.length}). This spec cannot run until one does — that is a gap in the ` +
+      `(searched ${items.length})` +
+      (envOverride ? `; the pinned id no longer qualifies either` : '') +
+      `. This spec cannot run until one does — that is a gap in the ` +
       `test DATA, not a passing test.`,
   }
 }

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { pickFixtureListing, type CatalogItem } from './_helpers/gallery-fixture'
+import type { APIRequestContext } from '@playwright/test'
+import { pickFixtureListing, resolveGalleryListing, type CatalogItem } from './_helpers/gallery-fixture'
 
 /**
  * The pure half of gallery-fixture discovery. It replaced three hand-rotated
@@ -50,5 +51,59 @@ test.describe('pickFixtureListing', () => {
     // than run the spec against a listing of the wrong shape and pass vacuously.
     expect(pickFixtureListing([{ id: 'prod_one', images: img(1) }], 'zero')).toBeNull()
     expect(pickFixtureListing([], 'multi')).toBeNull()
+  })
+})
+
+/**
+ * A fake catalog endpoint — `resolveGalleryListing` only ever calls
+ * `request.get(url)` and reads `.ok()` / `.status()` / `.json()` off the
+ * result, so a plain object satisfies it without spinning up a server.
+ */
+function fakeRequest(items: CatalogItem[]): APIRequestContext {
+  return {
+    get: async () => ({
+      ok: () => true,
+      status: () => 200,
+      json: async () => ({ items }),
+    }),
+  } as unknown as APIRequestContext
+}
+
+test.describe('resolveGalleryListing — env pin', () => {
+  test('a pin still present in the catalog, with the right shape, wins over discovery', async () => {
+    const request = fakeRequest(catalog)
+    const result = await resolveGalleryListing(request, 'multi', 'prod_ten')
+    expect(result).toEqual({ listingId: 'prod_ten', source: 'env' })
+  })
+
+  // The 2026-08-16 regression: MS_TEST_GALLERY_SINGLE_LISTING_ID and
+  // MS_TEST_GALLERY_ZERO_LISTING_ID stayed wired in the workflow after
+  // rotting once already, and a bare `if (envOverride)` trusted them anyway —
+  // discovery never ran, so the same stale ids kept failing the smoke.
+  test('a pin the catalog no longer lists is treated as absent — discovery runs instead', async () => {
+    const request = fakeRequest(catalog)
+    const result = await resolveGalleryListing(request, 'multi', 'prod_deleted')
+    expect(result).toEqual({ listingId: 'prod_two_a', source: 'catalog' })
+  })
+
+  test('a pin that exists but is now the wrong shape is treated as absent — discovery runs instead', async () => {
+    const request = fakeRequest(catalog)
+    // prod_one has exactly one photo — pinning it for the `multi` fixture is stale.
+    const result = await resolveGalleryListing(request, 'multi', 'prod_one')
+    expect(result).toEqual({ listingId: 'prod_two_a', source: 'catalog' })
+  })
+
+  test('a stale pin with nothing to discover skips honestly, naming the pin as checked', async () => {
+    const request = fakeRequest([{ id: 'prod_one', images: img(1) }])
+    const result = await resolveGalleryListing(request, 'zero', 'prod_stale')
+    expect(result.listingId).toBeNull()
+    expect(result.source).toBe('unavailable')
+    expect(result.reason).toContain('the pinned id no longer qualifies either')
+  })
+
+  test('no pin set — discovery runs as before', async () => {
+    const request = fakeRequest(catalog)
+    const result = await resolveGalleryListing(request, 'zero', undefined)
+    expect(result).toEqual({ listingId: 'prod_none', source: 'catalog' })
   })
 })
