@@ -804,162 +804,275 @@
   "partnersRecruiting": {
     "landing": {
       "switchLanguage": "View in English",
-      "heroEyebrow": "Miyagi Partners · Prueba fundadora 01",
-      "title": "Opera tres tiendas. Demuestra una práctica más tranquila.",
-      "body": "Una prueba de trabajo de 90 días, sin migración forzada, para operadores de comercio con experiencia en Estados Unidos. Conserva la tienda propia y los sistemas necesarios de cada comercio mientras probamos si el trabajo operativo repetido puede ser más seguro y legible.",
-      "primaryCta": "Postular con tres tiendas",
-      "promotorCta": "Promotor — México",
-      "truthEyebrow": "Lo que es cierto hoy",
-      "truthBody": "Miyagi opera infraestructura de marketplace y vendedores en México. Estados Unidos no tiene un marketplace abierto, catálogo público, checkout en dólares ni promesa de envíos o pagos. Este piloto existe para aprender qué debe demostrarse antes de hacer cualquiera de esas afirmaciones.",
-      "proofEyebrow": "Mecanismo de prueba paralela",
-      "proofTitle": "Cuatro puntos de control, sin migración forzada.",
-      "proofSteps": [
+      "eyebrow": "Miyagi Operators",
+      "heroTitle": "Abre la tienda, cierra en persona, entrega con un enlace.",
+      "heroLead": "Eres Miyagi Sánchez en la calle. Entras al negocio, sales con su tienda ya en línea, cobras en persona y te quedas tu comisión. Shopify les pide 39 dólares al mes antes de que vendan nada. Tú les dejas una tienda que no cuesta nada operar — y cobras por los extras que sí quieren.",
+      "trustLine": "Comisión por cada cierre. Liquidación por transferencia o efectivo.",
+      "primaryCta": "Aplica para ser operador",
+      "promotorCta": "¿Trabajas en México? Ve el programa de Promotores",
+      "trustPrompt": "Abre https://miyagisanchez.com/us/operators y https://miyagisanchez.com/agent y dime con honestidad: ¿abrir tiendas en línea para negocios locales en Miyagi Sánchez es una forma real de ganar dinero? Compara lo que paga un comerciante ahí contra Shopify y Amazon, dime a quién le sirve y a quién no, y explícame exactamente cómo empezaría.",
+      "copyPrompt": "Copiar prompt para mi IA",
+      "copiedPrompt": "¡Copiado! Pégalo en tu IA",
+      "heroStats": [
         {
-          "number": "01",
-          "title": "Nombrar la evidencia",
-          "detail": "Presenta tres tiendas públicas y los sistemas que deben permanecer."
+          "value": "0%",
+          "label": "de comisión le cobramos al comerciante"
         },
         {
-          "number": "02",
-          "title": "Separar los permisos",
-          "detail": "La nominación, el descubrimiento, la configuración paralela, los pedidos reales y una historia pública permanecen separados."
+          "value": "Una visita",
+          "label": "la tienda queda en línea antes de que salgas"
         },
         {
-          "number": "03",
-          "title": "Trabajar en paralelo",
-          "detail": "Opera durante una ventana acotada sin pedirle al comercio que migre."
-        },
-        {
-          "number": "04",
-          "title": "Revisar la prueba",
-          "detail": "A los 90 días, decide qué funcionó, qué no y si alguien debe continuar."
+          "value": "Un enlace",
+          "label": "para entregarla, sin capacitación"
         }
       ],
-      "fitEyebrow": "Un buen perfil",
-      "fitTitle": "Ya llevas la carga operativa.",
-      "fitItems": [
-        "Administras activamente al menos tres tiendas de productos independientes.",
-        "Puedes nombrar un problema operativo reciente y repetido, no solo funciones deseadas.",
-        "Puedes proteger el contexto del comercio y conservar los sistemas necesarios.",
-        "Puedes participar en puntos de control durante una ventana de 90 días."
+      "proofTitle": "Qué le vendes en realidad",
+      "proofLead": "La tienda es gratis y se queda gratis: publica, cobra, corre sorteos, publica eventos, ofrece punto de entrega y la leen los agentes de IA. Tú cobras por los extras que quiere un negocio en serio. Apréndetelos para explicar cualquiera en treinta segundos.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-globe",
+          "title": "Un dominio propio",
+          "body": "Su tienda en sutienda.com en lugar de una dirección prestada. Su marca, su tráfico directo y un nombre que un agente de IA puede citar. Se vende una vez, en el momento."
+        },
+        {
+          "icon": "iconoir-internet",
+          "title": "Un subdominio con su nombre",
+          "body": "sutienda.miyagisanchez.com sin comprar ningún dominio. Es el sí más fácil de tu maletín y la firma más rápida del día."
+        },
+        {
+          "icon": "iconoir-refresh",
+          "title": "La salida de Shopify",
+          "body": "Fotografías el anaquel, o traes su exportación de Shopify o WooCommerce, y el catálogo entero vive aquí el mismo día — sin la mensualidad que le llegaría el mes que viene."
+        },
+        {
+          "icon": "iconoir-sparks",
+          "title": "Una tienda a la que le puede comprar una IA",
+          "body": "Cada tienda se publica en el estándar abierto de comercio agéntico, así que ChatGPT, Claude y Gemini la encuentran, la comparan y le compran. Nadie más en su calle tiene eso todavía."
+        }
       ],
-      "notFitEyebrow": "Este programa no es",
-      "notFitTitle": "No ofrece prospectos, insignias, promesas de comisión ni acceso inmediato.",
-      "notFitItems": [
-        "No es un programa de reventa, marketplace de prospectos, certificación ni CRM para agencias.",
-        "La prueba de 90 días no cobra tarifa de plataforma ni migración de Miyagi; eso no es un precio permanente.",
-        "No se promete participación en los ingresos del operador.",
-        "La URL de una tienda nunca autoriza acceso ni contacto con el comercio."
-      ]
+      "benchmark": {
+        "title": "Compáralo antes de venderlo",
+        "lead": "Lo que un negocio paga en otro lado, aquí se lo queda. Compruébalo tú mismo — o que lo haga tu IA.",
+        "rowHeader": "Lo que comparas",
+        "columns": [
+          "Miyagi Sánchez",
+          "Shopify",
+          "Amazon"
+        ],
+        "rows": [
+          {
+            "label": "Cuota mensual",
+            "cells": [
+              "$0",
+              "$39 USD/mes Basic, $105 USD/mes Grow — se cobra vendan o no",
+              "$39.99 USD/mes Professional, o $0.99 por artículo vendido"
+            ]
+          },
+          {
+            "label": "Comisión por venta",
+            "cells": [
+              "0% de comisión de plataforma",
+              "0% propio, más hasta 2% si usan otro procesador",
+              "~8–17% de comisión por referencia, según categoría"
+            ]
+          },
+          {
+            "label": "¿A dónde llega el dinero?",
+            "cells": [
+              "Directo a su propia cuenta",
+              "Por Shopify Payments, o por su pasarela",
+              "Lo retiene Amazon y lo libera en su calendario de pagos"
+            ]
+          },
+          {
+            "label": "¿De quién es el cliente?",
+            "cells": [
+              "Suyo: su dominio, sus pedidos, su lista",
+              "Suyo",
+              "De Amazon"
+            ]
+          },
+          {
+            "label": "Tienda y dominio propios",
+            "cells": [
+              "Incluidos: enlace, subdominio, dominio o widget",
+              "Sí, con su plan",
+              "No: viven dentro de Amazon"
+            ]
+          },
+          {
+            "label": "Servicios, rentas y experiencias",
+            "cells": [
+              "Nativo",
+              "Con apps de terceros",
+              "Limitado"
+            ]
+          },
+          {
+            "label": "Vender por agentes de IA",
+            "cells": [
+              "Nativo, sobre el estándar abierto (UCP/MCP)",
+              "Apenas emergente",
+              "Cerrado"
+            ]
+          },
+          {
+            "label": "Qué cuesta averiguarlo",
+            "cells": [
+              "Abrir una tienda y publicar hoy",
+              "Un plan de paga o un reloj de prueba",
+              "Una cuenta de vendedor y un tarifario"
+            ]
+          }
+        ],
+        "verifiedLabel": "Verificado",
+        "verified": "17 de agosto de 2026",
+        "footnote": "Comparación con las tarifas públicas de vendedor de Shopify y Amazon en Estados Unidos, verificadas el 17 de agosto de 2026. Las tarifas cambian: pídele a tu IA que las confirme antes de citarlas."
+      },
+      "stepsTitle": "Cómo se cierra, de principio a fin",
+      "steps": [
+        {
+          "title": "1 · Abre la tienda",
+          "body": "Desde tu panel creas su tienda y le subes el primer producto mientras te ve. Verla en línea es el argumento."
+        },
+        {
+          "title": "2 · Cobra",
+          "body": "Te paga en persona y tú pagas el dominio, el subdominio o la migración con tu tarjeta. La venta queda con tu código y el beneficio se activa en SU tienda, no en la tuya."
+        },
+        {
+          "title": "3 · Entrégala",
+          "body": "Le mandas el enlace de reclamo. Un toque, inicia sesión y la tienda es suya. Tu comisión se queda contigo."
+        }
+      ],
+      "selfCheckTitle": "Compruébalo tú mismo",
+      "selfCheckBody": "Copia el prompt y pégalo en tu IA para que evalúe la oportunidad por ti.",
+      "pitchTitle": "El precio que abre tu código",
+      "pitchBody": "Tu código de operador lleva un precio que el comerciante no consigue solo, ni de nadie más, ni mañana. Ese es tu cierre: no un descuento que pides, uno con el que llegas.",
+      "pitchStats": [
+        {
+          "value": "Tu código",
+          "label": "un precio que solo tú das"
+        },
+        {
+          "value": "Un toque",
+          "label": "para reclamar la tienda"
+        },
+        {
+          "value": "Cero captura",
+          "label": "el comerciante no escribe nada"
+        }
+      ],
+      "faqTitle": "Respuestas directas antes de aplicar",
+      "faqs": [
+        {
+          "title": "¿Cómo me pagan?",
+          "body": "Comisión por cada extra que cierres, registrada con tu código en el momento en que pasa la venta. Liquidamos contigo por transferencia o efectivo, y tu tarifa la acordamos contigo cuando quedas aprobado."
+        },
+        {
+          "title": "¿Necesito vender tecnología?",
+          "body": "No. Le vendes a un negocio una mejor dirección y más alcance. La tienda toma minutos y el comerciante no captura nada."
+        },
+        {
+          "title": "¿De verdad es 0% de comisión para el comerciante?",
+          "body": "Sí. Nunca tomamos un porcentaje de sus ventas. Paga la comisión de su procesador de pago igual que en cualquier lado, y ese dinero llega directo a su cuenta."
+        },
+        {
+          "title": "¿Entonces cómo gana Miyagi?",
+          "body": "Con los extras premium: dominios, migraciones y posicionamiento. Nunca con una tajada de la venta de un comerciante."
+        },
+        {
+          "title": "¿Qué territorio me toca?",
+          "body": "Los negocios a los que alcanzas a llegar. Dinos dónde trabajas cuando apliques y lo acordamos contigo antes de que empieces."
+        }
+      ],
+      "closingTitle": "Abre tu primera tienda esta semana",
+      "closingBody": "Aplica, queda aprobado y entra a tu primer negocio con una tienda que puedes poner en línea frente a él. Cada cierre es comisión con tu nombre.",
+      "closingCta": "Aplica para ser operador",
+      "applyTitle": "Aplica para ser operador",
+      "applyBody": "Cuéntanos quién eres y dónde trabajas. Leemos todas las solicitudes y contestamos en dos días hábiles."
     },
     "application": {
-      "channelOptions": {
-        "online_store": "Tienda en línea propia",
-        "marketplace": "Marketplace",
-        "social": "Comercio social",
-        "wholesale": "Mayoreo",
-        "other": "Otro"
-      },
-      "awarenessOptions": {
-        "not_contacted": "No ha sido contactado sobre esta nominación",
-        "aware_of_nomination": "Sabe que estoy nominando la tienda",
-        "interested_in_conversation": "Le interesa conversar con Miyagi"
-      },
-      "otherPlatform": "Otra",
-      "validation": {
-        "shopCount": "Esta prueba requiere un operador que atienda activamente al menos tres tiendas.",
-        "shopUrl": "Cada registro necesita una URL pública http o https. No se aceptan URLs locales, privadas ni con credenciales.",
-        "duplicateShop": "Cada registro debe nombrar una tienda pública diferente.",
-        "channels": "Elige al menos un canal operativo para cada tienda.",
-        "checkpoint": "Confirma que puedes participar en un punto de control operativo de 90 días.",
-        "qualification": "Completa el perfil operativo y los registros de las tres tiendas.",
-        "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
-        "receive": "No pudimos recibir la solicitud. Inténtalo de nuevo.",
-        "network": "No pudimos recibir la solicitud. Tus respuestas siguen aquí; inténtalo de nuevo."
-      },
-      "successEyebrow": "Expediente recibido",
-      "successTitle": "Recibido para revisión; aún no está aceptado.",
-      "successBody": "Revisaremos el perfil operativo y te contactaremos directamente. Esta solicitud no creó acceso a tiendas, no contactó a ningún comercio y no otorgó permisos.",
-      "eyebrow": "Expediente de solicitud · versión 1",
-      "title": "Pon tres tiendas reales sobre la mesa.",
-      "body": "Pedimos evidencia pública y restricciones operativas, no contraseñas, tokens, datos de clientes, ingresos ni un compromiso de migración.",
-      "profileLegend": "Tu perfil operativo",
+      "eyebrow": "Solicitud de operador",
+      "title": "Cuéntanos quién eres.",
+      "body": "Cinco campos. Sin expediente, sin URLs de tiendas, sin contraseñas: platicamos bien en cuanto la leamos.",
       "fields": {
-        "name": "Tu nombre",
-        "email": "Correo de trabajo",
-        "phone": "WhatsApp o teléfono",
-        "company": "Empresa o práctica",
-        "role": "Tu función operativa",
-        "rolePlaceholder": "p. ej., responsable de agencia o líder de ecommerce",
-        "activeShops": "Tiendas activas que operas hoy"
+        "name": "Nombre",
+        "namePlaceholder": "Tu nombre completo",
+        "email": "Correo",
+        "emailPlaceholder": "tu@correo.com",
+        "phone": "Teléfono o WhatsApp",
+        "phonePlaceholder": "Ej. (512) 555-0134",
+        "city": "Ciudad o territorio",
+        "cityPlaceholder": "Ej. Austin, TX",
+        "motivation": "¿Por qué quieres hacer esto? (opcional)",
+        "motivationPlaceholder": "Con un par de líneas basta"
       },
-      "evidenceLegend": "Registro de evidencia de tres tiendas",
-      "evidenceBody": "Una nominación no es consentimiento del comercio. Miyagi no contactará a estas tiendas desde este formulario.",
-      "shopUrl": "URL pública de la tienda",
-      "shopUrlPlaceholder": "https://tienda.example",
-      "platform": "Plataforma",
-      "merchantAwareness": "Conocimiento del comercio",
-      "channels": "Canales que operas para esta tienda",
-      "constraintsLegend": "Restricciones operativas",
-      "recentProblem": "Un problema operativo reciente en estas tiendas",
-      "retainSystems": "Sistemas o prácticas del comercio que deben permanecer",
-      "whyNow": "¿Por qué vale la pena probar ahora una operación paralela de 90 días?",
-      "checkpoint": "Puedo participar en un punto de control de 90 días. Entiendo que esta es una prueba sin migración forzada, no una aceptación, acceso a tiendas, consentimiento del comercio, precio gratuito permanente ni participación en ingresos.",
+      "submit": "Enviar solicitud",
+      "sending": "Enviando…",
       "honeypot": "Campo adicional",
-      "sending": "Enviando expediente…",
-      "submit": "Enviar para revisión del fundador",
-      "boundary": "Éxito significa recibido para revisión. No crea una cuenta, no otorga una tienda ni contacta a un comercio nominado."
+      "successEyebrow": "Solicitud recibida",
+      "successTitle": "Listo. Te buscamos.",
+      "successBody": "Leemos todas las solicitudes y contestamos en dos días hábiles con el siguiente paso y tu comisión.",
+      "validation": {
+        "missingFields": "Completa tu nombre, correo y teléfono.",
+        "invalidEmail": "Escribe un correo válido.",
+        "tooLong": "Una de tus respuestas es más larga de lo que podemos recibir.",
+        "rateLimited": "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
+        "receive": "No pudimos enviar la solicitud. Inténtalo de nuevo.",
+        "network": "No pudimos enviar la solicitud. Tus respuestas siguen aquí; inténtalo de nuevo."
+      }
     },
     "activation": {
-      "metadataTitle": "Activa Miyagi Partners",
-      "eyebrow": "Miyagi Partners · activación de identidad",
-      "title": "Vincula tu identidad de operador aprobada.",
-      "body": "Esto vincula la invitación aprobada de Founding Commerce Operator con tu cuenta de Miyagi. No crea una tienda, no contacta a ningún comercio y no otorga acceso a ninguna tienda.",
-      "mismatch": "Esta cuenta no pudo activar la invitación. Usa la cuenta de Miyagi cuyo correo verificado recibió la invitación.",
-      "cta": "Activar Miyagi Partners",
-      "boundary": "La aprobación del programa y el permiso de una tienda son cosas separadas. Las tiendas aparecen solo cuando un comercio o administrador de Miyagi otorga acceso.",
-      "unavailableTitle": "Activación no disponible.",
-      "used": "Esta invitación ya fue activada.",
-      "expired": "Esta invitación venció. Pide a Miyagi que la rote y la reenvíe.",
-      "unavailable": "No pudimos verificar esta invitación en este momento. Inténtalo de nuevo en unos minutos.",
-      "invalid": "Esta invitación de activación no está disponible.",
+      "metadataTitle": "Activa tu cuenta de operador Miyagi",
+      "eyebrow": "Miyagi Operators",
+      "title": "Activa tu cuenta de operador.",
+      "body": "Esto vincula tu invitación aprobada con la cuenta de Miyagi con la que iniciaste sesión, y abre tu panel.",
+      "mismatch": "Esa invitación es de otra cuenta. Inicia sesión con la cuenta de Miyagi cuyo correo la recibió.",
+      "cta": "Activar mi cuenta",
+      "boundary": "Tu panel se va llenando conforme abres tiendas y conforme los comerciantes te dan acceso a las suyas.",
+      "unavailableTitle": "No pudimos activar esta invitación.",
+      "used": "Esta invitación ya se usó.",
+      "expired": "Esta invitación venció. Pídenos una nueva.",
+      "unavailable": "No pudimos revisar esta invitación en este momento. Inténtalo en un momento.",
+      "invalid": "Esta invitación no es válida.",
       "switchLanguage": "View in English"
     },
     "workspace": {
-      "heading": "Miyagi Partners",
-      "trackLabel": "Founding Commerce Operator",
-      "zeroShops": "Tu identidad de operador está activa y actualmente tiene cero tiendas. La aprobación del programa no es acceso a tiendas: una tienda aparece solo cuando un comercio o administrador de Miyagi la otorga. El siguiente paso es la revisión del fundador para la prueba acotada de 90 días.",
-      "shopsUnavailable": "No pudimos verificar tus tiendas asignadas en este momento. Inténtalo de nuevo en unos minutos.",
+      "heading": "Miyagi Operators",
+      "trackLabel": "Operador",
+      "zeroShops": "Tu cuenta de operador está activa y todavía no tiene tiendas. Abre la primera, o espera a que un comerciante te dé acceso a la suya: de cualquier forma aparece aquí.",
+      "shopsUnavailable": "No pudimos cargar tus tiendas en este momento. Inténtalo en un momento.",
       "switchLanguage": "View in English",
-      "roleManager": "Gestor",
+      "roleManager": "Administrador",
       "roleViewer": "Solo lectura",
       "since": "desde",
-      "operatingMarketUnavailable": "Mercado operativo no disponible",
-      "marketplaceUnavailable": "Estado de marketplace no disponible",
-      "ownedShopMx": "Tienda propia activa · MX",
+      "operatingMarketUnavailable": "Mercado no disponible",
+      "marketplaceUnavailable": "Estado del marketplace no disponible",
+      "ownedShopMx": "Tienda en línea · MX",
       "marketplaceMx": "Marketplace MX",
-      "ownedShopUs": "Tienda propia activa · US",
-      "marketplaceUsUnavailable": "Marketplace US no disponible",
+      "ownedShopUs": "Tienda en línea · US",
+      "marketplaceUsUnavailable": "Estado del marketplace US no disponible",
       "viewShop": "Ver tienda"
     },
     "email": {
-      "adminApplicationSubject": "Nueva solicitud de Founding Commerce Operator",
-      "adminApplicationHeading": "Solicitud de Founding Commerce Operator recibida",
-      "adminApplicationBody": "Hay un nuevo expediente de operador de Estados Unidos listo para revisión. Los datos de contacto, las tiendas candidatas y la evaluación en texto libre permanecen en la fila administrativa autenticada.",
+      "adminApplicationSubject": "Nueva solicitud de operador",
+      "adminApplicationHeading": "Llegó una solicitud de operador",
+      "adminApplicationBody": "Hay una solicitud nueva esperando en la cola de administración, con datos de contacto y territorio.",
       "adminApplicationCta": "Revisar solicitud",
-      "rejectionSubject": "Tu solicitud de Miyagi Partners",
-      "rejectionHeading": "Gracias por postularte, {name}",
-      "rejectionBody": "Revisamos tu solicitud de Founding Commerce Operator y por ahora no podemos incorporarla a la prueba de 90 días.",
-      "rejectionBoundary": "Esta decisión no crea acceso a tiendas ni contacta a ningún comercio nominado. Puedes volver a postularte si cambia tu situación operativa.",
-      "subject": "Activa tu identidad de Miyagi Partners",
-      "heading": "Tu identidad de socio está lista, {name}",
-      "approved": "Tu solicitud de Founding Commerce Operator fue aprobada para la prueba paralela de 90 días.",
-      "boundary": "La activación vincula esta invitación con tu cuenta de Miyagi. No crea una tienda, no contacta a un comercio nominado y no otorga acceso a ninguna tienda.",
+      "rejectionSubject": "Tu solicitud a Miyagi Operators",
+      "rejectionHeading": "Gracias por aplicar, {name}",
+      "rejectionBody": "Leímos tu solicitud y por ahora no podemos sumarte al programa.",
+      "rejectionBoundary": "Esto se mueve rápido de nuestro lado: puedes volver a aplicar cuando cambie tu situación.",
+      "subject": "Activa tu cuenta de operador Miyagi",
+      "heading": "Estás dentro, {name}",
+      "approved": "Tu solicitud al programa Miyagi Operators quedó aprobada.",
+      "boundary": "Al activar vinculas esta invitación con tu cuenta de Miyagi y se abre tu panel.",
       "programKey": "Programa",
-      "programValue": "Founding Commerce Operator — Estados Unidos",
+      "programValue": "Miyagi Operators — Estados Unidos",
       "expiresKey": "El enlace vence",
-      "cta": "Activar Miyagi Partners",
-      "notice": "Usa la cuenta de Miyagi cuyo correo verificado coincide con esta invitación. Si no esperabas este correo, no uses el enlace."
+      "cta": "Activar mi cuenta",
+      "notice": "Usa la cuenta de Miyagi cuyo correo recibió esta invitación. Si no la esperabas, ignora este mensaje."
     }
   },
   "pwaSearch": {
@@ -1215,51 +1328,67 @@
         "rows": [
           {
             "label": "Comisión por venta",
-            "miyagi": "0% comisión de plataforma",
-            "mercadoLibre": "~8–16% (hasta ~20.5% en Premium), según categoría",
-            "shopify": "0% propio, pero +2% si no usas Shopify Payments"
+            "cells": [
+              "0% comisión de plataforma",
+              "~8–16% (hasta ~20.5% en Premium), según categoría",
+              "0% propio, pero +2% si no usas Shopify Payments"
+            ]
           },
           {
             "label": "Cuota mensual",
-            "miyagi": "$0",
-            "mercadoLibre": "$0 (cobran por venta)",
-            "shopify": "desde ~$19–$39 USD/mes + IVA"
+            "cells": [
+              "$0",
+              "$0 (cobran por venta)",
+              "desde ~$19–$39 USD/mes + IVA"
+            ]
           },
           {
             "label": "Procesamiento de pago",
-            "miyagi": "El de tu pasarela, directo a tu cuenta",
-            "mercadoLibre": "Incluido en la comisión; te depositan después",
-            "shopify": "~3.5% + $3 MXN por transacción"
+            "cells": [
+              "El de tu pasarela, directo a tu cuenta",
+              "Incluido en la comisión; te depositan después",
+              "~3.5% + $3 MXN por transacción"
+            ]
           },
           {
             "label": "¿Dónde llega tu dinero?",
-            "miyagi": "Directo a tu cuenta (Stripe, MercadoPago, SPEI, efectivo)",
-            "mercadoLibre": "Retenido y liberado por Mercado Libre",
-            "shopify": "Vía Shopify Payments o tu pasarela"
+            "cells": [
+              "Directo a tu cuenta (Stripe, MercadoPago, SPEI, efectivo)",
+              "Retenido y liberado por Mercado Libre",
+              "Vía Shopify Payments o tu pasarela"
+            ]
           },
           {
             "label": "Tienda y dominio propios",
-            "miyagi": "Sí: link, subdominio, dominio o widget",
-            "mercadoLibre": "No: vives dentro de Mercado Libre",
-            "shopify": "Sí, con tu plan"
+            "cells": [
+              "Sí: link, subdominio, dominio o widget",
+              "No: vives dentro de Mercado Libre",
+              "Sí, con tu plan"
+            ]
           },
           {
             "label": "Vender servicios, rentas y experiencias",
-            "miyagi": "Sí, nativo",
-            "mercadoLibre": "Limitado",
-            "shopify": "Con apps de terceros"
+            "cells": [
+              "Sí, nativo",
+              "Limitado",
+              "Con apps de terceros"
+            ]
           },
           {
             "label": "Vender a través de agentes de IA",
-            "miyagi": "Sí, nativo (UCP/MCP)",
-            "mercadoLibre": "No",
-            "shopify": "Apenas emergente"
+            "cells": [
+              "Sí, nativo (UCP/MCP)",
+              "No",
+              "Apenas emergente"
+            ]
           },
           {
             "label": "Hecho para México",
-            "miyagi": "SPEI, MercadoPago, efectivo + revista impresa",
-            "mercadoLibre": "Sí",
-            "shopify": "Pasarelas, no local-first"
+            "cells": [
+              "SPEI, MercadoPago, efectivo + revista impresa",
+              "Sí",
+              "Pasarelas, no local-first"
+            ]
           }
         ],
         "verified": "25 de junio de 2026",
@@ -1714,7 +1843,7 @@
         {
           "icon": "iconoir-tools",
           "title": "¿No quieres hacerlo tú? Un consultor lo hace por ti",
-          "body": "Un consultor Miyagi Sánchez va a tu negocio, fotografía tu catálogo y lo deja montado el mismo día. Precio fijo hasta cierto tamaño de catálogo; catálogos más grandes reciben una cotización antes de cobrar cualquier cosa."
+          "body": "Un consultor Miyagi Sánchez va a tu negocio, fotografía tu catálogo y te deja la tienda lista el mismo día. Precio fijo hasta cierto tamaño de catálogo; catálogos más grandes reciben una cotización antes de cobrar cualquier cosa."
         }
       ],
       "routerTitle": "¿De cuál plataforma vienes?",
@@ -1811,7 +1940,7 @@
         }
       ],
       "proofTitle": "Qué trae el conector — y qué no",
-      "proofLead": "Es honesto sobre sus límites: trae tu catálogo y tus políticas en texto; el diseño de tu tienda lo montas tú con las plantillas de Miyagi Sánchez.",
+      "proofLead": "Trae tu catálogo y tus políticas en texto; el diseño de tu tienda lo defines tú con las plantillas de Miyagi Sánchez.",
       "proofPoints": [
         {
           "icon": "iconoir-check-circle",
@@ -2128,65 +2257,65 @@
     "promotor": {
       "metadata": {
         "title": "Programa de Promotores — Miyagi Sánchez",
-        "description": "Recursos para promotores: monta la tienda del comerciante, cierra la venta en persona y entrega por WhatsApp. Glosario, precios y guía paso a paso.",
-        "ogAlt": "Programa de Promotores de Miyagi Sánchez: monta, cierra y entrega."
+        "description": "Abre tiendas para los negocios de tu zona, cobra en persona y quédate la comisión. Glosario, precios, guiones y el paso a paso completo.",
+        "ogAlt": "Programa de Promotores de Miyagi Sánchez: abre la tienda, cierra en persona, entrega el enlace."
       },
       "eyebrow": "Promotores",
-      "heroTitle": "Monta la tienda, cierra en persona, entrega por WhatsApp.",
-      "heroLead": "Eres la fuerza de campo de Miyagi Sánchez. Entras al negocio, lo dejas montado en miyagisanchez.com, cobras en persona y te llevas tu comisión. Aquí tienes todo para explicarlo y venderlo.",
+      "heroTitle": "Abre la tienda, cierra en persona, entrega con un enlace.",
+      "heroLead": "Eres Miyagi Sánchez en la calle. Entras al negocio, sales con su tienda ya en línea, cobras en persona y te quedas tu comisión. Shopify le pide una mensualidad antes de que venda un solo peso; tú le dejas una tienda que no le cuesta nada operar — y cobras por los extras que sí quiere.",
       "trustLine": "Comisión por cada venta cerrada. Liquidación por transferencia o efectivo.",
       "primaryCta": "Abrir mi panel para cerrar",
       "applyCta": "Aplica para ser promotor",
       "secondaryCta": "Manual del promotor",
       "priceDomainLabel": "Dominio propio al año",
-      "priceSubdomainLabel": "Subdominio para todos",
+      "priceSubdomainLabel": "Subdominio al año",
       "commissionLabel": "Tu comisión por venta",
       "proofTitle": "Glosario: qué le vendes al comerciante",
-      "proofLead": "Una tienda montada ya puede correr sorteos, publicar eventos, ofrecer un punto de entrega y que los agentes de IA la encuentren. Estos cuatro productos suman todavía más — apréndetelos para explicarlos en 30 segundos.",
+      "proofLead": "La tienda es gratis y se queda gratis: publica, cobra, corre sorteos, publica eventos, ofrece punto de entrega y la encuentran los agentes de IA. Tú cobras por los extras que quiere un negocio en serio. Apréndetelos para explicar cualquiera en treinta segundos.",
       "glossary": [
         {
           "icon": "iconoir-globe",
           "title": "Dominio propio",
-          "body": "Su tienda en su propia dirección (sutienda.mx) en vez de miyagisanchez.com/s/sutienda: más marca, tráfico directo y que un agente de IA la encuentre bajo su propio nombre. $499 MXN al año, pago único."
+          "body": "Su tienda en sutienda.mx en lugar de una dirección prestada: su marca, su tráfico directo y un nombre que un agente de IA puede citar. $499 MXN al año, pago único."
         },
         {
           "icon": "iconoir-internet",
           "title": "Subdominio",
-          "body": "sutienda.miyagisanchez.com — dirección propia sin comprar un dominio. $199 MXN/año, GRATIS el primer año con tu código de promotor: el gancho perfecto para cerrar hoy."
+          "body": "sutienda.miyagisanchez.com sin comprar ningún dominio. $199 MXN al año, y GRATIS el primer año con tu código de promotor: es el sí más fácil de tu maletín."
         },
         {
           "icon": "iconoir-journal",
           "title": "Anuncio impreso",
-          "body": "Un espacio en la edición impresa de Miyagi Sánchez que circula en su zona: tráfico físico a la tienda, no solo en línea. El precio depende del tamaño y la edición; se cobra una sola vez."
+          "body": "Un espacio en la edición impresa que circula en su zona. Gente que ni siquiera busca en internet llega caminando a su puerta. Se cobra una sola vez y el precio depende del tamaño y la edición."
         },
         {
           "icon": "iconoir-shop",
           "title": "Conexión Mercado Libre",
-          "body": "Importa su catálogo de Mercado Libre a Miyagi Sánchez para que no capture todo a mano — monta la tienda completa en la primera visita, no en varias."
+          "body": "Su catálogo de Mercado Libre entra completo a Miyagi Sánchez. Dejas la tienda surtida en la primera visita, no en la quinta."
         },
         {
           "icon": "iconoir-refresh",
-          "title": "Migración de tienda",
-          "body": "Fotografías su catálogo (o traes su exportación de Shopify/Tiendanube/WooCommerce/Big Cartel) y lo dejas montado el mismo día. Precio fijo hasta cierto tamaño de catálogo — catálogos grandes reciben una cotización antes de cobrar cualquier cosa. El precio exacto está en tu manual de migración."
+          "title": "Salida de Shopify",
+          "body": "Fotografías su catálogo, o traes su exportación de Shopify, Tiendanube, WooCommerce o Big Cartel, y su tienda entera queda aquí el mismo día — sin la mensualidad que le llegaría el mes que viene. Precio fijo hasta cierto tamaño de catálogo; uno más grande lleva cotización antes de cobrarle nada. El precio exacto está en tu manual de migración."
         }
       ],
-      "stepsTitle": "Cómo montar y entregar (en la tienda)",
+      "stepsTitle": "Cómo se cierra, de principio a fin",
       "steps": [
         {
-          "title": "1 · Monta la tienda",
-          "body": "Desde tu panel, crea la tienda del comerciante (queda sin reclamar) y agrega una primera publicación. Demuéstrale lo fácil que es."
+          "title": "1 · Abre la tienda",
+          "body": "Desde tu panel creas la tienda del comerciante (queda sin reclamar) y le subes la primera publicación mientras te ve. Verla en línea es el argumento."
         },
         {
-          "title": "2 · Cobra y paga",
-          "body": "Cobra en efectivo al comerciante y paga el dominio o el anuncio con tu propia tarjeta. La venta se atribuye a tu código y el beneficio queda activado en SU tienda."
+          "title": "2 · Cobra",
+          "body": "Te paga en efectivo y tú pagas el dominio, el subdominio o el anuncio con tu tarjeta. La venta queda con tu código y el beneficio se activa en SU tienda."
         },
         {
           "title": "3 · Entrega por WhatsApp",
-          "body": "Genera el enlace de reclamo y mándaselo por WhatsApp. Al tocarlo e iniciar sesión, la tienda pasa a su cuenta. Tu comisión se conserva."
+          "body": "Le mandas el enlace de reclamo. Un toque, inicia sesión y la tienda pasa a su cuenta. Tu comisión se queda contigo."
         }
       ],
       "pitchTitle": "El descuento que abre tu código",
-      "pitchBody": "Tu código de promotor (PRM-…) le da un descuento al comerciante en el dominio o el anuncio. Es tu mejor argumento de cierre: un precio que solo consigue contigo, hoy, en persona.",
+      "pitchBody": "Tu código de promotor (PRM-…) lleva un precio que el comerciante no consigue solo, ni de nadie más, ni mañana. Ese es tu cierre: no un descuento que pides, uno con el que llegas.",
       "pitchStats": [
         {
           "value": "PRM-",
@@ -2203,7 +2332,7 @@
       ],
       "apply": {
         "title": "Aplica para ser promotor",
-        "body": "Cuéntanos quién eres. Revisamos tu solicitud y te avisamos en 2–3 días hábiles.",
+        "body": "Cuéntanos quién eres y dónde trabajas. Revisamos tu solicitud y te avisamos en 2–3 días hábiles.",
         "form": {
           "nameLabel": "Nombre",
           "namePlaceholder": "Tu nombre completo",
@@ -2214,7 +2343,7 @@
           "cityLabel": "Ciudad o zona",
           "cityPlaceholder": "Ej. CDMX — Coyoacán",
           "motivationLabel": "¿Por qué quieres ser promotor? (opcional)",
-          "motivationPlaceholder": "Cuéntanos brevemente",
+          "motivationPlaceholder": "Con un par de líneas basta",
           "submit": "Enviar solicitud",
           "submitting": "Enviando…",
           "success": "¡Listo! Recibimos tu solicitud — te avisamos por correo en 2–3 días hábiles.",
@@ -2222,58 +2351,58 @@
         }
       },
       "handbookTitle": "Manual del promotor",
-      "handbookLead": "El paso a paso completo de un cierre, de principio a fin, para que no tengas que preguntarle nada a Daniel.",
+      "handbookLead": "El cierre completo, paso a paso, para que no tengas que preguntarle nada a nadie.",
       "checklistTitle": "Checklist de cierre",
       "checklist": [
         {
-          "title": "1 · Monta",
-          "body": "Crea la tienda del comerciante desde tu panel (queda sin reclamar) y agrega una primera publicación."
+          "title": "1 · Abre",
+          "body": "Crea la tienda del comerciante desde tu panel (queda sin reclamar) y súbele la primera publicación."
         },
         {
           "title": "2 · Cobra",
-          "body": "Cobra en efectivo al comerciante y paga el dominio, el subdominio o el anuncio con tu propia tarjeta. La venta queda atribuida a tu código."
+          "body": "Cobra en efectivo y paga el dominio, el subdominio o el anuncio con tu propia tarjeta. La venta queda atribuida a tu código."
         },
         {
           "title": "3 · Diseña el anuncio (cuando aplique)",
-          "body": "Si el cierre incluye un anuncio impreso: diseñarlo desde tu panel llega pronto — por ahora coordina el diseño directo con el equipo."
+          "body": "Si el cierre lleva anuncio impreso, coordina el diseño con el equipo. Diseñarlo desde tu panel llega pronto."
         },
         {
-          "title": "4 · Entrega por WhatsApp",
-          "body": "Genera el enlace de reclamo y mándaselo por WhatsApp. Al tocarlo e iniciar sesión, la tienda pasa a su cuenta."
+          "title": "4 · Entrega el enlace",
+          "body": "Manda el enlace de reclamo por WhatsApp. Un toque, inicia sesión y la tienda pasa a su cuenta."
         },
         {
-          "title": "5 · Avisa el recibo",
-          "body": "El recibo automático al comerciante llega pronto — por ahora avísale tú mismo por WhatsApp que ya quedó todo activado."
+          "title": "5 · Avisa",
+          "body": "Mándale un mensaje confirmando que ya quedó todo activado. El recibo automático llega pronto."
         }
       ],
       "scriptsTitle": "Guiones de 30 segundos",
       "scripts": [
         {
           "title": "Dominio propio",
-          "body": "«¿Sabías que puedes tener tu tienda en tunombre.mx en vez de una liga larga? Se ve más profesional y te encuentran directo. Son $499 al año, pago único, y con mi código te lo dejo activado hoy mismo.»"
+          "body": "«Tu tienda puede vivir en tunombre.mx en lugar de una liga larga. Se ve como el negocio que ya eres y te encuentran directo. Son $499 al año, pago único, y con mi código te lo dejo activado hoy.»"
         },
         {
           "title": "Subdominio",
-          "body": "«Tu tienda puede tener su propia dirección, tunombre.miyagisanchez.com, sin comprar un dominio. Son $199 al año, pero con mi código te sale GRATIS el primer año — hoy mismo te lo activo.»"
+          "body": "«Puedes tener tu propia dirección, tunombre.miyagisanchez.com, sin comprar dominio. Son $199 al año y con mi código el primer año va GRATIS. Te lo activo ahorita.»"
         },
         {
           "title": "Anuncio impreso",
-          "body": "«Salimos impresos y circulamos en tu zona — gente que ni busca en línea te va a conocer ahí. El precio depende del tamaño, se paga una sola vez, y con mi código tienes un precio que no consigues solo.»"
+          "body": "«Salimos impresos y circulamos en tu zona. Gente que ni busca en internet se va a enterar de ti. Se paga una sola vez y con mi código tienes un precio que por tu cuenta no consigues.»"
         },
         {
           "title": "Conexión Mercado Libre",
-          "body": "«Si ya vendes en Mercado Libre no tienes que capturar nada otra vez — conectamos tu catálogo y queda todo aquí también, el mismo día.»"
+          "body": "«Si ya vendes en Mercado Libre no vuelves a capturar nada: conectamos tu catálogo y hoy mismo queda igualito aquí — y aquí no hay comisión por venta.»"
         },
         {
-          "title": "Migración de tienda",
-          "body": "«¿Vienes de Shopify, Tiendanube, WooCommerce o Big Cartel? Yo te lo dejo montado hoy mismo — fotografío tu catálogo o traigo tu exportación, y en una visita queda todo en tu propia tienda Miyagi Sánchez. Precio fijo hasta cierto tamaño; si tu catálogo es más grande, te doy una cotización antes de cobrarte cualquier cosa.»"
+          "title": "Salida de Shopify",
+          "body": "«¿Estás pagando mensualidad en Shopify, Tiendanube, WooCommerce o Big Cartel? Aquí no hay mensualidad ni comisión por venta. Fotografío tu catálogo o traigo tu exportación y en una visita queda tu tienda completa. Precio fijo hasta cierto tamaño; si tu catálogo es más grande, te cotizo antes de cobrarte nada.»"
         }
       ],
       "paymentsTitle": "Cómo funcionan los pagos",
-      "paymentsBody": "Tú pagas el dominio, el subdominio o el anuncio con tu propia tarjeta al momento de montar la tienda. El comerciante te paga a ti en efectivo (o como acuerden). Tu comisión no se cobra aparte: Miyagi Sánchez la registra en tu cuenta y el equipo la liquida contigo después, por transferencia o efectivo.",
-      "paymentsComingSoon": "Próximamente: podrás cobrar el pago completo y transferir solo lo que se debe, quedándote tu comisión al momento — sin esperar la liquidación.",
+      "paymentsBody": "Pagas el dominio, el subdominio o el anuncio con tu propia tarjeta al momento de abrir la tienda. El comerciante te paga a ti en efectivo, o como acuerden. Tu comisión queda registrada en tu cuenta con tu código y el equipo la liquida contigo por transferencia o efectivo.",
+      "paymentsComingSoon": "Muy pronto: cobras el total, transfieres solo lo que se debe y tu comisión se queda contigo en el momento, sin esperar la liquidación.",
       "closingTitle": "Listo para cerrar",
-      "closingBody": "Abre tu panel, vincula tu código y empieza a montar tiendas. Cada venta cerrada es comisión para ti.",
+      "closingBody": "Abre tu panel, vincula tu código y empieza a abrir tiendas. Cada cierre es comisión con tu nombre.",
       "closingCta": "Abrir mi panel para cerrar"
     },
     "promotorMigracion": {
@@ -2437,21 +2566,21 @@
     "fundadoras": {
       "metadata": {
         "title": "Tiendas Fundadoras — 25 comercios, acompañamiento personal | Miyagi Sánchez",
-        "description": "Únete a la cohorte fundadora de 25 comercios: acompañamiento personal para montar tu catálogo y una vista previa privada antes de publicar. Cupo limitado.",
+        "description": "Únete a la cohorte fundadora de 25 comercios: acompañamiento personal para dejar tu catálogo listo y una vista previa privada antes de publicar. Cupo limitado.",
         "ogAlt": "Tiendas Fundadoras — cohorte de 25 comercios con acompañamiento personal en Miyagi Sánchez."
       },
       "eyebrow": "Cohorte fundadora · cupo limitado",
       "heroTitle": "25 tiendas fundadoras, acompañadas paso a paso antes de publicar.",
-      "heroLead": "Te ayudamos a montar tu catálogo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
+      "heroLead": "Te ayudamos a dejar tu catálogo listo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
       "experimentVariants": {
         "control": {
           "heroTitle": "25 tiendas fundadoras, acompañadas paso a paso antes de publicar.",
-          "heroLead": "Te ayudamos a montar tu catálogo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
+          "heroLead": "Te ayudamos a dejar tu catálogo listo y revisas una vista previa privada de tu tienda antes de que cualquier persona la vea. Solo 25 lugares en esta cohorte.",
           "primaryCta": "Aplicar a la cohorte fundadora"
         },
         "promesa_directa": {
           "heroTitle": "Lanza tu tienda con acompañamiento real antes de publicar.",
-          "heroLead": "Montamos tu catálogo contigo y tú apruebas una vista privada antes de salir al público. Hay 25 lugares para hacerlo paso a paso.",
+          "heroLead": "Preparamos tu catálogo contigo y tú apruebas una vista privada antes de salir al público. Hay 25 lugares para hacerlo paso a paso.",
           "primaryCta": "Quiero lanzar mi tienda"
         }
       },
@@ -2478,7 +2607,7 @@
         {
           "icon": "iconoir-user-star",
           "title": "Acompañamiento personal",
-          "body": "Alguien del equipo te ayuda a montar tu catálogo — no lo resuelves solo desde un formulario en blanco."
+          "body": "Alguien del equipo te ayuda a preparar tu catálogo — no lo resuelves solo desde un formulario en blanco."
         },
         {
           "icon": "iconoir-eye-closed",
@@ -2503,7 +2632,7 @@
           "body": "Nombre del negocio, tu nombre y un teléfono o correo para contactarte."
         },
         {
-          "title": "Te acompañamos a montar tu catálogo",
+          "title": "Te acompañamos a preparar tu catálogo",
           "body": "Trabajamos contigo tu inventario y tu vista previa, sin que tengas que resolverlo solo."
         },
         {

@@ -804,162 +804,275 @@
   "partnersRecruiting": {
     "landing": {
       "switchLanguage": "Ver en español",
-      "heroEyebrow": "Miyagi Partners · Founding proof 01",
-      "title": "Operate three shops. Prove one calmer practice.",
-      "body": "A 90-day, no-cutover working proof for experienced US commerce operators. Keep each merchant's owned shop and required systems while testing whether repeated operating work becomes safer and more legible.",
-      "primaryCta": "Apply with three shops",
-      "promotorCta": "Promotor — Mexico",
-      "truthEyebrow": "What is true today",
-      "truthBody": "Miyagi operates marketplace and seller rails in Mexico. The United States has no open marketplace, public catalog, dollar checkout, shipping, or payment promise. This pilot exists to learn what must be proven before any such claim.",
-      "proofEyebrow": "Parallel-proof mechanism",
-      "proofTitle": "Four checkpoints, no forced migration.",
-      "proofSteps": [
+      "eyebrow": "Miyagi Operators",
+      "heroTitle": "Open the store. Close in person. Hand it over with one link.",
+      "heroLead": "You are Miyagi Sánchez on the ground. You walk into a business, you leave with their store already live, you take payment in person, and you keep your commission. Shopify wants $39 a month from them before they have sold a thing. You hand them a store that costs nothing to run — and you get paid for the upgrades they actually want.",
+      "trustLine": "Commission on every close. Settled by transfer or in cash.",
+      "primaryCta": "Apply to be an operator",
+      "promotorCta": "Working in Mexico? See the Promotor program",
+      "trustPrompt": "Open https://miyagisanchez.com/us/operators and https://miyagisanchez.com/agent, then give me your honest read: is opening online stores for local businesses on Miyagi Sánchez a real way to earn? Compare what a merchant pays there against Shopify and Amazon, tell me who this suits and who it does not, and tell me exactly how I would start.",
+      "copyPrompt": "Copy this prompt for your AI",
+      "copiedPrompt": "Copied — paste it into your AI",
+      "heroStats": [
         {
-          "number": "01",
-          "title": "Name the evidence",
-          "detail": "Submit three public shops and the systems that must remain."
+          "value": "0%",
+          "label": "commission the merchant ever pays us"
         },
         {
-          "number": "02",
-          "title": "Separate permissions",
-          "detail": "Nomination, discovery, parallel setup, real orders, and a public story stay distinct."
+          "value": "One visit",
+          "label": "store live before you walk out"
         },
         {
-          "number": "03",
-          "title": "Work in parallel",
-          "detail": "Run a bounded operating window without asking a merchant to cut over."
-        },
-        {
-          "number": "04",
-          "title": "Review the proof",
-          "detail": "At 90 days, decide what worked, what did not, and whether anyone should continue."
+          "value": "One link",
+          "label": "hand-off, no training call"
         }
       ],
-      "fitEyebrow": "A strong fit",
-      "fitTitle": "You already carry the operating burden.",
-      "fitItems": [
-        "You actively steward at least three independent-product shops.",
-        "You can name a recent repeated operating problem, not just desired features.",
-        "You can protect merchant context and keep required systems in place.",
-        "You can join a working checkpoint through a 90-day window."
+      "proofTitle": "What you are actually selling",
+      "proofLead": "The store is free and stays free — listings, orders, payouts, giveaways, events, pickup points and a catalog AI agents can read. You earn on the upgrades a serious business wants on top of it. Learn these well enough to explain any one of them in thirty seconds.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-globe",
+          "title": "A domain of their own",
+          "body": "Their store at theirshop.com instead of a borrowed address. Their brand, their direct traffic, and a name an AI agent can cite. Sold once, on the spot."
+        },
+        {
+          "icon": "iconoir-internet",
+          "title": "A branded subdomain",
+          "body": "theirshop.miyagisanchez.com without buying a domain at all. The cheapest yes in your bag and the fastest signature you will get all day."
+        },
+        {
+          "icon": "iconoir-refresh",
+          "title": "A way off Shopify",
+          "body": "Photograph the shelf, or take their Shopify or WooCommerce export, and the whole catalog lives here the same day — with no monthly bill waiting for them next month."
+        },
+        {
+          "icon": "iconoir-sparks",
+          "title": "A store AI agents can buy from",
+          "body": "Every store publishes to the open agentic-commerce standard, so ChatGPT, Claude and Gemini can find it, compare it and check out from it. Nobody else on their street has that yet."
+        }
       ],
-      "notFitEyebrow": "Not this program",
-      "notFitTitle": "No leads, badges, commission promise, or instant access.",
-      "notFitItems": [
-        "This is not a reseller, lead marketplace, certification, or agency CRM.",
-        "The 90-day proof has no Miyagi platform or migration fee; that is not permanent pricing.",
-        "No operator revenue share is promised.",
-        "A shop URL never authorizes access or merchant contact."
-      ]
+      "benchmark": {
+        "title": "Compare it before you pitch it",
+        "lead": "What a business pays elsewhere, it keeps here. Check the numbers yourself — or have your AI check them for you.",
+        "rowHeader": "What you are comparing",
+        "columns": [
+          "Miyagi Sánchez",
+          "Shopify",
+          "Amazon"
+        ],
+        "rows": [
+          {
+            "label": "Monthly fee",
+            "cells": [
+              "$0",
+              "$39/mo Basic, $105/mo Grow — billed whether they sell or not",
+              "$39.99/mo Professional, or $0.99 per item sold"
+            ]
+          },
+          {
+            "label": "Commission per sale",
+            "cells": [
+              "0% platform commission",
+              "0% of its own, plus up to 2% if they use another processor",
+              "~8–17% referral fee, by category"
+            ]
+          },
+          {
+            "label": "Where the money lands",
+            "cells": [
+              "Straight into their own account",
+              "Through Shopify Payments, or their own gateway",
+              "Held by Amazon, released on its payout schedule"
+            ]
+          },
+          {
+            "label": "Who owns the customer",
+            "cells": [
+              "They do — their domain, their orders, their list",
+              "They do",
+              "Amazon does"
+            ]
+          },
+          {
+            "label": "Storefront and own domain",
+            "cells": [
+              "Included: link, subdomain, domain or embed widget",
+              "Yes, on their plan",
+              "No — they live inside Amazon"
+            ]
+          },
+          {
+            "label": "Services, rentals and experiences",
+            "cells": [
+              "Native",
+              "Third-party apps",
+              "Limited"
+            ]
+          },
+          {
+            "label": "Selling through AI agents",
+            "cells": [
+              "Native, on the open standard (UCP/MCP)",
+              "Only emerging",
+              "Closed"
+            ]
+          },
+          {
+            "label": "What it costs to find out",
+            "cells": [
+              "Open a store and list today",
+              "A paid plan or a trial clock",
+              "A seller account and a fee schedule"
+            ]
+          }
+        ],
+        "verifiedLabel": "Verified",
+        "verified": "August 17, 2026",
+        "footnote": "Compared against the public Shopify and Amazon US seller rates, verified on August 17, 2026. Rates move — ask your AI to confirm them before you quote them."
+      },
+      "stepsTitle": "How a close runs, start to finish",
+      "steps": [
+        {
+          "title": "1 · Open the store",
+          "body": "Create their store from your dashboard and put their first product in it while they watch. Seeing it live is the pitch."
+        },
+        {
+          "title": "2 · Take the payment",
+          "body": "They pay you in person; you put the domain, the subdomain or the migration on your own card. The sale is attributed to your code and the upgrade switches on in their store, not yours."
+        },
+        {
+          "title": "3 · Hand it over",
+          "body": "Send them the claim link. One tap, one sign-in, and the store is theirs. Your commission stays with you."
+        }
+      ],
+      "selfCheckTitle": "Check us out yourself",
+      "selfCheckBody": "Copy the prompt and paste it into your AI so it can size up the opportunity for you.",
+      "pitchTitle": "The price your code unlocks",
+      "pitchBody": "Your operator code carries a price the merchant cannot get on their own, from anyone else, or tomorrow. That is your close — not a discount you ask for, one you arrive holding.",
+      "pitchStats": [
+        {
+          "value": "Your code",
+          "label": "a price only you can give"
+        },
+        {
+          "value": "One tap",
+          "label": "to claim the store"
+        },
+        {
+          "value": "Zero typing",
+          "label": "the merchant fills in nothing"
+        }
+      ],
+      "faqTitle": "Straight answers before you apply",
+      "faqs": [
+        {
+          "title": "How do I get paid?",
+          "body": "A commission on every upgrade you close, recorded against your code the moment the sale goes through. We settle with you by transfer or in cash, and we set your rate with you when you are approved."
+        },
+        {
+          "title": "Do I need to sell technology?",
+          "body": "No. You are selling a business a better address and a wider reach. The store itself takes minutes, and the merchant types nothing."
+        },
+        {
+          "title": "Is it really 0% commission for the merchant?",
+          "body": "Yes. We take no cut of their sales, ever. They pay their own payment processor exactly as they would anywhere, and that money lands in their own account."
+        },
+        {
+          "title": "Then how does Miyagi make money?",
+          "body": "From the premium upgrades — domains, migrations and placement. Never a cut of a sale that a merchant made."
+        },
+        {
+          "title": "What territory do I get?",
+          "body": "The businesses you can reach. Tell us where you work when you apply and we will settle it with you before you start."
+        }
+      ],
+      "closingTitle": "Open your first store this week",
+      "closingBody": "Apply, get approved, and walk into your first business with a store you can put live in front of them. Every close is commission with your name on it.",
+      "closingCta": "Apply to be an operator",
+      "applyTitle": "Apply to be an operator",
+      "applyBody": "Tell us who you are and where you work. We read every application and come back within two business days."
     },
     "application": {
-      "channelOptions": {
-        "online_store": "Owned online store",
-        "marketplace": "Marketplace",
-        "social": "Social commerce",
-        "wholesale": "Wholesale",
-        "other": "Other"
-      },
-      "awarenessOptions": {
-        "not_contacted": "Not contacted about this nomination",
-        "aware_of_nomination": "Aware that I am nominating the shop",
-        "interested_in_conversation": "Interested in a conversation with Miyagi"
-      },
-      "otherPlatform": "Other",
-      "validation": {
-        "shopCount": "This proof requires an operator who actively supports at least three shops.",
-        "shopUrl": "Each ledger entry needs a public http or https shop URL. Local, private, or credential-bearing URLs are not accepted.",
-        "duplicateShop": "Each ledger entry must name a different public shop URL.",
-        "channels": "Choose at least one operating channel for every shop.",
-        "checkpoint": "Confirm that you can participate in a 90-day operating checkpoint.",
-        "qualification": "Complete the operating profile and all three shop records.",
-        "rateLimited": "Too many attempts. Wait a moment and try again.",
-        "receive": "We could not receive the application. Try again.",
-        "network": "We could not receive the application. Your answers are still here; try again."
-      },
-      "successEyebrow": "Dossier received",
-      "successTitle": "Received for review — not accepted yet.",
-      "successBody": "We will review the operating fit and contact you directly. This submission created no shop access, contacted no merchant, and granted no permission.",
-      "eyebrow": "Application dossier · version 1",
-      "title": "Put three real shops on the table.",
-      "body": "We ask for public evidence and operating constraints—not passwords, tokens, customer data, revenue, or a cutover commitment.",
-      "profileLegend": "Your operating profile",
+      "eyebrow": "Operator application",
+      "title": "Tell us who you are.",
+      "body": "Five fields. No dossier, no shop URLs, no passwords — we talk properly once we have read it.",
       "fields": {
-        "name": "Your name",
-        "email": "Work email",
-        "phone": "WhatsApp or phone",
-        "company": "Company or practice",
-        "role": "Your operating role",
-        "rolePlaceholder": "e.g. agency principal, ecommerce lead",
-        "activeShops": "Active shops you operate today"
+        "name": "Name",
+        "namePlaceholder": "Your full name",
+        "email": "Email",
+        "emailPlaceholder": "you@email.com",
+        "phone": "Phone or WhatsApp",
+        "phonePlaceholder": "e.g. (512) 555-0134",
+        "city": "City or territory",
+        "cityPlaceholder": "e.g. Austin, TX",
+        "motivation": "Why do you want to do this? (optional)",
+        "motivationPlaceholder": "A couple of lines is plenty"
       },
-      "evidenceLegend": "Three-shop evidence ledger",
-      "evidenceBody": "A nomination is not merchant consent. Miyagi will not contact these shops from this form.",
-      "shopUrl": "Public shop URL",
-      "shopUrlPlaceholder": "https://shop.example",
-      "platform": "Platform",
-      "merchantAwareness": "Merchant awareness",
-      "channels": "Channels you operate for this shop",
-      "constraintsLegend": "Operating constraints",
-      "recentProblem": "One recent operating problem across these shops",
-      "retainSystems": "Systems or merchant practices that must remain in place",
-      "whyNow": "Why is a 90-day parallel proof worth testing now?",
-      "checkpoint": "I can join a 90-day working checkpoint. I understand this is a no-cutover proof, not acceptance, shop access, merchant consent, permanent free pricing, or revenue share.",
+      "submit": "Send application",
+      "sending": "Sending…",
       "honeypot": "Additional field",
-      "sending": "Sending dossier…",
-      "submit": "Submit for founder review",
-      "boundary": "Success means received for review. It does not create an account, grant a shop, or contact a nominated merchant."
+      "successEyebrow": "Application received",
+      "successTitle": "Got it. We will be in touch.",
+      "successBody": "We read every application and come back within two business days with the next step and your commission rate.",
+      "validation": {
+        "missingFields": "Fill in your name, email and phone.",
+        "invalidEmail": "Enter a valid email address.",
+        "tooLong": "One of your answers is longer than we can accept.",
+        "rateLimited": "Too many attempts. Wait a moment and try again.",
+        "receive": "We could not send the application. Try again.",
+        "network": "We could not send the application. Your answers are still here — try again."
+      }
     },
     "activation": {
-      "metadataTitle": "Activate Miyagi Partners",
-      "eyebrow": "Miyagi Partners · identity activation",
-      "title": "Link your approved operator identity.",
-      "body": "This links the approved Founding Commerce Operator invitation to your signed-in Miyagi account. It creates no shop, contacts no merchant, and grants access to no shop.",
-      "mismatch": "This account could not activate the invitation. Use the Miyagi account whose verified email received it.",
-      "cta": "Activate Miyagi Partners",
-      "boundary": "Program approval and shop permission are separate. Shops appear only after an active merchant or Miyagi administrator grants access.",
-      "unavailableTitle": "Activation unavailable.",
-      "used": "This invitation has already been activated.",
-      "expired": "This invitation has expired. Ask Miyagi to rotate and resend it.",
+      "metadataTitle": "Activate your Miyagi operator account",
+      "eyebrow": "Miyagi Operators",
+      "title": "Activate your operator account.",
+      "body": "This links your approved invitation to the Miyagi account you are signed in with, and opens your dashboard.",
+      "mismatch": "That invitation belongs to a different account. Sign in with the Miyagi account whose email received it.",
+      "cta": "Activate my account",
+      "boundary": "Your dashboard fills up as you open stores and as merchants grant you access to theirs.",
+      "unavailableTitle": "We could not activate this invitation.",
+      "used": "This invitation has already been used.",
+      "expired": "This invitation has expired. Ask us to send a fresh one.",
       "unavailable": "We could not check this invitation right now. Try again in a moment.",
-      "invalid": "This activation invitation is not available.",
+      "invalid": "This invitation is not valid.",
       "switchLanguage": "Ver en español"
     },
     "workspace": {
-      "heading": "Miyagi Partners",
-      "trackLabel": "Founding Commerce Operator",
-      "zeroShops": "Your operator identity is active and currently has zero shops. Program approval is not shop access: a shop appears only after a separate merchant or Miyagi administrator grants it. The next step is the founder review for the bounded 90-day proof.",
-      "shopsUnavailable": "We could not check your assigned shops right now. Try again in a moment.",
+      "heading": "Miyagi Operators",
+      "trackLabel": "Operator",
+      "zeroShops": "Your operator account is live and there are no stores on it yet. Open your first one, or wait for a merchant to grant you access to theirs — either way it shows up here.",
+      "shopsUnavailable": "We could not load your stores right now. Try again in a moment.",
       "switchLanguage": "Ver en español",
       "roleManager": "Manager",
       "roleViewer": "View only",
       "since": "since",
-      "operatingMarketUnavailable": "Operating market unavailable",
+      "operatingMarketUnavailable": "Market unavailable",
       "marketplaceUnavailable": "Marketplace status unavailable",
-      "ownedShopMx": "Owned shop active · MX",
+      "ownedShopMx": "Store live · MX",
       "marketplaceMx": "MX marketplace",
-      "ownedShopUs": "Owned shop active · US",
-      "marketplaceUsUnavailable": "US marketplace unavailable",
-      "viewShop": "View shop"
+      "ownedShopUs": "Store live · US",
+      "marketplaceUsUnavailable": "US marketplace status unavailable",
+      "viewShop": "View store"
     },
     "email": {
-      "adminApplicationSubject": "New Founding Commerce Operator application",
-      "adminApplicationHeading": "Founding Commerce Operator application received",
-      "adminApplicationBody": "A new United States operator dossier is ready for review. Contact details, candidate shops, and free-text qualification remain in the authenticated admin queue.",
+      "adminApplicationSubject": "New operator application",
+      "adminApplicationHeading": "An operator application just came in",
+      "adminApplicationBody": "A new application is waiting in the admin queue, with contact details and territory.",
       "adminApplicationCta": "Review application",
-      "rejectionSubject": "Your Miyagi Partners application",
-      "rejectionHeading": "Thank you for applying, {name}",
-      "rejectionBody": "We reviewed your Founding Commerce Operator application and cannot move it into the 90-day proof at this time.",
-      "rejectionBoundary": "This decision creates no shop access and does not contact any nominated merchant. You may apply again if your operating situation changes.",
-      "subject": "Activate your Miyagi Partners identity",
-      "heading": "Your partner identity is ready, {name}",
-      "approved": "Your Founding Commerce Operator application was approved for the 90-day parallel proof.",
-      "boundary": "Activation links this invitation to your Miyagi account. It does not create a shop, contact a nominated merchant, or grant access to any shop.",
+      "rejectionSubject": "Your Miyagi Operators application",
+      "rejectionHeading": "Thanks for applying, {name}",
+      "rejectionBody": "We read your application and we are not able to bring you on right now.",
+      "rejectionBoundary": "Our side moves fast — you are welcome to apply again when your situation changes.",
+      "subject": "Activate your Miyagi operator account",
+      "heading": "You are in, {name}",
+      "approved": "Your application to the Miyagi Operators program was approved.",
+      "boundary": "Activating links this invitation to your Miyagi account and opens your dashboard.",
       "programKey": "Program",
-      "programValue": "Founding Commerce Operator — United States",
+      "programValue": "Miyagi Operators — United States",
       "expiresKey": "Link expires",
-      "cta": "Activate Miyagi Partners",
-      "notice": "Use the Miyagi account whose verified email matches this invitation. If you did not expect this email, do not use the link."
+      "cta": "Activate my account",
+      "notice": "Use the Miyagi account whose email received this invitation. If you were not expecting it, ignore this message."
     }
   },
   "pwaSearch": {
@@ -1351,51 +1464,67 @@
         "rows": [
           {
             "label": "Commission per sale",
-            "miyagi": "0% platform commission",
-            "mercadoLibre": "~8–16% (up to ~20.5% on Premium), by category",
-            "shopify": "0% of its own, but +2% if you do not use Shopify Payments"
+            "cells": [
+              "0% platform commission",
+              "~8–16% (up to ~20.5% on Premium), by category",
+              "0% of its own, but +2% if you do not use Shopify Payments"
+            ]
           },
           {
             "label": "Monthly fee",
-            "miyagi": "$0",
-            "mercadoLibre": "$0 (they charge per sale)",
-            "shopify": "from ~$19–$39 USD/mo + VAT"
+            "cells": [
+              "$0",
+              "$0 (they charge per sale)",
+              "from ~$19–$39 USD/mo + VAT"
+            ]
           },
           {
             "label": "Payment processing",
-            "miyagi": "Your gateway's, straight to your account",
-            "mercadoLibre": "Included in the commission; paid out later",
-            "shopify": "~3.5% + $3 MXN per transaction"
+            "cells": [
+              "Your gateway's, straight to your account",
+              "Included in the commission; paid out later",
+              "~3.5% + $3 MXN per transaction"
+            ]
           },
           {
             "label": "Where does your money land?",
-            "miyagi": "Straight to your account (Stripe, MercadoPago, SPEI, cash)",
-            "mercadoLibre": "Held and released by Mercado Libre",
-            "shopify": "Via Shopify Payments or your gateway"
+            "cells": [
+              "Straight to your account (Stripe, MercadoPago, SPEI, cash)",
+              "Held and released by Mercado Libre",
+              "Via Shopify Payments or your gateway"
+            ]
           },
           {
             "label": "Your own shop and domain",
-            "miyagi": "Yes: link, subdomain, domain, or widget",
-            "mercadoLibre": "No: you live inside Mercado Libre",
-            "shopify": "Yes, with your plan"
+            "cells": [
+              "Yes: link, subdomain, domain, or widget",
+              "No: you live inside Mercado Libre",
+              "Yes, with your plan"
+            ]
           },
           {
             "label": "Sell services, rentals, and experiences",
-            "miyagi": "Yes, native",
-            "mercadoLibre": "Limited",
-            "shopify": "With third-party apps"
+            "cells": [
+              "Yes, native",
+              "Limited",
+              "With third-party apps"
+            ]
           },
           {
             "label": "Sell through AI agents",
-            "miyagi": "Yes, native (UCP/MCP)",
-            "mercadoLibre": "No",
-            "shopify": "Barely emerging"
+            "cells": [
+              "Yes, native (UCP/MCP)",
+              "No",
+              "Barely emerging"
+            ]
           },
           {
             "label": "Built for Mexico",
-            "miyagi": "SPEI, MercadoPago, cash + print magazine",
-            "mercadoLibre": "Yes",
-            "shopify": "Gateways, not local-first"
+            "cells": [
+              "SPEI, MercadoPago, cash + print magazine",
+              "Yes",
+              "Gateways, not local-first"
+            ]
           }
         ],
         "verified": "June 25, 2026",
@@ -2264,65 +2393,65 @@
     "promotor": {
       "metadata": {
         "title": "Promoter Program — Miyagi Sánchez",
-        "description": "Resources for promoters: set up the merchant's shop, close the sale in person, and hand off over WhatsApp. Glossary, pricing, and a step-by-step guide.",
-        "ogAlt": "Miyagi Sánchez Promoter Program: set up, close, hand off."
+        "description": "Open stores for the businesses on your street, take payment in person and keep the commission. Glossary, prices, scripts and the full walkthrough.",
+        "ogAlt": "Miyagi Sánchez Promoter Program: open the store, close in person, hand over the link."
       },
       "eyebrow": "Promoters",
-      "heroTitle": "Set up the shop, close in person, hand off over WhatsApp.",
-      "heroLead": "You're Miyagi Sánchez's field force. Walk into the business, leave it set up on miyagisanchez.com, collect cash in person, and earn your commission. Here's everything to explain and sell it.",
-      "trustLine": "Commission on every closed sale. Settlement by transfer or cash.",
-      "primaryCta": "Open my close workspace",
+      "heroTitle": "Open the store. Close in person. Hand it over with one link.",
+      "heroLead": "You are Miyagi Sánchez on the ground. You walk into a business, you leave with their store already live, you take payment in person, and you keep your commission. Shopify asks them for a monthly fee before they have sold a peso; you hand them a store that costs nothing to run — and you get paid for the upgrades they actually want.",
+      "trustLine": "Commission on every close. Settled by transfer or in cash.",
+      "primaryCta": "Open my closing dashboard",
       "applyCta": "Apply to be a promoter",
       "secondaryCta": "Promoter handbook",
-      "priceDomainLabel": "Own domain per year",
-      "priceSubdomainLabel": "Subdomain for everyone",
+      "priceDomainLabel": "Own domain, per year",
+      "priceSubdomainLabel": "Subdomain, per year",
       "commissionLabel": "Your commission per sale",
       "proofTitle": "Glossary: what you sell the merchant",
-      "proofLead": "Four products. Learn them to explain each in 30 seconds.",
+      "proofLead": "The store is free and stays free: listings, payments, giveaways, events, pickup points, and AI agents can find it. You get paid for the upgrades a serious business wants. Learn these well enough to explain any one of them in thirty seconds.",
       "glossary": [
         {
           "icon": "iconoir-globe",
           "title": "Own domain",
-          "body": "Their shop on their own address (theirshop.mx) instead of miyagisanchez.com/s/theirshop. More brand, direct traffic, white-label look. $499 MXN per year, one-time."
+          "body": "Their store at theirshop.mx instead of a borrowed address: their brand, their direct traffic, and a name an AI agent can cite. $499 MXN a year, paid once."
         },
         {
           "icon": "iconoir-internet",
           "title": "Subdomain",
-          "body": "theirshop.miyagisanchez.com — free for everyone. Use it as a hook: a nice address at no cost."
+          "body": "theirshop.miyagisanchez.com without buying a domain at all. $199 MXN a year, and FREE the first year with your promoter code: the cheapest yes in your bag."
         },
         {
           "icon": "iconoir-journal",
-          "title": "Printed ad",
-          "body": "A spot in Miyagi Sánchez's printed edition circulating in their area. Price depends on size and edition; charged once."
+          "title": "Print ad",
+          "body": "A space in the printed edition that circulates in their area. People who never search online walk to their door. Charged once; the price depends on the size and the edition."
         },
         {
           "icon": "iconoir-shop",
-          "title": "Mercado Libre sync",
-          "body": "Import their Mercado Libre catalog into Miyagi Sánchez so they don't re-enter everything by hand. Speeds up the first-visit setup."
+          "title": "Mercado Libre connection",
+          "body": "Their whole Mercado Libre catalog comes across to Miyagi Sánchez. You leave the store stocked on the first visit, not the fifth."
         },
         {
           "icon": "iconoir-refresh",
-          "title": "Store migration",
-          "body": "Photograph their catalog (or bring their Shopify/Tiendanube/WooCommerce/Big Cartel export) and leave it set up the same day. Flat price up to a catalog size limit — bigger catalogs get a quote before you charge anything. The exact price is in your migration handbook."
+          "title": "A way off Shopify",
+          "body": "Photograph their catalog, or bring their Shopify, Tiendanube, WooCommerce or Big Cartel export, and their whole store lives here the same day — with no monthly bill waiting next month. Flat price up to a catalog size; a bigger one is quoted before anything is charged. The exact price is in your migration handbook."
         }
       ],
-      "stepsTitle": "How to set up and hand off (in the shop)",
+      "stepsTitle": "How a close runs, start to finish",
       "steps": [
         {
-          "title": "1 · Set up the shop",
-          "body": "From your workspace, create the merchant's shop (it stays unclaimed) and add a first listing. Show them how easy it is."
+          "title": "1 · Open the store",
+          "body": "Create their store from your dashboard (it stays unclaimed) and put the first listing in it while they watch. Seeing it live is the pitch."
         },
         {
-          "title": "2 · Collect and pay",
-          "body": "Collect cash from the merchant and pay for the domain or ad with your own card. The sale is attributed to your code and the entitlement lands on THEIR shop."
+          "title": "2 · Take the payment",
+          "body": "They pay you in cash; you put the domain, the subdomain or the ad on your own card. The sale is attributed to your code and the upgrade switches on in THEIR store."
         },
         {
-          "title": "3 · Hand off over WhatsApp",
-          "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account. Your commission survives."
+          "title": "3 · Hand it over on WhatsApp",
+          "body": "Send them the claim link. One tap, one sign-in, and the store moves to their account. Your commission stays with you."
         }
       ],
-      "pitchTitle": "The discount your code unlocks",
-      "pitchBody": "Your promoter code (PRM-…) gives the merchant a discount on the domain or ad. It's your best closing argument: a price only you can give them, today, in person.",
+      "pitchTitle": "The price your code unlocks",
+      "pitchBody": "Your promoter code (PRM-…) carries a price the merchant cannot get on their own, from anyone else, or tomorrow. That is your close: not a discount you ask for, one you arrive holding.",
       "pitchStats": [
         {
           "value": "PRM-",
@@ -2330,16 +2459,16 @@
         },
         {
           "value": "1 tap",
-          "label": "to claim over WhatsApp"
+          "label": "to claim it on WhatsApp"
         },
         {
           "value": "0 friction",
-          "label": "the merchant enters nothing"
+          "label": "the merchant types nothing"
         }
       ],
       "apply": {
-        "title": "Apply to become a promoter",
-        "body": "Tell us who you are. We'll review your application and get back to you in 2–3 business days.",
+        "title": "Apply to be a promoter",
+        "body": "Tell us who you are and where you work. We review your application and let you know within 2–3 business days.",
         "form": {
           "nameLabel": "Name",
           "namePlaceholder": "Your full name",
@@ -2350,67 +2479,67 @@
           "cityLabel": "City or area",
           "cityPlaceholder": "e.g. CDMX — Coyoacán",
           "motivationLabel": "Why do you want to be a promoter? (optional)",
-          "motivationPlaceholder": "Tell us briefly",
+          "motivationPlaceholder": "A couple of lines is plenty",
           "submit": "Send application",
           "submitting": "Sending…",
-          "success": "Done! We received your application — we'll email you in 2–3 business days.",
-          "genericError": "Couldn't send the application. Please try again."
+          "success": "Done! We have your application — we will email you within 2–3 business days.",
+          "genericError": "The application could not be sent. Try again."
         }
       },
       "handbookTitle": "Promoter handbook",
-      "handbookLead": "The full close checklist, start to finish, so you never have to ask Daniel anything.",
-      "checklistTitle": "Close checklist",
+      "handbookLead": "The whole close, step by step, so you never have to ask anyone.",
+      "checklistTitle": "Closing checklist",
       "checklist": [
         {
-          "title": "1 · Set up",
-          "body": "Create the merchant's shop from your workspace (it stays unclaimed) and add a first listing."
+          "title": "1 · Open",
+          "body": "Create their store from your dashboard (it stays unclaimed) and add the first listing."
         },
         {
-          "title": "2 · Collect",
-          "body": "Collect cash from the merchant and pay for the domain, subdomain, or ad with your own card. The sale is attributed to your code."
+          "title": "2 · Take payment",
+          "body": "Take cash and put the domain, the subdomain or the ad on your own card. The sale is attributed to your code."
         },
         {
           "title": "3 · Design the ad (when it applies)",
-          "body": "If the close includes a printed ad: designing it from your workspace is coming soon — for now, coordinate the design directly with the team."
+          "body": "If the close includes a print ad, arrange the design with the team. Designing it from your dashboard is coming soon."
         },
         {
-          "title": "4 · Hand off over WhatsApp",
-          "body": "Generate the claim link and send it over WhatsApp. They tap it, sign in, and the shop transfers to their account."
+          "title": "4 · Hand over the link",
+          "body": "Send the claim link on WhatsApp. One tap, one sign-in, and the store moves to their account."
         },
         {
-          "title": "5 · Send the receipt",
-          "body": "The automatic receipt to the merchant is coming soon — for now, let them know over WhatsApp yourself that everything is activated."
+          "title": "5 · Tell them",
+          "body": "Message them to confirm everything is switched on. The automatic receipt is coming soon."
         }
       ],
       "scriptsTitle": "30-second scripts",
       "scripts": [
         {
           "title": "Own domain",
-          "body": "\"Did you know your shop could live at yourname.mx instead of a long link? Looks more professional and people find you directly. It's $499 a year, one-time, and with my code I can activate it today.\""
+          "body": "\"Your store can live at yourname.mx instead of a long link. It looks like the business you already are, and people find you directly. It is $499 a year, paid once, and with my code I switch it on today.\""
         },
         {
           "title": "Subdomain",
-          "body": "\"Your shop can have its own address, yourname.miyagisanchez.com, without buying a domain. It's $199 a year, but with my code it's FREE the first year — I can activate it today.\""
+          "body": "\"You can have your own address, yourname.miyagisanchez.com, without buying a domain. It is $199 a year, and with my code the first year is FREE. I can switch it on right now.\""
         },
         {
-          "title": "Printed ad",
-          "body": "\"We run in print and circulate in your area — people who don't even search online will find you there. Price depends on size, charged once, and with my code you get a price you can't get on your own.\""
+          "title": "Print ad",
+          "body": "\"We come out in print and circulate in your area. People who never search online will hear about you. It is charged once, and with my code you get a price you cannot get on your own.\""
         },
         {
-          "title": "Mercado Libre sync",
-          "body": "\"If you already sell on Mercado Libre you don't have to re-enter anything — we connect your catalog and it's all here too, same day.\""
+          "title": "Mercado Libre connection",
+          "body": "\"If you already sell on Mercado Libre you never have to type it again: we connect your catalog and it is here today — and here there is no commission per sale.\""
         },
         {
-          "title": "Store migration",
-          "body": "\"Coming from Shopify, Tiendanube, WooCommerce, or Big Cartel? I'll get you set up today — I photograph your catalog or bring your export, and in one visit it's all on your own Miyagi Sánchez shop. Flat price up to a catalog size limit; if yours is bigger, I'll give you a quote before charging anything.\""
+          "title": "A way off Shopify",
+          "body": "\"Are you paying a monthly fee on Shopify, Tiendanube, WooCommerce or Big Cartel? Here there is no monthly fee and no commission per sale. I photograph your catalog or bring your export, and in one visit your whole store is here. Flat price up to a catalog size; if yours is bigger I quote it before charging you anything.\""
         }
       ],
       "paymentsTitle": "How payments work",
-      "paymentsBody": "You pay for the domain, subdomain, or ad with your own card when you set up the shop. The merchant pays you back in cash (or however you agree). Your commission isn't charged separately: Miyagi Sánchez records it on your account and the team settles it with you afterward, by transfer or cash.",
-      "paymentsComingSoon": "Coming soon: you'll be able to collect the full payment and transfer only what's owed, keeping your commission on the spot — no waiting for settlement.",
+      "paymentsBody": "You put the domain, the subdomain or the ad on your own card as you open the store. The merchant pays you in cash, or however you agree. Your commission is recorded to your account against your code, and the team settles it with you by transfer or in cash.",
+      "paymentsComingSoon": "Coming soon: take the full amount, transfer only what is owed, and keep your commission on the spot instead of waiting for settlement.",
       "closingTitle": "Ready to close",
-      "closingBody": "Open your workspace, bind your code, and start setting up shops. Every closed sale is commission for you.",
-      "closingCta": "Open my close workspace"
+      "closingBody": "Open your dashboard, link your code and start opening stores. Every close is commission with your name on it.",
+      "closingCta": "Open my closing dashboard"
     },
     "promotorMigracion": {
       "title": "Migration handbook",

@@ -53,44 +53,55 @@ function sourceFilesBelow(relativeDirectory: string): string[] {
   return found
 }
 
-const SHOPS = [1, 2, 3].map((n) => ({
-  url: `https://shop-${n}.example/products`, platform: 'shopify', channels: ['online_store'], merchant_awareness: 'not_contacted',
-}))
 const VALID = {
-  name: 'Operator Example', email: 'OPERATOR@EXAMPLE.COM', whatsapp: '+1 212 555 0100', website: '',
-  program_track: 'founding_operator', operator_details_version: 1,
-  operator_details: {
-    company_name: 'Example Practice', operator_role: 'Principal', active_shop_count: 5,
-    candidate_shops: SHOPS, recent_operating_problem: 'Inventory exceptions repeat across stores.',
-    must_retain_systems: 'Merchant-owned domains and ERP.', why_now: 'The team needs a bounded parallel proof.', checkpoint_90_day: true,
-  },
+  name: ' Operator Example ', email: 'OPERATOR@EXAMPLE.COM', whatsapp: '+1 212 555 0100', website: '',
+  program_track: 'founding_operator', operator_details_version: 2,
+  operator_details: { city: ' Austin, TX ', motivation: ' I already sell to these businesses. ' },
 } as const
 
 test.describe('partners recruiting v3 · operator contract', () => {
-  test('accepts and canonicalizes exactly three version-1 shop records', () => {
+  test('accepts the five-field v2 intake and normalizes it', () => {
     const result = validateApplicationInput(VALID)
     expect(result.ok).toBe(true)
     if (result.ok && 'program_track' in result.clean) {
       expect(result.clean.program_track).toBe('founding_operator')
       expect(result.clean.email).toBe('operator@example.com')
-      expect(result.clean.operator_details.candidate_shops).toHaveLength(3)
-      expect(result.clean.operator_details.candidate_shops[0].url).toBe('https://shop-1.example/products')
+      expect(result.clean.name).toBe('Operator Example')
+      expect(result.clean.operator_details_version).toBe(2)
+      expect(result.clean.operator_details).toEqual({ city: 'Austin, TX', motivation: 'I already sell to these businesses.' })
     }
   })
 
-  test('rejects two/four shops, fewer than three active shops, unknown keys and incomplete qualification', () => {
-    for (const candidate_shops of [SHOPS.slice(0, 2), [...SHOPS, SHOPS[0]]]) {
-      expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, candidate_shops } })).toEqual({ ok: false, reason: 'shop_count' })
-    }
-    expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, active_shop_count: 2 } })).toEqual({ ok: false, reason: 'shop_count' })
-    expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, active_shop_count: 10001 } })).toEqual({ ok: false, reason: 'qualification' })
+  test('motivation is optional and an empty answer is stored as null, never as ""', () => {
+    const result = validateApplicationInput({ ...VALID, operator_details: { city: 'Austin, TX', motivation: '   ' } })
+    expect(result.ok).toBe(true)
+    if (result.ok && 'program_track' in result.clean) expect(result.clean.operator_details.motivation).toBeNull()
+  })
+
+  test('rejects unknown keys, missing contact details, a bad email and over-long answers', () => {
     expect(validateApplicationInput({ ...VALID, secret: 'nope' })).toEqual({ ok: false, reason: 'invalid_payload' })
     expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, password: 'nope' } })).toEqual({ ok: false, reason: 'invalid_payload' })
-    expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, checkpoint_90_day: false } })).toEqual({ ok: false, reason: 'qualification' })
+    expect(validateApplicationInput({ ...VALID, website: 'https://spam.example' })).toEqual({ ok: false, reason: 'honeypot' })
+    expect(validateApplicationInput({ ...VALID, whatsapp: '' })).toEqual({ ok: false, reason: 'missing_fields' })
+    expect(validateApplicationInput({ ...VALID, email: 'not-an-email' })).toEqual({ ok: false, reason: 'invalid_email' })
+    expect(validateApplicationInput({ ...VALID, operator_details: { city: 'x'.repeat(161), motivation: null } })).toEqual({ ok: false, reason: 'too_long' })
+    expect(validateApplicationInput({ ...VALID, operator_details: { city: 'Austin', motivation: 'x'.repeat(1201) } })).toEqual({ ok: false, reason: 'too_long' })
   })
 
-  test('requires three distinct canonical shops and rejects unknown program tracks', () => {
-    expect(validateApplicationInput({ ...VALID, operator_details: { ...VALID.operator_details, candidate_shops: [SHOPS[0], SHOPS[0], SHOPS[0]] } })).toEqual({ ok: false, reason: 'shop_url' })
+  test('the retired v1 dossier shape is no longer an accepted submission', () => {
+    // The DB CHECK still accepts a stored v1 row; the INTAKE does not, so a replayed
+    // dossier cannot re-open the three-shop program through the public endpoint.
+    expect(validateApplicationInput({
+      name: 'X', email: 'x@example.com', whatsapp: '555', program_track: 'founding_operator', operator_details_version: 1,
+      operator_details: {
+        company_name: 'A', operator_role: 'B', active_shop_count: 5,
+        candidate_shops: [1, 2, 3].map((n) => ({ url: `https://shop-${n}.example`, platform: 'shopify', channels: ['online_store'], merchant_awareness: 'not_contacted' })),
+        recent_operating_problem: 'C', must_retain_systems: 'D', why_now: 'E', checkpoint_90_day: true,
+      },
+    })).toEqual({ ok: false, reason: 'invalid_payload' })
+  })
+
+  test('rejects unknown program tracks', () => {
     expect(validateApplicationInput({ name: 'X', email: 'x@example.com', whatsapp: '555', program_track: 'operator' })).toEqual({ ok: false, reason: 'invalid_payload' })
     expect(validateApplicationInput({ name: 'X', email: 'x@example.com', whatsapp: '555', program_track: '' })).toEqual({ ok: false, reason: 'invalid_payload' })
   })
@@ -264,7 +275,7 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     const resolver = fs.readFileSync(path.join(ROOT, 'lib/recruiting-v3.ts'), 'utf8')
     const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/page.tsx'), 'utf8')
     const route = fs.readFileSync(path.join(ROOT, 'app/api/promoter/apply/route.ts'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/OperatorApplication.tsx'), 'utf8')
     const partnerPage = fs.readFileSync(path.join(ROOT, 'app/(shell)/partner/page.tsx'), 'utf8')
     const relationshipAccess = fs.readFileSync(path.join(ROOT, 'lib/relationship-access.ts'), 'utf8')
     const rejectRoute = fs.readFileSync(path.join(ROOT, 'app/api/admin/promoter/applications/[id]/reject/route.ts'), 'utf8')
@@ -275,7 +286,8 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     // and flipping this flag must never close it. Flag off is a 404 — the program has not
     // opened — never a page implying the marketplace itself is unavailable.
     expect(page).toContain('if (!(await recruitingV3Enabled())) notFound()')
-    expect(page).toContain('MiyagiPartnersRecruitingPage')
+    // The page renders through the shared brand shell, not a bespoke local layout.
+    expect(page).toContain('SellerAcquisitionPage')
     expect(page).toContain("export const dynamic = 'force-dynamic'")
     expect(route).toContain('if (operatorTrack && !(await recruitingV3Enabled()))')
     expect(route.indexOf('await req.json()')).toBeLessThan(route.indexOf('if (operatorTrack && !(await recruitingV3Enabled()))'))
@@ -342,40 +354,66 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
 
   test('the English-default US recruiting journey is dictionary-backed and exposes Spanish', () => {
     const page = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/page.tsx'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/OperatorApplication.tsx'), 'utf8')
     const bilingual = fs.readFileSync(path.join(ROOT, 'lib/bilingual-namespaces.ts'), 'utf8')
     const email = fs.readFileSync(path.join(ROOT, 'lib/email.ts'), 'utf8')
     const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8'))
     const es = JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/es.json'), 'utf8'))
     expect(bilingual).toContain("'partnersRecruiting'")
-    expect(en.partnersRecruiting.landing.title).toContain('Operate three shops')
-    expect(es.partnersRecruiting.landing.title).toContain('Opera tres tiendas')
-    expect(en.partnersRecruiting.application.submit).toBe('Submit for founder review')
-    expect(es.partnersRecruiting.application.submit).toBe('Enviar para revisión del fundador')
+    expect(en.partnersRecruiting.landing.heroTitle).toContain('Open the store')
+    expect(es.partnersRecruiting.landing.heroTitle).toContain('Abre la tienda')
+    expect(en.partnersRecruiting.application.submit).toBe('Send application')
+    expect(es.partnersRecruiting.application.submit).toBe('Enviar solicitud')
     expect(en.partnersRecruiting.application.validation.rateLimited).toBeTruthy()
     expect(es.partnersRecruiting.application.validation.rateLimited).toBeTruthy()
-    expect(page).toContain("getDictionary(locale)")
-    expect(page).toContain("lang: 'en' | 'es'")
-    expect(form).toContain('copy: PartnersRecruitingCopy')
+    // Read through the override layer, so an /admin/contenido edit to a key this page
+    // already advertises actually changes the page.
+    expect(page).toContain('getOverriddenDictionary(locale)')
+    expect(page).toContain("locale: 'en' | 'es'")
+    expect(form).toContain('copy: OperatorApplicationCopy')
     const rejectionEmail = email.slice(email.indexOf('export async function sendFoundingOperatorApplicationRejected'), email.indexOf('// ══', email.indexOf('export async function sendFoundingOperatorApplicationRejected')))
     expect(rejectionEmail).toContain("ctx.locale ? [ctx.locale] : ['en', 'es']")
-    expect(en.partnersRecruiting.email.rejectionHeading).toContain('Thank you for applying')
-    expect(es.partnersRecruiting.email.rejectionHeading).toContain('Gracias por postularte')
+    expect(en.partnersRecruiting.email.rejectionHeading).toContain('Thanks for applying')
+    expect(es.partnersRecruiting.email.rejectionHeading).toContain('Gracias por aplicar')
     for (const hardcodedEnglish of [
-      'Operate three shops. Prove one calmer practice.',
-      'Four checkpoints, no forced migration.',
-      'Put three real shops on the table.',
-      'Submit for founder review',
+      'Open the store. Close in person.',
+      'What you are actually selling',
+      'Tell us who you are.',
+      'Send application',
     ]) {
       expect(page, hardcodedEnglish).not.toContain(hardcodedEnglish)
       expect(form, hardcodedEnglish).not.toContain(hardcodedEnglish)
     }
   })
 
+  test('the retired "here is what is honestly true" framing is gone from both locales', () => {
+    // Every one of these shipped on this page at some point. They are the reason the
+    // rewrite happened: a landing page that spends its hero disclaiming itself does not
+    // sell anything. Banning the exact strings keeps a future pass from reintroducing them.
+    // Scoped to the namespace, not the whole dictionary: "90 días" is legitimate copy
+    // elsewhere on the platform (warranty and returns windows), and a guard that fires on
+    // correct copy is one people learn to delete.
+    const en = JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/en.json'), 'utf8')).partnersRecruiting)
+    const es = JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'locales/es.json'), 'utf8')).partnersRecruiting)
+    for (const [locale, blob] of [['en', en], ['es', es]] as const) {
+      for (const banned of [
+        'What is true today', 'Lo que es cierto hoy',
+        'no-cutover', 'sin migración forzada',
+        '90-day', '90 días',
+        'Not this program', 'Este programa no es',
+        'not accepted yet', 'aún no está aceptado',
+        'granted no permission', 'no otorgó permisos',
+        'Founding Commerce Operator',
+      ]) {
+        expect(blob.includes(banned), `${locale}: "${banned}" is back`).toBe(false)
+      }
+    }
+  })
+
   test('operator intake and review cannot create grants/consent or expose activation hashes', () => {
     const intake = fs.readFileSync(path.join(ROOT, 'lib/promoter-applications.ts'), 'utf8')
     const admin = fs.readFileSync(path.join(ROOT, 'app/(shell)/admin/promoter/PromoterAdminClient.tsx'), 'utf8')
-    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/FoundingOperatorApplication.tsx'), 'utf8')
+    const form = fs.readFileSync(path.join(ROOT, 'app/(us-site)/us/operators/OperatorApplication.tsx'), 'utf8')
     expect(intake).not.toContain("from('partner_grants')")
     expect(intake).not.toMatch(/relationship|consent/i)
     expect(admin).toContain('rel="noopener noreferrer"')
@@ -388,7 +426,11 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
     for (const hardcodedEnglish of ['Practice', 'Active shops', 'Confirmed', 'Request conversation', 'Nomination is not merchant consent.']) {
       expect(admin, hardcodedEnglish).not.toContain(hardcodedEnglish)
     }
-    expect(form).toContain('new Set(normalizedShops.map((shop) => shop.url)).size !== 3')
+    // The intake collects contact details and a territory — never a merchant's shop URL,
+    // which is what made the old dossier a nomination surface in the first place.
+    expect(form).not.toContain('candidate_shops')
+    expect(form).not.toContain('shop_url')
+    expect(form).toContain('operator_details_version: 2')
     expect(admin).not.toContain('activation_token_hash')
   })
 

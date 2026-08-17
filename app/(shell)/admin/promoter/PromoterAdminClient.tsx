@@ -9,7 +9,7 @@ import {
   type PromoterSku,
   type Commission,
 } from '@/lib/promoter'
-import type { PromoterApplication } from '@/lib/promoter-applications'
+import type { OperatorDetailsV1, OperatorDetailsV2, PromoterApplication } from '@/lib/promoter-applications'
 import { PROMOTER_SKU_BASE_PRICE_MXN } from '@/lib/promoter-earnings'
 import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { TRANSFER_SKU_LABEL, type TransferSku } from '@/lib/promoter-transfer'
@@ -91,6 +91,57 @@ function platformLabel(value: unknown): string {
 /** Build a tappable wa.me link from a stored WhatsApp number (digits only). */
 function whatsappLink(whatsapp: string): string {
   return `https://wa.me/${whatsapp.replace(/\D/g, '')}`
+}
+
+/**
+ * Operator answers, rendered per stored version. v2 is what the live form submits;
+ * v1 is the retired three-shop dossier, kept renderable so a historical row does not
+ * silently show as a blank panel. An unrecognized version says so rather than
+ * guessing at fields that may not be there.
+ */
+function OperatorDetailsBlock({ id, version, details }: {
+  id: string
+  version: PromoterApplication['operator_details_version']
+  details: NonNullable<PromoterApplication['operator_details']>
+}) {
+  if (version === 2) {
+    const v2 = details as OperatorDetailsV2
+    return (
+      <dl className="space-y-2 text-xs">
+        <div><dt className="text-[var(--color-muted)]">Ciudad o territorio</dt><dd className="font-medium">{v2.city ?? 'Sin especificar'}</dd></div>
+        {v2.motivation && (
+          <div><dt className="font-semibold">Por qué quiere entrar</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{v2.motivation}</dd></div>
+        )}
+      </dl>
+    )
+  }
+  if (version !== 1) return <p className="text-xs text-[var(--color-muted)]">Formato de solicitud no reconocido (v{String(version)}).</p>
+
+  const v1 = details as OperatorDetailsV1
+  return (
+    <>
+      <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+        <div><dt className="text-[var(--color-muted)]">Firma o práctica</dt><dd className="font-medium">{v1.company_name}</dd></div>
+        <div><dt className="text-[var(--color-muted)]">Rol</dt><dd className="font-medium">{v1.operator_role}</dd></div>
+        <div><dt className="text-[var(--color-muted)]">Tiendas activas</dt><dd className="font-medium">{v1.active_shop_count}</dd></div>
+        <div><dt className="text-[var(--color-muted)]">Revisión a 90 días</dt><dd className="font-medium">Confirmada</dd></div>
+      </dl>
+      <ol className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
+        {v1.candidate_shops.map((shop, index) => (
+          <li key={`${id}-${index}`} className="grid gap-1 py-2 text-xs sm:grid-cols-[2rem_1fr_auto] sm:items-center">
+            <span className="font-mono text-[var(--color-agent)]">0{index + 1}</span>
+            <a href={shop.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{shop.url}</a>
+            <span className="text-[var(--color-muted)]">{platformLabel(shop.platform)} · {merchantAwarenessLabel(shop.merchant_awareness)}</span>
+          </li>
+        ))}
+      </ol>
+      <dl className="space-y-2 text-xs">
+        <div><dt className="font-semibold">Problema operativo reciente</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{v1.recent_operating_problem}</dd></div>
+        <div><dt className="font-semibold">Sistemas que deben permanecer</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{v1.must_retain_systems}</dd></div>
+        <div><dt className="font-semibold">Por qué ahora</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{v1.why_now}</dd></div>
+      </dl>
+    </>
+  )
 }
 
 export default function PromoterAdminClient({
@@ -446,27 +497,7 @@ export default function PromoterAdminClient({
                 </div>
                 {a.program_track === 'founding_operator' && a.operator_details ? (
                   <div className="space-y-3 border-l-2 border-[var(--color-agent)] pl-3">
-                    <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
-                      <div><dt className="text-[var(--color-muted)]">Firma o práctica</dt><dd className="font-medium">{a.operator_details.company_name}</dd></div>
-                      <div><dt className="text-[var(--color-muted)]">Rol</dt><dd className="font-medium">{a.operator_details.operator_role}</dd></div>
-                      <div><dt className="text-[var(--color-muted)]">Tiendas activas</dt><dd className="font-medium">{a.operator_details.active_shop_count}</dd></div>
-                      <div><dt className="text-[var(--color-muted)]">Revisión a 90 días</dt><dd className="font-medium">Confirmada</dd></div>
-                    </dl>
-                    <ol className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
-                      {a.operator_details.candidate_shops.map((shop, index) => (
-                        <li key={`${a.id}-${index}`} className="grid gap-1 py-2 text-xs sm:grid-cols-[2rem_1fr_auto] sm:items-center">
-                          <span className="font-mono text-[var(--color-agent)]">0{index + 1}</span>
-                          <a href={shop.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{shop.url}</a>
-                          <span className="text-[var(--color-muted)]">{platformLabel(shop.platform)} · {merchantAwarenessLabel(shop.merchant_awareness)}</span>
-                        </li>
-                      ))}
-                    </ol>
-                    <dl className="space-y-2 text-xs">
-                      <div><dt className="font-semibold">Problema operativo reciente</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.recent_operating_problem}</dd></div>
-                      <div><dt className="font-semibold">Sistemas que deben permanecer</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.must_retain_systems}</dd></div>
-                      <div><dt className="font-semibold">Por qué ahora</dt><dd className="mt-0.5 text-[var(--color-muted)] whitespace-pre-wrap">{a.operator_details.why_now}</dd></div>
-                    </dl>
-                    <p className="bg-[var(--color-promo-soft)] px-3 py-2 text-xs">La nominación no equivale al consentimiento del comercio. Contacta únicamente a la persona solicitante.</p>
+                    <OperatorDetailsBlock id={a.id} version={a.operator_details_version} details={a.operator_details} />
                     {a.status === 'approved' && a.invitation_provider_status && (
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="rounded bg-[var(--color-surface-alt)] px-2 py-1">

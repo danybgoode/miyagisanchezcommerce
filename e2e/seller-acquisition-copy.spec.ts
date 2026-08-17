@@ -77,11 +77,11 @@ test.describe('seller acquisition · es-MX copy guards', () => {
   })
 
   test('brand voice: our word is "marketplace", never "mercado" (brand names stay)', () => {
-    // Strip the legit brand names + the benchmark JSON key, then any remaining "mercado" is ours.
+    // Strip the legit brand names, then any remaining "mercado" is ours. (The benchmark's
+    // `"mercadoLibre"` JSON key no longer exists — rows carry a positional `cells` array.)
     const cleaned = blob
       .replace(/Mercado Libre/g, '')
       .replace(/MercadoPago/g, '')
-      .replace(/"mercadoLibre"/g, '')
     expect(cleaned, 'our-word "mercado" must be "marketplace"').not.toMatch(/mercado/i)
   })
 
