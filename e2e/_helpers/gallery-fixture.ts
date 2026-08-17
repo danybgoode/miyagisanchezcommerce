@@ -75,7 +75,14 @@ export async function resolveGalleryListing(
   photos: PhotoCount,
   envOverride?: string,
 ): Promise<GalleryFixture> {
-  if (envOverride) return { listingId: envOverride, source: 'env' }
+  if (envOverride) {
+    const pinned = await resolvePinnedListing(request, photos, envOverride)
+    if (pinned) return pinned
+    // Pin is stale (deleted, unpublished, or no longer this shape) — falling through
+    // to discovery is the whole reason discovery exists. An override that is trusted
+    // blindly is exactly the 2026-08-15 failure mode with an extra step: the secret
+    // rots and nobody notices until the suite reports it as a gallery regression.
+  }
 
   const items: CatalogItem[] = []
   for (const page of PAGES) {
@@ -115,6 +122,33 @@ export async function resolveGalleryListing(
       `(searched ${items.length}). This spec cannot run until one does — that is a gap in the ` +
       `test DATA, not a passing test.`,
   }
+}
+
+/**
+ * Checks a pinned override against the live catalog before trusting it: does the
+ * listing still resolve, and does it still have the photo count the caller pinned
+ * it for? Both questions matter — `MS_TEST_GALLERY_SINGLE_LISTING_ID` going 404 and
+ * a seller adding a second photo to it are the same failure from the spec's point
+ * of view (wrong fixture for this shape), so both fall back to discovery the same
+ * way. A network failure here is treated as "the pin is unverifiable" rather than
+ * an outage — discovery's own catalog fetch reports the outage state if the
+ * catalog is genuinely down.
+ */
+async function resolvePinnedListing(
+  request: APIRequestContext,
+  photos: PhotoCount,
+  id: string,
+): Promise<GalleryFixture | null> {
+  let response
+  try {
+    response = await request.get(`/api/ucp/catalog/${id}`)
+  } catch {
+    return null
+  }
+  if (!response.ok()) return null
+  const listing = (await response.json()) as CatalogItem
+  if (!MATCHES[photos]((listing.images ?? []).length)) return null
+  return { listingId: id, source: 'env' }
 }
 
 /**
