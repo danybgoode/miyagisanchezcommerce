@@ -88,17 +88,21 @@ test.describe('partners recruiting v3 · operator contract', () => {
     expect(validateApplicationInput({ ...VALID, operator_details: { city: 'Austin', motivation: 'x'.repeat(1201) } })).toEqual({ ok: false, reason: 'too_long' })
   })
 
-  test('the retired v1 dossier shape is no longer an accepted submission', () => {
+  test('the intake accepts version 2 and NOTHING else', () => {
     // The DB CHECK still accepts a stored v1 row; the INTAKE does not, so a replayed
-    // dossier cannot re-open the three-shop program through the public endpoint.
-    expect(validateApplicationInput({
-      name: 'X', email: 'x@example.com', whatsapp: '555', program_track: 'founding_operator', operator_details_version: 1,
-      operator_details: {
-        company_name: 'A', operator_role: 'B', active_shop_count: 5,
-        candidate_shops: [1, 2, 3].map((n) => ({ url: `https://shop-${n}.example`, platform: 'shopify', channels: ['online_store'], merchant_awareness: 'not_contacted' })),
-        recent_operating_problem: 'C', must_retain_systems: 'D', why_now: 'E', checkpoint_90_day: true,
-      },
-    })).toEqual({ ok: false, reason: 'invalid_payload' })
+    // dossier cannot reopen the three-shop program through the public endpoint.
+    //
+    // The version gate is asserted with OTHERWISE-VALID v2 details on purpose. A full v1
+    // dossier is also rejected for having unknown detail keys, so testing with one would
+    // pass even with the version check deleted — which is exactly what happened the first
+    // time this was written.
+    for (const operator_details_version of [1, 3, '2', null, undefined]) {
+      expect(
+        validateApplicationInput({ ...VALID, operator_details_version }),
+        `version ${String(operator_details_version)} must be refused`,
+      ).toEqual({ ok: false, reason: 'invalid_payload' })
+    }
+    expect(validateApplicationInput({ ...VALID, operator_details_version: 2 }).ok).toBe(true)
   })
 
   test('rejects unknown program tracks', () => {

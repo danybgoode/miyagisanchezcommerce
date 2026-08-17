@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { sellerTrustPrompt } from '../lib/seller-acquisition'
 import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
 
@@ -156,5 +156,83 @@ test.describe('promoter landing · CTA + wording sweep (promoter-funnel-v2 S1 ·
     expect(config.primaryCta?.label).toBe('Abrir mi panel para cerrar')
     expect(config.primaryCta?.href).toBe('/promotor/cerrar')
     expect(config.applyTeaser).toBeUndefined()
+  })
+})
+
+/**
+ * "Monta la tienda" is retired. Setting up a shop is `abrir` / `dejar lista` /
+ * `preparar` — never `montar`, which reads like assembling furniture.
+ *
+ * Scanned across the WHOLE population (the es dictionary plus every source file under
+ * `app/` and `lib/`), not the handful of files a grep happened to surface: the first
+ * sweep of this cleaned the dictionary and left the string live in `lib/agent-prompt.ts`,
+ * where it rendered inside the promoter page's own AI prompt block.
+ *
+ * The ban is deliberately narrow. `monto`/`montos` are money amounts, `montaña` and
+ * `Cadereyta de Montes` are real words, and a guard that reddens on correct copy is one
+ * people learn to route around. Unicode letter boundaries, not `\b` — `\b` treats `ñ` as
+ * a non-word character, so `\bmonta\b` matches inside `montaña`.
+ */
+const MONTAR_FORMS = [
+  'monta', 'montas', 'montan', 'montamos', 'montá', 'montó', 'monté',
+  'montar', 'montarla', 'montarlo', 'montarlas', 'montarlos', 'montarle', 'montarles',
+  'montando', 'montándola', 'montándolo',
+  'montado', 'montada', 'montados', 'montadas', 'montaron', 'montaba', 'montaban',
+  'móntala', 'móntalo',
+  // `monto`/`montos` are deliberately ABSENT. They are overwhelmingly the money noun
+  // ("el monto de la venta", "tres montos sugeridos") and only marginally the first-person
+  // verb, which does not occur in marketing copy. Including them meant this guard reddened
+  // on `lib/settings-import.ts`'s correct payout wording — and a guard that rejects correct
+  // output is one people learn to bypass. The accented `montó`/`monté` are unambiguous.
+]
+// `\b` is no good here: `ñ` is a non-word character to it, so `\bmonta\b` matches inside
+// `montaña`. Unicode letter boundaries on both sides instead.
+const SHOP_SETUP_MONTAR = new RegExp(`(?<!\\p{L})(${MONTAR_FORMS.join('|')})(?!\\p{L})`, 'iu')
+const violates = (line: string) => SHOP_SETUP_MONTAR.test(line)
+
+test.describe('brand voice · a shop is opened, never "montada"', () => {
+  test('the es dictionary is clean', () => {
+    const raw = readFileSync(new URL('../locales/es.json', import.meta.url), 'utf8')
+    const hits = raw.split('\n')
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => violates(line))
+    expect(hits.map((h) => `es.json:${h.index + 1} ${h.line.trim()}`)).toEqual([])
+  })
+
+  test('and so is every source string under app/ and lib/', () => {
+    const offenders: string[] = []
+    const visit = (relative: string) => {
+      for (const entry of readdirSync(new URL(`../${relative}`, import.meta.url), { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue
+        const child = `${relative}/${entry.name}`
+        if (entry.isDirectory()) visit(child)
+        else if (/\.tsx?$/.test(entry.name)) {
+          readFileSync(new URL(`../${child}`, import.meta.url), 'utf8').split('\n').forEach((line, index) => {
+            if (violates(line)) offenders.push(`${child}:${index + 1} ${line.trim()}`)
+          })
+        }
+      }
+    }
+    visit('app')
+    visit('lib')
+    expect(offenders).toEqual([])
+  })
+
+  test('the guard still allows every legitimate use — it bans a word, not a stem', () => {
+    for (const legal of [
+      'Monto total', 'el monto de la venta', 'montos liquidados', 'tres montos sugeridos, rango del monto libre',
+      'Bicicleta de montaña Trek', 'Cadereyta de Montes', 'montaje',
+    ]) {
+      expect(violates(legal), `"${legal}" must stay legal`).toBe(false)
+    }
+    for (const banned of [
+      'Monta la tienda', 'lo deja montado', 'te ayuda a montar tu catálogo', 'Montamos tu catálogo',
+      // The gerund is here because the first version of this guard MISSED it: the sweep
+      // caught the dictionary and left `ganar comisión montando tiendas` live in
+      // lib/agent-prompt.ts, rendered inside the promoter page's own prompt block.
+      'ganar comisión montando tiendas', 'móntala hoy',
+    ]) {
+      expect(violates(banned), `"${banned}" must be caught`).toBe(true)
+    }
   })
 })

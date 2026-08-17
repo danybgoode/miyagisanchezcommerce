@@ -2005,7 +2005,7 @@ export async function sendPromoterApplicationApproved(ctx: {
     table([
       ['1', 'Crea tu cuenta en miyagisanchez.com (o inicia sesión si ya tienes una)'],
       ['2', 'Entra a tu panel de promotor y captura tu código'],
-      ['3', 'Ábrelo y empieza a montar tiendas'],
+      ['3', 'Abre tu primera tienda y cobra en persona'],
     ]),
     cta('Ingresar mi código', ctx.bindUrl),
     notice('Guarda este correo — tu código es tuyo y personal, no lo compartas.'),
