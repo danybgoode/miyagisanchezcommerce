@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Banner } from '@/components/feedback/Banner'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
+import { formatWaitingOrderUrgency } from '@/lib/order-urgency'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -337,7 +338,7 @@ export default function OrdersInbox({
               {needsActionOrders.length} pedido{needsActionOrders.length > 1 ? 's' : ''} esperando tu acción
             </p>
             <p className="text-xs text-[var(--warning)] mt-0.5">
-              Los compradores que no reciben actualizaciones en 24 h califican más bajo. Envía rápido.
+              {formatWaitingOrderUrgency(needsActionOrders)}
             </p>
           </div>
         </div>
@@ -468,8 +469,8 @@ export default function OrdersInbox({
         <div className="mt-8 flex items-start gap-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-[var(--r-lg)] px-4 py-3">
           <i className="iconoir-sparks text-base mt-0.5" aria-hidden />
           <p className="text-xs text-[var(--color-muted)] leading-relaxed">
-            <strong className="text-[var(--color-text)]">Tip:</strong> Los vendedores que envían en menos de 24 h
-            reciben un 23% más de reseñas positivas. Responder rápido construye reputación.
+            <strong className="text-[var(--color-text)]">Siguiente paso:</strong> abre el pedido más antiguo,
+            confirma su pago cuando corresponda y mantén el estado de entrega al día.
           </p>
         </div>
       )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
@@ -24,6 +24,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { catalogStatusToToken, publicationStateToToken } from '@/lib/status-badge'
 import BulkActionBar from './BulkActionBar'
 import BulkDiffPreview from './BulkDiffPreview'
+import { usePendingListingDelete } from '@/components/seller/PendingListingDeleteProvider'
 
 export interface CatalogListing {
   id: string
@@ -126,7 +127,8 @@ function DeleteDialog({
       <Card variant="panel" className="shadow-xl w-full max-w-sm p-6">
         <h2 className="font-bold text-base mb-2">¿Eliminar anuncio?</h2>
         <p className="text-sm text-[var(--color-muted)] mb-4">
-          Se eliminará <strong className="text-[var(--color-foreground)]">{listing.title}</strong>. Esta acción no se puede deshacer.
+          Quitaremos <strong className="text-[var(--color-foreground)]">{listing.title}</strong> de tu catálogo.
+          Tendrás 10 segundos para deshacer antes de que se confirme.
         </p>
         <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={onCancel} disabled={pending}>
@@ -186,6 +188,12 @@ export default function CatalogTable({
   const [mobileActionTarget, setMobileActionTarget] = useState<CatalogListing | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [marginSort, setMarginSort] = useState<MarginSort>('none')
+  const { pendingIds: pendingDeleteIds, hasPendingDelete, scheduleDelete } = usePendingListingDelete()
+
+  // A router refresh after an expired delete brings the new server list into
+  // this long-lived client component. Without this sync, React would preserve
+  // the pre-delete useState initializer and briefly resurrect a deleted row.
+  useEffect(() => setListings(initialListings), [initialListings])
 
   // Margin cells, keyed by product id — derived once per render from the
   // server-fetched ledger rows (lib/catalog-margin.ts, pure, no formula fork).
@@ -204,17 +212,18 @@ export default function CatalogTable({
   // with no computed Miyagi margin (no_sales/no_cogs) always sort last,
   // regardless of direction — they can't be meaningfully ranked.
   const displayedListings = useMemo(() => {
-    if (marginSort === 'none' || !profitFlagEnabled) return listings
+    const visible = listings.filter((listing) => !pendingDeleteIds.has(listing.id))
+    if (marginSort === 'none' || !profitFlagEnabled) return visible
     const withValue: Array<{ listing: CatalogListing; value: number }> = []
     const withoutValue: CatalogListing[] = []
-    for (const listing of listings) {
+    for (const listing of visible) {
       const cell = marginByProduct.get(listing.id)?.miyagi
       if (cell?.state === 'computed' && cell.marginCents != null) withValue.push({ listing, value: cell.marginCents })
       else withoutValue.push(listing)
     }
     withValue.sort((a, b) => (marginSort === 'asc' ? a.value - b.value : b.value - a.value))
     return [...withValue.map((v) => v.listing), ...withoutValue]
-  }, [listings, marginSort, marginByProduct, profitFlagEnabled])
+  }, [listings, marginSort, marginByProduct, pendingDeleteIds, profitFlagEnabled])
 
   // Current Miyagi price + ML-link state per listing (S4 · Story 4.2) — feeds
   // BulkActionBar's "apply precio sugerido" fee-estimate lookup, which needs
@@ -420,26 +429,31 @@ export default function CatalogTable({
     }
   }
 
-  async function handleDeleteConfirm() {
+  function handleDeleteConfirm() {
     if (!deleteTarget) return
-    const { id } = deleteTarget
-    markPending(id, true)
+    const listing = deleteTarget
+    const { id } = listing
     setDeleteTarget(null)
-
-    try {
-      const res = await fetch(`/api/sell/listing/${id}`, { method: 'DELETE' })
-      const data = await res.json() as { error?: string }
-      if (!res.ok) {
-        showToast(data.error ?? 'Error al eliminar.', 'error')
-      } else {
-        setListings((prev) => prev.filter((l) => l.id !== id))
-        showToast('Anuncio eliminado.', 'success')
-      }
-    } catch {
-      showToast('Sin conexión. Inténtalo de nuevo.', 'error')
-    } finally {
-      markPending(id, false)
-    }
+    const scheduled = scheduleDelete({
+      ids: [id],
+      label: `“${listing.title}”`,
+      commit: async () => {
+        const res = await fetch(`/api/sell/listing/${id}`, { method: 'DELETE' })
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        return res.ok
+          ? { ok: true, message: 'Anuncio eliminado.' }
+          : { ok: false, message: data.error ?? 'No se pudo eliminar el anuncio.' }
+      },
+      onSuccess: () => {
+        setListings((prev) => prev.filter((item) => item.id !== id))
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      },
+    })
+    if (!scheduled) showToast('Termina o deshaz la eliminación pendiente antes de iniciar otra.', 'error')
   }
 
   return (
@@ -506,7 +520,7 @@ export default function CatalogTable({
             const meta = STATUS_LABEL[status]
             const badges = deriveChannelBadges(listing)
             const thumb = listing.images?.[0]?.url
-            const isPending = pendingIds.has(listing.id)
+            const isPending = pendingIds.has(listing.id) || pendingDeleteIds.has(listing.id)
             const canToggle = status === 'activo' || status === 'agotado' || status === 'pausado'
             const nextStatus = status === 'pausado' ? 'active' : 'paused'
             const margin = marginByProduct.get(listing.id)
@@ -668,7 +682,7 @@ export default function CatalogTable({
           listing={deleteTarget}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
-          pending={pendingIds.has(deleteTarget.id)}
+          pending={hasPendingDelete}
         />
       )}
       {mobileActionTarget && (() => {
