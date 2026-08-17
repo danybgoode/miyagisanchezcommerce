@@ -108,9 +108,9 @@ the production nightly. A missing fixture is a visible skip, not a failure.
 | `MS_TEST_ADMIN_EMAIL` | `admin-seleccion.browser.spec.ts` | Dev Clerk user recognized as an admin by the app. This spec requires its explicit email. |
 | `MS_TEST_PDP_LISTING_ID` | `agent-prompt`, `trust-signals` browser; `ucp-cutover-api` | Public listing; seller exposes a payment or fulfillment method for trust-signals. |
 | `MS_TEST_PERSONALIZED_LISTING_ID` | `personalization`, PDP gallery fallback; `agent-prompt`, `trust-signals`, `ucp-cutover-api` fallbacks | Public listing with a required custom field. |
-| `MS_TEST_GALLERY_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered from the live catalog when unset — a public listing with 2+ photos. |
-| `MS_TEST_GALLERY_SINGLE_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered when unset — a public listing with exactly one photo. |
-| `MS_TEST_GALLERY_ZERO_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin.** Discovered when unset — a public listing with zero photos. None exists in the live catalog as of 2026-08-15, so this spec reports FIXTURE UNAVAILABLE and skips. |
+| `MS_TEST_GALLERY_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin, VALIDATED.** Discovered from the live catalog when unset or when the pin no longer resolves with 2+ photos. |
+| `MS_TEST_GALLERY_SINGLE_LISTING_ID` | `pdp-gallery.browser.spec.ts` | **Optional pin, VALIDATED.** Discovered when unset or stale — a public listing with exactly one photo. Safe to delete from Actions secrets. |
+| ~~`MS_TEST_GALLERY_ZERO_LISTING_ID`~~ | *(no spec)* | **Unused as of 2026-08-17** — the zero-photo browser spec was retired (see below). Safe to delete from Actions secrets. |
 | `MS_TEST_SHIPPABLE_LISTING_ID` | `checkout-cp-first.browser.spec.ts`, `ucp-checkout-session-shipping-boundary.spec.ts` | Public, priced physical listing with Envía shipping. |
 | `MS_TEST_CLAIMED_SLUG` | `seller-unclaimed-s3.browser.spec.ts`, `collection-isolation.spec.ts` | A real claimed shop slug. |
 | `MS_TEST_UNCLAIMED_LISTING_ID` | `unclaimed-pdp.browser.spec.ts`, `unclaimed-guardrails.spec.ts` | Public listing on a “Sin reclamar” shop. |
@@ -127,6 +127,22 @@ the production nightly. A missing fixture is a visible skip, not a failure.
 `MS_TEST_*` names. CI maps them from the dedicated dev-instance secrets above. `MS_TEST_BUYER_PASSWORD`
 and `MS_TEST_SELLER_PASSWORD` are vestigial: no spec references either, because ticket sign-in needs
 only an email plus the Clerk secret key. Do not provision them.
+
+## Retired specs — and what would justify bringing them back
+
+**`pdp · zero-image placeholder parity` (browser) — retired 2026-08-17.** It asserted that
+`Gallery.tsx`'s `images.length === 0` branch renders the same back/share chrome as every other PDP. It
+never ran against production: every public listing in the live catalog has at least one photo (66 on
+2026-08-15, 67 on 2026-08-17), so it resolved FIXTURE UNAVAILABLE and skipped on every single nightly.
+
+The cost is real and is stated here rather than buried: the placeholder branch now has **no automated
+coverage at all**, the only one of Gallery's three render paths without a spec. That is a deliberate
+trade. A spec that cannot run is not coverage either, and a nightly skip that never ends teaches people
+to read skips as green — which is the failure mode this whole file exists to prevent.
+
+**Bring it back when a public zero-photo listing exists** as a durable fixture. Discovery still supports
+the `'zero'` photo count in `_helpers/gallery-fixture.ts`, so reviving it means re-adding the describe
+block (see the retirement comment in `pdp-gallery.browser.spec.ts`), not rebuilding machinery.
 
 ## Conventions
 - `_helpers/` is not a test dir (no `*.spec.ts`) — shared helpers only.

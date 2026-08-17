@@ -153,28 +153,26 @@ test.describe('pdp · single-image gallery parity (browser)', () => {
 })
 
 /**
- * Zero-image placeholder parity (pdp-single-image-gallery-parity fix) — the
- * count===0 placeholder branch had the same back/share gap as the 1-image
- * branch (there's still a PDP to leave/share even with no photo).
+ * ── RETIRED 2026-08-17: zero-image placeholder parity ───────────────────────
  *
- * Fixture: DISCOVERED — a public listing with no photos, with
- * MS_TEST_GALLERY_ZERO_LISTING_ID as an optional pin.
+ * There was a third describe here, asserting that Gallery.tsx's `count === 0`
+ * placeholder branch renders the same back/share chrome as every other PDP.
  *
- * ⚠️ As of 2026-08-15 the live catalog contains ZERO such listings (all 66 have
- * at least one photo), so this spec reports FIXTURE UNAVAILABLE and skips. That
- * is a gap in the test data, not a passing test, and the skip reason says so
- * rather than reading as a quiet green. It needs either one public no-photo
- * listing to exist, or this spec retired — a product-owner call, not a test one.
+ * It has never been able to run against production. Every public listing in the
+ * live catalog has at least one photo (66 on 2026-08-15, 67 on 2026-08-17), so
+ * it resolved FIXTURE UNAVAILABLE and skipped on every nightly. It was owed to
+ * the product owner twice — create a public no-photo listing, or retire it —
+ * and on 2026-08-17 Daniel called it: retire.
+ *
+ * Be clear about what that costs, because it is not nothing. The placeholder
+ * branch (`Gallery.tsx`, the `images.length === 0` path) now has NO automated
+ * coverage at all — it is the only one of the three render paths without a
+ * spec. This is a deliberate trade, not an oversight: a spec that cannot run is
+ * not coverage either, and one that skips nightly forever trains people to read
+ * skips as green. Better an honest gap than a decorative test.
+ *
+ * Bring it back when — and only when — a public zero-photo listing exists as a
+ * durable fixture. Discovery already handles the `'zero'` photo count
+ * (`_helpers/gallery-fixture.ts` keeps it), so reviving this is re-adding the
+ * describe block below, not rebuilding the machinery.
  */
-test.describe('pdp · zero-image placeholder parity (browser)', () => {
-  test('back + share render over the placeholder', async ({ page, request }) => {
-    const fixture = await resolveGalleryListing(request, 'zero', process.env.MS_TEST_GALLERY_ZERO_LISTING_ID)
-    const listingId = requireFixture(fixture)
-    await page.goto(`/l/${listingId}`)
-    await expectListingFound(page, `the ${fixture.source} zero-photo fixture ${listingId}`)
-    await expect(page.getByTestId('pdp-gallery')).toBeVisible()
-
-    await expect(page.getByTestId('gallery-back')).toBeVisible()
-    await expect(page.getByTestId('gallery-share')).toBeVisible()
-  })
-})
