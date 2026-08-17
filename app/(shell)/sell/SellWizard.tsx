@@ -835,7 +835,7 @@ function StepListing({
           seller UI offers US marketplace publication"). */}
       {ownedShopOnlyEnabled && (
         <div>
-          <label className="flex items-start gap-2 cursor-pointer">
+          <label className="flex min-h-11 items-start gap-2 cursor-pointer py-1">
             <input
               type="checkbox"
               checked={ownedShopOnly}
@@ -876,7 +876,7 @@ function StepListing({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Plan {idx + 1}</span>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex min-h-11 items-center gap-1.5 cursor-pointer px-1">
                     <input
                       type="checkbox"
                       checked={tier.is_highlighted}
@@ -889,7 +889,7 @@ function StepListing({
                     <button
                       type="button"
                       onClick={() => setSubTiers(prev => prev.filter(t => t.id !== tier.id))}
-                      className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
+                      className="inline-flex min-h-11 items-center gap-1 px-2 text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                     >
                       <i className="iconoir-xmark" aria-hidden /> Quitar
                     </button>
@@ -1112,7 +1112,7 @@ function StepListing({
             <FieldError msg={errors.price} />
           </div>
         </div>
-        <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+        <label className="flex min-h-11 items-center gap-2 mt-2 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={priceOnRequest}

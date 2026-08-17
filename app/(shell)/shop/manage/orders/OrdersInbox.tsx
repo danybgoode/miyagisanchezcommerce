@@ -131,14 +131,16 @@ function OrderCard({
     <div className="flex items-center gap-2">
       {/* Bulk-select checkbox (ml-orders-native S3 · US-8) — outside the Link so
           it never triggers navigation. */}
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggleSelect}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={`Seleccionar pedido ${order.id}`}
-        className="flex-shrink-0 w-4 h-4"
-      />
+      <label className="inline-flex min-h-11 min-w-11 flex-shrink-0 cursor-pointer items-center justify-center">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Seleccionar pedido ${order.id}`}
+          className="h-4 w-4 accent-[var(--color-accent)]"
+        />
+      </label>
       <Link
         href={`/shop/manage/orders/${order.id}`}
         className={`no-underline block flex-1 min-w-0 rounded-[var(--r-lg)] border transition-all hover:shadow-sm ${
@@ -396,19 +398,19 @@ export default function OrdersInbox({
           </span>
           <div className="flex flex-wrap gap-1.5 ml-auto">
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('processing')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Procesando
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('shipped')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Enviado
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('delivered')}
-              className="text-xs font-semibold px-2.5 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
+              className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
               Entregado
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => setSelected(new Set())}
-              className="text-xs font-medium px-2 py-1 rounded-[var(--r-md)] hover:bg-white/10">
+              className="min-h-11 text-xs font-medium px-3 py-1 rounded-[var(--r-md)] hover:bg-white/10">
               Cancelar
             </button>
           </div>

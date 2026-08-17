@@ -183,6 +183,7 @@ export default function CatalogTable({
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const { toast, showToast, dismissToast } = useToast()
   const [deleteTarget, setDeleteTarget] = useState<CatalogListing | null>(null)
+  const [mobileActionTarget, setMobileActionTarget] = useState<CatalogListing | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [marginSort, setMarginSort] = useState<MarginSort>('none')
 
@@ -463,23 +464,26 @@ export default function CatalogTable({
         <thead>
           <tr className="border-b border-[var(--color-border)] text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
             {bulkFlagEnabled && (
-              <th className="p-3 font-medium w-8">
-                <input
-                  type="checkbox"
-                  checked={listings.length > 0 && selectedIds.size === listings.length}
-                  onChange={toggleSelectAllVisible}
-                  aria-label="Seleccionar todos los visibles"
-                />
+              <th className="w-11 p-0 font-medium md:p-3">
+                <label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={listings.length > 0 && selectedIds.size === listings.length}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Seleccionar todos los visibles"
+                    className="h-4 w-4 accent-[var(--color-accent)]"
+                  />
+                </label>
               </th>
             )}
             <th className="p-3 font-medium">Producto</th>
-            <th className="p-3 font-medium">SKU</th>
-            <th className="p-3 font-medium">Precio</th>
-            <th className="p-3 font-medium">Stock</th>
-            <th className="p-3 font-medium">Canales</th>
-            {ownedShopOnlyEnabled && <th className="p-3 font-medium">Mercado</th>}
+            <th className="hidden p-3 font-medium md:table-cell">SKU</th>
+            <th className="hidden p-3 font-medium md:table-cell">Precio</th>
+            <th className="hidden p-3 font-medium md:table-cell">Stock</th>
+            <th className="hidden p-3 font-medium md:table-cell">Canales</th>
+            {ownedShopOnlyEnabled && <th className="hidden p-3 font-medium md:table-cell">Mercado</th>}
             {profitFlagEnabled && (
-              <th className="p-3 font-medium">
+              <th className="hidden p-3 font-medium md:table-cell">
                 <button
                   type="button"
                   onClick={() => setMarginSort((prev) => (prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc'))}
@@ -509,13 +513,16 @@ export default function CatalogTable({
             return (
               <tr key={listing.id} className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-alt)] ${isPending ? 'opacity-60' : ''}`}>
                 {bulkFlagEnabled && (
-                  <td className="p-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(listing.id)}
-                      onChange={() => toggleSelect(listing.id)}
-                      aria-label={`Seleccionar ${listing.title}`}
-                    />
+                  <td className="p-0 md:p-3">
+                    <label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(listing.id)}
+                        onChange={() => toggleSelect(listing.id)}
+                        aria-label={`Seleccionar ${listing.title}`}
+                        className="h-4 w-4 accent-[var(--color-accent)]"
+                      />
+                    </label>
                   </td>
                 )}
                 <td className="p-3">
@@ -536,8 +543,8 @@ export default function CatalogTable({
                     <span className="font-medium truncate max-w-[240px]">{listing.title}</span>
                   </Link>
                 </td>
-                <td className="p-3 text-[var(--color-muted)]">{listing.sku ?? '—'}</td>
-                <td className="p-3 font-semibold whitespace-nowrap">
+                <td className="hidden p-3 text-[var(--color-muted)] md:table-cell">{listing.sku ?? '—'}</td>
+                <td className="hidden p-3 font-semibold whitespace-nowrap md:table-cell">
                   {formatPrice(listing.price_cents, listing.currency)}
                   {listing.ml_price_cents != null && listing.ml_price_cents !== listing.price_cents && (
                     <div className="text-xs font-normal text-[var(--color-muted)]">
@@ -545,8 +552,8 @@ export default function CatalogTable({
                     </div>
                   )}
                 </td>
-                <td className="p-3 whitespace-nowrap">{stockLabel(listing)}</td>
-                <td className="p-3">
+                <td className="hidden p-3 whitespace-nowrap md:table-cell">{stockLabel(listing)}</td>
+                <td className="hidden p-3 md:table-cell">
                   <div className="flex gap-1 flex-wrap items-center">
                     {badges.miyagi && <span className="badge badge-soft">Miyagi</span>}
                     {badges.ml && <span className="badge badge-soft">ML</span>}
@@ -583,7 +590,7 @@ export default function CatalogTable({
                   })
                   const pubRequest = nextPublicationRequest(pubState)
                   return (
-                    <td className="p-3">
+                    <td className="hidden p-3 md:table-cell">
                       <div className="flex flex-col gap-1 items-start">
                         <StatusBadge token={publicationStateToToken(pubState)} title={PUBLICATION_STATE_HINT[pubState]}>
                           {PUBLICATION_STATE_LABEL[pubState]}
@@ -603,7 +610,7 @@ export default function CatalogTable({
                   )
                 })()}
                 {profitFlagEnabled && (
-                  <td className="p-3">
+                  <td className="hidden p-3 md:table-cell">
                     {margin && (
                       <div className="flex flex-col gap-0.5">
                         <MarginCellDisplay label="Miyagi" cell={margin.miyagi} />
@@ -616,7 +623,7 @@ export default function CatalogTable({
                   <StatusBadge token={catalogStatusToToken(status)}>{meta.label}</StatusBadge>
                 </td>
                 <td className="p-3">
-                  <div className="flex items-center gap-1 justify-end">
+                  <div className="hidden items-center justify-end gap-1 md:flex">
                     {canToggle && (
                       <button
                         type="button"
@@ -640,6 +647,15 @@ export default function CatalogTable({
                       <i className="iconoir-trash" />
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileActionTarget(listing)}
+                    disabled={isPending}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-[var(--r-md)] border border-[var(--color-border)] px-2 text-xs font-semibold text-[var(--color-text)] disabled:opacity-50 md:hidden"
+                    aria-label={`Más acciones para ${listing.title}`}
+                  >
+                    <i className="iconoir-more-horiz" aria-hidden /> Más
+                  </button>
                 </td>
               </tr>
             )
@@ -655,6 +671,80 @@ export default function CatalogTable({
           pending={pendingIds.has(deleteTarget.id)}
         />
       )}
+      {mobileActionTarget && (() => {
+        const listing = mobileActionTarget
+        const status = deriveCatalogStatus(listing)
+        const canToggle = status === 'activo' || status === 'agotado' || status === 'pausado'
+        const nextStatus = status === 'pausado' ? 'active' : 'paused'
+        const badges = deriveChannelBadges(listing)
+        const publicationState = derivePublicationState({
+          in_operating_channel: listing.in_operating_channel ?? false,
+          in_marketplace_channel: listing.in_marketplace_channel ?? false,
+        })
+        const publicationRequest = nextPublicationRequest(publicationState)
+        const run = (action: () => void) => {
+          setMobileActionTarget(null)
+          action()
+        }
+        const actionClass = 'flex min-h-11 w-full items-center gap-3 rounded-[var(--r-md)] px-3 text-left text-sm font-medium hover:bg-[var(--color-surface-alt)] disabled:opacity-50'
+        return (
+          <>
+            <button
+              type="button"
+              aria-label="Cerrar acciones"
+              onClick={() => setMobileActionTarget(null)}
+              className="fixed inset-0 z-[59] bg-black/35 md:hidden"
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Acciones para ${listing.title}`}
+              className="fixed inset-x-3 bottom-[calc(88px+env(safe-area-inset-bottom))] z-[60] rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--bg-elevated)] p-3 shadow-[var(--shadow-3)] md:hidden"
+            >
+              <div className="mb-2 flex items-center justify-between gap-3 px-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Acciones del anuncio</p>
+                  <p className="truncate text-sm font-semibold">{listing.title}</p>
+                </div>
+                <button type="button" onClick={() => setMobileActionTarget(null)} className="inline-flex min-h-11 min-w-11 items-center justify-center" aria-label="Cerrar">
+                  <i className="iconoir-xmark" aria-hidden />
+                </button>
+              </div>
+              {canToggle && (
+                <button type="button" className={actionClass} onClick={() => run(() => { void handleToggle(listing, nextStatus) })}>
+                  <i className={status === 'pausado' ? 'iconoir-play' : 'iconoir-pause'} aria-hidden />
+                  {status === 'pausado' ? 'Activar anuncio' : 'Pausar anuncio'}
+                </button>
+              )}
+              {channelsFlagEnabled && (
+                <button type="button" className={actionClass} onClick={() => run(() => { void handleMiyagiToggle(listing) })}>
+                  <i className="iconoir-shop" aria-hidden />
+                  {listing.miyagi_visible !== false ? 'Ocultar de Miyagi' : 'Mostrar en Miyagi'}
+                </button>
+              )}
+              {channelsFlagEnabled && (
+                <button type="button" disabled={!mlEntitled} className={actionClass} onClick={() => run(() => { void handleMlToggle(listing) })}>
+                  <i className="iconoir-cloud-upload" aria-hidden />
+                  {badges.ml ? 'Quitar de Mercado Libre' : 'Publicar en Mercado Libre'}
+                </button>
+              )}
+              {ownedShopOnlyEnabled && publicationRequest !== undefined && (
+                <button type="button" className={actionClass} onClick={() => run(() => { void handlePublicationToggle(listing) })}>
+                  <i className="iconoir-globe" aria-hidden />
+                  {publicationRequest === 'mx' ? 'Publicar en el marketplace' : 'Quitar del marketplace'}
+                </button>
+              )}
+              <button
+                type="button"
+                className={`${actionClass} text-[var(--danger)]`}
+                onClick={() => run(() => setDeleteTarget(listing))}
+              >
+                <i className="iconoir-trash" aria-hidden /> Eliminar anuncio
+              </button>
+            </section>
+          </>
+        )
+      })()}
       <Toast toast={toast} onDismiss={dismissToast} />
       </div>
 
