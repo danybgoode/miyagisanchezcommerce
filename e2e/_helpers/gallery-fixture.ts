@@ -25,6 +25,18 @@ import type { APIRequestContext } from '@playwright/test'
  * listing is not in it, there is no PDP to test. So the fixture is discovered,
  * and the secret becomes an optional override for pinning a specific listing.
  *
+ * ── The pin is CHECKED, never trusted ───────────────────────────────────────
+ * That fix shipped with the override as a blind pass-through — `if (envOverride)
+ * return it` — so any non-empty secret short-circuited discovery entirely. The
+ * two secrets were never cleared, so the specs discovery was written for kept
+ * getting handed the same dead ids and the smoke stayed red on 08-16 and 08-17.
+ * A guard that the rotted input can walk straight past is not a guard.
+ *
+ * So a pin is now resolved against the live catalog before it is used, and a pin
+ * that fails that check is treated exactly like an unset one. Which is also the
+ * durable property: no Actions secret can take this suite red again, whether or
+ * not anyone ever rotates it.
+ *
  * ── Three states, never two ─────────────────────────────────────────────────
  * `resolveGalleryListing` returns a listing id, or `null` with a `reason`. It
  * never conflates "the catalog has no listing of this shape" with "the catalog
@@ -75,7 +87,14 @@ export async function resolveGalleryListing(
   photos: PhotoCount,
   envOverride?: string,
 ): Promise<GalleryFixture> {
-  if (envOverride) return { listingId: envOverride, source: 'env' }
+  if (envOverride) {
+    const pinned = await resolvePinnedListing(request, photos, envOverride)
+    if (pinned) return pinned
+    // Pin is stale (deleted, unpublished, or no longer this shape) — falling through
+    // to discovery is the whole reason discovery exists. An override that is trusted
+    // blindly is exactly the 2026-08-15 failure mode with an extra step: the secret
+    // rots and nobody notices until the suite reports it as a gallery regression.
+  }
 
   const items: CatalogItem[] = []
   for (const page of PAGES) {
@@ -112,9 +131,42 @@ export async function resolveGalleryListing(
     source: 'unavailable',
     reason:
       `no public listing with ${DESCRIPTION[photos]} exists in the catalog ` +
-      `(searched ${items.length}). This spec cannot run until one does — that is a gap in the ` +
+      `(searched ${items.length})` +
+      // Name the rejected pin. Without this line the skip reads "there is no such
+      // listing" while a secret is quietly still set, and the next person to read
+      // the log re-diagnoses the pin from scratch — which is how 2026-08-16 and
+      // 2026-08-17 both produced a PR for the same defect.
+      (envOverride ? `, and the pinned override ${envOverride} was checked and no longer qualifies` : '') +
+      `. This spec cannot run until one does — that is a gap in the ` +
       `test DATA, not a passing test.`,
   }
+}
+
+/**
+ * Checks a pinned override against the live catalog before trusting it: does the
+ * listing still resolve, and does it still have the photo count the caller pinned
+ * it for? Both questions matter — `MS_TEST_GALLERY_SINGLE_LISTING_ID` going 404 and
+ * a seller adding a second photo to it are the same failure from the spec's point
+ * of view (wrong fixture for this shape), so both fall back to discovery the same
+ * way. A network failure here is treated as "the pin is unverifiable" rather than
+ * an outage — discovery's own catalog fetch reports the outage state if the
+ * catalog is genuinely down.
+ */
+async function resolvePinnedListing(
+  request: APIRequestContext,
+  photos: PhotoCount,
+  id: string,
+): Promise<GalleryFixture | null> {
+  let response
+  try {
+    response = await request.get(`/api/ucp/catalog/${id}`)
+  } catch {
+    return null
+  }
+  if (!response.ok()) return null
+  const listing = (await response.json()) as CatalogItem
+  if (!MATCHES[photos]((listing.images ?? []).length)) return null
+  return { listingId: id, source: 'env' }
 }
 
 /**
