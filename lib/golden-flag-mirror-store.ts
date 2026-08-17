@@ -4,23 +4,53 @@ import type { FlagSnapshot } from '@golden-frijoles/sdk'
 import { db } from '@/lib/supabase'
 import { parseGoldenFlagEnvironment, type GoldenFlagEnvironment } from '@/lib/flag-provider-mode'
 import { parseDurableGoldenSnapshot, retainNewestGoldenSnapshot } from '@/lib/golden-flag-mirror'
+import {
+  durableMirrorStorageForSlot,
+  type GoldenFlagProviderSlot,
+} from '@/lib/golden-flag-mirror-scope'
 
-const TABLE = 'golden_flag_snapshot_mirror'
 const MIRROR_CACHE_TTL_MS = 60_000
 const MIRROR_FAILURE_RETRY_MS = 2_000
 const MIRROR_FETCH_TIMEOUT_MS = 2_000
 
-const cache: { snapshot: FlagSnapshot | undefined; environment: GoldenFlagEnvironment | undefined; fetchedAt: number | undefined } = {
-  snapshot: undefined,
-  environment: undefined,
-  fetchedAt: undefined,
+type MirrorState = {
+  cache: {
+    snapshot: FlagSnapshot | undefined
+    environment: GoldenFlagEnvironment | undefined
+    fetchedAt: number | undefined
+  }
+  inflight: Promise<FlagSnapshot | undefined> | undefined
 }
-let inflight: Promise<FlagSnapshot | undefined> | undefined
-const lastSuccessfulPersistByEnvironment = new Map<string, { snapshotVersion: number; at: number }>()
-const persistenceInflightByEnvironment = new Map<string, { snapshotVersion: number; token: symbol }>()
+
+const mirrorStateBySlot = new Map<GoldenFlagProviderSlot, MirrorState>()
+const lastSuccessfulPersistByLane = new Map<string, { snapshotVersion: number; at: number }>()
+const persistenceInflightByLane = new Map<string, { snapshotVersion: number; token: symbol }>()
+
+function stateFor(slot: GoldenFlagProviderSlot): MirrorState {
+  const current = mirrorStateBySlot.get(slot)
+  if (current) return current
+  const created: MirrorState = {
+    cache: {
+      snapshot: undefined,
+      environment: undefined,
+      fetchedAt: undefined,
+    },
+    inflight: undefined,
+  }
+  mirrorStateBySlot.set(slot, created)
+  return created
+}
+
+function laneKey(slot: GoldenFlagProviderSlot, environment: string): string {
+  return `${slot}:${environment}`
+}
 
 /** Never let an out-of-order provider refresh or database read roll back the local LKG snapshot. */
-function retainInMemorySnapshot(snapshot: FlagSnapshot): void {
+function retainInMemorySnapshot(
+  snapshot: FlagSnapshot,
+  slot: GoldenFlagProviderSlot,
+): void {
+  const { cache } = stateFor(slot)
   cache.snapshot = retainNewestGoldenSnapshot(
     cache.environment === snapshot.environment ? cache.snapshot : undefined,
     snapshot,
@@ -33,30 +63,39 @@ function retainInMemorySnapshot(snapshot: FlagSnapshot): void {
  * Persist out of band: a flag decision must never wait for its resilience
  * fallback. The RPC performs the monotonic, atomic compare-and-store.
  */
-export function scheduleDurableGoldenSnapshot(snapshot: FlagSnapshot): void {
+export function scheduleDurableGoldenSnapshot(
+  snapshot: FlagSnapshot,
+  slot: GoldenFlagProviderSlot = 'primary',
+): void {
   // A snapshot which reached the live provider is already contract-validated. Retain it in-process
   // immediately; the RPC below makes that same last-known-good value durable without making a flag
   // decision wait for database I/O.
-  retainInMemorySnapshot(snapshot)
+  retainInMemorySnapshot(snapshot, slot)
 
-  const previous = lastSuccessfulPersistByEnvironment.get(snapshot.environment)
+  const key = laneKey(slot, snapshot.environment)
+  const previous = lastSuccessfulPersistByLane.get(key)
   const now = Date.now()
   if (previous && previous.snapshotVersion === snapshot.snapshotVersion && now - previous.at < MIRROR_CACHE_TTL_MS)
     return
-  if (persistenceInflightByEnvironment.get(snapshot.environment)?.snapshotVersion === snapshot.snapshotVersion)
+  if (persistenceInflightByLane.get(key)?.snapshotVersion === snapshot.snapshotVersion)
     return
 
   try {
+    const storage = durableMirrorStorageForSlot(slot)
     const token = Symbol('golden-snapshot-persistence')
-    const request = Promise.resolve(db.rpc('persist_golden_flag_snapshot', {
+    const args = {
         p_environment: snapshot.environment,
         p_snapshot_version: snapshot.snapshotVersion,
         p_snapshot: snapshot,
-      }))
+        ...('providerScope' in storage
+          ? { p_provider_scope: storage.providerScope }
+          : {}),
+      }
+    const request = Promise.resolve(db.rpc(storage.rpc, args))
       .then(({ data, error }) => {
         const result = Array.isArray(data) ? data[0] : data
         if (!error && result && typeof result === 'object' && (result as { accepted?: unknown }).accepted === true) {
-          lastSuccessfulPersistByEnvironment.set(snapshot.environment, {
+          lastSuccessfulPersistByLane.set(key, {
             snapshotVersion: snapshot.snapshotVersion,
             at: Date.now(),
           })
@@ -64,11 +103,11 @@ export function scheduleDurableGoldenSnapshot(snapshot: FlagSnapshot): void {
       })
       .catch(() => undefined)
       .finally(() => {
-        if (persistenceInflightByEnvironment.get(snapshot.environment)?.token === token) {
-          persistenceInflightByEnvironment.delete(snapshot.environment)
+        if (persistenceInflightByLane.get(key)?.token === token) {
+          persistenceInflightByLane.delete(key)
         }
       })
-    persistenceInflightByEnvironment.set(snapshot.environment, { snapshotVersion: snapshot.snapshotVersion, token })
+    persistenceInflightByLane.set(key, { snapshotVersion: snapshot.snapshotVersion, token })
     void request
   } catch {
     // Missing local configuration and client construction are both non-fatal.
@@ -77,11 +116,20 @@ export function scheduleDurableGoldenSnapshot(snapshot: FlagSnapshot): void {
 
 async function fetchDurableGoldenSnapshot(
   environment: GoldenFlagEnvironment,
+  slot: GoldenFlagProviderSlot,
 ): Promise<FlagSnapshot | undefined> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
+    const storage = durableMirrorStorageForSlot(slot)
+    let builder = db
+      .from(storage.table)
+      .select('snapshot, snapshot_version')
+      .eq('environment', environment)
+    if ('providerScope' in storage) {
+      builder = builder.eq('provider_scope', storage.providerScope)
+    }
     const query = Promise.resolve(
-      db.from(TABLE).select('snapshot, snapshot_version').eq('environment', environment).maybeSingle(),
+      builder.maybeSingle(),
     ).catch(() => undefined)
     const timeout = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => reject(new Error('golden snapshot mirror fetch timeout')), MIRROR_FETCH_TIMEOUT_MS)
@@ -110,9 +158,13 @@ async function fetchDurableGoldenSnapshot(
 }
 
 /** Returns the last validated database mirror without ever throwing. */
-export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefined> {
+export async function getDurableGoldenSnapshot(
+  slot: GoldenFlagProviderSlot = 'primary',
+): Promise<FlagSnapshot | undefined> {
   const environment = parseGoldenFlagEnvironment(process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT)
   if (!environment) return undefined
+  const state = stateFor(slot)
+  const { cache } = state
   const now = Date.now()
   if (
     cache.environment === environment &&
@@ -120,14 +172,14 @@ export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefin
     now - cache.fetchedAt < MIRROR_CACHE_TTL_MS
   )
     return cache.snapshot
-  if (inflight) return inflight
+  if (state.inflight) return state.inflight
 
-  inflight = fetchDurableGoldenSnapshot(environment)
+  state.inflight = fetchDurableGoldenSnapshot(environment, slot)
     .then((snapshot) => {
       // Keep a previously read durable snapshot through a transient database
       // outage. A cold instance with no mirror safely uses compile-time defaults.
       if (snapshot) {
-        retainInMemorySnapshot(snapshot)
+        retainInMemorySnapshot(snapshot, slot)
       } else if (cache.environment !== environment) {
         // Never carry a production mirror into another explicitly configured
         // environment, even if that environment's first database read fails.
@@ -146,7 +198,7 @@ export async function getDurableGoldenSnapshot(): Promise<FlagSnapshot | undefin
       return cache.snapshot
     })
     .finally(() => {
-      inflight = undefined
+      state.inflight = undefined
     })
-  return inflight
+  return state.inflight
 }
