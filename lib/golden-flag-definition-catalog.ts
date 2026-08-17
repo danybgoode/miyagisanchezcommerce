@@ -131,7 +131,7 @@ const IMMUTABLE_FRONTEND_DEFINITION_SEEDS = {
     defaultVariantKey: 'on', polarity: 'enablement', criticality: 'medium', enforcement: 'frontend',
   },
   'partners.recruiting_v3_enabled': {
-    description: 'Miyagi Partners recruiting v3 for founding US commerce operators. Enables the /us proposition and intake, neutral activation, and track-aware workspace orientation. Keep OFF until the full operator-versus-Promotor authorization smoke passes.',
+    description: 'Miyagi Partners recruiting v3 for founding US commerce operators. Enables /us/operators intake, neutral activation, and track-aware workspace orientation; it never gates the /us marketplace. Keep OFF until the full operator-versus-Promotor authorization smoke passes.',
     defaultVariantKey: 'off', polarity: 'enablement', criticality: 'high', enforcement: 'frontend',
   },
   pdp_redesign: {
