@@ -1,3 +1,5 @@
+import type { GoldenFlagProviderSlot } from './golden-flag-mirror-scope'
+
 export const PARTNERS_RECRUITING_V3_FLAG_KEY = 'partners.recruiting_v3_enabled'
 export const PARTNERS_RECRUITING_V3_READ_KEY_ENV =
   'GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY'
@@ -9,8 +11,7 @@ type FlagReadKeyEnvironment = {
 
 export type GoldenFlagReadKeyRoute = {
   flagReadKey: string | undefined
-  providerSlot: 'primary' | 'partners-recruiting-v3'
-  persistToDurableMirror: boolean
+  providerSlot: GoldenFlagProviderSlot
   resetScopedProvider: boolean
 }
 
@@ -29,8 +30,8 @@ function nonBlank(value: string | undefined): string | undefined {
  * credential preserves the existing catalog while letting this one flag remain
  * operable from the current owner UI.
  *
- * Scoped snapshots never enter the shared durable mirror: their snapshot
- * version is meaningful only inside their own project, and comparing it with
+ * Scoped snapshots use their own durable mirror lane: snapshot versions are
+ * meaningful only inside one project, so comparing this catalog's version with
  * the primary project's version would corrupt last-known-good ordering.
  */
 export function routeGoldenFlagReadKey(
@@ -46,7 +47,6 @@ export function routeGoldenFlagReadKey(
     return {
       flagReadKey: partnersRecruiting,
       providerSlot: 'partners-recruiting-v3',
-      persistToDurableMirror: false,
       resetScopedProvider: false,
     }
   }
@@ -54,7 +54,6 @@ export function routeGoldenFlagReadKey(
   return {
     flagReadKey: primary,
     providerSlot: 'primary',
-    persistToDurableMirror: true,
     resetScopedProvider: !partnersRecruiting,
   }
 }

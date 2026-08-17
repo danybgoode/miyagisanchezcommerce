@@ -15,6 +15,10 @@ export type FlagProviderEvaluatorDependencies<K extends string> = {
   readLocal: (flag: K) => Promise<boolean>
   getMode: (flag: K) => FlagProviderMode
   evaluateGolden: (flag: K, localValue: boolean) => BooleanFlagEvaluation | undefined
+  recoverGolden?: (
+    flag: K,
+    localValue: boolean,
+  ) => Promise<BooleanFlagEvaluation | undefined>
   readDurableGolden: (
     flag: K,
     localValue: boolean,
@@ -102,6 +106,15 @@ export function createFlagProviderEvaluator<K extends string>(
         }
       } catch {
         // The established local/default polarity below remains authoritative.
+      }
+      try {
+        const recovered = await dependencies.recoverGolden?.(flag, localValue)
+        if (recovered) {
+          report(mode, 'golden', localValue, recovered)
+          return recovered.value
+        }
+      } catch {
+        // Initial recovery is bounded and optional; defaults remain the final fallback.
       }
       report(mode, 'fallback', localValue)
       return localValue

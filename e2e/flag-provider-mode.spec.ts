@@ -298,6 +298,40 @@ test.describe('Golden Beans flag-provider migration mode', () => {
     await expect(isEnabled('checkout.stripe_enabled')).resolves.toBe(false)
   })
 
+  test('a cold unseeded lane awaits one bounded initial recovery before the compile default', async () => {
+    const calls: string[] = []
+    const isEnabled = createFlagProviderEvaluator<TestFlag>({
+      readLocal: async (flag) => testDefaults[flag],
+      getMode: () => 'golden',
+      evaluateGolden: () => {
+        calls.push('live-miss')
+        return undefined
+      },
+      readDurableGolden: async () => {
+        calls.push('durable-miss')
+        return undefined
+      },
+      recoverGolden: async () => {
+        calls.push('bounded-initial-refresh')
+        return {
+          value: true,
+          snapshotVersion: 4,
+          flagVersion: 2,
+          reason: 'STATIC',
+        }
+      },
+      observeShadow: () => undefined,
+      getDefault: (flag) => testDefaults[flag],
+    })
+
+    await expect(isEnabled('domain.paywall_enabled')).resolves.toBe(true)
+    expect(calls).toEqual([
+      'live-miss',
+      'durable-miss',
+      'bounded-initial-refresh',
+    ])
+  })
+
   for (const failure of ['timeout', 'malformed', 'stale'] as const) {
     test(`keeps both established default polarities when the provider is ${failure}`, async () => {
       let now = 1_000

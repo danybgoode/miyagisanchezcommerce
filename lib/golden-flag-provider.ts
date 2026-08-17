@@ -35,6 +35,7 @@ export type GoldenBooleanEvaluation = {
 type ProviderState = {
   provider: FlagProvider | undefined
   started: boolean
+  initialization: Promise<void> | undefined
   requestRefreshGate: ReturnType<typeof createFlagProviderRequestRefreshGate>
   configuration:
     | {
@@ -49,6 +50,7 @@ function createProviderState(): ProviderState {
   return {
     provider: undefined,
     started: false,
+    initialization: undefined,
     requestRefreshGate: createFlagProviderRequestRefreshGate(),
     configuration: undefined,
   }
@@ -65,6 +67,7 @@ function resetProviderState(state: ProviderState): void {
   }
   state.provider = undefined
   state.started = false
+  state.initialization = undefined
   state.requestRefreshGate.reset()
   state.configuration = undefined
 }
@@ -104,7 +107,13 @@ function configuredProvider(
     // SDK initialize arms its own bounded periodic refresh before attempting
     // the first fetch, so a failed cold fetch recovers on that timer. Keeping
     // `started` true prevents every request from creating a retry storm.
-    void state.provider.initialize().catch(() => undefined)
+    try {
+      state.initialization = state.provider.initialize()
+        .then(() => undefined)
+        .catch(() => undefined)
+    } catch {
+      state.initialization = Promise.resolve()
+    }
   } else if (state.requestRefreshGate.takeIfDue()) {
     // Cloud Run can throttle the SDK's periodic timer between requests. Kick
     // the same deduplicated refresh from live traffic, but never await it: this
@@ -116,7 +125,11 @@ function configuredProvider(
 }
 
 function getProvider(flagKey: string):
-  | { provider: FlagProvider; route: GoldenFlagReadKeyRoute }
+  | {
+      provider: FlagProvider
+      route: GoldenFlagReadKeyRoute
+      state: ProviderState
+    }
   | undefined {
   // Read configuration lazily. This keeps the adapter safe for runtimes that
   // load env after module evaluation and for isolated test setup.
@@ -162,6 +175,42 @@ function getProvider(flagKey: string):
       environment,
     }),
     route,
+    state,
+  }
+}
+
+function evaluateSelectedProvider(
+  selected: {
+    provider: FlagProvider
+    route: GoldenFlagReadKeyRoute
+  },
+  flagKey: string,
+  defaultValue: boolean,
+): GoldenBooleanEvaluation | undefined {
+  const snapshot = selected.provider.getSnapshot()
+  if (!snapshot) return undefined
+  scheduleDurableGoldenSnapshot(snapshot, selected.route.providerSlot)
+
+  const details = selected.provider.resolveBooleanEvaluation(
+    flagKey,
+    defaultValue,
+  )
+  if (details.flagVersion !== undefined && details.variant) {
+    void trackGoldenFlagEvaluation({
+      flagKey,
+      flagVersion: details.flagVersion,
+      variant: details.variant,
+      reason: details.reason,
+      snapshotVersion: snapshot.snapshotVersion,
+      environment: snapshot.environment,
+    })
+  }
+  return {
+    value: details.value,
+    snapshotVersion: snapshot.snapshotVersion,
+    flagVersion: details.flagVersion,
+    variant: details.variant,
+    reason: details.reason,
   }
 }
 
@@ -177,36 +226,28 @@ export function evaluateGoldenBooleanFlag(
   try {
     const selected = getProvider(flagKey)
     if (!selected) return undefined
-
-    const snapshot = selected.provider.getSnapshot()
-    if (!snapshot) return undefined
-    if (selected.route.persistToDurableMirror) {
-      scheduleDurableGoldenSnapshot(snapshot)
-    }
-
-    const details = selected.provider.resolveBooleanEvaluation(
-      flagKey,
-      defaultValue,
-    )
-    if (details.flagVersion !== undefined && details.variant) {
-      void trackGoldenFlagEvaluation({
-        flagKey,
-        flagVersion: details.flagVersion,
-        variant: details.variant,
-        reason: details.reason,
-        snapshotVersion: snapshot.snapshotVersion,
-        environment: snapshot.environment,
-      })
-    }
-    return {
-      value: details.value,
-      snapshotVersion: snapshot.snapshotVersion,
-      flagVersion: details.flagVersion,
-      variant: details.variant,
-      reason: details.reason,
-    }
+    return evaluateSelectedProvider(selected, flagKey, defaultValue)
   } catch {
     // The caller keeps its local result on every unexpected provider failure.
+    return undefined
+  }
+}
+
+/**
+ * A new provider slot and its durable lane can both be empty on the first
+ * production request. Await only the SDK's already-started, bounded initial
+ * refresh; concurrent requests share that promise and no retry loop is added.
+ */
+export async function recoverGoldenBooleanFlag(
+  flagKey: string,
+  defaultValue: boolean,
+): Promise<GoldenBooleanEvaluation | undefined> {
+  try {
+    const selected = getProvider(flagKey)
+    if (!selected) return undefined
+    await selected.state.initialization
+    return evaluateSelectedProvider(selected, flagKey, defaultValue)
+  } catch {
     return undefined
   }
 }
