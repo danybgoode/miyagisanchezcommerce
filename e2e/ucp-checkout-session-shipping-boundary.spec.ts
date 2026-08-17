@@ -1,27 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * Shipping-provider-expansion · Sprint 3, Story 3.5 (narrowed — see the
- * `ucp-buyer-shipping-exposure` seed for the deferred full scope).
+ * UCP buyer shipping exposure · Sprint 1.
  *
- * `POST /api/ucp/checkout-session` does NOT expose shipping/delivery methods
- * to buyer-side agents today — not just for Correos, for anything (Envía
- * included; confirmed by reading the route, which only ever extracts
- * `payment_methods` from the backend checkout-options response). This spec
- * documents that real boundary rather than silently assuming "backend
- * checkout-options is the SSOT" means agents already inherit shipping
- * choices — they don't yet. The assertion is flag-AGNOSTIC (true whether
- * `shipping.correos_enabled` is on or off), so it's stable across
- * environments and doubles as a regression guard: if a future change
- * accidentally starts leaking a raw `delivery_methods`/`shipping` field
- * without the deliberate design pass a real UCP shipping surface deserves,
- * this catches it.
+ * This used to assert the product gap: ordinary shippable listings exposed no
+ * delivery concept at all. The epic intentionally reverses that boundary by
+ * projecting Medusa checkout-options + Envía/Correos rates into the official
+ * UCP fulfillment shape. Raw backend delivery/shipping siblings remain banned.
  *
  * Update (arranged-only-delivery epic, S2.1): a COORDINATED listing (arranged
  * product, or service/rental) now DOES carry a `delivery: { arranged, note }`
  * hint — see `ucp-checkout-session-arranged-delivery.spec.ts`. This spec's
- * boundary narrows to: an ordinary SHIPPABLE listing still carries none of
- * these fields; `delivery` is additive/conditional, never a blanket leak.
+ * arranged response stays a separate additive contract.
  *
  * Fixture-gated: set MS_TEST_SHIPPABLE_LISTING_ID to a public, priced,
  * physical (shippable) listing.
@@ -29,8 +19,21 @@ import { test, expect } from '@playwright/test'
 
 const SHIPPABLE_LISTING_ID = process.env.MS_TEST_SHIPPABLE_LISTING_ID
 
-test.describe('ucp checkout-session · no shipping/delivery exposure yet (fixture-gated)', () => {
-  test('a shippable listing\'s session carries no shipping/delivery field', async ({ request }) => {
+const TEST_DESTINATION = {
+  name: 'Comprador de prueba',
+  phone: '5555555555',
+  line1: 'Av. Insurgentes Sur',
+  ext_number: '1234',
+  line2: 'Del Valle',
+  city: 'Benito Juárez',
+  state: 'Ciudad de México',
+  state_code: 'CX',
+  postal_code: '03100',
+  country: 'MX',
+}
+
+test.describe('ucp checkout-session · physical fulfillment (fixture-gated)', () => {
+  test('a shippable listing names the missing destination instead of a confident empty result', async ({ request }) => {
     test.skip(!SHIPPABLE_LISTING_ID, 'Set MS_TEST_SHIPPABLE_LISTING_ID (a public, priced, physical listing) to run this.')
 
     const res = await request.post('/api/ucp/checkout-session', {
@@ -39,8 +42,11 @@ test.describe('ucp checkout-session · no shipping/delivery exposure yet (fixtur
     expect(res.ok()).toBeTruthy()
     const session = await res.json()
 
-    // Today's real boundary — no shipping/delivery concept reaches agents,
-    // regardless of shipping.correos_enabled or shipping.envia_enabled.
+    expect(session.fulfillment).toBeTruthy()
+    expect(session.fulfillment.shipping_quote_state).toBe('destination_required')
+    expect(session.fulfillment.methods.some((method: { type?: string }) => method.type === 'shipping')).toBe(true)
+
+    // UCP is the deliberate public shape; never leak a raw backend sibling.
     expect(session).not.toHaveProperty('shipping')
     expect(session).not.toHaveProperty('delivery')
     expect(session).not.toHaveProperty('delivery_methods')
@@ -49,5 +55,30 @@ test.describe('ucp checkout-session · no shipping/delivery exposure yet (fixtur
 
     // payment_options still works as documented (the surface that DOES exist).
     expect(Array.isArray(session.payment_options)).toBeTruthy()
+  })
+
+  test('a complete destination returns ordered selectable options with centavo totals', async ({ request }) => {
+    test.skip(!SHIPPABLE_LISTING_ID, 'Set MS_TEST_SHIPPABLE_LISTING_ID (a public, priced, physical listing) to run this.')
+
+    const res = await request.post('/api/ucp/checkout-session', {
+      data: { listing_id: SHIPPABLE_LISTING_ID, shipping_destination: TEST_DESTINATION },
+    })
+    expect(res.ok()).toBeTruthy()
+    const session = await res.json()
+    expect(session.fulfillment.shipping_quote_state).toBe('options_present')
+
+    const shipping = session.fulfillment.methods.find((method: { type?: string }) => method.type === 'shipping')
+    expect(shipping.destinations).toHaveLength(1)
+    expect(shipping.selected_destination_id).toBe(shipping.destinations[0].id)
+    expect(shipping.groups).toHaveLength(1)
+    expect(shipping.groups[0].options.length).toBeGreaterThan(0)
+    for (const option of shipping.groups[0].options) {
+      expect(option.id).toMatch(/^shipping_[a-f0-9]{24}$/)
+      expect(option.title.length).toBeGreaterThan(0)
+      expect(option.totals).toEqual([
+        expect.objectContaining({ type: 'fulfillment', amount: expect.any(Number) }),
+      ])
+      expect(option.totals[0].amount).toBeGreaterThan(0)
+    }
   })
 })
