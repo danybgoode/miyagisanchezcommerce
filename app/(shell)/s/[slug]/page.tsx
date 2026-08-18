@@ -34,6 +34,7 @@ import { resolvePublicWallShop } from '@/lib/wall/store'
 import { normalizeSections } from '@/lib/shop-presentation/sections'
 import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
 import { resolveTheme } from '@/lib/shop-presentation/theme'
+import { applyPreviewOverlay } from '@/lib/shop-presentation/preview'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -94,10 +95,13 @@ export const generateMetadata = generateShopMetadata
 
 export async function ShopPage({
   params,
+  searchParams,
   market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string }>
+  /** Carries the studio's owner-only preview draft (Story 5.5). Absent everywhere else. */
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
   market?: MarketCode
   marketBasePath?: string
 }) {
@@ -178,8 +182,15 @@ export async function ShopPage({
     ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))
     : allCollections
 
-  // Extract theme from metadata
-  const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  // Extract theme from metadata.
+  //
+  // The studio's Vista previa renders THIS page in an iframe with its pending
+  // draft in the query string, so the preview and the public shop are one
+  // renderer (Story 5.5). `applyPreviewOverlay` returns the settings untouched
+  // unless the Clerk session owns THIS shop — so unsaved state cannot leak to a
+  // visitor, a crawler, or even to another signed-in merchant.
+  const persistedSettings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const settings = await applyPreviewOverlay(shop.slug, persistedSettings, (await searchParams) ?? {})
   const theme = (settings.theme ?? {}) as {
     banner_url?: string | null
     accent_color?: string | null

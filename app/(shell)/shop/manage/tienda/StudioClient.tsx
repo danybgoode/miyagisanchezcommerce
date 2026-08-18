@@ -1,38 +1,68 @@
 'use client'
 
 /**
- * Living Shop — the studio shell (epic 07).
+ * Living Shop — the studio shell (epic 07, Story 5.1).
  *
- * Sprint 1 lands the Wall tab, because authoring has to exist the moment
- * persistence does — a table nobody can write to is not a shipped slice.
- * Secciones · Tema · Marca · Vista previa join it in Sprints 3–5; the tab list
- * grows, the shell does not.
+ * Five areas, one surface: Muro · Secciones · Tema · Marca · Vista previa.
  *
- * The shell owns ONLY tab state. Each tab owns its own persistence, so nothing
- * here becomes a controller for the whole page — that is how `Diseno.tsx`'s
- * predecessor reached 4,076 lines.
+ * The shell owns ONLY tab state and the pending presentation draft. Each tab
+ * owns its own persistence, so nothing here becomes a controller for the whole
+ * page — that is how `Diseno.tsx`'s predecessor reached 4,076 lines and had to
+ * be deleted.
+ *
+ * The draft lives here rather than in each tab because Vista previa has to show
+ * what Tema and Secciones are ABOUT to do. It is client state only: the public
+ * shop reads persisted settings for everyone else, so Story 5.5's rule — the
+ * public shop never renders unsaved local state — holds because there is no path
+ * from this object to anybody else's request.
  */
 
 import { useState } from 'react'
 import WallTab from './WallTab'
+import SectionsTab from './SectionsTab'
+import ThemeTab from './ThemeTab'
+import BrandTab from './BrandTab'
+import PreviewTab from './PreviewTab'
+import { normalizeSections } from '@/lib/shop-presentation/sections'
+import { normalizeRecipe, resolveTheme } from '@/lib/shop-presentation/theme'
+import type { SectionConfig, ThemeMode, ThemeRecipe } from '@/lib/shop-presentation/types'
 import type { StudioObjects, StudioShop, StudioTab } from './types'
 import type { WallEntry } from '@/lib/wall/types'
+import type { DisenoInitial } from '../settings/_sections/Diseno'
 
 const TABS: Array<{ key: StudioTab; label: string; icon: string }> = [
   { key: 'wall', label: 'Muro', icon: 'iconoir-post' },
+  { key: 'sections', label: 'Secciones', icon: 'iconoir-list' },
+  { key: 'theme', label: 'Tema', icon: 'iconoir-palette' },
+  { key: 'brand', label: 'Marca', icon: 'iconoir-shop' },
+  { key: 'preview', label: 'Vista previa', icon: 'iconoir-eye' },
 ]
 
 export default function StudioClient({
   shop,
   initialEntries,
   objects,
+  settings,
+  availability,
+  brand,
 }: {
   shop: StudioShop
   initialEntries: WallEntry[]
   objects: StudioObjects
   settings: Record<string, unknown>
+  availability: Record<string, boolean>
+  brand: DisenoInitial
 }) {
   const [tab, setTab] = useState<StudioTab>('wall')
+
+  // Seeded from the SAME resolver the public renderer uses, so the editor opens
+  // showing what a visitor currently sees — not a default that would silently
+  // overwrite the shop on the first save.
+  const [mode, setMode] = useState<ThemeMode>(() => resolveTheme(settings).mode)
+  const [recipe, setRecipe] = useState<ThemeRecipe>(
+    () => normalizeRecipe(settings.theme_recipe, resolveTheme(settings).recipe),
+  )
+  const [sections, setSections] = useState<SectionConfig>(() => normalizeSections(settings.sections))
 
   return (
     <div className="max-w-5xl mx-auto px-4 pb-16">
@@ -40,7 +70,7 @@ export default function StudioClient({
         <div>
           <h1 className="text-2xl font-bold">Apariencia y contenido</h1>
           <p className="text-sm text-[var(--fg-muted)] mt-1">
-            Publica en tu muro: una nota, un producto, una colección o un evento.
+            Publica en tu muro, elige qué secciones se ven y cómo se ve tu tienda.
           </p>
         </div>
         {/* A direct way out to the real thing. The studio shows a merchant what
@@ -79,6 +109,14 @@ export default function StudioClient({
       </nav>
 
       {tab === 'wall' && <WallTab objects={objects} initialEntries={initialEntries} />}
+      {tab === 'sections' && <SectionsTab value={sections} available={availability} onChange={setSections} />}
+      {tab === 'theme' && (
+        <ThemeTab mode={mode} recipe={recipe} onModeChange={setMode} onRecipeChange={setRecipe} />
+      )}
+      {tab === 'brand' && <BrandTab initial={brand} />}
+      {tab === 'preview' && (
+        <PreviewTab shop={shop} mode={mode} recipe={recipe} sections={sections} />
+      )}
     </div>
   )
 }

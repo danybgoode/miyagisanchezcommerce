@@ -52,7 +52,14 @@ export type ResolvedPlatformTheme = {
   cssVars: Record<string, string>
 }
 
-const CORE_ACCENT = '#1d6f42'
+/**
+ * The platform's own green — the value a shop starts from before its merchant
+ * picks one. Exported so a colour input's default is this constant rather than a
+ * fresh literal: `design-token-foundation.spec.ts` caught the Living Shop theme
+ * editor writing the hex again, and two copies of a brand colour is how they
+ * eventually disagree.
+ */
+export const CORE_ACCENT = '#1d6f42'
 const CORE_ACCENT_HOVER = '#185a36'
 const CORE_ACCENT_SOFT = '#eef4f0'
 const CORE_ACCENT_INK = '#114128'

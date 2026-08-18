@@ -5,6 +5,8 @@ import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import { resolveOwnShop, listOwnWallEntries } from '@/lib/wall/store'
 import { getShopListings, getShopCollections } from '@/lib/listings'
 import StudioClient from './StudioClient'
+import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
+import type { SettingsTree } from '@/lib/shop-settings/types'
 import type { Metadata } from 'next'
 
 /**
@@ -40,10 +42,19 @@ export default async function ShopStudioPage() {
       .eq('shop_id', shop.id)
       .order('starts_at', { ascending: false })
       .limit(50),
-    db.from('marketplace_shops').select('metadata').eq('id', shop.id).maybeSingle(),
+    db.from('marketplace_shops').select('metadata, logo_url').eq('id', shop.id).maybeSingle(),
   ])
 
   const settings = ((shopRow.data?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const st = settings as SettingsTree
+
+  // The SAME availability the public nav uses, so the section manager tells a
+  // merchant the truth about what will actually appear rather than its own guess.
+  const availability = await resolveSectionAvailability({
+    shopId: shop.id,
+    settings,
+    collectionCount: collections.length,
+  })
 
   return (
     <main>
@@ -59,6 +70,29 @@ export default async function ShopStudioPage() {
         shop={{ slug: shop.slug, name: shop.name }}
         initialEntries={entries}
         settings={settings}
+        availability={availability as unknown as Record<string, boolean>}
+        brand={{
+          // The SAME props the shipped `Diseno` section receives from its own
+          // route — this tab mounts that component, it does not reimplement it
+          // (Story 5.1), so the prop shape is imported rather than invented.
+          name: shop.name,
+          logo_url: (shopRow.data as unknown as { logo_url?: string | null })?.logo_url ?? null,
+          theme: st.theme ?? null,
+          preset: st.preset ?? null,
+          escrow_mode: st.checkout?.escrow_mode ?? null,
+          show_phone: st.checkout?.show_phone ?? null,
+          phone: st.checkout?.phone ?? null,
+          whatsapp_cta: st.checkout?.whatsapp_cta ?? null,
+          local_pickup: st.shipping?.local_pickup ?? null,
+          announcement: st.announcement ?? null,
+          hero: st.hero ?? null,
+          theme_preset: st.theme_preset ?? null,
+          listings: listings.map((l) => ({
+            id: l.id,
+            title: l.title,
+            imageUrl: l.images?.[0]?.url ?? null,
+          })),
+        }}
         objects={{
           products: listings.map((l) => ({
             id: l.id,
