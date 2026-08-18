@@ -260,7 +260,7 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
   }
 
   return (
-    <Card n={n} title="Montar la tienda">
+    <Card n={n} title="Abrir la tienda">
       {shop ? (
         <p className="text-sm">
           <i className="iconoir-check-circle" aria-hidden /> <strong>{shop.name}</strong> · <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shopUrlFor(SITE_ORIGIN, shop.slug)}</a>

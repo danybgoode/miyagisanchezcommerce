@@ -229,7 +229,7 @@ Usa el API del marketplace (UCP/MCP) para revisar el estado de un pedido, el env
       return `Estoy pensando en vender en Miyagi Sánchez. Abre ${PLATFORM_ORIGIN}/vende, dime qué es, cuánto pagaría vs. Mercado Libre y Shopify, qué puedo vender y cómo abro mi tienda.`
 
     case 'promoter':
-      return `Quiero ser promotor de Miyagi Sánchez y ganar comisión montando tiendas en persona. Abre ${PLATFORM_ORIGIN}/vende/promotor, dime cómo funciona, cuánto puedo ganar y cómo empiezo.`
+      return `Quiero ser promotor de Miyagi Sánchez y ganar comisión abriendo tiendas para negocios en persona. Abre ${PLATFORM_ORIGIN}/vende/promotor, dime cómo funciona, cuánto puedo ganar y cómo empiezo.`
 
     case 'generic':
     default:

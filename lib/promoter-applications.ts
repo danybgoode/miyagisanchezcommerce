@@ -4,7 +4,6 @@
  */
 import { db } from '@/lib/supabase'
 import { createPromoter, type Promoter } from '@/lib/promoter'
-import { canonicalCandidateShopUrl } from '@/lib/candidate-shop-url'
 export { canonicalCandidateShopUrl } from '@/lib/candidate-shop-url'
 
 function isValidEmailShape(email: string): boolean {
@@ -23,6 +22,13 @@ export interface CandidateShopV1 {
   merchant_awareness: MerchantAwareness
 }
 
+/**
+ * The "founding proof" dossier. No surface submits this any more — the operator
+ * application is now the same five fields the Promotor one asks for (`OperatorDetailsV2`).
+ * The type survives so a stored v1 row still reads back with a real shape rather than
+ * `unknown`; see the matching `..._operator_details_check` CHECK, which is the contract
+ * this file mirrors.
+ */
 export interface OperatorDetailsV1 {
   company_name: string
   operator_role: string
@@ -32,6 +38,23 @@ export interface OperatorDetailsV1 {
   must_retain_systems: string
   why_now: string
   checkpoint_90_day: true
+}
+
+/** What the operator application collects today. Both fields nullable — motivation is optional
+ *  on the form, and a null city beats an invented one. */
+export interface OperatorDetailsV2 {
+  city: string | null
+  motivation: string | null
+}
+
+export type OperatorDetails = OperatorDetailsV1 | OperatorDetailsV2
+
+/** Narrow a stored row's details by its version tag — the only safe way to read the column. */
+export function isOperatorDetailsV2(
+  version: number | null | undefined,
+  details: OperatorDetails | null,
+): details is OperatorDetailsV2 {
+  return version === 2 && details !== null
 }
 
 export interface PromoterApplication {
@@ -44,8 +67,8 @@ export interface PromoterApplication {
   status: 'pending' | 'approved' | 'rejected'
   promoter_id: string | null
   program_track: ProgramTrack
-  operator_details_version: 1 | null
-  operator_details: OperatorDetailsV1 | null
+  operator_details_version: 1 | 2 | null
+  operator_details: OperatorDetails | null
   activation_expires_at?: string | null
   activation_used_at?: string | null
   invitation_provider_status?: 'pending' | 'provider_accepted' | 'unconfirmed' | null
@@ -81,8 +104,13 @@ export function sanitizePromoterApplicationRow(value: unknown): PromoterApplicat
     status: value.status,
     promoter_id: typeof value.promoter_id === 'string' ? value.promoter_id : null,
     program_track: value.program_track,
-    operator_details_version: value.operator_details_version === 1 ? 1 : null,
-    operator_details: isRecord(value.operator_details) ? value.operator_details as unknown as OperatorDetailsV1 : null,
+    // A version this build does not know about reads back as null on BOTH fields — never
+    // a details object tagged with the wrong version, which is what would let a consumer
+    // read a v1 dossier as if it were a v2 record.
+    operator_details_version: value.operator_details_version === 1 || value.operator_details_version === 2
+      ? value.operator_details_version : null,
+    operator_details: (value.operator_details_version === 1 || value.operator_details_version === 2)
+      && isRecord(value.operator_details) ? value.operator_details as unknown as OperatorDetails : null,
     activation_expires_at: typeof value.activation_expires_at === 'string' ? value.activation_expires_at : null,
     activation_used_at: typeof value.activation_used_at === 'string' ? value.activation_used_at : null,
     invitation_provider_status: value.invitation_provider_status === 'pending'
@@ -124,8 +152,8 @@ type OperatorClean = {
   city: null
   motivation: null
   program_track: 'founding_operator'
-  operator_details_version: 1
-  operator_details: OperatorDetailsV1
+  operator_details_version: 2
+  operator_details: OperatorDetailsV2
 }
 
 export type ApplicationRefusalReason =
@@ -143,14 +171,8 @@ const MAX_LONG_LEN = 1200
 const OPERATOR_TOP_LEVEL_KEYS = new Set([
   'name', 'email', 'whatsapp', 'website', 'program_track', 'operator_details_version', 'operator_details',
 ])
-const OPERATOR_DETAIL_KEYS = new Set([
-  'company_name', 'operator_role', 'active_shop_count', 'candidate_shops',
-  'recent_operating_problem', 'must_retain_systems', 'why_now', 'checkpoint_90_day',
-])
-const SHOP_KEYS = new Set(['url', 'platform', 'channels', 'merchant_awareness'])
-const PLATFORMS = new Set<CandidatePlatform>(['shopify', 'woocommerce', 'other'])
-const CHANNELS = new Set<CandidateChannel>(['online_store', 'marketplace', 'social', 'wholesale', 'other'])
-const AWARENESS = new Set<MerchantAwareness>(['not_contacted', 'aware_of_nomination', 'interested_in_conversation'])
+// Mirrors `..._operator_details_check`'s v2 arm: exactly these keys, nothing else.
+const OPERATOR_DETAIL_KEYS = new Set(['city', 'motivation'])
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -179,10 +201,19 @@ function validatePromoterInput(input: ApplicationInput): ValidationResult {
   return { ok: true, clean: { name, email: email.toLowerCase(), whatsapp, city: city || null, motivation: motivation || null } }
 }
 
+/**
+ * The operator intake. Same five fields as the Promotor one, kept on its own track
+ * because approval mints an activation invitation rather than a PRM code.
+ *
+ * `city`/`motivation` ride inside `operator_details` rather than the table's own
+ * `city`/`motivation` columns: the activation CHECK ties every operator column to the
+ * versioned details blob, and splitting the same two answers across both places would
+ * give the row two sources for one fact.
+ */
 function validateOperatorInput(input: ApplicationInput): ValidationResult {
   if (input.website !== undefined && typeof input.website !== 'string') return { ok: false, reason: 'invalid_payload' }
   if (stringValue(input.website)) return { ok: false, reason: 'honeypot' }
-  if (!hasOnlyKeys(input, OPERATOR_TOP_LEVEL_KEYS) || input.operator_details_version !== 1 || !isRecord(input.operator_details)) {
+  if (!hasOnlyKeys(input, OPERATOR_TOP_LEVEL_KEYS) || input.operator_details_version !== 2 || !isRecord(input.operator_details)) {
     return { ok: false, reason: 'invalid_payload' }
   }
   const name = stringValue(input.name)
@@ -194,50 +225,16 @@ function validateOperatorInput(input: ApplicationInput): ValidationResult {
 
   const details = input.operator_details
   if (!hasOnlyKeys(details, OPERATOR_DETAIL_KEYS)) return { ok: false, reason: 'invalid_payload' }
-  const companyName = stringValue(details.company_name)
-  const operatorRole = stringValue(details.operator_role)
-  const activeShopCount = details.active_shop_count
-  const recentProblem = stringValue(details.recent_operating_problem)
-  const retainSystems = stringValue(details.must_retain_systems)
-  const whyNow = stringValue(details.why_now)
-  if (!companyName || !operatorRole || !Number.isInteger(activeShopCount) || (activeShopCount as number) < 3 || (activeShopCount as number) > 10000
-    || !recentProblem || !retainSystems || !whyNow || details.checkpoint_90_day !== true) {
-    return { ok: false, reason: Number(activeShopCount) < 3 ? 'shop_count' : 'qualification' }
-  }
-  if (companyName.length > MAX_SHORT_LEN || operatorRole.length > MAX_SHORT_LEN
-    || [recentProblem, retainSystems, whyNow].some((value) => value.length > MAX_LONG_LEN)) {
-    return { ok: false, reason: 'too_long' }
-  }
-  if (!Array.isArray(details.candidate_shops) || details.candidate_shops.length !== 3) return { ok: false, reason: 'shop_count' }
-
-  const shops: CandidateShopV1[] = []
-  for (const candidate of details.candidate_shops) {
-    if (!isRecord(candidate) || !hasOnlyKeys(candidate, SHOP_KEYS)) return { ok: false, reason: 'invalid_payload' }
-    const url = canonicalCandidateShopUrl(candidate.url)
-    const platform = candidate.platform
-    const channels = candidate.channels
-    const awareness = candidate.merchant_awareness
-    if (!url) return { ok: false, reason: 'shop_url' }
-    if (!PLATFORMS.has(platform as CandidatePlatform) || !Array.isArray(channels) || channels.length === 0
-      || channels.length > CHANNELS.size || !channels.every((channel) => CHANNELS.has(channel as CandidateChannel))
-      || new Set(channels).size !== channels.length || !AWARENESS.has(awareness as MerchantAwareness)) {
-      return { ok: false, reason: 'qualification' }
-    }
-    shops.push({ url, platform: platform as CandidatePlatform, channels: channels as CandidateChannel[], merchant_awareness: awareness as MerchantAwareness })
-  }
-  if (new Set(shops.map((shop) => shop.url)).size !== 3) return { ok: false, reason: 'shop_url' }
+  const city = stringValue(details.city)
+  const motivation = stringValue(details.motivation)
+  if (city.length > MAX_SHORT_LEN || motivation.length > MAX_LONG_LEN) return { ok: false, reason: 'too_long' }
 
   return {
     ok: true,
     clean: {
       name, email: email.toLowerCase(), whatsapp, city: null, motivation: null,
-      program_track: 'founding_operator', operator_details_version: 1,
-      operator_details: {
-        company_name: companyName, operator_role: operatorRole, active_shop_count: activeShopCount as number,
-        candidate_shops: shops as [CandidateShopV1, CandidateShopV1, CandidateShopV1],
-        recent_operating_problem: recentProblem, must_retain_systems: retainSystems,
-        why_now: whyNow, checkpoint_90_day: true,
-      },
+      program_track: 'founding_operator', operator_details_version: 2,
+      operator_details: { city: city || null, motivation: motivation || null },
     },
   }
 }
@@ -253,8 +250,12 @@ export function applicationRefusalMessage(reason: ApplicationRefusalReason, trac
     const messages: Record<ApplicationRefusalReason, string> = {
       honeypot: 'We could not receive the application.', missing_fields: 'Complete your contact details.',
       invalid_email: 'Enter a valid email address.', too_long: 'One or more answers are too long.',
-      invalid_payload: 'Review the application fields and try again.', shop_count: 'Include exactly three shops and confirm that you actively operate at least three.',
-      shop_url: 'Each shop needs a public http or https URL.', qualification: 'Complete the operating profile and all three shop records.',
+      invalid_payload: 'Review the application fields and try again.',
+      // Unreachable on the v2 intake — the three-shop gates that raised these are gone.
+      // They stay mapped because the reason union is shared with the Promotor track.
+      shop_count: 'Review the application fields and try again.',
+      shop_url: 'Review the application fields and try again.',
+      qualification: 'Review the application fields and try again.',
     }
     return messages[reason]
   }

@@ -11,6 +11,13 @@ type LandingCta = {
   label: string
   href: string
   testId?: string
+  /**
+   * Optional `data-track` attribute. `/us/operators` reuses this shell but still has to
+   * emit its recruiting funnel events; rather than teaching a generic landing component
+   * about recruiting, the CTA carries a marker and the page's own client component
+   * delegates the click. Undefined everywhere else, so nothing is rendered.
+   */
+  dataTrack?: string
 }
 
 type LandingPoint = {
@@ -34,11 +41,19 @@ type PersonaRouterCard = {
   testId?: string
 }
 
+/**
+ * One comparison row. `cells` is positional and parallel to `LandingBenchmark.columns`
+ * — cell 0 is always ours and gets the highlight treatment.
+ *
+ * It used to be three NAMED fields (`miyagi`/`mercadoLibre`/`shopify`), which hardcoded
+ * the Mexican competitor set into a component the US operator page also renders. There
+ * the reference points are Shopify and Amazon, so a `mercadoLibre` field would have had
+ * to carry Amazon copy — a field name that lies. Positional cells keep one renderer for
+ * every market; the column headers name the platforms.
+ */
 type BenchmarkRow = {
   label: string
-  miyagi: string
-  mercadoLibre: string
-  shopify: string
+  cells: string[]
 }
 
 type BenchmarkExampleRow = {
@@ -271,6 +286,7 @@ function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
             href={config.primaryCta.href}
             className="btn btn-primary btn-lg"
             data-testid={config.primaryCta.testId}
+            data-track={config.primaryCta.dataTrack}
             prefetch={false}
           >
             {config.primaryCta.label}
@@ -278,7 +294,13 @@ function LandingHero({ config }: { config: SellerAcquisitionPageConfig }) {
           </Link>
         ) : null}
         {config.secondaryCta ? (
-          <Link href={config.secondaryCta.href} className="btn btn-secondary btn-lg" prefetch={false}>
+          <Link
+            href={config.secondaryCta.href}
+            className="btn btn-secondary btn-lg"
+            data-testid={config.secondaryCta.testId}
+            data-track={config.secondaryCta.dataTrack}
+            prefetch={false}
+          >
             {config.secondaryCta.label}
           </Link>
         ) : null}
@@ -633,6 +655,7 @@ function ClosingCta({ config }: { config: SellerAcquisitionPageConfig }) {
           href={config.closingCta.href}
           className="btn btn-primary btn-lg"
           data-testid={config.closingCta.testId}
+          data-track={config.closingCta.dataTrack}
           prefetch={false}
         >
           {config.closingCta.label}
@@ -692,11 +715,15 @@ function BenchmarkSection({
                 <th scope="row" style={{ ...cellBase, color: 'var(--fg)', fontWeight: 600 }}>
                   {row.label}
                 </th>
-                <td style={{ ...cellBase, color: 'var(--fg)', fontWeight: 600, background: 'var(--bg-sunk)' }}>
-                  {row.miyagi}
-                </td>
-                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.mercadoLibre}</td>
-                <td style={{ ...cellBase, color: 'var(--fg-muted)' }}>{row.shopify}</td>
+                {row.cells.map((cell, index) =>
+                  index === 0 ? (
+                    <td key={index} style={{ ...cellBase, color: 'var(--fg)', fontWeight: 600, background: 'var(--bg-sunk)' }}>
+                      {cell}
+                    </td>
+                  ) : (
+                    <td key={index} style={{ ...cellBase, color: 'var(--fg-muted)' }}>{cell}</td>
+                  ),
+                )}
               </tr>
             ))}
           </tbody>
