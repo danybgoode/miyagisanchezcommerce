@@ -403,6 +403,14 @@ test.describe('partners recruiting v3 · schema, gate and population guards', ()
       for (const banned of [
         'What is true today', 'Lo que es cierto hoy',
         'no-cutover', 'sin migración forzada',
+        // #387 corrected a factually WRONG claim in the panel this rewrite deletes: the page
+        // said the United States has no open marketplace, which stopped being true when /us
+        // opened. That panel is gone, so the claim cannot return through it — but the claim
+        // itself stays banned here so it cannot reappear anywhere in the namespace, which is
+        // the protection #387's assertions on `truthBody` were providing before that key
+        // ceased to exist.
+        'no open marketplace', 'no tiene un marketplace abierto',
+        'grants no marketplace admission', 'no otorga admisión al marketplace',
         '90-day', '90 días',
         'Not this program', 'Este programa no es',
         'not accepted yet', 'aún no está aceptado',

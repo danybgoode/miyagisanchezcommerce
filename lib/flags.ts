@@ -42,9 +42,13 @@ import {
   summarizeFlagCutover,
   type FlagCutoverStatus,
 } from '@/lib/flag-cutover'
-import { evaluateGoldenBooleanFlag } from '@/lib/golden-flag-provider'
+import {
+  evaluateGoldenBooleanFlag,
+  recoverGoldenBooleanFlag,
+} from '@/lib/golden-flag-provider'
 import { evaluateDurableGoldenBooleanFlag } from '@/lib/golden-flag-mirror'
 import { getDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
+import { routeGoldenFlagReadKey } from '@/lib/golden-flag-read-key-routing'
 import { createFlagShadowObserver } from '@/lib/flag-shadow-observation'
 import { createFlagProviderEvaluator } from '@/lib/flag-provider-evaluator'
 import { createFlagAuthorityObserver } from '@/lib/flag-authority-observation'
@@ -516,10 +520,16 @@ const evaluateEnabledFlag = createFlagProviderEvaluator<FlagKey>({
   },
   getMode: (flag) => resolveFlagAuthority(getFlagCutoverStatus(), flag),
   evaluateGolden: evaluateGoldenBooleanFlag,
+  recoverGolden: recoverGoldenBooleanFlag,
   async readDurableGolden(flag, localValue) {
     // Golden mode's only outage fallback is the monotonic, read-only snapshot
     // mirror. `platform_flags` stays authoritative exclusively in local/shadow.
-    const durableSnapshot = await getDurableGoldenSnapshot()
+    const route = routeGoldenFlagReadKey(flag, {
+      GOLDEN_BEANS_FLAG_READ_KEY: process.env.GOLDEN_BEANS_FLAG_READ_KEY,
+      GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY:
+        process.env.GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY,
+    })
+    const durableSnapshot = await getDurableGoldenSnapshot(route.providerSlot)
     return durableSnapshot
       ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, localValue)
       : undefined
