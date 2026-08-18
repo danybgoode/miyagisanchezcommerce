@@ -4,6 +4,7 @@ import {
   MAX_SETTINGS_COMPONENT_LINES,
   SETTINGS_DIR,
   CANAL_PROPIO_DIR,
+  SHOP_STUDIO_DIR,
   findOversizedSettingsFiles,
   findBannedSettingsFiles,
   formatMonolithOffense,
@@ -29,11 +30,14 @@ import {
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 
 async function scanGuardedTree() {
-  const [settingsFiles, canalPropioFiles] = await Promise.all([
+  const [settingsFiles, canalPropioFiles, studioFiles] = await Promise.all([
     scanSettingsTree(repoRoot, SETTINGS_DIR),
     scanSettingsTree(repoRoot, CANAL_PROPIO_DIR),
+    // Living Shop studio (epic 07, D8) — guarded from its first commit, not after
+    // it grows. See SHOP_STUDIO_DIR's comment.
+    scanSettingsTree(repoRoot, SHOP_STUDIO_DIR),
   ])
-  return [...settingsFiles, ...canalPropioFiles]
+  return [...settingsFiles, ...canalPropioFiles, ...studioFiles]
 }
 
 test.describe('shop-settings-no-monolith · guard', () => {
@@ -43,6 +47,18 @@ test.describe('shop-settings-no-monolith · guard', () => {
     expect(files.length).toBeGreaterThan(5)
     const offenders = findOversizedSettingsFiles(files)
     expect(offenders.map(formatMonolithOffense)).toEqual([])
+  })
+
+  // A guarded root that scans nothing passes forever, and a root asserted only
+  // against ITSELF passes even when it points somewhere else entirely — the first
+  // version of this test did exactly that and survived a mutation repointing
+  // SHOP_STUDIO_DIR at canal-propio. So it names a file the studio actually owns:
+  // the assertion is pinned to the POPULATION, not to the constant.
+  test('the Living Shop studio root is actually covered, not just declared', async () => {
+    const files = await scanGuardedTree()
+    const studioFiles = files.filter((f) => f.filePath.startsWith('app/(shell)/shop/manage/tienda/'))
+    expect(studioFiles.map((f) => f.filePath.split('/').pop()).sort())
+      .toEqual(expect.arrayContaining(['StudioClient.tsx', 'WallComposer.tsx', 'WallTab.tsx', 'page.tsx']))
   })
 
   test('the ShopSettings.tsx monolith stays deleted', async () => {

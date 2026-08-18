@@ -120,6 +120,14 @@
     "app/(shell)/shop/manage/subscriptions/page.tsx",
     "app/(shell)/shop/manage/sweepstakes/SweepstakesManager.tsx",
     "app/(shell)/shop/manage/sweepstakes/page.tsx",
+    "app/(shell)/shop/manage/tienda/BrandTab.tsx",
+    "app/(shell)/shop/manage/tienda/PreviewTab.tsx",
+    "app/(shell)/shop/manage/tienda/SectionsTab.tsx",
+    "app/(shell)/shop/manage/tienda/StudioClient.tsx",
+    "app/(shell)/shop/manage/tienda/ThemeTab.tsx",
+    "app/(shell)/shop/manage/tienda/WallComposer.tsx",
+    "app/(shell)/shop/manage/tienda/WallTab.tsx",
+    "app/(shell)/shop/manage/tienda/page.tsx",
     "components/seller/PendingListingDeleteProvider.tsx",
     "components/seller/SellerLanguageToggle.tsx",
     "components/seller/SellerPageHeader.tsx",
@@ -2856,6 +2864,157 @@
       ]
     },
     {
+      "file": "app/(shell)/shop/manage/tienda/BrandTab.tsx",
+      "keys": [
+        "s_75adc7536d91fe27"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/PreviewTab.tsx",
+      "keys": [
+        "s_d49ae59a0eb21628",
+        "s_472ca15145f11937",
+        "s_f2516d1f2241f0a2",
+        "s_557fb176483405b5",
+        "s_8e2b282c6d1a5dab",
+        "s_de87b7b996ff0ec1"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/SectionsTab.tsx",
+      "keys": [
+        "s_c326b43f8f5a6cd9",
+        "s_fb485dcee3100dad",
+        "s_7a37f9b594ac3e5d",
+        "s_3c8dc4dc7a83dd2d",
+        "s_7fe328b5637d5a31",
+        "s_3a07600ddf61250c",
+        "s_836c7b54cf4d3c85",
+        "s_c7858c9b32f1554a",
+        "s_a99eaedd09bd2d91",
+        "s_34fd6bea74e01e04",
+        "s_3bf7170f1c8a9cfc",
+        "s_1ab0c8a3f38359af"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/StudioClient.tsx",
+      "keys": [
+        "s_caed6997e299bf1f",
+        "s_8e2ca9b0cc8a54f2",
+        "s_ea758545ef12a5b8",
+        "s_a42fb53d9ab419eb",
+        "s_0bbc7f1e927d6731",
+        "s_a4e61b0598c47ee8",
+        "s_d5df3708bc688543",
+        "s_11b431de1a28e274",
+        "s_c5341f198fc2f4f8"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/ThemeTab.tsx",
+      "keys": [
+        "s_ba2b68ad5e1b4a0d",
+        "s_05e90e1b96d26c88",
+        "s_fcf259d112ec59b1",
+        "s_c8e3e5b1fd27c0e3",
+        "s_8c069b2a2ba075d6",
+        "s_7a37f9b594ac3e5d",
+        "s_3c8dc4dc7a83dd2d",
+        "s_24ab7c721272b900",
+        "s_eeb627b1e681feea",
+        "s_277d19beb233c23e",
+        "s_ea758545ef12a5b8",
+        "s_836c7b54cf4d3c85",
+        "s_1ce80078b21e6f23",
+        "s_f598138f026c1d91",
+        "s_e051b9d5f1160aa9",
+        "s_f5cc59ca4976d700",
+        "s_3bf7170f1c8a9cfc",
+        "s_abd89c85335aa76f",
+        "s_a33d8a9fe43ed480",
+        "s_b6115b31556e91ec",
+        "s_69f6a268cbe7458a",
+        "s_12a548a2e162c582",
+        "s_f7eb5c7f4499077d",
+        "s_c24e524c51f5aba1"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/WallComposer.tsx",
+      "keys": [
+        "s_ce7111fefa655847",
+        "s_7d09ec963c05cb98",
+        "s_bb9dbb406dcbd524",
+        "s_1f5e6d240313d986",
+        "s_292e070426c3298d",
+        "s_97ccff8b5681db91",
+        "s_1fbbf057970f4662",
+        "s_63a0873835c57352",
+        "s_8797dfc346d3eea7",
+        "s_7a57d046b5b70317",
+        "s_4d1c370bb2ee3aec",
+        "s_121b7a99a368a0a5",
+        "s_145e71fbe4b8809b",
+        "s_43f6698cdd8189a3",
+        "s_cbbba360eb60dd04",
+        "s_474b28f85eb284cb",
+        "s_5107ec66ddfac5bb",
+        "s_836c7b54cf4d3c85",
+        "s_76ee053a0fdbe35c",
+        "s_ecef8a87fff05ec5",
+        "s_aa24fe992f3b0e8c",
+        "s_e3d40dee1e7233a0",
+        "s_de7677825d47e143",
+        "s_77b9238931ed566d",
+        "s_d15c15cb964f5c1c",
+        "s_f1b10b28db0b8412",
+        "s_67efb1ee2dcba123",
+        "s_acba6507b5ed5f28",
+        "s_f039f4a8c9759318",
+        "s_59810401e7be3870",
+        "s_3bf7170f1c8a9cfc",
+        "s_ff89b5f55560971e",
+        "s_7f76783e55c9fd1f",
+        "s_4b85161684564aad",
+        "s_709759cdb61a7cf2",
+        "s_229553078c07bb14",
+        "s_481d047f173537fc"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/WallTab.tsx",
+      "keys": [
+        "s_d50a3d4468356132",
+        "s_8c76d0379b2178a2",
+        "s_da8ae6b653d7da81",
+        "s_2eba946b2e1ee4b6",
+        "s_7724a36961c32fe4",
+        "s_5596cd47498d7075",
+        "s_7a37f9b594ac3e5d",
+        "s_53da567089bec8da",
+        "s_7d4ef8233c773f3f",
+        "s_836c7b54cf4d3c85",
+        "s_2338ee18f6f43f47",
+        "s_d76b3240c2ad08f3",
+        "s_0a20e752f609dca4",
+        "s_67efb1ee2dcba123",
+        "s_cd516a19e14cdd06",
+        "s_3bf7170f1c8a9cfc",
+        "s_2ce17a21b7b07963",
+        "s_553b66db113aca22",
+        "s_e427dad64d9a0ee6"
+      ]
+    },
+    {
+      "file": "app/(shell)/shop/manage/tienda/page.tsx",
+      "keys": [
+        "s_caed6997e299bf1f",
+        "s_4c9cd2142c3778ac",
+        "s_a70fc0fc1c102a45"
+      ]
+    },
+    {
       "file": "components/seller/PendingListingDeleteProvider.tsx",
       "keys": [
         "s_29fa864fd744397e",
@@ -3046,6 +3205,10 @@
       "source": ", los compradores siempre pueden abrir un caso si el artículo no es como se describió."
     },
     {
+      "key": "s_05e90e1b96d26c88",
+      "source": "Aire entre las cosas"
+    },
+    {
       "key": "s_060bda593b21b960",
       "source": "Largo"
     },
@@ -3162,6 +3325,10 @@
       "source": "No se pudieron cargar los manuscritos."
     },
     {
+      "key": "s_0a20e752f609dca4",
+      "source": "Publicación borrada."
+    },
+    {
       "key": "s_0a3329688a35e22d",
       "source": "Sin campos de personalización."
     },
@@ -3176,6 +3343,10 @@
     {
       "key": "s_0b49ed3685b768b5",
       "source": "3 · Logo y fotos"
+    },
+    {
+      "key": "s_0bbc7f1e927d6731",
+      "source": "Secciones"
     },
     {
       "key": "s_0c041d8b2ba4dfc2",
@@ -3370,12 +3541,20 @@
       "source": "No se pudieron cargar tus campañas. Revisa tu conexión e inténtalo de nuevo."
     },
     {
+      "key": "s_11b431de1a28e274",
+      "source": "Ver mi tienda"
+    },
+    {
       "key": "s_11dd9bb53954bbe7",
       "source": "Montos sugeridos"
     },
     {
       "key": "s_12025ccf125c5443",
       "source": "Cupón no válido."
+    },
+    {
+      "key": "s_121b7a99a368a0a5",
+      "source": "Elige una fecha para poder programar."
     },
     {
       "key": "s_1221e672dcc9001d",
@@ -3400,6 +3579,10 @@
     {
       "key": "s_12a1c8d82dcfb6b1",
       "source": "No se pudo subir el reporte. Inténtalo de nuevo."
+    },
+    {
+      "key": "s_12a548a2e162c582",
+      "source": "Usar el de mi marca"
     },
     {
       "key": "s_12aa2dc1ce8876d8",
@@ -3452,6 +3635,10 @@
     {
       "key": "s_14543dac9ed0ec93",
       "source": "Error al enviar. Inténtalo de nuevo."
+    },
+    {
+      "key": "s_145e71fbe4b8809b",
+      "source": "Elige uno…"
     },
     {
       "key": "s_1466356fce365a59",
@@ -3626,6 +3813,10 @@
       "source": "Pega y publica"
     },
     {
+      "key": "s_1ab0c8a3f38359af",
+      "source": "Subir {0}"
+    },
+    {
       "key": "s_1ab348faea2853e0",
       "source": "Por ahora el cálculo de tarifas en vivo y la generación de etiquetas con Envia.com están desactivados a nivel de plataforma, así que tu opción de &ldquo;tarifas en vivo&rdquo; no surte efecto. Mientras tanto, coordina la entrega con paquetería manual o entrega acordada. Tu configuración se conserva y se reactivará en cuanto el envío automático vuelva a estar disponible."
     },
@@ -3782,6 +3973,10 @@
       "source": "Crear cupón"
     },
     {
+      "key": "s_1f5e6d240313d986",
+      "source": "Colección"
+    },
+    {
       "key": "s_1f7edc6de9e5afab",
       "source": "producto(s)"
     },
@@ -3796,6 +3991,10 @@
     {
       "key": "s_1fbac9a74bb09217",
       "source": "🔑 Renta"
+    },
+    {
+      "key": "s_1fbbf057970f4662",
+      "source": "Describe la foto (para quien no puede verla)"
     },
     {
       "key": "s_1fe89aebf1075ba0",
@@ -3886,6 +4085,10 @@
       "source": "↩ Contraoferta"
     },
     {
+      "key": "s_229553078c07bb14",
+      "source": "Tu nota"
+    },
+    {
       "key": "s_22a6b75a885b69fa",
       "source": "Para artículos hechos a mano o stock bajo"
     },
@@ -3910,6 +4113,10 @@
       "source": "Aplicar ({0})"
     },
     {
+      "key": "s_2338ee18f6f43f47",
+      "source": "Publica o programa la publicación antes de fijarla."
+    },
+    {
       "key": "s_2341fd92331277e5",
       "source": "subdominio"
     },
@@ -3928,6 +4135,10 @@
     {
       "key": "s_24a3ad1a1cc92f12",
       "source": "Contraofertear al"
+    },
+    {
+      "key": "s_24ab7c721272b900",
+      "source": "Guardar el tema"
     },
     {
       "key": "s_24b3db7a0ff916d6",
@@ -4018,6 +4229,10 @@
       "source": "Ocurrió un error al conectar con Mercado Libre."
     },
     {
+      "key": "s_277d19beb233c23e",
+      "source": "Marcos, bordes y perfil — como las páginas de antes."
+    },
+    {
       "key": "s_279c03d900c54809",
       "source": "Visible en el marketplace Miyagi."
     },
@@ -4036,6 +4251,10 @@
     {
       "key": "s_28af2bb4c7d3a457",
       "source": "Cambia tu dominio"
+    },
+    {
+      "key": "s_292e070426c3298d",
+      "source": "Cuenta algo, con o sin fotos."
     },
     {
       "key": "s_293f823089456797",
@@ -4156,6 +4375,10 @@
     {
       "key": "s_2cdc8232ef747f45",
       "source": "Nuevo post de contenido"
+    },
+    {
+      "key": "s_2ce17a21b7b07963",
+      "source": "Tu muro es la portada de tu tienda."
     },
     {
       "key": "s_2ce5d57569b08041",
@@ -4394,6 +4617,10 @@
       "source": "No se pudo publicar"
     },
     {
+      "key": "s_34fd6bea74e01e04",
+      "source": "Siempre visible"
+    },
+    {
       "key": "s_351a3c7df421a1ca",
       "source": "Clases, reparaciones…"
     },
@@ -4512,6 +4739,10 @@
     {
       "key": "s_3a04898a6b8b6e0f",
       "source": "Aplicar"
+    },
+    {
+      "key": "s_3a07600ddf61250c",
+      "source": "Mostrar {0}"
     },
     {
       "key": "s_3a0dccfa01b76692",
@@ -4798,6 +5029,10 @@
       "source": "No se pudo publicar."
     },
     {
+      "key": "s_43f6698cdd8189a3",
+      "source": "Evento"
+    },
+    {
       "key": "s_442af5b5276b1e25",
       "source": "o $"
     },
@@ -4878,6 +5113,10 @@
       "source": "obra(s)"
     },
     {
+      "key": "s_472ca15145f11937",
+      "source": "Así se vería con los cambios que aún no has guardado. Nadie más los ve todavía."
+    },
+    {
       "key": "s_472d9d71167df5af",
       "source": "Costo guardado."
     },
@@ -4904,6 +5143,10 @@
     {
       "key": "s_47c7603f523d5dd1",
       "source": "Transferencia SPEI"
+    },
+    {
+      "key": "s_481d047f173537fc",
+      "source": "¿Qué quieres publicar?"
     },
     {
       "key": "s_484dd5a574871706",
@@ -4962,6 +5205,10 @@
       "source": "No se pudo actualizar la sincronización. Vuelve a intentarlo."
     },
     {
+      "key": "s_4b85161684564aad",
+      "source": "Todavía no tienes eventos."
+    },
+    {
       "key": "s_4bab2f4bf667017d",
       "source": "Si el comprador no confirma la entrega, el pedido se cierra automáticamente"
     },
@@ -5016,6 +5263,10 @@
     {
       "key": "s_4ce1fc3292ea60c8",
       "source": "Publicado"
+    },
+    {
+      "key": "s_4d1c370bb2ee3aec",
+      "source": "El precio, la disponibilidad y los datos del evento se leen en vivo. Nunca se copian aquí."
     },
     {
       "key": "s_4d35858271f8411c",
@@ -5134,6 +5385,10 @@
       "source": "El monto se cobra de forma segura"
     },
     {
+      "key": "s_5107ec66ddfac5bb",
+      "source": "Invita a tu gente a algo."
+    },
+    {
       "key": "s_513028ae62243aec",
       "source": "Ancho"
     },
@@ -5222,6 +5477,10 @@
       "source": "No se pudo aplicar la configuración. Intenta de nuevo."
     },
     {
+      "key": "s_53da567089bec8da",
+      "source": "Listo."
+    },
+    {
       "key": "s_54086e19429e85f0",
       "source": "Descripción de tu tienda"
     },
@@ -5266,12 +5525,24 @@
       "source": "Traer mi catálogo"
     },
     {
+      "key": "s_553b66db113aca22",
+      "source": "Tu muro está vacío"
+    },
+    {
       "key": "s_553f5b2ff5d004f1",
       "source": "Sin límite"
     },
     {
+      "key": "s_557fb176483405b5",
+      "source": "Escritorio"
+    },
+    {
       "key": "s_558bb20a82ede5a6",
       "source": "Categoría"
+    },
+    {
+      "key": "s_5596cd47498d7075",
+      "source": "Fijar arriba"
     },
     {
       "key": "s_562bb15757a8b593",
@@ -5356,6 +5627,10 @@
     {
       "key": "s_593469259f3486e9",
       "source": "Sincronización de inventario y pedidos"
+    },
+    {
+      "key": "s_59810401e7be3870",
+      "source": "Se guarda como un instante exacto en tu zona horaria. Aparece sola cuando llegue la hora."
     },
     {
       "key": "s_59896499bd1b4954",
@@ -5686,6 +5961,10 @@
       "source": "Marcando…"
     },
     {
+      "key": "s_63a0873835c57352",
+      "source": "Destaca un artículo de tu catálogo."
+    },
+    {
       "key": "s_63ddbc63667c7807",
       "source": "g) supera el máximo de Correos Impresos (2000 g) — no se ofrecerá esta opción hasta que ajustes el peso."
     },
@@ -5814,6 +6093,10 @@
       "source": "Sin paquetería — coordinas fecha, lugar y pago"
     },
     {
+      "key": "s_67efb1ee2dcba123",
+      "source": "Publicar ahora"
+    },
+    {
       "key": "s_68065973ab15f1e4",
       "source": "Envío a domicilio o recolección"
     },
@@ -5904,6 +6187,10 @@
     {
       "key": "s_69d17ca1683468f0",
       "source": "Activa"
+    },
+    {
+      "key": "s_69f6a268cbe7458a",
+      "source": "Tú eliges tipografía, colores, bordes y ritmo."
     },
     {
       "key": "s_6a097336ef0d92df",
@@ -6118,6 +6405,10 @@
       "source": "Cancelar selección"
     },
     {
+      "key": "s_709759cdb61a7cf2",
+      "source": "Todavía no tienes productos publicados."
+    },
+    {
       "key": "s_70b7fb233c290706",
       "source": "Eliminar campo"
     },
@@ -6266,6 +6557,10 @@
       "source": "Quitar de ML"
     },
     {
+      "key": "s_75adc7536d91fe27",
+      "source": "Tu logo, tu portada, tu eslogan y tus redes. Es la misma configuración que en Diseño y marca."
+    },
+    {
       "key": "s_75c536966f488615",
       "source": "Previsualiza antes de aplicar — esta acción no se puede deshacer."
     },
@@ -6336,6 +6631,10 @@
     {
       "key": "s_76ee053a0fdbe35c",
       "source": "No se pudo subir la foto."
+    },
+    {
+      "key": "s_7724a36961c32fe4",
+      "source": "Fijada"
     },
     {
       "key": "s_77342245063b5f11",
@@ -6438,6 +6737,14 @@
       "source": "0% comisión"
     },
     {
+      "key": "s_7a37f9b594ac3e5d",
+      "source": "Guardado."
+    },
+    {
+      "key": "s_7a57d046b5b70317",
+      "source": "Ej. Bolsa tejida a mano sobre una mesa de madera"
+    },
+    {
       "key": "s_7a5c87486c223d61",
       "source": "📦 Paquetería"
     },
@@ -6514,6 +6821,14 @@
       "source": "Creando tu tienda…"
     },
     {
+      "key": "s_7d09ec963c05cb98",
+      "source": "Arma una historia alrededor de un grupo."
+    },
+    {
+      "key": "s_7d4ef8233c773f3f",
+      "source": "No se pudo borrar."
+    },
+    {
       "key": "s_7d5ef035b0c8a9a8",
       "source": "Confirmar pago recibido"
     },
@@ -6560,6 +6875,14 @@
     {
       "key": "s_7f73e62c8cd48cff",
       "source": "Casi sin uso, sin daños"
+    },
+    {
+      "key": "s_7f76783e55c9fd1f",
+      "source": "Todavía no tienes colecciones."
+    },
+    {
+      "key": "s_7fe328b5637d5a31",
+      "source": "Guardar secciones"
     },
     {
       "key": "s_7fe5e6e76d28d179",
@@ -6794,6 +7117,10 @@
       "source": "Mantén tu existencia igual en Mercado Libre y en Miyagi — cada venta descuenta de ambos, sin vender de más. Tus pedidos de Mercado Libre también aparecen en tu bandeja de pedidos de Miyagi."
     },
     {
+      "key": "s_8797dfc346d3eea7",
+      "source": "Editar publicación"
+    },
+    {
       "key": "s_8797fb38ac9dac90",
       "source": "a convenir"
     },
@@ -6926,6 +7253,10 @@
       "source": "No pudimos crear tu tienda"
     },
     {
+      "key": "s_8c069b2a2ba075d6",
+      "source": "Fondo"
+    },
+    {
       "key": "s_8c0c8c68e7d08015",
       "source": "← Volver"
     },
@@ -6936,6 +7267,10 @@
     {
       "key": "s_8c57c2c4746c9b5c",
       "source": "Pagado"
+    },
+    {
+      "key": "s_8c76d0379b2178a2",
+      "source": "Crear publicación"
     },
     {
       "key": "s_8c80d5ace42d8540",
@@ -6976,6 +7311,14 @@
     {
       "key": "s_8e19abb1ed737271",
       "source": "Ver catálogo completo"
+    },
+    {
+      "key": "s_8e2b282c6d1a5dab",
+      "source": "Tamaño de pantalla"
+    },
+    {
+      "key": "s_8e2ca9b0cc8a54f2",
+      "source": "Marca"
     },
     {
       "key": "s_8e38c2571d87f6ee",
@@ -7268,6 +7611,10 @@
     {
       "key": "s_97cbc8e2b8adb974",
       "source": "Lo que ganas de verdad en cada venta — ingresos menos comisiones, envío y tu costo, congelados al momento de la venta."
+    },
+    {
+      "key": "s_97ccff8b5681db91",
+      "source": "Cuéntale algo a quien visita tu tienda…"
     },
     {
       "key": "s_97cd55d1319ffd26",
@@ -7594,6 +7941,10 @@
       "source": "{0} eliminado{1}{2}{3}."
     },
     {
+      "key": "s_a33d8a9fe43ed480",
+      "source": "Tipografía"
+    },
+    {
       "key": "s_a39cb32f7d9ca43b",
       "source": "Trae tu catálogo como lo tengas"
     },
@@ -7620,6 +7971,10 @@
     {
       "key": "s_a40923034840f837",
       "source": "La comisión verificada ya no permite ese margen. Ajusta el control e intenta de nuevo."
+    },
+    {
+      "key": "s_a42fb53d9ab419eb",
+      "source": "Publica en tu muro, elige qué secciones se ven y cómo se ve tu tienda."
     },
     {
       "key": "s_a43866f244e960fa",
@@ -7652,6 +8007,10 @@
     {
       "key": "s_a4aa045f9a5646e8",
       "source": "Ocultar del marketplace Miyagi (sigue en tu tienda)"
+    },
+    {
+      "key": "s_a4e61b0598c47ee8",
+      "source": "Secciones del editor"
     },
     {
       "key": "s_a4eec83c2f2a72ef",
@@ -7738,6 +8097,10 @@
       "source": "Crear borrador"
     },
     {
+      "key": "s_a70fc0fc1c102a45",
+      "source": "Mi tienda — apariencia y contenido"
+    },
+    {
       "key": "s_a7183c6503efa151",
       "source": "→ Ver mis anuncios"
     },
@@ -7806,6 +8169,10 @@
       "source": "Enviado"
     },
     {
+      "key": "s_a99eaedd09bd2d91",
+      "source": "Se muestra"
+    },
+    {
       "key": "s_a9b13bcc2ec06016",
       "source": "Tienes cambios sin guardar"
     },
@@ -7836,6 +8203,10 @@
     {
       "key": "s_aa189bcbd525f1d8",
       "source": "Puntos de entrega"
+    },
+    {
+      "key": "s_aa24fe992f3b0e8c",
+      "source": "Nota (opcional)"
     },
     {
       "key": "s_aa3903ee684dc4c8",
@@ -7922,6 +8293,10 @@
       "source": "Aún no tienes suscriptores"
     },
     {
+      "key": "s_abd89c85335aa76f",
+      "source": "Tarjetas"
+    },
+    {
       "key": "s_ac1d6b5c7d74471c",
       "source": "ID de categoría de Mercado Libre (p. ej. MLM1234)"
     },
@@ -7956,6 +8331,10 @@
     {
       "key": "s_ac9dea50efeb2029",
       "source": "Reembolso confirmado. El comprador fue notificado."
+    },
+    {
+      "key": "s_acba6507b5ed5f28",
+      "source": "Puedes agregar hasta cuatro."
     },
     {
       "key": "s_acc2e245d5b9518a",
@@ -8238,6 +8617,10 @@
       "source": "Ganancias — Mi tienda"
     },
     {
+      "key": "s_b6115b31556e91ec",
+      "source": "Tu identidad"
+    },
+    {
       "key": "s_b6274c66f0c5882c",
       "source": "Importar configuración"
     },
@@ -8356,6 +8739,10 @@
     {
       "key": "s_ba0c3c04dc204515",
       "source": "Ajusta tus precios"
+    },
+    {
+      "key": "s_ba2b68ad5e1b4a0d",
+      "source": "A tu manera"
     },
     {
       "key": "s_ba60482b2337b77f",
@@ -8610,6 +8997,10 @@
       "source": "Error al guardar."
     },
     {
+      "key": "s_c24e524c51f5aba1",
+      "source": "¿Cómo se ve tu tienda?"
+    },
+    {
       "key": "s_c27dd5dd9f3cecad",
       "source": "Peso"
     },
@@ -8624,6 +9015,10 @@
     {
       "key": "s_c315c201efca53e7",
       "source": "Importando…"
+    },
+    {
+      "key": "s_c326b43f8f5a6cd9",
+      "source": "Bajar {0}"
     },
     {
       "key": "s_c331de215904dc34",
@@ -8762,6 +9157,10 @@
       "source": "DNS correcto"
     },
     {
+      "key": "s_c7858c9b32f1554a",
+      "source": "Oculta"
+    },
+    {
       "key": "s_c78771f8eeec4f80",
       "source": "Cotiza y genera guía con DHL, FedEx, Estafeta…"
     },
@@ -8804,6 +9203,10 @@
     {
       "key": "s_c8ac37efe70d02da",
       "source": "Eliminar foto"
+    },
+    {
+      "key": "s_c8e3e5b1fd27c0e3",
+      "source": "Esquinas"
     },
     {
       "key": "s_c904ce59747cd3b0",
@@ -8890,6 +9293,10 @@
       "source": ": sin ventas"
     },
     {
+      "key": "s_caed6997e299bf1f",
+      "source": "Apariencia y contenido"
+    },
+    {
       "key": "s_cb031867280258a9",
       "source": "Titular de la cuenta"
     },
@@ -8970,6 +9377,10 @@
       "source": "TIPO"
     },
     {
+      "key": "s_cd516a19e14cdd06",
+      "source": "Quitar de la tienda"
+    },
+    {
       "key": "s_cd5fb66e0102ae57",
       "source": "Procesando {0}/{1}…"
     },
@@ -9008,6 +9419,10 @@
     {
       "key": "s_ce6a699e792c749f",
       "source": "Funciona con Cal.com, Calendly, Acuity, TidyCal, Google Calendar y cualquier enlace de reservas."
+    },
+    {
+      "key": "s_ce7111fefa655847",
+      "source": "Agregar foto"
     },
     {
       "key": "s_ce7fab045e901c81",
@@ -9080,6 +9495,10 @@
     {
       "key": "s_d0f36ee92075f9fa",
       "source": "Confirmar pago SPEI recibido"
+    },
+    {
+      "key": "s_d15c15cb964f5c1c",
+      "source": "Programar"
     },
     {
       "key": "s_d15f39d60e24e2f4",
@@ -9190,12 +9609,20 @@
       "source": "Modo de inventario"
     },
     {
+      "key": "s_d49ae59a0eb21628",
+      "source": "Abrir la tienda publicada"
+    },
+    {
       "key": "s_d4bb5362ff0fb1ec",
       "source": "para responder."
     },
     {
       "key": "s_d4dd2b033dc6a190",
       "source": "Configurando…"
+    },
+    {
+      "key": "s_d50a3d4468356132",
+      "source": "Borrar"
     },
     {
       "key": "s_d55bda9231f9db64",
@@ -9278,6 +9705,10 @@
       "source": "Dimensiones como Tamaño o Material, cada combinación con su propio precio y niveles de precio por cantidad — como lo ve el comprador en tu anuncio."
     },
     {
+      "key": "s_d76b3240c2ad08f3",
+      "source": "Publica una nota para contar algo, un producto para destacarlo, una colección para armar una historia o un evento para invitar a tu gente."
+    },
+    {
       "key": "s_d77b63731a57d537",
       "source": "Si tu agente de IA ya generó tu archivo de configuración, pégalo abajo y creamos tu tienda y tu catálogo en un solo paso. ¿Aún no lo tienes? Copia el prompt y dáselo a tu agente."
     },
@@ -9352,6 +9783,10 @@
     {
       "key": "s_da3b1641c7aae405",
       "source": "Deja que tu agente la lleve"
+    },
+    {
+      "key": "s_da8ae6b653d7da81",
+      "source": "Desfijar"
     },
     {
       "key": "s_da8c171aee826f7e",
@@ -9494,6 +9929,10 @@
       "source": "Crear estante Convocatoria"
     },
     {
+      "key": "s_de7677825d47e143",
+      "source": "Por qué lo estás mostrando…"
+    },
+    {
       "key": "s_de87b7b996ff0ec1",
       "source": "Vista previa de la tienda"
     },
@@ -9536,6 +9975,10 @@
     {
       "key": "s_df9a55ed63d1515b",
       "source": "seleccionado"
+    },
+    {
+      "key": "s_e051b9d5f1160aa9",
+      "source": "Publicaciones"
     },
     {
       "key": "s_e07060449c221128",
@@ -9638,6 +10081,10 @@
       "source": "Confirma y prepara el envío"
     },
     {
+      "key": "s_e3d40dee1e7233a0",
+      "source": "Nueva publicación"
+    },
+    {
       "key": "s_e3e9cbaccaec3d2a",
       "source": "Apariencia"
     },
@@ -9648,6 +10095,10 @@
     {
       "key": "s_e427311a878dfd1d",
       "source": "Ver tarifas disponibles →"
+    },
+    {
+      "key": "s_e427dad64d9a0ee6",
+      "source": "¿Borrar esta publicación? No se puede deshacer."
     },
     {
       "key": "s_e436ddcd06e85cd0",
@@ -9854,6 +10305,10 @@
       "source": "Nueva campaña"
     },
     {
+      "key": "s_ea758545ef12a5b8",
+      "source": "Muro"
+    },
+    {
       "key": "s_ea9ed7a64bac8971",
       "source": "Ver mi página de convocatoria"
     },
@@ -9908,6 +10363,10 @@
     {
       "key": "s_eceef20f0530d78a",
       "source": "Selecciona qué tipo de evento usar:"
+    },
+    {
+      "key": "s_ecef8a87fff05ec5",
+      "source": "Nota"
     },
     {
       "key": "s_ed0cbbc35ffbf237",
@@ -9976,6 +10435,10 @@
     {
       "key": "s_ee9ee39352893c1d",
       "source": "Conecta tu cuenta de Mercado Pago"
+    },
+    {
+      "key": "s_eeb627b1e681feea",
+      "source": "Limpio y directo. El producto manda."
     },
     {
       "key": "s_eef76f9f8544d827",
@@ -10070,6 +10533,10 @@
       "source": "¡Copiado!"
     },
     {
+      "key": "s_f1b10b28db0b8412",
+      "source": "Programar (opcional)"
+    },
+    {
       "key": "s_f1c4ac184507bb88",
       "source": "No hay tarifas disponibles para esta ruta. Intenta con envío manual."
     },
@@ -10092,6 +10559,10 @@
     {
       "key": "s_f223877854c8ee2f",
       "source": "Subir PDF de inspección"
+    },
+    {
+      "key": "s_f2516d1f2241f0a2",
+      "source": "Celular"
     },
     {
       "key": "s_f2744c4274da54e7",
@@ -10182,8 +10653,16 @@
       "source": "Código"
     },
     {
+      "key": "s_f598138f026c1d91",
+      "source": "Productos"
+    },
+    {
       "key": "s_f5b3992a2d605cf6",
       "source": ". Tú nos das los ingredientes; Miyagi diseña el anuncio con estética México 86."
+    },
+    {
+      "key": "s_f5cc59ca4976d700",
+      "source": "Retro Social"
     },
     {
       "key": "s_f5d4534c857c126b",
@@ -10228,6 +10707,10 @@
     {
       "key": "s_f7aa761caa6b3ddb",
       "source": "Enlace copiado"
+    },
+    {
+      "key": "s_f7eb5c7f4499077d",
+      "source": "Volver a los valores de fábrica"
     },
     {
       "key": "s_f8320d7048d87951",
@@ -10342,6 +10825,10 @@
       "source": "Error al aplicar el lote."
     },
     {
+      "key": "s_fb485dcee3100dad",
+      "source": "Elige qué secciones ve la gente y en qué orden. Una sección vacía no aparece aunque esté activa."
+    },
+    {
       "key": "s_fb51f8febb2975d0",
       "source": "10 dígitos"
     },
@@ -10392,6 +10879,10 @@
     {
       "key": "s_fcd5c32df9119c7e",
       "source": "✓ Publicar anuncio"
+    },
+    {
+      "key": "s_fcf259d112ec59b1",
+      "source": "Clásico"
     },
     {
       "key": "s_fd7746cee2e8ba0d",

@@ -45,6 +45,11 @@ const REAL_MANAGE_ROUTES = new Set([
   '/shop/manage/import',
   '/shop/manage/mercadolibre',
   '/shop/manage/settings',
+  // Living Shop (epic 07) — the Wall/Sections/Theme/Brand studio. This set is a
+  // deliberate ALLOW-LIST, not a filesystem scan: its job is "no new pages by
+  // accident", so a genuinely new page is added here on purpose, in the same
+  // commit that adds the nav entry.
+  '/shop/manage/tienda',
 ])
 
 function hrefPath(href: string): string {
@@ -135,7 +140,7 @@ test.describe('seller-mode · SELLER_NAV config', () => {
     expect(SELLER_NAV[2].entries.map(e => e.label)).toEqual([
       'Cupones', 'Suscripciones', 'Contenido', 'Eventos', 'Sorteos', 'Analíticas', 'Ganancias',
     ])
-    expect(SELLER_NAV[3].entries.map(e => e.label)).toEqual(['Configuración'])
+    expect(SELLER_NAV[3].entries.map(e => e.label)).toEqual(['Mi tienda', 'Configuración'])
   })
 
   test('every entry has a stable key and an Iconoir class', () => {

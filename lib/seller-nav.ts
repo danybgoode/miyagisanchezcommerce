@@ -45,6 +45,7 @@ const NAV_LABELS = {
     crecer: 'Crecer', cupones: 'Cupones', suscripciones: 'Suscripciones',
     contenido: 'Contenido', eventos: 'Eventos', sorteos: 'Sorteos',
     analiticas: 'Analíticas', ganancias: 'Ganancias', configuracion: 'Configuración',
+    miTienda: 'Mi tienda',
   },
   en: {
     operar: 'Operate', resumen: 'Overview', pedidos: 'Orders', ofertas: 'Offers',
@@ -53,6 +54,7 @@ const NAV_LABELS = {
     crecer: 'Grow', cupones: 'Coupons', suscripciones: 'Subscriptions',
     contenido: 'Content', eventos: 'Events', sorteos: 'Giveaways',
     analiticas: 'Analytics', ganancias: 'Earnings', configuracion: 'Settings',
+    miTienda: 'My shop',
   },
 } as const
 
@@ -177,6 +179,10 @@ export const SELLER_NAV: SellerNavGroup[] = [
     key: 'configuracion',
     label: 'Configuración',
     entries: [
+      // Living Shop (epic 07): the Wall/Sections/Theme/Brand studio. A separate
+      // entry rather than a settings section — it is authoring, not configuration,
+      // and it has its own guarded root (epic D8) so it cannot re-grow Diseno.tsx.
+      { key: 'tienda', label: 'Mi tienda', href: '/shop/manage/tienda', icon: 'iconoir-palette' },
       { key: 'ajustes', label: 'Configuración', href: '/shop/manage/settings', icon: 'iconoir-settings' },
     ],
   },

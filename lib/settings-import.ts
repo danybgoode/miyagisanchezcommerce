@@ -16,6 +16,9 @@ import { normalizeSupportSettings } from './support-widget'
 
 // ── Manifest shape (the declarative subset) ──────────────────────────────────
 
+import { validateRecipe, THEME_MODES } from './shop-presentation/theme'
+import { validateSectionConfig } from './shop-presentation/sections'
+
 export interface StoreConfigManifest {
   profile?: {
     name?: string
@@ -45,6 +48,23 @@ export interface StoreConfigManifest {
       promo_cta_link?: string
     } | null
     theme_preset?: string | null
+  }
+  /**
+   * Living Shop (epic 07, Story 6.1) — the storefront's shape and look.
+   *
+   * Its OWN block rather than more `profile`, because it is a different kind of
+   * decision: `profile` is who the merchant is, this is how their storefront is
+   * arranged. It also keeps the round-trip honest — an export names
+   * `presentation` and an import restores it, instead of burying two schemas in
+   * one block that already carries seven concerns.
+   *
+   * Shapes are owned by `lib/shop-presentation/*`; declared as `unknown` here so
+   * there is one definition, not a copy that can drift.
+   */
+  presentation?: {
+    theme_mode?: unknown
+    theme_recipe?: unknown
+    sections?: unknown
   }
   shipping?: {
     local_pickup?: boolean
@@ -122,6 +142,7 @@ export interface StoreConfigManifest {
 /** The blocks a file can set, with a one-line description for the UI + prompt. */
 export const CONFIG_BLOCKS: Array<{ key: keyof StoreConfigManifest; label: string; desc: string }> = [
   { key: 'profile', label: 'Perfil y marca', desc: 'Nombre, descripción, ubicación, tagline, color de acento, logo, banner y redes sociales.' },
+  { key: 'presentation', label: 'Muro, secciones y tema', desc: 'Cómo se ve tu tienda (Clásico / Retro Social / A tu manera) y qué secciones aparecen, en qué orden.' },
   { key: 'shipping', label: 'Envíos y entrega', desc: 'Recolección local, Envia, paqueterías, dirección de origen, medidas por defecto, puntos de entrega.' },
   { key: 'offers', label: 'Negociación y ofertas', desc: 'Nivel de confianza mínimo y negociación automática (auto-aceptar / rechazar / contraofertar).' },
   { key: 'notifications', label: 'Notificaciones', desc: 'Qué correos recibes (nuevas vistas, nuevos mensajes).' },
@@ -396,6 +417,33 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
     record('profile', f, iss)
   }
 
+  // ── presentation (Living Shop, epic 07 · Story 6.1) ─────────────────────────
+  // Validated through the SAME modules the seller UI and the renderer use, so a
+  // config file cannot express something the editor would refuse (epic D12).
+  if (manifest.presentation !== undefined) {
+    const f: string[] = []
+    const iss: string[] = []
+    const p = manifest.presentation
+    if (isObj(p)) {
+      if (p.theme_mode !== undefined) {
+        if (typeof p.theme_mode === 'string' && (THEME_MODES as readonly string[]).includes(p.theme_mode)) {
+          settings.theme_mode = p.theme_mode; f.push('theme_mode')
+        } else iss.push(`theme_mode debe ser ${THEME_MODES.join(' | ')}`)
+      }
+      if (p.theme_recipe !== undefined) {
+        const result = validateRecipe(p.theme_recipe)
+        if (result.ok) { settings.theme_recipe = result.value; f.push('theme_recipe') }
+        else iss.push(...result.issues)
+      }
+      if (p.sections !== undefined) {
+        const result = validateSectionConfig(p.sections)
+        if (result.ok) { settings.sections = result.value; f.push('sections') }
+        else iss.push(...result.issues)
+      }
+    } else iss.push('el bloque "presentation" debe ser un objeto')
+    record('presentation', f, iss)
+  }
+
   // ── shipping ────────────────────────────────────────────────────────────────
   if (manifest.shipping !== undefined) {
     const f: string[] = []; const iss: string[] = []; const sh: Record<string, unknown> = {}
@@ -570,7 +618,14 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
       } else {
         // support_product_id is stamped by the provisioning step in
         // applyStoreConfig — never from caller input.
-        const { support_product_id: _ignored, ...safe } = normalized.settings
+        //
+        // Written as an explicit delete on a copy rather than a discarding
+        // destructure: the discarded binding was an unused variable, and
+        // `lint-changed` judges every file a branch touches, so this file's
+        // existing warning became this branch's problem the moment it was
+        // edited. Behaviour is identical.
+        const safe = { ...normalized.settings }
+        delete safe.support_product_id
         settings.support = safe
         f.push(...Object.keys(safe))
       }

@@ -165,7 +165,7 @@ export async function GET(req: NextRequest) {
         seller_configuration: {
           method: 'POST',
           url: `${base}/api/ucp/mcp`,
-          description: "A seller's own agent can read and adjust its shop configuration via the MCP tools get_store_configuration and patch_store_configuration. Reads the declarative blocks (profile/brand, shipping, negotiation, notifications, orders, returns, scheduling) and patches them with strict validation; never exposes secrets. Payments, custom domain, and Cal.com are OAuth-bound and stay manual.",
+          description: "A seller's own agent can read and adjust its shop configuration via the MCP tools get_store_configuration and patch_store_configuration. Reads the declarative blocks (profile/brand, presentation, shipping, negotiation, notifications, orders, returns, scheduling) and patches them with strict validation; never exposes secrets. The presentation block covers the storefront's theme mode, its schema-driven Custom recipe and its section order — there is no field that can carry CSS, HTML, JavaScript or a font URL. Payments, custom domain, and Cal.com are OAuth-bound and stay manual. The shop's Wall — its homepage narrative of posts, products, collections and events — is managed with list/create/update/delete_wall_entry, which share the human API's validator, and its published entries appear in the public get_shop representation.",
           auth: 'authorization_bearer_shop_token',
           note: "Per-shop token (Authorization: Bearer ms_agent_…) generated in the shop's “Agentes e integraciones” settings; scoped to one shop.",
           mcp_tools: ['get_store_configuration', 'patch_store_configuration'],

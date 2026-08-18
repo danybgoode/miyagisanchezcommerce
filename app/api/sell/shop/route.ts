@@ -7,6 +7,8 @@ import { ensureShop, type ShopCreateInput } from '@/lib/ensure-shop'
 import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 import { normalizeSupportSettings } from '@/lib/support-widget'
 import { httpUrl } from '@/lib/settings-import'
+import { validateSectionConfig } from '@/lib/shop-presentation/sections'
+import { validateRecipe, THEME_MODES } from '@/lib/shop-presentation/theme'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -136,6 +138,21 @@ interface ShopUpdatePayload {
       promo_cta_link?: string | null
     } | null
     theme_preset?: string | null
+    /**
+     * Living Shop (epic 07, Story 3.1) — the controlled information
+     * architecture. Typed as `unknown` on purpose: the shape is owned by
+     * `lib/shop-presentation/sections.ts`, and re-declaring it here would fork
+     * the contract into two places that can disagree. It is validated and
+     * normalized through that module below.
+     */
+    sections?: unknown
+    /**
+     * Living Shop (epic 07, Story 4.1) — theme mode + Custom recipe. Same
+     * reasoning as `sections`: the shape is owned by
+     * `lib/shop-presentation/theme.ts` and validated through it.
+     */
+    theme_mode?: unknown
+    theme_recipe?: unknown
     offers?: {
       min_buyer_trust_level?: string
       negotiation?: {
@@ -217,6 +234,44 @@ export async function PATCH(req: NextRequest) {
   if (heroPromoLink !== undefined && heroPromoLink !== null && !httpUrl(heroPromoLink)) {
     return NextResponse.json({ error: 'El enlace del botón destacado debe ser una URL http/https.', field: 'hero' }, { status: 422 })
   }
+  // Living Shop (epic 07, Story 3.1). Validated through the SAME module the
+  // renderer, the importer and the MCP tools use (epic D12) — an agent must not
+  // be able to reach a laxer write path than a human. The route REFUSES here
+  // rather than normalizing silently: a seller is present to read the reason,
+  // which is exactly the difference between this boundary and the renderer's.
+  let normalizedSections: unknown
+  if (body.settings?.sections !== undefined) {
+    const sectionResult = validateSectionConfig(body.settings.sections)
+    if (!sectionResult.ok) {
+      return NextResponse.json({ error: sectionResult.issues[0], field: 'sections' }, { status: 422 })
+    }
+    normalizedSections = sectionResult.value
+  }
+
+  // Living Shop (epic 07, Story 4.1/4.4). An invalid colour is REFUSED here
+  // rather than dropped: silently discarding it is how a merchant comes to
+  // believe they set something they did not. The same validator serves the MCP
+  // path, so an agent cannot reach a laxer rule than a person (epic D12).
+  let normalizedMode: string | undefined
+  if (body.settings?.theme_mode !== undefined) {
+    const mode = body.settings.theme_mode
+    if (typeof mode !== 'string' || !(THEME_MODES as readonly string[]).includes(mode)) {
+      return NextResponse.json(
+        { error: `theme_mode debe ser ${THEME_MODES.join(', ')}.`, field: 'theme_mode' },
+        { status: 422 },
+      )
+    }
+    normalizedMode = mode
+  }
+  let normalizedRecipe: unknown
+  if (body.settings?.theme_recipe !== undefined) {
+    const recipeResult = validateRecipe(body.settings.theme_recipe)
+    if (!recipeResult.ok) {
+      return NextResponse.json({ error: recipeResult.issues[0], field: 'theme_recipe' }, { status: 422 })
+    }
+    normalizedRecipe = recipeResult.value
+  }
+
   const launchpadGuidelines = body.settings?.launchpad?.guidelines
   if (launchpadGuidelines !== undefined && launchpadGuidelines !== null && launchpadGuidelines.length > 2000) {
     return NextResponse.json({ error: 'Las indicaciones de la convocatoria no pueden superar los 2000 caracteres.', field: 'launchpad' }, { status: 422 })
@@ -298,6 +353,19 @@ export async function PATCH(req: NextRequest) {
   if (body.stripe_enabled !== undefined) {
     const existingStripe = (existingSettings.stripe ?? {}) as Record<string, unknown>
     settingsOverride = { ...settingsOverride, stripe: { ...existingStripe, enabled: body.stripe_enabled } }
+  }
+
+  // The NORMALIZED value is what gets persisted, never the raw body — otherwise
+  // a stored order could contain an unknown key that every reader then has to
+  // defend against forever.
+  if (normalizedSections !== undefined) {
+    settingsOverride = { ...settingsOverride, sections: normalizedSections }
+  }
+  if (normalizedMode !== undefined) {
+    settingsOverride = { ...settingsOverride, theme_mode: normalizedMode }
+  }
+  if (normalizedRecipe !== undefined) {
+    settingsOverride = { ...settingsOverride, theme_recipe: normalizedRecipe }
   }
 
   const mergedSettings = Object.keys(settingsOverride).length > 0

@@ -42,6 +42,18 @@ export const SETTINGS_DIR = 'app/(shell)/shop/manage/settings'
 export const CANAL_PROPIO_DIR = 'app/(shell)/shop/manage/canal-propio'
 
 /**
+ * The Living Shop studio (epic 07 · living-shop-social-storefront, decision D8) —
+ * Wall / Sections / Theme / Brand / Preview. It deliberately did NOT become another
+ * `_sections/*` component: the scope's own reuse list says not to inflate
+ * `Diseno.tsx` further, and this surface is authoring rather than configuration.
+ *
+ * Guarded from its FIRST commit rather than after it grows, which is the lesson
+ * `CANAL_PROPIO_DIR` above records the hard way — that root was added only after an
+ * independent review found the split had already produced a 977-line file.
+ */
+export const SHOP_STUDIO_DIR = 'app/(shell)/shop/manage/tienda'
+
+/**
  * Line cap for any single guarded component (both `SETTINGS_DIR` and
  * `CANAL_PROPIO_DIR`, scanned together — see the spec). `_sections/Canal.tsx`
  * (~1,074 lines, the previous largest) was split in catalog-management S6.2 —

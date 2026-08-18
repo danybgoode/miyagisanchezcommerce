@@ -12,6 +12,18 @@ const DIRECT_BUYER_DIRS = [
   'app/(shell)/s',
   'app/(shell)/payment',
   'app/(shell)/c',
+  // Owned-host root routes: on a subdomain or custom domain these serve the
+  // shop's own pages directly (middleware passes them through with the channel
+  // header). They are as buyer-facing as anything under `/s/`, and they were
+  // outside this list — a scan that hand-picks its roots decays silently while
+  // still passing, which is why the Living Shop epic's new sections went
+  // uncovered until an assertion named one of them.
+  'app/(shell)/tienda',
+  'app/(shell)/colecciones',
+  'app/(shell)/eventos',
+  'app/(shell)/acerca',
+  'app/(shell)/faq',
+  'app/(shell)/politicas',
   'app/(us-shell)/us',
 ] as const
 

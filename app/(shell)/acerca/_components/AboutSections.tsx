@@ -185,13 +185,18 @@ function ClosingCta({ page }: { page: AboutPageCopy }) {
       <Link href={ABOUT_SELLERS_HREF} className="btn btn-secondary btn-lg" prefetch={false}>
         {page.secondaryCtaLabel}
       </Link>
-      {/* Not a dictionary key: the address is a FACT about the platform, not
-          copy, and it lives in `lib/contact.ts` with the email transport's
-          Reply-To so the two can never disagree. The surrounding words are
-          fixed es-MX because /acerca's `?lang=en` toggle reads its copy from
-          the about-section model, which this line is deliberately not part of. */}
+      {/* The ADDRESS is not a dictionary key: it is a FACT about the platform and
+          it lives in `lib/contact.ts` beside the email transport's Reply-To so
+          the two can never disagree.
+          The WORDS around it now come from the about-page model, which is what
+          `?lang=en` switches. They used to be fixed es-MX with a comment saying
+          this line was "deliberately not part of" that model — but the page HAS
+          an English toggle, so the result was a Spanish sentence on the English
+          page. Found by widening the buyer-copy scan to the owned-host root
+          routes (Living Shop, epic 07): the file had been outside the scanned
+          roots, so nothing had ever checked it. */}
       <p className="t-small" style={{ color: 'var(--fg-muted)', margin: 0, width: '100%' }}>
-        ¿Dudas? Escríbenos a{' '}
+        {page.contactPrompt}{' '}
         <a href={contactMailto('Acerca de Miyagi Sánchez')} style={{ color: 'var(--accent)' }}>
           {CONTACT_EMAIL}
         </a>

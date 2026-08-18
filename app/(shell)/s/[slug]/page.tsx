@@ -18,10 +18,8 @@ import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
-import ShopCollectionNav from './ShopCollectionNav'
-import ShopContentLinks from './ShopContentLinks'
-import { returnsWindowLabel } from '@/lib/trust-signals'
-import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
+import ShopSectionNav from '@/app/(shell)/_shop-sections/ShopSectionNav'
+import WallFeed from '@/app/(shell)/_wall/WallFeed'
 import { readableTextOn } from '@/lib/platform-theme'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
@@ -31,6 +29,12 @@ import { marketCatalogCanonical } from '@/lib/market-seo'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { readPublicWall } from '@/lib/wall/public'
+import { resolvePublicWallShop } from '@/lib/wall/store'
+import { normalizeSections } from '@/lib/shop-presentation/sections'
+import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
+import { resolveTheme } from '@/lib/shop-presentation/theme'
+import { applyPreviewOverlay } from '@/lib/shop-presentation/preview'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -91,10 +95,13 @@ export const generateMetadata = generateShopMetadata
 
 export async function ShopPage({
   params,
+  searchParams,
   market,
   marketBasePath = '',
 }: {
   params: Promise<{ slug: string }>
+  /** Carries the studio's owner-only preview draft (Story 5.5). Absent everywhere else. */
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
   market?: MarketCode
   marketBasePath?: string
 }) {
@@ -143,7 +150,10 @@ export async function ShopPage({
     ? ''
     : `${marketBasePath}/s/${shop.slug}`
 
-  const [listingRead, allCollections] = await Promise.all([
+  // The Wall's shop is the SUPABASE mirror row, not the Medusa seller `shop`
+  // above — their ids live in different systems and only the slug is shared.
+  // A seller with no mirror row yet simply has no Wall (known-absent).
+  const [listingRead, allCollections, wallShop] = await Promise.all([
     market
       ? getMarketplaceShopListings(shop.slug, market)
       : getShopListings(shop.slug).then((listings) => ({
@@ -152,7 +162,17 @@ export async function ShopPage({
           market_unavailable: null,
         })),
     getShopCollections(shop.slug, market),
+    resolvePublicWallShop(shop.slug),
   ])
+  const wall = wallShop
+    ? await readPublicWall({
+        shopId: wallShop.id,
+        shopSlug: wallShop.slug,
+        basePath: navBasePath,
+        locale: resolveMarketPresentation(presentationMarket).htmlLang,
+      })
+    : { entries: [], hasMore: false, total: 0 }
+
   // A refused/mismatched catalog is unavailable, not an empty successful shop.
   // Rendering the latter would cache and index a confident falsehood.
   if (listingRead.market_unavailable) notFound()
@@ -162,8 +182,15 @@ export async function ShopPage({
     ? allCollections.filter((collection) => publishedCollectionHandles.has(collection.handle))
     : allCollections
 
-  // Extract theme from metadata
-  const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  // Extract theme from metadata.
+  //
+  // The studio's Vista previa renders THIS page in an iframe with its pending
+  // draft in the query string, so the preview and the public shop are one
+  // renderer (Story 5.5). `applyPreviewOverlay` returns the settings untouched
+  // unless the Clerk session owns THIS shop — so unsaved state cannot leak to a
+  // visitor, a crawler, or even to another signed-in merchant.
+  const persistedSettings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const settings = await applyPreviewOverlay(shop.slug, persistedSettings, (await searchParams) ?? {})
   const theme = (settings.theme ?? {}) as {
     banner_url?: string | null
     accent_color?: string | null
@@ -187,17 +214,23 @@ export async function ShopPage({
   // Own-shop premium presentation (epic 07, Sprint 1) — absent keys render today's storefront.
   const announcement = settings.announcement as AnnouncementSettings | null | undefined
   const hero = settings.hero as HeroSettings | null | undefined
-  const themePreset = settings.theme_preset as string | null | undefined
+  // Theme engine v2 (Story 4.1). The resolver decides the attribute AND whether
+  // the legacy preset attribute still applies — a shop that never chose a mode
+  // keeps painting exactly what it painted yesterday (epic D5).
+  const shopTheme = resolveTheme(settings)
   // Own-shop premium presentation (epic 07, Sprint 3) — content-page footer
   // links. Unauthored pages are simply omitted (never a dead link).
-  const about = settings.about as { body?: string } | null | undefined
-  const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
-  const english = resolveMarketPresentation(presentationMarket).language === 'en'
-  const contentPages = [
-    authoredAboutBody(about) && { href: '/acerca', label: english ? 'About' : 'Acerca' },
-    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: english ? 'Frequently asked questions' : 'Preguntas frecuentes' },
-    returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: english ? 'Policies' : 'Políticas' },
-  ].filter(Boolean) as Array<{ href: string; label: string }>
+  // The controlled information architecture (Story 3.1/3.2). Config is what the
+  // seller wants; availability is what the data supports. A nav link renders only
+  // where the two agree, which is what makes a hidden section and an empty one
+  // both produce no link rather than a dead one.
+  const sectionConfig = normalizeSections(settings.sections)
+  const sectionAvailability = await resolveSectionAvailability({
+    shopId: wallShop?.id ?? null,
+    settings,
+    collectionCount: collections.length,
+  })
+
   const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
   const sellerHasStripe = paymentAvailability.stripe
   const sellerHasMp = paymentAvailability.mercadopago
@@ -221,8 +254,13 @@ export async function ShopPage({
 
   const pageContent = (
     <div
-      style={{ '--shop-accent': accent } as React.CSSProperties}
-      data-shop-preset={themePreset || undefined}
+      style={{ '--shop-accent': accent, ...shopTheme.variables } as React.CSSProperties}
+      data-shop-theme={shopTheme.attribute}
+      data-shop-surface={shopTheme.recipe.surface}
+      data-shop-background={shopTheme.recipe.background}
+      data-shop-wall={shopTheme.recipe.wall_layout}
+      data-shop-identity={shopTheme.recipe.identity}
+      data-shop-preset={shopTheme.presetAttribute || undefined}
     >
 
       {/* Push the shop name into AgentContext so the navbar AI card's copied prompt names
@@ -356,16 +394,41 @@ export async function ShopPage({
         marketBasePath={marketBasePath}
       />
 
-      {/* ── Collection nav strip (own-shop premium presentation, Sprint 2) ───── */}
-      <ShopCollectionNav
-        listings={listings}
-        collections={collections}
+      {/* ── The ONE shop nav (Living Shop, epic 07 · Story 3.2) ───────────────
+          This REPLACES the collection strip that used to sit here. Two nav bars
+          on one storefront is the outcome Story 3.2 forbids by name, and the
+          chips were never navigation — they are a filter, so they moved to the
+          destinations where that is what they do (/tienda and /colecciones). */}
+      <ShopSectionNav
+        config={sectionConfig}
+        availability={sectionAvailability}
         basePath={navBasePath}
-        sellerSlug={shop.slug}
+        active="wall"
         accent={accent}
         activeTextColor={accentTextColor}
-        activeShortSlug={null}
+        copy={buyerCopy}
       />
+
+      {/* ── The Wall (Living Shop, epic 07 · Sprint 2) ────────────────────────
+          Rendered only when the merchant has actually published something. A
+          shop with a catalog and an empty Wall keeps today's storefront exactly
+          as it is — an empty-feed box above a full product grid would be noise,
+          and S2.5 asks that a shop with no new settings degrade to the new
+          Default WITHOUT losing content. WallFeed's designed empty state belongs
+          to the dedicated Wall destination, where the feed is the whole page. */}
+      {wall.total > 0 && (
+        <WallFeed
+          entries={wall.entries}
+          hasMore={wall.hasMore}
+          shopSlug={shop.slug}
+          emptyShopHref={`${navBasePath}/tienda`}
+          ctx={{
+            copy: buyerCopy,
+            basePath: navBasePath,
+            htmlLang: resolveMarketPresentation(presentationMarket).htmlLang,
+          }}
+        />
+      )}
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">
@@ -417,8 +480,14 @@ export async function ShopPage({
         )}
       </div>
 
-      {/* ── Content-page links (own-shop premium presentation, Sprint 3) ──────── */}
-      <ShopContentLinks basePath={navBasePath} pages={contentPages} />
+      {/* The footer content links that used to sit here are GONE (Living Shop,
+          epic 07 · Story 3.5). Acerca / Preguntas / Políticas are now first-class
+          nav destinations, and keeping the footer copy would have reintroduced
+          exactly the problem the section nav solves — plus it ignored the
+          seller's hidden-section choice, so a page they had deliberately taken
+          out of the nav stayed reachable from the bottom of the page.
+          `ShopContentLinks.tsx` itself is untouched and still serves the
+          collection pages that render it. */}
     </div>
   )
 
