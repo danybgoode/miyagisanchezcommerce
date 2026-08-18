@@ -36,11 +36,28 @@ export default function StudioClient({
 
   return (
     <div className="max-w-5xl mx-auto px-4 pb-16">
-      <header className="pt-2 pb-5">
-        <h1 className="text-2xl font-bold">Apariencia y contenido</h1>
-        <p className="text-sm text-[var(--fg-muted)] mt-1">
-          Publica en tu muro: una nota, un producto, una colección o un evento.
-        </p>
+      <header className="pt-2 pb-5 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Apariencia y contenido</h1>
+          <p className="text-sm text-[var(--fg-muted)] mt-1">
+            Publica en tu muro: una nota, un producto, una colección o un evento.
+          </p>
+        </div>
+        {/* A direct way out to the real thing. The studio shows a merchant what
+            they are editing; only the live shop shows them what a visitor sees,
+            and Story 5.5 asks for this escape hatch by name.
+            The MARKET-PREFIXED href is deliberate: bare `/s/<slug>` is a
+            redirect source, and `market-route-population.spec.ts` caught this
+            link pointing at it. A platform link goes to the canonical
+            destination, not through a hop. */}
+        <a
+          href={`/mx/s/${shop.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 text-sm px-3 py-2 rounded-lg border border-[var(--border)] no-underline text-[var(--fg)]"
+        >
+          <i className="iconoir-open-new-window" aria-hidden /> Ver mi tienda
+        </a>
       </header>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-[var(--border)] mb-6" aria-label="Secciones del editor">
@@ -61,7 +78,7 @@ export default function StudioClient({
         ))}
       </nav>
 
-      {tab === 'wall' && <WallTab shop={shop} objects={objects} initialEntries={initialEntries} />}
+      {tab === 'wall' && <WallTab objects={objects} initialEntries={initialEntries} />}
     </div>
   )
 }

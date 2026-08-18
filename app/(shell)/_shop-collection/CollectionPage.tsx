@@ -15,11 +15,14 @@ import { readableTextOn } from '@/lib/platform-theme'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import AnnouncementBar from '../s/[slug]/AnnouncementBar'
 import ShopCollectionNav from '../s/[slug]/ShopCollectionNav'
+import ShopSectionNav from '../_shop-sections/ShopSectionNav'
+import { resolveShopNav } from '@/lib/shop-presentation/context'
 import ClosetListingCard from '../s/[slug]/ClosetListingCard'
 import type { AnnouncementSettings } from '@/lib/shop-settings/types'
 import type { Shop } from '@/lib/types'
 import type { MarketCode } from '@/lib/markets'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { getDictionary } from '@/lib/dictionary'
 
 /**
  * Shared body for both collection-page routes (own-shop premium
@@ -52,7 +55,9 @@ export default async function CollectionPage({
   // isLikelyListingId's role on the sibling routes).
   if (!isLikelyCollectionSlug(collectionShortSlug)) notFound()
 
-  const [allCollections, listingRead] = await Promise.all([
+  const [sectionNav, navDict, allCollections, listingRead] = await Promise.all([
+    resolveShopNav(shop),
+    getDictionary(resolveMarketPresentation(market ?? 'mx').language),
     getShopCollections(shop.slug, market),
     market
       ? getMarketplaceShopListings(shop.slug, market)
@@ -62,6 +67,7 @@ export default async function CollectionPage({
           market_unavailable: null,
         })),
   ])
+  const navCopy = navDict.buyerCopy
   // Do not collapse a missing/mismatched market echo into a healthy empty
   // collection: those are different facts and only the latter may render.
   if (listingRead.market_unavailable) notFound()
@@ -103,6 +109,20 @@ export default async function CollectionPage({
         </Link>
         <h1 className="text-xl font-bold mt-1">{matched.name}</h1>
       </div>
+
+      {/* Story 3.2 — the shop nav sits ABOVE the collection chips here, which is
+          the one place both belong: the sections are navigation, the chips are a
+          filter within one of them. On the homepage the chips were competing
+          with the nav, which is why they no longer render there. */}
+      <ShopSectionNav
+        config={sectionNav.sections}
+        availability={sectionNav.availability}
+        basePath={basePath}
+        active="collections"
+        accent={sectionNav.accent}
+        activeTextColor={sectionNav.accentTextColor}
+        copy={navCopy}
+      />
 
       <ShopCollectionNav
         listings={allListings}

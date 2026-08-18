@@ -1,6 +1,11 @@
 import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import ShopSectionNav from '@/app/(shell)/_shop-sections/ShopSectionNav'
+import { resolveShopNav } from '@/lib/shop-presentation/context'
+import { getDictionary } from '@/lib/dictionary'
+import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { readPublicSellerMarket } from '@/lib/owned-market'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import type { Shop } from '@/lib/types'
 
@@ -16,7 +21,7 @@ import type { Shop } from '@/lib/types'
  * PDP trust chip uses, so the two surfaces can't drift on the window label.
  * Unauthored (no window set) → notFound() — never a dead nav link.
  */
-export default function PoliticasBody({ shop, basePath, returnsLabel: localizedReturnsLabel }: { shop: Shop; basePath: string; returnsLabel?: string }) {
+export default async function PoliticasBody({ shop, basePath, returnsLabel: localizedReturnsLabel }: { shop: Shop; basePath: string; returnsLabel?: string }) {
   const settings = ((shop.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
   const returnsPolicy = settings.returns_policy as
     | { window?: string; conditions?: string; shipping_paid_by?: 'buyer' | 'seller'; custom_note?: string | null }
@@ -25,8 +30,22 @@ export default function PoliticasBody({ shop, basePath, returnsLabel: localizedR
   const returnsLabel = localizedReturnsLabel ?? returnsWindowLabel(returnsPolicy?.window)
   if (!returnsLabel) notFound()
 
+  // Story 3.5 — part of the shop site, so it renders the same nav as the Wall.
+  const nav = await resolveShopNav(shop)
+  const market = readPublicSellerMarket(shop)?.market_code ?? 'mx'
+  const navCopy = (await getDictionary(resolveMarketPresentation(market).language)).buyerCopy
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      <ShopSectionNav
+        config={nav.sections}
+        availability={nav.availability}
+        basePath={basePath}
+        active="policies"
+        accent={nav.accent}
+        activeTextColor={nav.accentTextColor}
+        copy={navCopy}
+      />
       <Link href={basePath || '/'} className="text-sm text-[var(--color-muted)] no-underline hover:underline">
         ← {shop.name}
       </Link>

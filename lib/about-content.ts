@@ -79,6 +79,15 @@ export type AboutPageCopy = {
   stubBadge: string
   /** Label for the language-toggle link. */
   langToggleLabel: string
+  /**
+   * The words around the contact address in the closing CTA.
+   *
+   * It lives in THIS model — the one `?lang=en` already switches — because it
+   * did not, and the English page rendered a Spanish sentence. The address
+   * itself is still not copy: it is a fact, and it comes from `lib/contact.ts`
+   * so it cannot disagree with the email transport's Reply-To.
+   */
+  contactPrompt: string
   metaTitle: string
   metaDescription: string
 }
@@ -108,6 +117,7 @@ export const ABOUT_PAGE: Record<AboutLocale, AboutPageCopy> = {
     secondaryCtaLabel: 'Para vendedores',
     stubBadge: 'Próximamente',
     langToggleLabel: 'English',
+    contactPrompt: '¿Dudas? Escríbenos a',
     metaTitle: 'Acerca de miyagisanchez.com — qué es y por qué vender aquí',
     metaDescription:
       'Qué es miyagisanchez.com, por qué vender, cómo empezar y cuánto cuesta. Marketplace nativo para agentes, hecho para México. 0% de comisión.',
@@ -120,6 +130,7 @@ export const ABOUT_PAGE: Record<AboutLocale, AboutPageCopy> = {
     secondaryCtaLabel: 'For sellers',
     stubBadge: 'Coming soon',
     langToggleLabel: 'Español',
+    contactPrompt: 'Questions? Write to us at',
     metaTitle: 'About miyagisanchez.com — what it is and why sell here',
     metaDescription:
       'What miyagisanchez.com is, why sell, how to start, and what it costs. An agent-native marketplace for Mexico. 0% commission.',

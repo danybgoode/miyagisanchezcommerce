@@ -2865,7 +2865,8 @@
         "s_caed6997e299bf1f",
         "s_ea758545ef12a5b8",
         "s_7e4b9752ff3fd4fc",
-        "s_a4e61b0598c47ee8"
+        "s_a4e61b0598c47ee8",
+        "s_11b431de1a28e274"
       ]
     },
     {
@@ -3459,6 +3460,10 @@
     {
       "key": "s_1193568bc50d8dc9",
       "source": "No se pudieron cargar tus campañas. Revisa tu conexión e inténtalo de nuevo."
+    },
+    {
+      "key": "s_11b431de1a28e274",
+      "source": "Ver mi tienda"
     },
     {
       "key": "s_11dd9bb53954bbe7",

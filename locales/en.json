@@ -818,7 +818,24 @@
     "wall.eventCta": "View event",
     "wall.eventCancelled": "Cancelled",
     "wall.eventPast": "Already happened",
-    "wall.byShop": "Posted by the shop"
+    "wall.byShop": "Posted by the shop",
+    "shopNav.wall": "Wall",
+    "shopNav.shop": "Shop",
+    "shopNav.collections": "Collections",
+    "shopNav.events": "Events",
+    "shopNav.about": "About",
+    "shopNav.faq": "FAQ",
+    "shopNav.policies": "Policies",
+    "shopNav.label": "Shop sections",
+    "shopSections.shopTitle": "Everything we sell",
+    "shopSections.shopEmpty": "This shop has no published products yet.",
+    "shopSections.collectionsTitle": "Collections",
+    "shopSections.collectionsEmpty": "This shop has no collections yet.",
+    "shopSections.eventsTitle": "Upcoming events",
+    "shopSections.eventsEmpty": "No events scheduled right now.",
+    "shopSections.eventsPastTitle": "Already happened",
+    "shopSections.itemCount": "{0} items",
+    "shopSections.itemCountOne": "1 item"
   },
   "partnersRecruiting": {
     "landing": {
@@ -3131,7 +3148,8 @@
       "stubBadge": "Coming soon",
       "langToggleLabel": "Español",
       "metaTitle": "About miyagisanchez.com — what it is and why sell here",
-      "metaDescription": "What miyagisanchez.com is, why sell, how to start, and what it costs. An agent-native marketplace for Mexico. 0% commission."
+      "metaDescription": "What miyagisanchez.com is, why sell, how to start, and what it costs. An agent-native marketplace for Mexico. 0% commission.",
+      "contactPrompt": "Questions? Write to us at"
     },
     "sections": {
       "what_is": {
@@ -3393,6 +3411,7 @@
     "s_1183311738da4dd7": "Rotating…",
     "s_118afde4e47a5b39": "Go to dash.cloudflare.com → choose your domain",
     "s_1193568bc50d8dc9": "Could not load your campaigns. Check your connection and try again.",
+    "s_11b431de1a28e274": "View my shop",
     "s_11dd9bb53954bbe7": "Suggested amounts",
     "s_12025ccf125c5443": "Invalid coupon.",
     "s_121b7a99a368a0a5": "Pick a date to schedule it.",

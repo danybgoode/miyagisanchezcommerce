@@ -40,7 +40,6 @@ export interface StudioShop {
 export type StudioTab = 'wall' | 'sections' | 'theme' | 'brand' | 'preview'
 
 export interface WallTabProps {
-  shop: StudioShop
   objects: StudioObjects
   initialEntries: WallEntry[]
 }

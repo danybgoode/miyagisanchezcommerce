@@ -34,7 +34,7 @@ const KIND_LABEL: Record<WallEntry['kind'], string> = {
   event: 'Evento',
 }
 
-export default function WallTab({ shop, objects, initialEntries }: WallTabProps) {
+export default function WallTab({ objects, initialEntries }: WallTabProps) {
   const [entries, setEntries] = useState<WallEntry[]>(initialEntries)
   const [editing, setEditing] = useState<WallEntry | null>(null)
   const [composing, setComposing] = useState(false)

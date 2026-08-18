@@ -7,6 +7,7 @@ import { ensureShop, type ShopCreateInput } from '@/lib/ensure-shop'
 import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 import { normalizeSupportSettings } from '@/lib/support-widget'
 import { httpUrl } from '@/lib/settings-import'
+import { validateSectionConfig } from '@/lib/shop-presentation/sections'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -136,6 +137,14 @@ interface ShopUpdatePayload {
       promo_cta_link?: string | null
     } | null
     theme_preset?: string | null
+    /**
+     * Living Shop (epic 07, Story 3.1) — the controlled information
+     * architecture. Typed as `unknown` on purpose: the shape is owned by
+     * `lib/shop-presentation/sections.ts`, and re-declaring it here would fork
+     * the contract into two places that can disagree. It is validated and
+     * normalized through that module below.
+     */
+    sections?: unknown
     offers?: {
       min_buyer_trust_level?: string
       negotiation?: {
@@ -217,6 +226,20 @@ export async function PATCH(req: NextRequest) {
   if (heroPromoLink !== undefined && heroPromoLink !== null && !httpUrl(heroPromoLink)) {
     return NextResponse.json({ error: 'El enlace del botón destacado debe ser una URL http/https.', field: 'hero' }, { status: 422 })
   }
+  // Living Shop (epic 07, Story 3.1). Validated through the SAME module the
+  // renderer, the importer and the MCP tools use (epic D12) — an agent must not
+  // be able to reach a laxer write path than a human. The route REFUSES here
+  // rather than normalizing silently: a seller is present to read the reason,
+  // which is exactly the difference between this boundary and the renderer's.
+  let normalizedSections: unknown
+  if (body.settings?.sections !== undefined) {
+    const sectionResult = validateSectionConfig(body.settings.sections)
+    if (!sectionResult.ok) {
+      return NextResponse.json({ error: sectionResult.issues[0], field: 'sections' }, { status: 422 })
+    }
+    normalizedSections = sectionResult.value
+  }
+
   const launchpadGuidelines = body.settings?.launchpad?.guidelines
   if (launchpadGuidelines !== undefined && launchpadGuidelines !== null && launchpadGuidelines.length > 2000) {
     return NextResponse.json({ error: 'Las indicaciones de la convocatoria no pueden superar los 2000 caracteres.', field: 'launchpad' }, { status: 422 })
@@ -298,6 +321,13 @@ export async function PATCH(req: NextRequest) {
   if (body.stripe_enabled !== undefined) {
     const existingStripe = (existingSettings.stripe ?? {}) as Record<string, unknown>
     settingsOverride = { ...settingsOverride, stripe: { ...existingStripe, enabled: body.stripe_enabled } }
+  }
+
+  // The NORMALIZED value is what gets persisted, never the raw body — otherwise
+  // a stored order could contain an unknown key that every reader then has to
+  // defend against forever.
+  if (normalizedSections !== undefined) {
+    settingsOverride = { ...settingsOverride, sections: normalizedSections }
   }
 
   const mergedSettings = Object.keys(settingsOverride).length > 0

@@ -136,6 +136,13 @@ const BUYER_COPY_SECTIONS: Record<string, RouteInfo | null> = {
   shop: { label: 'Tienda — contenido', path: '/s/[slug]' },
   s: { label: 'Tienda pública', path: '/s/[slug]' },
   components: { label: 'Componentes compartidos', path: '(se usan en varias páginas)' },
+  // Living Shop (epic 07). The Wall renders on the shop homepage across all
+  // three owned channels, so its destination is the shop home rather than any
+  // one host; the section nav appears on every shop page, which is a KNOWN
+  // multi-page case and says so instead of naming a route it does not own.
+  wall: { label: 'Muro de la tienda', path: '/s/[slug]' },
+  shopNav: { label: 'Navegación de la tienda', path: '(en todas las páginas de la tienda)' },
+  shopSections: { label: 'Secciones de la tienda', path: '/s/[slug]/tienda' },
 }
 
 /**

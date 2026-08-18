@@ -18,11 +18,8 @@ import ClaimButton from './ClaimButton'
 import ClosetListingCard from './ClosetListingCard'
 import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
-import ShopCollectionNav from './ShopCollectionNav'
-import ShopContentLinks from './ShopContentLinks'
+import ShopSectionNav from '@/app/(shell)/_shop-sections/ShopSectionNav'
 import WallFeed from '@/app/(shell)/_wall/WallFeed'
-import { returnsWindowLabel } from '@/lib/trust-signals'
-import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import type { AnnouncementSettings, HeroSettings } from '@/lib/shop-settings/types'
@@ -34,6 +31,8 @@ import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { readPublicWall } from '@/lib/wall/public'
 import { resolvePublicWallShop } from '@/lib/wall/store'
+import { normalizeSections } from '@/lib/shop-presentation/sections'
+import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -168,6 +167,7 @@ export async function ShopPage({
         locale: resolveMarketPresentation(presentationMarket).htmlLang,
       })
     : { entries: [], hasMore: false, total: 0 }
+
   // A refused/mismatched catalog is unavailable, not an empty successful shop.
   // Rendering the latter would cache and index a confident falsehood.
   if (listingRead.market_unavailable) notFound()
@@ -205,14 +205,17 @@ export async function ShopPage({
   const themePreset = settings.theme_preset as string | null | undefined
   // Own-shop premium presentation (epic 07, Sprint 3) — content-page footer
   // links. Unauthored pages are simply omitted (never a dead link).
-  const about = settings.about as { body?: string } | null | undefined
-  const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
-  const english = resolveMarketPresentation(presentationMarket).language === 'en'
-  const contentPages = [
-    authoredAboutBody(about) && { href: '/acerca', label: english ? 'About' : 'Acerca' },
-    wellFormedFaqItems(faq?.items).length > 0 && { href: '/faq', label: english ? 'Frequently asked questions' : 'Preguntas frecuentes' },
-    returnsWindowLabel(returnsPolicy?.window) && { href: '/politicas', label: english ? 'Policies' : 'Políticas' },
-  ].filter(Boolean) as Array<{ href: string; label: string }>
+  // The controlled information architecture (Story 3.1/3.2). Config is what the
+  // seller wants; availability is what the data supports. A nav link renders only
+  // where the two agree, which is what makes a hidden section and an empty one
+  // both produce no link rather than a dead one.
+  const sectionConfig = normalizeSections(settings.sections)
+  const sectionAvailability = await resolveSectionAvailability({
+    shopId: wallShop?.id ?? null,
+    settings,
+    collectionCount: collections.length,
+  })
+
   const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
   const sellerHasStripe = paymentAvailability.stripe
   const sellerHasMp = paymentAvailability.mercadopago
@@ -371,15 +374,19 @@ export async function ShopPage({
         marketBasePath={marketBasePath}
       />
 
-      {/* ── Collection nav strip (own-shop premium presentation, Sprint 2) ───── */}
-      <ShopCollectionNav
-        listings={listings}
-        collections={collections}
+      {/* ── The ONE shop nav (Living Shop, epic 07 · Story 3.2) ───────────────
+          This REPLACES the collection strip that used to sit here. Two nav bars
+          on one storefront is the outcome Story 3.2 forbids by name, and the
+          chips were never navigation — they are a filter, so they moved to the
+          destinations where that is what they do (/tienda and /colecciones). */}
+      <ShopSectionNav
+        config={sectionConfig}
+        availability={sectionAvailability}
         basePath={navBasePath}
-        sellerSlug={shop.slug}
+        active="wall"
         accent={accent}
         activeTextColor={accentTextColor}
-        activeShortSlug={null}
+        copy={buyerCopy}
       />
 
       {/* ── The Wall (Living Shop, epic 07 · Sprint 2) ────────────────────────
@@ -453,8 +460,14 @@ export async function ShopPage({
         )}
       </div>
 
-      {/* ── Content-page links (own-shop premium presentation, Sprint 3) ──────── */}
-      <ShopContentLinks basePath={navBasePath} pages={contentPages} />
+      {/* The footer content links that used to sit here are GONE (Living Shop,
+          epic 07 · Story 3.5). Acerca / Preguntas / Políticas are now first-class
+          nav destinations, and keeping the footer copy would have reintroduced
+          exactly the problem the section nav solves — plus it ignored the
+          seller's hidden-section choice, so a page they had deliberately taken
+          out of the nav stayed reachable from the bottom of the page.
+          `ShopContentLinks.tsx` itself is untouched and still serves the
+          collection pages that render it. */}
     </div>
   )
 

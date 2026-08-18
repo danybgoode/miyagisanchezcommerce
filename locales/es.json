@@ -818,7 +818,24 @@
     "wall.eventCta": "Ver el evento",
     "wall.eventCancelled": "Cancelado",
     "wall.eventPast": "Ya pasó",
-    "wall.byShop": "Publicado por la tienda"
+    "wall.byShop": "Publicado por la tienda",
+    "shopNav.wall": "Muro",
+    "shopNav.shop": "Tienda",
+    "shopNav.collections": "Colecciones",
+    "shopNav.events": "Eventos",
+    "shopNav.about": "Acerca",
+    "shopNav.faq": "Preguntas",
+    "shopNav.policies": "Políticas",
+    "shopNav.label": "Secciones de la tienda",
+    "shopSections.shopTitle": "Todo lo que vendemos",
+    "shopSections.shopEmpty": "Esta tienda todavía no tiene productos publicados.",
+    "shopSections.collectionsTitle": "Colecciones",
+    "shopSections.collectionsEmpty": "Esta tienda todavía no tiene colecciones.",
+    "shopSections.eventsTitle": "Próximos eventos",
+    "shopSections.eventsEmpty": "No hay eventos programados por ahora.",
+    "shopSections.eventsPastTitle": "Ya pasaron",
+    "shopSections.itemCount": "{0} artículos",
+    "shopSections.itemCountOne": "1 artículo"
   },
   "partnersRecruiting": {
     "landing": {
@@ -3131,7 +3148,8 @@
       "stubBadge": "Próximamente",
       "langToggleLabel": "English",
       "metaTitle": "Acerca de miyagisanchez.com — qué es y por qué vender aquí",
-      "metaDescription": "Qué es miyagisanchez.com, por qué vender, cómo empezar y cuánto cuesta. Marketplace nativo para agentes, hecho para México. 0% de comisión."
+      "metaDescription": "Qué es miyagisanchez.com, por qué vender, cómo empezar y cuánto cuesta. Marketplace nativo para agentes, hecho para México. 0% de comisión.",
+      "contactPrompt": "¿Dudas? Escríbenos a"
     },
     "sections": {
       "what_is": {
@@ -3393,6 +3411,7 @@
     "s_1183311738da4dd7": "Rotando…",
     "s_118afde4e47a5b39": "Ve a dash.cloudflare.com → elige tu dominio",
     "s_1193568bc50d8dc9": "No se pudieron cargar tus campañas. Revisa tu conexión e inténtalo de nuevo.",
+    "s_11b431de1a28e274": "Ver mi tienda",
     "s_11dd9bb53954bbe7": "Montos sugeridos",
     "s_12025ccf125c5443": "Cupón no válido.",
     "s_121b7a99a368a0a5": "Elige una fecha para poder programar.",
