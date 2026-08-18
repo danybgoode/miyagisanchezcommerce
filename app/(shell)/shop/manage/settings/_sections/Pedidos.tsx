@@ -49,7 +49,7 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
         <div className="mb-5">
           <p className="text-sm font-medium mb-1">Tiempo de procesamiento</p>
           <p className="text-xs text-[var(--color-muted)] mb-3">¿Cuánto tardas en preparar y enviar un pedido?</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
               { key: '1d',   label: '1 día hábil',      desc: 'Ideal para artículos listos para enviar' },
               { key: '1-3d', label: '1–3 días hábiles', desc: 'Estándar para la mayoría de tiendas' },

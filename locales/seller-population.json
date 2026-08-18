@@ -122,6 +122,7 @@
     "app/(shell)/shop/manage/sweepstakes/page.tsx",
     "components/seller/PendingListingDeleteProvider.tsx",
     "components/seller/SellerLanguageToggle.tsx",
+    "components/seller/SellerPageHeader.tsx",
     "components/seller/SellerPageSkeleton.tsx"
   ],
   "files": [

@@ -87,7 +87,7 @@ export default function ProfitClient({
       <SellerBreadcrumb />
 
       <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Ganancias</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)]">Ganancias</h1>
         <p className="text-[var(--color-muted)] text-sm mt-1">
           Lo que ganas de verdad en cada venta — ingresos menos comisiones, envío y tu costo,
           congelados al momento de la venta.

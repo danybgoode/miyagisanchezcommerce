@@ -2756,7 +2756,7 @@
           "body": "US checkout runs on Stripe in USD as a direct charge, so the money lands in the account you own — not in a platform balance you have to withdraw from."
         },
         {
-          "icon": "iconoir-box-iso",
+          "icon": "iconoir-delivery-truck",
           "title": "You control delivery",
           "body": "Ship it yourself with the carrier you already use, hand it over in person, or sell something with nothing to ship. We do not add a shipping markup."
         },

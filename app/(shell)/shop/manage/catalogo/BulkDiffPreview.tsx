@@ -152,8 +152,8 @@ export default function BulkDiffPreview({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
       <div className="bg-[var(--fg-inverse)] rounded-[var(--r-md)] shadow-xl w-full max-w-3xl max-h-full overflow-y-auto p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-lg">Previsualizar cambios en bloque</h2>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="min-w-0 font-bold text-lg">Previsualizar cambios en bloque</h2>
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-foreground)]" aria-label="Cerrar">×</button>
         </div>
 

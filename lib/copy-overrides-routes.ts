@@ -58,6 +58,9 @@ const SELLER_ACQUISITION_SECTIONS: Record<string, RouteInfo | null> = {
   migracionTiendanube: { label: 'Vende — Migración Tiendanube', path: '/vende/migracion/tiendanube' },
   migracionWoocommerce: { label: 'Vende — Migración WooCommerce', path: '/vende/migracion/woocommerce' },
   migracionBigcartel: { label: 'Vende — Migración BigCartel', path: '/vende/migracion/bigcartel' },
+  // The US recruiting landing is the signed-out face of /sell, not a /vende page
+  // — same section system, different market and destination.
+  us: { label: 'Sell — Estados Unidos', path: '/sell?market=us' },
   promotor: { label: 'Vende — Promotor', path: '/vende/promotor' },
   promotorMigracion: { label: 'Vende — Promotor Migración', path: '/vende/promotor/migracion' },
   // Shared copy (trust lines, FAQ, self-check aside, …) rendered across every

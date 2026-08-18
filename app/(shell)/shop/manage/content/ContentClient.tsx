@@ -114,16 +114,16 @@ export default function ContentClient({
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <SellerBreadcrumb />
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">Contenido exclusivo</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)]">Contenido exclusivo</h1>
           <p className="text-[var(--color-muted)] text-sm mt-1">{shopName} · visible solo para suscriptores activos</p>
         </div>
         {!showForm && (
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="shrink-0 bg-[var(--color-accent)] text-white text-sm font-semibold px-4 py-2 rounded-[var(--r-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
+            className="w-full sm:w-auto sm:shrink-0 min-h-11 bg-[var(--color-accent)] text-white text-sm font-semibold px-4 py-2 rounded-[var(--r-md)] hover:bg-[var(--color-accent-hover)] transition-colors"
           >
             + Nuevo post
           </button>

@@ -134,7 +134,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     <div className="max-w-5xl mx-auto px-4 py-6">
       <SellerBreadcrumb className="mb-1" />
       <div className="flex items-center justify-between mb-1 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold">Catálogo</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Catálogo</h1>
         <Link href="/sell" className="btn btn-primary">+ Nuevo anuncio</Link>
       </div>
       <p className="text-sm text-[var(--color-muted)] mb-5">

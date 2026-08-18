@@ -103,7 +103,7 @@ export default function Perfil({ initial }: { initial: PerfilInitial }) {
             {fieldErrors.description && <p className="text-[var(--danger)] text-xs mt-1"><i className="iconoir-warning-triangle" aria-hidden /> {fieldErrors.description}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">Estado / State</label>
               <select

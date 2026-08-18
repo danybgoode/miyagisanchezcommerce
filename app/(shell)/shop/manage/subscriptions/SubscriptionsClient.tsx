@@ -111,7 +111,7 @@ export default function SubscriptionsClient({
       <SellerBreadcrumb />
 
       <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Suscripciones</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)]">Suscripciones</h1>
         <p className="text-[var(--color-muted)] text-sm mt-1">{shopName} · {subs.length} suscriptores en total</p>
       </div>
 

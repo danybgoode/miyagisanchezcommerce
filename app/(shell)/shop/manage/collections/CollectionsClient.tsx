@@ -106,7 +106,7 @@ export default function CollectionsClient({ shopName, initialCollections }: { sh
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <SellerBreadcrumb className="mb-1" />
-      <h1 className="text-2xl font-bold mb-1">Colecciones</h1>
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">Colecciones</h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         Agrupa los anuncios de {shopName} en secciones propias (Die-cut, Zines…) — aparecen como una barra de navegación en tu tienda.
       </p>

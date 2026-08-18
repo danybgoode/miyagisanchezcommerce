@@ -42,7 +42,7 @@ export default async function EventRosterPage({
           <span>/</span>
           <span>{dict.events.seller.roster}</span>
         </div>
-        <h1 className="text-2xl font-bold">{found.event.title}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">{found.event.title}</h1>
       </div>
       <EventRosterClient
         eventId={id}

@@ -133,7 +133,7 @@ export default function EventsManager({
     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">{ui.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">{ui.title}</h1>
           <p className="text-sm text-[var(--color-muted)] mt-1">{ui.subtitle}</p>
         </div>
         <button

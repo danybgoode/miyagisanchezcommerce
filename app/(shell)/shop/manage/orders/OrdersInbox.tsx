@@ -132,7 +132,7 @@ function BulkStatusPreview({
     <div className="fixed inset-0 z-[70] flex items-end bg-black/40 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="bulk-preview-title">
       <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-3)] sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Antes de aplicar</p>
             <h2 id="bulk-preview-title" className="text-lg font-bold">Revisa el cambio de estado</h2>
             <p className="mt-1 text-sm text-[var(--color-muted)]">
@@ -435,7 +435,7 @@ export default function OrdersInbox({
 
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold">Pedidos</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Pedidos</h1>
       </div>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         {initialOrders.length} pedido{initialOrders.length !== 1 ? 's' : ''} en total
@@ -539,7 +539,7 @@ export default function OrdersInbox({
       {bulkResult && (
         <section className="mb-4 rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--bg-elevated)] p-4" aria-label="Resultado del cambio en bloque" aria-live="polite">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Resultado</p>
               <h2 className="text-sm font-semibold">Cambio a {statusLabel(bulkResult.target)}</h2>
             </div>

@@ -109,8 +109,7 @@ test('the population covers every directory the boundary renders, and the portal
   // GUARD THE POPULATION, NOT A SAMPLE: `showToast` is how the portal talks to a
   // merchant in 60+ places, and none of it was collected. Rather than pin two
   // examples, sweep every literal first argument in the portal and require it.
-  const roots = ['app/(shell)/shop/manage', 'app/(shell)/sell', 'components/seller']
-  const files = roots.flatMap(function walk(dir: string): string[] {
+  const walk = (dir: string): string[] => {
     const absolute = path.join(ROOT, dir)
     if (!existsSync(absolute)) return []
     return readdirSync(absolute, { withFileTypes: true }).flatMap((entry) =>
@@ -118,7 +117,8 @@ test('the population covers every directory the boundary renders, and the portal
         ? walk(path.join(dir, entry.name))
         : entry.name.endsWith('.tsx') ? [path.join(dir, entry.name)] : [],
     )
-  })
+  }
+  const files = ['app/(shell)/shop/manage', 'app/(shell)/sell', 'components/seller'].flatMap(walk)
 
   const uncollected: string[] = []
   for (const file of files) {

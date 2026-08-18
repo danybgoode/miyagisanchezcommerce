@@ -2756,7 +2756,7 @@
           "body": "El checkout de Estados Unidos corre en Stripe en USD como cargo directo, así que el dinero llega a la cuenta que tú controlas — no a un saldo de plataforma del que tengas que retirar."
         },
         {
-          "icon": "iconoir-box-iso",
+          "icon": "iconoir-delivery-truck",
           "title": "Tú controlas la entrega",
           "body": "Envía con la paquetería que ya usas, entrégalo en persona o vende algo que no se envía. No agregamos ningún sobreprecio de envío."
         },
