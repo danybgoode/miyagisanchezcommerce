@@ -1476,6 +1476,11 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
       return { isError: true, content: [{ type: 'text', text: 'No pudimos validar la entrega actual del vendedor. Vuelve a consultar get_checkout_options.' }] }
     }
     const deliveryMode = marketSession.listing.metadata?.delivery_mode === 'arranged' ? 'arranged' as const : 'carrier' as const
+    // The checkout-session call above is discovery, not an authorization to
+    // write a cart. Read Medusa again immediately before that write: a seller
+    // can disable shipping or alter pickup spots after an agent saw them. The
+    // public fulfillment projection deliberately does not expose the backend
+    // spot/rate authority needed by startCheckout.
     const checkoutOptions = await fetchBackendCheckoutOptions({
       sellerRef,
       listingType: 'product',

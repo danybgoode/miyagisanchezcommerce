@@ -103,9 +103,14 @@ test.describe('UCP fulfillment projection', () => {
       listingId: LISTING_ID, deliveryMethods: [SHIPPING], destination,
       rateSource: { state: 'unavailable' },
     })
+    const missingQuote = projectUcpFulfillment({
+      listingId: LISTING_ID, deliveryMethods: [SHIPPING], destination,
+      rateSource: { state: 'not_requested' },
+    })
 
     expect(empty?.shipping_quote_state).toBe('known_empty')
     expect(unavailable?.shipping_quote_state).toBe('unavailable')
+    expect(missingQuote?.shipping_quote_state).toBe('unavailable')
   })
 
   test('pickup spots become stable retail destinations with a zero-cost option', () => {

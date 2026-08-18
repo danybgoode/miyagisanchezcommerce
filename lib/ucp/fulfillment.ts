@@ -287,10 +287,13 @@ export function projectUcpFulfillment(input: {
       : input.rateSource.state === 'unavailable'
         ? 'unavailable'
         : input.rateSource.state === 'available' && input.rateSource.rates.length > 0
-          ? 'options_present'
+            ? 'options_present'
           : input.rateSource.state === 'available'
             ? 'known_empty'
-            : 'destination_required'
+            // A complete destination without a quote is not an invitation to
+            // retry the address; callers must never read it as a known-empty
+            // delivery result.
+            : 'unavailable'
 
   return {
     methods,
