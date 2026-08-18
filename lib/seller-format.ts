@@ -109,6 +109,16 @@ export interface SellerFormat {
   /** A plain number: grouping and decimal marks only. */
   number(value: number, options?: Intl.NumberFormatOptions): string
   /**
+   * A price at the display convention for its OWN currency — whole pesos, real
+   * cents for dollars.
+   *
+   * This is what a merchant-facing amount should use. `money()` stays the
+   * literal escape hatch for a call site that genuinely means one fixed shape;
+   * it never second-guesses an explicit option, because a formatter that
+   * overrides what you asked for is worse than one that is occasionally wrong.
+   */
+  price(cents: number, currency?: string | null): string
+  /**
    * A terse "how long ago", e.g. "Hace 3m" / "3m ago".
    *
    * Not `Intl.RelativeTimeFormat`: that renders "hace 3 minutos", and the orders
@@ -133,6 +143,22 @@ export interface SellerFormat {
   date(value: string | number | Date, options: Intl.DateTimeFormatOptions): string
 }
 
+/**
+ * Currencies this product writes WITHOUT their minor unit.
+ *
+ * Pesos are quoted whole across the whole portal — "$1,235", never "$1,234.50" —
+ * and every price call site asked for that with a literal
+ * `maximumFractionDigits: 0`. Welded to the call site, that literal also rounded
+ * DOLLARS: a US seller's $12.50 order rendered as "$13", a receipt that
+ * disagrees with the card statement. The convention is a property of the
+ * CURRENCY, so it belongs in one table and not in thirty argument lists.
+ *
+ * Anything not listed falls through to `Intl`'s own minor-unit count for that
+ * currency (USD → 2, JPY → 0) rather than a hardcoded 2 — a display rule that
+ * guesses is how the peso literal became a dollar bug in the first place.
+ */
+const WHOLE_UNIT_CURRENCIES: ReadonlySet<string> = new Set(['MXN'])
+
 function currencyCode(value: string | null | undefined, fallback: SellerCurrency): string {
   return typeof value === 'string' && value.trim() ? value.trim().toUpperCase() : fallback
 }
@@ -151,6 +177,10 @@ export function createSellerFormat(
         currency: currencyCode(currency, context.currency),
         ...options,
       }).format(cents / 100)
+    },
+    price(cents, currency) {
+      const code = currencyCode(currency, context.currency)
+      return this.money(cents, code, WHOLE_UNIT_CURRENCIES.has(code) ? { maximumFractionDigits: 0 } : {})
     },
     number(value, options) {
       return new Intl.NumberFormat(tag, options).format(value)

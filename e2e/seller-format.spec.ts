@@ -42,6 +42,46 @@ test.describe('seller format · the language moves, the money does not', () => {
     expect(createSellerFormat(US_EN).money(123_450, 'USD', digits)).toBe('$1,235')
   })
 
+  test('THE ROUNDING GUARD: pesos are whole, dollars keep their cents', () => {
+    // The peso convention was welded into every price call site as a literal
+    // `maximumFractionDigits: 0`, so it rounded DOLLARS too: a US seller's
+    // $12.50 order rendered "$13" — a receipt that disagrees with the card
+    // statement. Assert the cents survive, in both languages.
+    expect(createSellerFormat(US_EN).price(1_250, 'USD')).toBe('$12.50')
+    expect(createSellerFormat(US_ES).price(1_250, 'USD')).toBe('USD\u00a012.50')
+    expect(createSellerFormat(US_EN).price(1_200, 'USD')).toBe('$12.00')
+
+    // …while pesos stay whole, which is what every MX surface renders today.
+    expect(createSellerFormat(MX_ES).price(123_450, 'MXN')).toBe('$1,235')
+    expect(createSellerFormat(MX_EN).price(123_450, 'MXN')).toBe('MX$1,235')
+
+    // The convention follows the CURRENCY, not the shop and not the language:
+    // dollars on an MX shop still carry cents, pesos on a US shop still do not.
+    expect(createSellerFormat(MX_ES).price(1_250, 'USD')).toBe('USD\u00a012.50')
+    expect(createSellerFormat(US_EN).price(123_450, 'MXN')).toBe('MX$1,235')
+
+    // No currency at all → the shop's own, at the shop's own convention.
+    expect(createSellerFormat(MX_ES).price(123_450)).toBe('$1,235')
+    expect(createSellerFormat(US_EN).price(1_250)).toBe('$12.50')
+  })
+
+  test('price() is byte-identical to the peso literal it replaced', () => {
+    // Eight call sites moved from `money(c, cur, { maximumFractionDigits: 0 })`
+    // to `price(c, cur)`. For MXN — every merchant on the platform today — the
+    // rendered bytes must not have moved at all.
+    for (const context of [MX_ES, MX_EN, US_ES, US_EN]) {
+      const fmt = createSellerFormat(context)
+      for (const cents of [0, 99, 123_450, 999_999_99]) {
+        expect(fmt.price(cents, 'MXN')).toBe(fmt.money(cents, 'MXN', { maximumFractionDigits: 0 }))
+      }
+    }
+  })
+
+  test('money() never second-guesses an explicit option', () => {
+    // The escape hatch has to stay literal, or the next reader cannot trust it.
+    expect(createSellerFormat(US_EN).money(1_250, 'USD', { maximumFractionDigits: 0 })).toBe('$13')
+  })
+
   test('THE REDENOMINATION GUARD: switching language never changes the currency', () => {
     // The failure this exists to catch is silent and total — an MX merchant
     // reading English must still be quoted pesos. Compare the resolved currency,

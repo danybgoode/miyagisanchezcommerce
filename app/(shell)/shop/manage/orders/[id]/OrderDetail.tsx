@@ -471,7 +471,7 @@ function ShippingSection({
                   <span className="font-bold text-sm text-[var(--color-accent)]">
                     {/* Envia quotes `totalPrice` in MAJOR units (pesos), not cents —
                         `lib/envia.ts` — and `money()` takes cents, hence the ×100. */}
-                    {fmt.money(rate.totalPrice * 100, rate.currency, { maximumFractionDigits: 0 })}
+                    {fmt.price(rate.totalPrice * 100, rate.currency)}
                   </span>
                 </button>
               ))}
@@ -558,8 +558,10 @@ const RETURN_STATUS_META: Record<string, { label: string }> = {
 export default function OrderDetail({ order }: OrderDetailProps) {
   const fmt = useSellerFormat()
   // The order's own currency; only the formatting follows the merchant's language.
+  // `price()` applies the per-currency convention: whole pesos, real cents for
+  // dollars — an order detail is the page a card statement gets checked against.
   const formatPrice = (cents: number, currency: string) =>
-    fmt.money(cents, currency, { maximumFractionDigits: 0 })
+    fmt.price(cents, currency)
   // The shop's OWN clock, not the language's: "confirmed at 9pm" has to mean 9pm
   // where the merchant is, and an English-reading MX merchant is still in
   // Mexico City. `fmt.timeZone` comes from the market record, so this is

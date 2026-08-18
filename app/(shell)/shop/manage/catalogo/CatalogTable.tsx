@@ -187,7 +187,7 @@ export default function CatalogTable({
   const formatPrice = (cents: number | null, currency: string) =>
     cents === null
       ? (fmt.locale === 'en' ? 'Price on request' : 'Precio a convenir')
-      : fmt.money(cents, currency, { maximumFractionDigits: 0 })
+      : fmt.price(cents, currency)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()

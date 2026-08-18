@@ -44,7 +44,7 @@ export default function PrintAdBuilder({
   const fmt = useSellerFormat()
   // The printed edition is sold in pesos to every merchant, so MXN is explicit —
   // see PrintEditionCard. Only the digit grouping follows the reading language.
-  const formatMXN = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
+  const formatMXN = (cents: number) => fmt.price(cents, 'MXN')
 
   const availableTiers = edition.tiers.filter((t) => !t.sold_out)
 

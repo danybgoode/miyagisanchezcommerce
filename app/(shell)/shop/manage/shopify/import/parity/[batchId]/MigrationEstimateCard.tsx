@@ -25,7 +25,7 @@ export default function MigrationEstimateCard({ batchId }: { batchId: string }) 
   // MXN explicitly: this quote must match, to the peso, the amount the promoter's
   // close will charge (`app/api/promoter/close/migration` refuses a mismatch), and
   // that amount is stored in pesos. Only the FORMATTING follows the language.
-  const mxn = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
+  const mxn = (cents: number) => fmt.price(cents, 'MXN')
   const [estimate, setEstimate] = useState<EstimateBreakdown | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

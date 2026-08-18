@@ -181,8 +181,10 @@ function OrderCard({
   // The order's OWN currency, never the shop's and never the language's: a US
   // order on an MX shop is dollars, and an MX merchant reading English is still
   // owed pesos. Only the grouping and the month name follow `fmt.locale`.
+  // `price()` (not `money()`) so the peso convention stops rounding dollars —
+  // this line used to render a $12.50 order as "$13".
   const formatPrice = (cents: number, currency: string) =>
-    fmt.money(cents, currency, { maximumFractionDigits: 0 })
+    fmt.price(cents, currency)
 
   const listing  = getListing(order)
   const shipment = getShipment(order)

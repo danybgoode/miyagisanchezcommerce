@@ -32,7 +32,7 @@ export default function PromoterCodeField({
   const fmt = useSellerFormat()
   // Promoter codes discount a peso-priced SKU, so MXN is explicit — the name of
   // this helper is `pesos` and it must stay true whatever language is on screen.
-  const pesos = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
+  const pesos = (cents: number) => fmt.price(cents, 'MXN')
 
   async function preview() {
     const c = code.trim()

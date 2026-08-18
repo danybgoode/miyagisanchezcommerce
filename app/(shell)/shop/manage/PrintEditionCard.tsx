@@ -17,7 +17,7 @@ export default function PrintEditionCard() {
   // is passed EXPLICITLY rather than defaulted from the shop: a US merchant
   // reading this card is being quoted the same pesos, and letting the shop's
   // currency win here would relabel the amount without converting it.
-  const formatMXN = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
+  const formatMXN = (cents: number) => fmt.price(cents, 'MXN')
   const formatDate = (iso: string | null) =>
     iso ? fmt.date(iso, { day: 'numeric', month: 'long' }) : null
 
