@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 
@@ -51,19 +51,23 @@ test('seller body copy is a complete market-derived transform and MX remains the
   }
 
   const copy = sellerCopy.createSellerCopyTransform(population.entries, en.sellerCopy)
-  expect(copy('Guardar cambios', 'mx')).toBe('Guardar cambios')
-  expect(copy('Guardar cambios', 'us')).toBe('Save changes')
-  expect(copy('Importar catálogo', 'us')).toBe('Import catalog')
-  expect(copy('Crea una nueva API key (nombre: “Miyagi Sánchez”)', 'us')).toBe(
+  // Spanish is the authored source, so it is the identity case; English is the
+  // only transform. The switch is the render LOCALE, not the shop's market — the
+  // market only supplies the default (lib/seller-locale.ts).
+  expect(copy('Guardar cambios', 'es')).toBe('Guardar cambios')
+  expect(copy('Guardar cambios')).toBe('Guardar cambios')
+  expect(copy('Guardar cambios', 'en')).toBe('Save changes')
+  expect(copy('Importar catálogo', 'en')).toBe('Import catalog')
+  expect(copy('Crea una nueva API key (nombre: “Miyagi Sánchez”)', 'en')).toBe(
     'Create a new API key (name: “Miyagi Sánchez”)',
   )
-  expect(copy('Mercado Libre', 'us')).toBe('Mercado Libre')
-  expect(copy('Stripe · MercadoPago · WhatsApp', 'us')).toBe('Stripe · MercadoPago · WhatsApp')
-  expect(copy('Sin traducir', 'mx')).toBe('Sin traducir')
+  expect(copy('Mercado Libre', 'en')).toBe('Mercado Libre')
+  expect(copy('Stripe · MercadoPago · WhatsApp', 'en')).toBe('Stripe · MercadoPago · WhatsApp')
+  expect(copy('Sin traducir', 'es')).toBe('Sin traducir')
 
   const attributes = { href: '/shop/manage', icon: 'iconoir-shop', key: 'shop', title: 'Guardar cambios' }
-  expect(sellerCopy.localizeSellerAttributes(attributes, 'mx', copy)).toEqual(attributes)
-  expect(sellerCopy.localizeSellerAttributes(attributes, 'us', copy)).toEqual({
+  expect(sellerCopy.localizeSellerAttributes(attributes, 'es', copy)).toEqual(attributes)
+  expect(sellerCopy.localizeSellerAttributes(attributes, 'en', copy)).toEqual({
     href: '/shop/manage',
     icon: 'iconoir-shop',
     key: 'shop',
@@ -75,12 +79,59 @@ test('seller body copy is a complete market-derived transform and MX remains the
   const boundary = source('app/components/SellerCopyBoundary.tsx')
   for (const layout of [manageLayout, sellLayout]) {
     expect(layout).toContain('getMySeller()')
+    // The market is still read, but only to DEFAULT the locale — the seller's
+    // stored preference is what decides, and Spanish still short-circuits before
+    // any boundary or dictionary enters the render path.
     expect(layout).toContain('seller?.market')
+    expect(layout).toContain('resolveSellerLocale(')
+    expect(layout).toContain('SELLER_LOCALE_COOKIE')
     expect(layout).toContain('SellerCopyBoundary')
-    expect(layout).toContain("if (market !== 'us') return content")
+    expect(layout).toContain('if (!sellerCopyBoundaryNeeded(locale)) return content')
+    expect(layout).not.toContain("if (market !== 'us') return content")
   }
   const sellPage = source('app/(shell)/sell/page.tsx')
   expect(sellPage).toContain('resolveSellerSignupMarket(marketParam)')
   expect(sellPage).not.toMatch(/normalizeLocale|accept-language/i)
   expect(boundary).not.toMatch(/normalizeLocale|accept-language/i)
+})
+
+test('the population covers every directory the boundary renders, and the portal\'s toast helper', async () => {
+  const { deriveSellerLocalePopulation } = await import('../scripts/derive-seller-locale-population')
+  const population = deriveSellerLocalePopulation(ROOT)
+  const collected = new Set(population.entries.map(({ source }) => source))
+
+  // The boundary translates everything beneath it, but only from strings this
+  // scan collected. When the depth pass moved shared seller components into
+  // `components/seller`, their copy left the population and an English portal
+  // rendered Spanish undo toasts with every gate green.
+  expect(population.direct).toContain('components/seller/PendingListingDeleteProvider.tsx')
+
+  // GUARD THE POPULATION, NOT A SAMPLE: `showToast` is how the portal talks to a
+  // merchant in 60+ places, and none of it was collected. Rather than pin two
+  // examples, sweep every literal first argument in the portal and require it.
+  const roots = ['app/(shell)/shop/manage', 'app/(shell)/sell', 'components/seller']
+  const files = roots.flatMap(function walk(dir: string): string[] {
+    const absolute = path.join(ROOT, dir)
+    if (!existsSync(absolute)) return []
+    return readdirSync(absolute, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory()
+        ? walk(path.join(dir, entry.name))
+        : entry.name.endsWith('.tsx') ? [path.join(dir, entry.name)] : [],
+    )
+  })
+
+  const uncollected: string[] = []
+  for (const file of files) {
+    for (const [, quote, literal] of source(file).matchAll(/showToast\(\s*(['"])((?:[^\\]|\\.)*?)\1/g)) {
+      const value = literal.replace(/\\(['"])/g, '$1').replace(/\s+/g, ' ').trim()
+      if (/[\p{L}]/u.test(value) && !collected.has(value)) uncollected.push(`${file}: ${value}`)
+    }
+  }
+  expect(uncollected, 'showToast copy missing from the seller population').toEqual([])
+
+  // The second argument is a machine-readable toast type, not copy. Collecting it
+  // would put "success"/"error" in the population, where they would be matched
+  // against real page text.
+  expect(collected.has('success')).toBe(false)
+  expect(collected.has('error')).toBe(false)
 })

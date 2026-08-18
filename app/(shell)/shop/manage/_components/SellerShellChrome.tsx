@@ -9,6 +9,9 @@ import { db } from '@/lib/supabase'
 import { computeShopCompletion, completedSectionKeys, type ShopRow } from '@/lib/setup-guide'
 import { orderedSections } from '@/lib/shop-settings/taxonomy'
 import { getMySeller } from '@/lib/get-my-seller'
+import { cookies } from 'next/headers'
+import { SELLER_LOCALE_COOKIE, resolveSellerLocale } from '@/lib/seller-locale'
+import SellerLanguageToggle from '@/components/seller/SellerLanguageToggle'
 
 /**
  * The seller-distinct shell chrome — dark brand top bar ("Volver a comprar") +
@@ -70,6 +73,10 @@ export default async function SellerShellChrome({ children }: { children: React.
   // already calls it upstream, so this costs no extra round-trip.
   const seller = await getMySeller()
   const market = seller?.market ?? 'mx'
+  const locale = resolveSellerLocale({
+    preference: (await cookies()).get(SELLER_LOCALE_COOKIE)?.value,
+    market,
+  })
 
   if (shop?.id) {
     const [{ count: pendingOrdersCount, error: ordersError }, { count: pendingOffersCount, error: offersError }] = await Promise.all([
@@ -87,7 +94,13 @@ export default async function SellerShellChrome({ children }: { children: React.
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       {/* ── Dark brand top bar ── (brand-accent surface; --fg-inverse on --accent
-          is the documented AA pair, theme-safe and design-token-guard clean). */}
+          is the documented AA pair, theme-safe and design-token-guard clean).
+
+          Mobile-first: the bar carries three things and a phone has room for one
+          and a half, so the two long labels collapse to their icons under `sm`
+          and only the language toggle — which is already two characters — stays
+          at full size. `min-w-0` + `truncate` on the brand is what stops the
+          flex row squeezing the toggle instead of the text. */}
       <div
         style={{
           position: 'sticky',
@@ -104,10 +117,11 @@ export default async function SellerShellChrome({ children }: { children: React.
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
+            gap: 10,
           }}
         >
           <span
+            className="min-w-0"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -118,25 +132,39 @@ export default async function SellerShellChrome({ children }: { children: React.
               color: 'var(--fg-inverse)',
             }}
           >
-            <i className="iconoir-shop" style={{ fontSize: 18, lineHeight: 1 }} />
-            Miyagi Sánchez · Vendedor
+            <i className="iconoir-shop" style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }} />
+            <span className="truncate">
+              <span className="hidden sm:inline">Miyagi Sánchez · </span>
+              {locale === 'en' ? 'Seller' : 'Vendedor'}
+            </span>
           </span>
-          <Link
-            href="/"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              textDecoration: 'none',
-              fontSize: 13,
-              fontFamily: 'var(--font-sans)',
-              color: 'var(--fg-inverse)',
-              opacity: 0.92,
-            }}
-          >
-            <i className="iconoir-arrow-left" style={{ fontSize: 16, lineHeight: 1 }} />
-            Volver a comprar
-          </Link>
+
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <SellerLanguageToggle locale={locale} />
+            <Link
+              href="/"
+              title={locale === 'en' ? 'Back to shopping' : 'Volver a comprar'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                textDecoration: 'none',
+                fontSize: 13,
+                fontFamily: 'var(--font-sans)',
+                color: 'var(--fg-inverse)',
+                opacity: 0.92,
+                // 44px thumb target even when it renders as a bare icon.
+                minHeight: 44,
+                minWidth: 44,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <i className="iconoir-arrow-left" style={{ fontSize: 16, lineHeight: 1 }} />
+              <span className="hidden sm:inline">
+                {locale === 'en' ? 'Back to shopping' : 'Volver a comprar'}
+              </span>
+            </Link>
+          </span>
         </div>
       </div>
 
@@ -156,7 +184,7 @@ export default async function SellerShellChrome({ children }: { children: React.
           paddingTop: 20,
         }}
       >
-        <SellerNav enabledFlags={enabledFlags} badges={badges} configIncomplete={configIncomplete} shopSlug={shopSlug} market={market} />
+        <SellerNav enabledFlags={enabledFlags} badges={badges} configIncomplete={configIncomplete} shopSlug={shopSlug} locale={locale} />
         <main
           style={{
             flex: 1,

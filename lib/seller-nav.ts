@@ -19,10 +19,15 @@
  */
 
 import type { FlagKey } from './flags'
-import type { MarketCode } from './markets'
+import type { SellerLocale } from './seller-locale'
 
 /**
- * Seller nav labels per market (us-marketplace S5.1 / D17).
+ * Seller nav labels per LOCALE (us-marketplace S5.1 / D17).
+ *
+ * Keyed by the render locale rather than the market: the market only defaults
+ * the locale (`lib/seller-locale.ts`), and the rail has to follow the seller's
+ * explicit choice or a merchant who picks English gets an English page inside a
+ * Spanish rail.
  *
  * The rail is the frame a merchant sees on EVERY page of their portal, so it is where
  * an untranslated portal is most obviously untranslated. The es-MX column is copied
@@ -53,13 +58,13 @@ const NAV_LABELS = {
 
 export type SellerNavLabelKey = keyof typeof NAV_LABELS['es']
 
-/** The label table for a market. `mx` is the documented default for an unknown one. */
-export function sellerNavLabels(market: MarketCode = 'mx') {
-  return market === 'us' ? NAV_LABELS.en : NAV_LABELS.es
+/** The label table for a locale. `es` is the documented default for an unknown one. */
+export function sellerNavLabels(locale: SellerLocale = 'es') {
+  return locale === 'en' ? NAV_LABELS.en : NAV_LABELS.es
 }
 
 /**
- * Re-label a nav tree for a market.
+ * Re-label a nav tree for a locale.
  *
  * Deliberately a TRANSFORM over the existing constants rather than a second tree: one
  * structure, one set of hrefs, one flag mapping. A parallel English tree would drift
@@ -68,9 +73,9 @@ export function sellerNavLabels(market: MarketCode = 'mx') {
  */
 export function localizeSellerNav<G extends { label: string; entries: SellerNavEntry[] }>(
   groups: G[],
-  market: MarketCode,
+  locale: SellerLocale,
 ): G[] {
-  const labels = sellerNavLabels(market)
+  const labels = sellerNavLabels(locale)
   const t = (value: string) => LABEL_KEY_BY_ES[value] ? labels[LABEL_KEY_BY_ES[value]] : value
   return groups.map((group) => ({
     ...group,
@@ -83,8 +88,8 @@ export function localizeSellerNav<G extends { label: string; entries: SellerNavE
   }))
 }
 
-export function localizeSellerNavEntries(entries: SellerNavEntry[], market: MarketCode): SellerNavEntry[] {
-  return localizeSellerNav([{ label: '', entries }], market)[0].entries
+export function localizeSellerNavEntries(entries: SellerNavEntry[], locale: SellerLocale): SellerNavEntry[] {
+  return localizeSellerNav([{ label: '', entries }], locale)[0].entries
 }
 
 /**

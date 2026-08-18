@@ -3,6 +3,8 @@ import SellerShellChrome from './_components/SellerShellChrome'
 import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
 import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
+import { cookies } from 'next/headers'
+import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
 import { PendingListingDeleteProvider } from '@/components/seller/PendingListingDeleteProvider'
 
 /**
@@ -29,19 +31,26 @@ export default async function SellerManageLayout({ children }: { children: React
   const whiteLabel = isEmbed || isChannel
   const seller = await getMySeller()
   const market = seller?.market ?? 'mx'
+  const locale = resolveSellerLocale({
+    preference: (await cookies()).get(SELLER_LOCALE_COOKIE)?.value,
+    market,
+  })
 
   const managedContent = <PendingListingDeleteProvider>{children}</PendingListingDeleteProvider>
   const content = whiteLabel
     ? managedContent
     : <SellerShellChrome>{managedContent}</SellerShellChrome>
 
-  // MX is the authored tree, byte for byte: no boundary and no dictionary are
-  // introduced into its render path. Medusa's seller market is the only switch.
-  if (market !== 'us') return content
+  // Spanish is the authored tree, byte for byte: no boundary and no dictionary are
+  // introduced into its render path. The seller's stored choice decides, and the
+  // shop's Medusa market is only the DEFAULT behind it — so an MX merchant can
+  // read the portal in English and a US merchant in Spanish, which a
+  // `market !== 'us'` check could not express in either direction.
+  if (!sellerCopyBoundaryNeeded(locale)) return content
 
-  const copy = (await getDictionary('en')).sellerCopy
+  const copy = (await getDictionary(locale)).sellerCopy
 
   // White-label host → the root ChannelLayout already owns the chrome. Render the
   // manage pages plainly inside it; no seller shell, no stacked bars.
-  return <SellerCopyBoundary market={market} copy={copy}>{content}</SellerCopyBoundary>
+  return <SellerCopyBoundary locale={locale} copy={copy}>{content}</SellerCopyBoundary>
 }

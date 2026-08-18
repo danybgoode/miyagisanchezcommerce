@@ -207,5 +207,5 @@ export default async function SellPage({
   // branch is only for a fresh seller whose validated signup market is US.
   if (existingShop || signupMarket !== 'us') return content
   const copy = (await getDictionary('en')).sellerCopy
-  return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
+  return <SellerCopyBoundary locale="en" copy={copy}>{content}</SellerCopyBoundary>
 }
