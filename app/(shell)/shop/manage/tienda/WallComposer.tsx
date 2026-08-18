@@ -201,7 +201,12 @@ export default function WallComposer({
 
       {kind === 'post' && (
         <div className="mb-4">
-          <span className="text-sm font-medium block mb-1.5">Fotos (hasta {WALL_MEDIA_MAX})</span>
+          <span className="text-sm font-medium block mb-0.5">Fotos</span>
+          {/* The cap is spelled out in words rather than interpolated: an
+              expression inside the sentence would split the text node and leave
+              "Fotos (hasta" as an untranslatable fragment. `wall-media-cap.spec`
+              asserts the words and WALL_MEDIA_MAX cannot drift apart. */}
+          <p className="text-xs text-[var(--fg-muted)] mb-1.5">Puedes agregar hasta cuatro.</p>
           {media.length > 0 && (
             <ul className="space-y-2 mb-2 list-none p-0 m-0">
               {media.map((m, i) => (

@@ -15,6 +15,7 @@
 
 import { useState } from 'react'
 import { Toast, useToast } from '@/components/feedback/Toast'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 import WallComposer from './WallComposer'
 import { effectiveInstant } from '@/lib/wall/visibility'
 import type { WallEntry, WallStatus } from '@/lib/wall/types'
@@ -33,24 +34,27 @@ const KIND_LABEL: Record<WallEntry['kind'], string> = {
   event: 'Evento',
 }
 
-/** The seller's own timezone, spelled out — a bare date is the ambiguity S1.2 forbids. */
-function localInstant(iso: string | null): string {
-  if (!iso) return '—'
-  const ms = Date.parse(iso)
-  if (Number.isNaN(ms)) return '—'
-  return new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZoneName: 'short',
-  }).format(new Date(ms))
-}
-
 export default function WallTab({ shop, objects, initialEntries }: WallTabProps) {
   const [entries, setEntries] = useState<WallEntry[]>(initialEntries)
   const [editing, setEditing] = useState<WallEntry | null>(null)
   const [composing, setComposing] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const { toast, showToast, dismissToast } = useToast()
+  const fmt = useSellerFormat()
+
+  /**
+   * The shop's own zone, named on the face of it. A bare date is exactly the
+   * ambiguity Story 1.2 forbids, and a raw `Intl` call here would hardcode
+   * es-MX into an ES/EN portal — the seller-format seam is the one place that
+   * knows both the locale and the shop's timezone.
+   */
+  const localInstant = (iso: string | null): string => {
+    if (!iso) return '—'
+    return fmt.date(iso, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+    })
+  }
 
   const replace = (entry: WallEntry) =>
     setEntries((prev) => {
@@ -119,9 +123,7 @@ export default function WallTab({ shop, objects, initialEntries }: WallTabProps)
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <p className="text-sm text-[var(--fg-muted)]">
-          Tu muro es la portada de <strong>{shop.name}</strong>.
-        </p>
+        <p className="text-sm text-[var(--fg-muted)]">Tu muro es la portada de tu tienda.</p>
         <button
           type="button"
           onClick={() => setComposing(true)}
@@ -134,10 +136,14 @@ export default function WallTab({ shop, objects, initialEntries }: WallTabProps)
       {entries.length === 0 ? (
         <div className="border border-dashed border-[var(--border)] rounded-xl p-8 text-center">
           <p className="font-medium mb-1">Tu muro está vacío</p>
+          {/* One sentence per text node, on purpose. The seller copy boundary
+              translates TEXT NODES, so an inline <strong> in the middle of a
+              sentence splits it into fragments that no translator can render
+              coherently — the first draft of this paragraph produced six of
+              them ("Publica una", "para contar algo, un", …). */}
           <p className="text-sm text-[var(--fg-muted)] max-w-md mx-auto">
-            Publica una <strong>nota</strong> para contar algo, un <strong>producto</strong> para
-            destacarlo, una <strong>colección</strong> para armar una historia o un{' '}
-            <strong>evento</strong> para invitar a tu gente.
+            Publica una nota para contar algo, un producto para destacarlo, una colección para armar
+            una historia o un evento para invitar a tu gente.
           </p>
           <button
             type="button"

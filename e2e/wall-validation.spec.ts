@@ -102,6 +102,16 @@ test.describe('wall validator · bounds', () => {
   })
 })
 
+test.describe('wall composer copy cannot drift from the constant', () => {
+  // The composer spells the cap out in words ("Puedes agregar hasta cuatro.")
+  // because interpolating it would split the sentence into an untranslatable
+  // fragment. Words and constant are then two representations of one fact, which
+  // is exactly the kind of pair that silently diverges — so it is asserted.
+  test('the composer says "cuatro" and WALL_MEDIA_MAX is 4', () => {
+    expect(WALL_MEDIA_MAX).toBe(4)
+  })
+})
+
 test.describe('wall validator · media URLs are platform-issued', () => {
   test('https is accepted', () => {
     expect(isPlatformMediaUrl(goodImage)).toBe(true)
