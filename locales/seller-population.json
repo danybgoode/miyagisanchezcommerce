@@ -17,6 +17,7 @@
     "app/(shell)/sell/edit/[id]/PublishToMl.tsx",
     "app/(shell)/sell/edit/[id]/page.tsx",
     "app/(shell)/sell/layout.tsx",
+    "app/(shell)/sell/loading.tsx",
     "app/(shell)/sell/page.tsx",
     "app/(shell)/sell/print/[editionId]/PrintAdBuilder.tsx",
     "app/(shell)/sell/print/[editionId]/page.tsx",
@@ -43,6 +44,7 @@
     "app/(shell)/shop/manage/catalogo/BulkDiffPreview.tsx",
     "app/(shell)/shop/manage/catalogo/CatalogFilterBar.tsx",
     "app/(shell)/shop/manage/catalogo/CatalogTable.tsx",
+    "app/(shell)/shop/manage/catalogo/loading.tsx",
     "app/(shell)/shop/manage/catalogo/page.tsx",
     "app/(shell)/shop/manage/collections/CollectionsClient.tsx",
     "app/(shell)/shop/manage/collections/page.tsx",
@@ -63,6 +65,7 @@
     "app/(shell)/shop/manage/import/ImportClient.tsx",
     "app/(shell)/shop/manage/import/page.tsx",
     "app/(shell)/shop/manage/layout.tsx",
+    "app/(shell)/shop/manage/loading.tsx",
     "app/(shell)/shop/manage/mercadolibre/MercadoLibreStatus.tsx",
     "app/(shell)/shop/manage/mercadolibre/import/MercadoLibreImport.tsx",
     "app/(shell)/shop/manage/mercadolibre/import/page.tsx",
@@ -71,7 +74,9 @@
     "app/(shell)/shop/manage/offers/page.tsx",
     "app/(shell)/shop/manage/orders/OrdersInbox.tsx",
     "app/(shell)/shop/manage/orders/[id]/OrderDetail.tsx",
+    "app/(shell)/shop/manage/orders/[id]/loading.tsx",
     "app/(shell)/shop/manage/orders/[id]/page.tsx",
+    "app/(shell)/shop/manage/orders/loading.tsx",
     "app/(shell)/shop/manage/orders/page.tsx",
     "app/(shell)/shop/manage/page.tsx",
     "app/(shell)/shop/manage/profit/PricingCard.tsx",
@@ -103,6 +108,7 @@
     "app/(shell)/shop/manage/settings/_sections/Perfil.tsx",
     "app/(shell)/shop/manage/settings/import/SettingsImportClient.tsx",
     "app/(shell)/shop/manage/settings/import/page.tsx",
+    "app/(shell)/shop/manage/settings/loading.tsx",
     "app/(shell)/shop/manage/settings/page.tsx",
     "app/(shell)/shop/manage/settings/pagos/wizard/CobrosWizardClient.tsx",
     "app/(shell)/shop/manage/settings/pagos/wizard/page.tsx",
@@ -234,13 +240,13 @@
         "s_3b9a35053f32d362",
         "s_159e52eb672288e6",
         "s_62019a84f546e509",
+        "s_3af45bd44b77c9c6",
         "s_bc5581f6f2ba7cdb",
         "s_7da29cb513275381",
         "s_59bafb8966bb0140",
         "s_c4a445bb84832808",
         "s_ee8943f7a323cab3",
         "s_7c43f26d2336f6fa",
-        "s_827ad5f9dc7ad1f7",
         "s_fc12ffdb11cc396f",
         "s_43d7e8460b349932",
         "s_b322167924121f7b",
@@ -266,7 +272,7 @@
         "s_8dd7ea029447bae5",
         "s_c6712a5468a0d446",
         "s_9efa7b54d06f20c5",
-        "s_5eb5331318e9f689",
+        "s_b44325eccef43b40",
         "s_16b4010e2ad91e1a",
         "s_c8ac37efe70d02da",
         "s_24d49b8597db7d37",
@@ -274,21 +280,19 @@
         "s_68065973ab15f1e4",
         "s_0ee352c82a707c68",
         "s_c1b09c31fd32356e",
-        "s_fa476365d865509a",
-        "s_984653e5894499db",
+        "s_98e5acddb6c46a24",
+        "s_5c1534b88f1b9c89",
         "s_7569b0f5517c6779",
         "s_01f6e66f15929a4b",
         "s_a0f2467e1aacceb5",
         "s_cbbba360eb60dd04",
         "s_5bda1bd76aa2f23e",
-        "s_3827f3ca02192684",
-        "s_6088740afed95150",
+        "s_c99ae1a53cbdded6",
         "s_f3e397239a949dc7",
         "s_1d09f6fa23235881",
         "s_8d32a5a0d4169ee2",
+        "s_83714b95fb337e07",
         "s_87123fa0e898ee5b",
-        "s_8526be3f44035548",
-        "s_826cb8f25a590815",
         "s_a6403507e279e1ae",
         "s_f57fff2733e789f6",
         "s_348e2cbf6b5b3971",
@@ -336,7 +340,7 @@
         "s_24f805e7e7211ebc",
         "s_e1f3ceb37ce812f3",
         "s_1ebf9807eef24f70",
-        "s_57268b3ba15683a9",
+        "s_9b03eef1a8707fe6",
         "s_f3fdfff554414b83",
         "s_d55bda9231f9db64",
         "s_6eccbd2a3372cde4",
@@ -1131,21 +1135,26 @@
         "s_aeccae342e4bd0a7",
         "s_d38ec149b0ba76cf",
         "s_f1d31778f7ec5cd0",
+        "s_6faa4cc055b8a2fa",
         "s_fb11966c19793a3e",
         "s_98e5acddb6c46a24",
         "s_184f9f08775f924d",
         "s_e59cac143e012b6c",
+        "s_ac3f1fad04d7b075",
         "s_2ef68536d8e21233",
         "s_b7e718dd4b1ecd47",
         "s_77b9238931ed566d",
         "s_bddeac18b7d65856",
+        "s_44e6d5f616d3d2e3",
         "s_698e8361a88b6a50",
         "s_86b380e5f10e2da4",
         "s_a1d5bc5e9a8b41c0",
         "s_c2dcaf150564e916",
         "s_043a718774c572bd",
         "s_180e96393cfba6ff",
-        "s_94bf66cef76e2012"
+        "s_94bf66cef76e2012",
+        "s_b7e786a347288c25",
+        "s_a31049d69d251f71"
       ]
     },
     {
@@ -1171,17 +1180,21 @@
     {
       "file": "app/(shell)/shop/manage/catalogo/CatalogTable.tsx",
       "keys": [
-        "s_e5cc94a612541e0e",
         "s_aedc4bcda19ddb23",
         "s_cae4a6408d471e86",
         "s_fb89a30ba7f64d18",
+        "s_51dc71d40673bfd6",
+        "s_a1ffdf1af6553559",
         "s_8e38c2571d87f6ee",
         "s_c429fc51e4d109a8",
         "s_723858144bd5482d",
         "s_ddc801f086ab9a53",
+        "s_0ddc8d470698ec1b",
         "s_9b73881b69ec5f3b",
         "s_ee827d40c1b44ae5",
         "s_bb9dbb406dcbd524",
+        "s_aeccae342e4bd0a7",
+        "s_2382bb61c01bd0a2",
         "s_29fa864fd744397e",
         "s_22f067cf9e0581a7",
         "s_c9894cf002f90bd0",
@@ -1192,8 +1205,13 @@
         "s_000d3724675e94fa",
         "s_71fc8c75a526c21e",
         "s_6867b3ec495784ae",
+        "s_616d57eb200198a2",
         "s_3d7a21577a66ea8d",
+        "s_dd7ab474d5a405f1",
+        "s_90234c83a6ffa198",
+        "s_0e192bd712b7d4ee",
         "s_fbfece705212fdef",
+        "s_ddefb12b435b08df",
         "s_a4aa045f9a5646e8",
         "s_db603278b52aa4ee",
         "s_d455cfb682d3705f",
@@ -1202,17 +1220,20 @@
         "s_2e4385b6057f6d7f",
         "s_77b9238931ed566d",
         "s_08cd756e5f767071",
+        "s_7e807673dafac125",
         "s_5e94724018aac487",
         "s_75acf2c8ce97a6bf",
+        "s_0d61e028a88e813f",
         "s_bbaa3fb46f1b74b9",
+        "s_ba058eca0350af4c",
         "s_4950852f759abe68",
         "s_f88ba99c9b342767",
-        "s_60fbd73482828b31",
         "s_1466356fce365a59",
         "s_6a8cb9e1367e5618",
         "s_ebac9070075d3a83",
         "s_d5cade7ef3191690",
         "s_03a7d15df94f2cde",
+        "s_51e7b91f949b39b1",
         "s_b289d6c8922cca1f",
         "s_4d88574e2160afe4"
       ]
@@ -1662,7 +1683,14 @@
     {
       "file": "app/(shell)/shop/manage/orders/OrdersInbox.tsx",
       "keys": [
+        "s_8b0062fa48c50d13",
+        "s_7cc3752a46c0b495",
+        "s_a2f287cb9ca7847a",
+        "s_6e7e80e73bbab567",
+        "s_7aa1964ee0242831",
         "s_bb9dbb406dcbd524",
+        "s_c1fcd4f79edb611c",
+        "s_54d911b681529f70",
         "s_cfc4badc32042671",
         "s_e3a147e4937143d1",
         "s_79c6fa70e48bb567",
@@ -1671,26 +1699,39 @@
         "s_a96e6d8830f2a773",
         "s_c229ae0f7c2723da",
         "s_b64d208e6cc2aab4",
+        "s_a960d638efd06caf",
+        "s_b5fa51d564a9d880",
         "s_1c1d46a22eca07fd",
-        "s_892c3fc6f285c665",
-        "s_6c7ecf89607388f3",
         "s_5c99bb00345fad45",
+        "s_9e9ea5774a2dda55",
+        "s_d6912feb6ab75621",
+        "s_2edd5c5bc4df99d7",
         "s_d86393bc38de3b46",
         "s_a6c7e373fd0781cc",
+        "s_d2b925965ea8d2b9",
         "s_d9ab8c014a69233f",
+        "s_a71bc39fe3f33e42",
+        "s_f0901f383c0c3712",
+        "s_11140a09c2f315cc",
         "s_6f1331f7196030c4",
+        "s_908e6db565513601",
+        "s_e69857d4901de696",
         "s_1221e672dcc9001d",
         "s_ca160d30b91fb371",
-        "s_ab744fe26b887abd",
         "s_bd02b9a7d71dac67",
         "s_ebafc028a7b9d319",
         "s_f51404089c51c0ae",
         "s_1707476c9bc705cd",
+        "s_aa9d170aa551c4a9",
+        "s_959a45d44e6fcf58",
         "s_4d8ea6d25e3c2140",
         "s_769c223c10ed0124",
+        "s_fee981365e329cbf",
+        "s_424531ba402b06c6",
         "s_ca012797c0dac47b",
         "s_043a718774c572bd",
         "s_df9a55ed63d1515b",
+        "s_9bfe02f3f6a90fc4",
         "s_e99600f1ec90c153"
       ]
     },
@@ -3062,6 +3103,10 @@
       "source": "Equilibrio precio/tiempo"
     },
     {
+      "key": "s_0d61e028a88e813f",
+      "source": "Quitar de Mercado Libre"
+    },
+    {
       "key": "s_0d7b9c439fdf80e5",
       "source": "Esta opción económica está en preparación a nivel de plataforma. Tu configuración se conserva y se activará en cuanto esté lista."
     },
@@ -3082,6 +3127,10 @@
       "source": "Niveles guardados."
     },
     {
+      "key": "s_0ddc8d470698ec1b",
+      "source": "Anuncio eliminado."
+    },
+    {
       "key": "s_0de277373899cd70",
       "source": "1–3 días hábiles"
     },
@@ -3100,6 +3149,10 @@
     {
       "key": "s_0df7f7089ec4ed15",
       "source": "Pago por SPEI confirmado"
+    },
+    {
+      "key": "s_0e192bd712b7d4ee",
+      "source": "No se pudo eliminar el anuncio."
     },
     {
       "key": "s_0e1b09ecf7024bd0",
@@ -3184,6 +3237,10 @@
     {
       "key": "s_10f68f3259b0e433",
       "source": "Aparece como una sección en tu tienda."
+    },
+    {
+      "key": "s_11140a09c2f315cc",
+      "source": "Revisa el cambio de estado"
     },
     {
       "key": "s_11573f61cb9cfaec",
@@ -3734,6 +3791,10 @@
       "source": "subdominio"
     },
     {
+      "key": "s_2382bb61c01bd0a2",
+      "source": "Cerrar acciones"
+    },
+    {
       "key": "s_243bed4e005553be",
       "source": "Tipo: CNAME · Nombre: (vacío o @) · Datos: {0}"
     },
@@ -4034,6 +4095,10 @@
       "source": "Conecta tu propio dominio (tutienda.com) para que tu tienda viva en tu marca, con SSL e infraestructura nuestra y sin miyagisanchez.com en la URL. Se renueva cada año; puedes cancelar cuando quieras. Tu"
     },
     {
+      "key": "s_2edd5c5bc4df99d7",
+      "source": "Pedido {0}"
+    },
+    {
       "key": "s_2ef68536d8e21233",
       "source": "Pendiente"
     },
@@ -4266,10 +4331,6 @@
       "source": "Reporte de paridad — Shopify"
     },
     {
-      "key": "s_3827f3ca02192684",
-      "source": "Las fotos aumentan hasta 4× las probabilidades de venta"
-    },
-    {
       "key": "s_3868d2843d5924c1",
       "source": "Tipo"
     },
@@ -4352,6 +4413,10 @@
     {
       "key": "s_3af411944c2dff08",
       "source": "Cambiar banner"
+    },
+    {
+      "key": "s_3af45bd44b77c9c6",
+      "source": "Agrega fotos claras del frente, los lados y los detalles importantes"
     },
     {
       "key": "s_3b003fc1ad5f0400",
@@ -4530,6 +4595,10 @@
       "source": "Reembolso total"
     },
     {
+      "key": "s_424531ba402b06c6",
+      "source": "para cambiar a"
+    },
+    {
       "key": "s_426ba56c3252e054",
       "source": "Ej: Receta exclusiva de temporada"
     },
@@ -4596,6 +4665,10 @@
     {
       "key": "s_44e33fcac55db21e",
       "source": "Detalles del evento"
+    },
+    {
+      "key": "s_44e6d5f616d3d2e3",
+      "source": "Termina o deshaz la eliminación pendiente antes de iniciar otra."
     },
     {
       "key": "s_450dcfb6aeff7c66",
@@ -4922,6 +4995,10 @@
       "source": "Con tu peso predeterminado ("
     },
     {
+      "key": "s_51dc71d40673bfd6",
+      "source": "Acciones del anuncio"
+    },
+    {
       "key": "s_51e007fa8b0fcb93",
       "source": "Los compradores verán estos puntos al finalizar su compra. Próximamente podrán elegir el punto y agendar hora de recogida directamente desde el anuncio."
     },
@@ -4932,6 +5009,10 @@
     {
       "key": "s_51e56f944eae9b52",
       "source": "Sin configurar — el enlace \"Acerca\" no aparecerá en tu tienda."
+    },
+    {
+      "key": "s_51e7b91f949b39b1",
+      "source": "de tu catálogo. Tendrás 10 segundos para deshacer antes de que se confirme."
     },
     {
       "key": "s_520424de31a7471d",
@@ -5010,6 +5091,10 @@
       "source": "Abrir Cloudflare → Crear token"
     },
     {
+      "key": "s_54d911b681529f70",
+      "source": "Cerrar resultado"
+    },
+    {
       "key": "s_54fef6472f946a98",
       "source": "Tu cuenta está activa y lista para recibir pagos con tarjeta."
     },
@@ -5060,10 +5145,6 @@
     {
       "key": "s_56ff3ab1b763bcbf",
       "source": "Pega el archivo que generó tu agente de IA y crea tu tienda y catálogo en un solo paso."
-    },
-    {
-      "key": "s_57268b3ba15683a9",
-      "source": "Ubicación del anuncio / Listing location"
     },
     {
       "key": "s_572890b8c2e926bf",
@@ -5210,6 +5291,10 @@
       "source": "Haz clic para seleccionar el archivo"
     },
     {
+      "key": "s_5c1534b88f1b9c89",
+      "source": "Estado (opcional)"
+    },
+    {
       "key": "s_5c1acf62b200249a",
       "source": "anuncio"
     },
@@ -5294,10 +5379,6 @@
       "source": "Suscripciones"
     },
     {
-      "key": "s_5eb5331318e9f689",
-      "source": "El REPUVE es el Registro Público Vehicular del gobierno mexicano. Los compradores confían más en vehículos con reporte limpio."
-    },
-    {
       "key": "s_5f7f0e5a278375d6",
       "source": "No se pudo contactar al servicio de IA. Inténtalo de nuevo."
     },
@@ -5322,10 +5403,6 @@
       "source": "Importar configuración — Miyagi Sánchez"
     },
     {
-      "key": "s_6088740afed95150",
-      "source": "Los anuncios con descripción reciben un 70% más de contactos."
-    },
-    {
       "key": "s_60973b18d3c7e59c",
       "source": "Revocando…"
     },
@@ -5338,12 +5415,12 @@
       "source": "Volver a comprar"
     },
     {
-      "key": "s_60fbd73482828b31",
-      "source": "Se eliminará"
-    },
-    {
       "key": "s_611950b9f7a03884",
       "source": "Usar este evento"
+    },
+    {
+      "key": "s_616d57eb200198a2",
+      "source": "Mostrar en Miyagi"
     },
     {
       "key": "s_617711c6be24bd33",
@@ -5718,10 +5795,6 @@
       "source": "/año"
     },
     {
-      "key": "s_6c7ecf89607388f3",
-      "source": "Los vendedores que envían en menos de 24 h reciben un 23% más de reseñas positivas. Responder rápido construye reputación."
-    },
-    {
       "key": "s_6c9634c10c50c84b",
       "source": "Eliminar anuncio"
     },
@@ -5782,6 +5855,10 @@
       "source": "Publicar / ocultar por canal"
     },
     {
+      "key": "s_6e7e80e73bbab567",
+      "source": "Aplicar {0} cambio{1}"
+    },
+    {
       "key": "s_6e9403e06ee6a67d",
       "source": "Ver mi cuenta →"
     },
@@ -5820,6 +5897,10 @@
     {
       "key": "s_6f942f7bdd84a60f",
       "source": "Nota adicional"
+    },
+    {
+      "key": "s_6faa4cc055b8a2fa",
+      "source": "Eliminar en 10 s ({0})"
     },
     {
       "key": "s_6fbc573195cd7b6b",
@@ -6162,6 +6243,10 @@
       "source": "Fondos retenidos"
     },
     {
+      "key": "s_7aa1964ee0242831",
+      "source": "Cambio a"
+    },
+    {
       "key": "s_7b0d1c60251740d4",
       "source": "Máx. ${0}"
     },
@@ -6214,6 +6299,10 @@
       "source": "— con el prompt y el token de arriba, tu IA se encarga del día a día."
     },
     {
+      "key": "s_7cc3752a46c0b495",
+      "source": "Antes de aplicar"
+    },
+    {
       "key": "s_7cec3fafb21092e4",
       "source": "Creando tu tienda…"
     },
@@ -6240,6 +6329,10 @@
     {
       "key": "s_7e7c9be2202cca81",
       "source": "¡Listo! Tu cuenta de Mercado Libre quedó conectada."
+    },
+    {
+      "key": "s_7e807673dafac125",
+      "source": "Publicar en Mercado Libre"
     },
     {
       "key": "s_7e9a4281ee9a5736",
@@ -6322,14 +6415,6 @@
       "source": "Pega lo que sea —listas, descripciones, mensajes de proveedor o notas— y nuestra IA arma tu catálogo. Tú lo revisas antes de publicar."
     },
     {
-      "key": "s_826cb8f25a590815",
-      "source": "Municipio / Municipality (opcional)"
-    },
-    {
-      "key": "s_827ad5f9dc7ad1f7",
-      "source": "Aumenta hasta 3× las probabilidades de vender."
-    },
-    {
       "key": "s_8284c8995c324212",
       "source": "Selecciona un producto…"
     },
@@ -6368,6 +6453,10 @@
     {
       "key": "s_836d724d6d294c3c",
       "source": "¿Cómo quieres armar tu tienda?"
+    },
+    {
+      "key": "s_83714b95fb337e07",
+      "source": "Municipio"
     },
     {
       "key": "s_8371a104a914db07",
@@ -6416,10 +6505,6 @@
     {
       "key": "s_851248e53390cf6e",
       "source": "Trae tu catálogo como lo tengas — un archivo, fotos, o el prompt para tu IA. Armamos el borrador completo. Nada se publica sin tu visto bueno."
-    },
-    {
-      "key": "s_8526be3f44035548",
-      "source": "Municipio / Municipality"
     },
     {
       "key": "s_8554806a618e96b5",
@@ -6538,10 +6623,6 @@
       "source": "Apunta tu dominio a Miyagi Sánchez"
     },
     {
-      "key": "s_892c3fc6f285c665",
-      "source": "Los compradores que no reciben actualizaciones en 24 h califican más bajo. Envía rápido."
-    },
-    {
       "key": "s_89648c2bfb2a79f3",
       "source": "El porcentaje no puede ser mayor a 100."
     },
@@ -6592,6 +6673,10 @@
     {
       "key": "s_8b0025ca7722f3d8",
       "source": "Canales — Configuración"
+    },
+    {
+      "key": "s_8b0062fa48c50d13",
+      "source": "Actualizado"
     },
     {
       "key": "s_8b2be0570867f900",
@@ -6738,6 +6823,10 @@
       "source": "Sé específico: marca, modelo, características importantes. Mejora la visibilidad en búsquedas."
     },
     {
+      "key": "s_90234c83a6ffa198",
+      "source": "Más acciones para {0}"
+    },
+    {
       "key": "s_902ee7f27eee595f",
       "source": "enlace"
     },
@@ -6748,6 +6837,10 @@
     {
       "key": "s_9088d5ee167a7ebf",
       "source": "Cuenta Stripe conectada"
+    },
+    {
+      "key": "s_908e6db565513601",
+      "source": "Siguiente paso:"
     },
     {
       "key": "s_90975dd6bf51839f",
@@ -7042,6 +7135,10 @@
       "source": "Este pedido no tiene dirección de envío registrada. Coordina la entrega directamente con el comprador."
     },
     {
+      "key": "s_9b03eef1a8707fe6",
+      "source": "Ubicación del anuncio"
+    },
+    {
       "key": "s_9b488186039b5bd2",
       "source": "En la página de Cloudflare, clic en"
     },
@@ -7084,6 +7181,10 @@
     {
       "key": "s_9bd777664399d340",
       "source": "Socios (promotores con credencial de agente) que pueden operar esta tienda por MCP. Puedes revocar el acceso en cualquier momento — se corta desde su siguiente llamada."
+    },
+    {
+      "key": "s_9bfe02f3f6a90fc4",
+      "source": "{0} actualizado{1} · {2} sin cambios."
     },
     {
       "key": "s_9c3e3e77e460cc6e",
@@ -7234,6 +7335,10 @@
       "source": "con error"
     },
     {
+      "key": "s_a1ffdf1af6553559",
+      "source": "Acciones para {0}"
+    },
+    {
       "key": "s_a22501162d24e2e3",
       "source": "Sincroniza tu catálogo desde tu cuenta conectada."
     },
@@ -7250,8 +7355,16 @@
       "source": "Lo que falta por corregir no se crea todavía — corrígelo arriba o vuelve a intentarlo cuando quieras."
     },
     {
+      "key": "s_a2f287cb9ca7847a",
+      "source": "Aplicando cambios…"
+    },
+    {
       "key": "s_a2fb5209e47b05ff",
       "source": "Ver reporte de paridad antes de importar →"
+    },
+    {
+      "key": "s_a31049d69d251f71",
+      "source": "{0} eliminado{1}{2}{3}."
     },
     {
       "key": "s_a39cb32f7d9ca43b",
@@ -7390,6 +7503,10 @@
       "source": "→ Ver mis anuncios"
     },
     {
+      "key": "s_a71bc39fe3f33e42",
+      "source": "Resultado"
+    },
+    {
       "key": "s_a7438f70ddfda04e",
       "source": "Selecciona estado"
     },
@@ -7442,6 +7559,10 @@
       "source": "Crear mi tienda con {0} producto{1}"
     },
     {
+      "key": "s_a960d638efd06caf",
+      "source": "Error al previsualizar pedidos."
+    },
+    {
       "key": "s_a96e6d8830f2a773",
       "source": "Enviado"
     },
@@ -7492,6 +7613,10 @@
     {
       "key": "s_aa950361d7143f7f",
       "source": "● Emitiendo SSL…"
+    },
+    {
+      "key": "s_aa9d170aa551c4a9",
+      "source": "abre el pedido más antiguo, confirma su pago cuando corresponda y mantén el estado de entrega al día."
     },
     {
       "key": "s_aabd6b16831d54af",
@@ -7564,6 +7689,10 @@
     {
       "key": "s_ac3f091ca34109c5",
       "source": "Prueba"
+    },
+    {
+      "key": "s_ac3f1fad04d7b075",
+      "source": "No se pudo aplicar la eliminación."
     },
     {
       "key": "s_ac4726a1f0860bec",
@@ -7790,6 +7919,10 @@
       "source": "Reporte de inspección (opcional)"
     },
     {
+      "key": "s_b44325eccef43b40",
+      "source": "El REPUVE es el Registro Público Vehicular del gobierno mexicano. Los compradores pueden consultar el estatus del vehículo antes de contactarte. Agrega el folio exacto del reporte para que puedan verificarlo."
+    },
+    {
       "key": "s_b470ba4010c32fa6",
       "source": "Responde rápido para cerrar el trato."
     },
@@ -7890,6 +8023,10 @@
       "source": "Previsualizar cambios en bloque"
     },
     {
+      "key": "s_b7e786a347288c25",
+      "source": "{0} anuncio{1}"
+    },
+    {
       "key": "s_b81a855c0cddcc45",
       "source": "Publica tu anuncio"
     },
@@ -7952,6 +8089,10 @@
     {
       "key": "s_b9cd12ed17ab75f8",
       "source": "No se pudieron cargar las opciones. Recarga la página para intentarlo de nuevo."
+    },
+    {
+      "key": "s_ba058eca0350af4c",
+      "source": "Quitaremos"
     },
     {
       "key": "s_ba0c3c04dc204515",
@@ -8172,6 +8313,10 @@
     {
       "key": "s_c1f539ff0b7f7701",
       "source": "Vista previa abierta del widget de apoyo"
+    },
+    {
+      "key": "s_c1fcd4f79edb611c",
+      "source": "Cerrar previsualización"
     },
     {
       "key": "s_c229ae0f7c2723da",
@@ -8424,6 +8569,10 @@
     {
       "key": "s_c99a2c82df6d4f1d",
       "source": ". Coordina cualquier detalle por correo si hace falta."
+    },
+    {
+      "key": "s_c99ae1a53cbdded6",
+      "source": "Incluye estado, medidas, accesorios y condiciones de entrega."
     },
     {
       "key": "s_c9b3c38247f744e1",
@@ -8806,6 +8955,10 @@
       "source": "Valor {0} (p. ej. {1})"
     },
     {
+      "key": "s_d6912feb6ab75621",
+      "source": "Pedido sin detalle disponible"
+    },
+    {
       "key": "s_d6919eba9d243d29",
       "source": "Moneda"
     },
@@ -9016,6 +9169,10 @@
     {
       "key": "s_dde56e57530f0bf5",
       "source": "Nada se crea todavía — primero te mostramos el borrador completo."
+    },
+    {
+      "key": "s_ddefb12b435b08df",
+      "source": "Ocultar de Miyagi"
     },
     {
       "key": "s_ddfd8abf0a15841a",
@@ -9230,10 +9387,6 @@
       "source": "Lote no encontrado."
     },
     {
-      "key": "s_e5cc94a612541e0e",
-      "source": ". Esta acción no se puede deshacer."
-    },
-    {
       "key": "s_e5ff868db76bce77",
       "source": "Ir a mi tienda"
     },
@@ -9248,6 +9401,10 @@
     {
       "key": "s_e656bdf81f06f156",
       "source": "Ocultar opción avanzada"
+    },
+    {
+      "key": "s_e69857d4901de696",
+      "source": "Sin cambio"
     },
     {
       "key": "s_e699931fddaf8632",
@@ -9536,6 +9693,10 @@
     {
       "key": "s_f039f4a8c9759318",
       "source": "Quitar"
+    },
+    {
+      "key": "s_f0901f383c0c3712",
+      "source": "Resultado del cambio en bloque"
     },
     {
       "key": "s_f0cece0731584ca2",

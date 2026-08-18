@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { formatCents } from '@/lib/profit'
+import { usePendingListingDelete } from '@/components/seller/PendingListingDeleteProvider'
 
 interface BatchItem {
   id: string
@@ -57,6 +58,7 @@ export default function BulkDiffPreview({
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ applied: number; failed: number; skipped: number } | null>(null)
+  const { scheduleDelete, hasPendingDelete } = usePendingListingDelete()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,9 +79,45 @@ export default function BulkDiffPreview({
     }
   }, [batchId])
 
+  // This effect is the route-loader boundary; the async callback owns all
+  // state updates after the request settles.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   async function handleApply() {
+    if (batch?.action?.type === 'delete') {
+      const deletableItems = items.filter((item) => item.valid && item.status === 'pending')
+      const scheduled = scheduleDelete({
+        ids: deletableItems.map((item) => item.product_id),
+        label: `${deletableItems.length} anuncio${deletableItems.length === 1 ? '' : 's'}`,
+        commit: async () => {
+          const res = await fetch(`/api/sell/catalog/bulk/${batchId}/apply`, { method: 'POST' })
+          const data = await res.json().catch(() => ({})) as {
+            applied?: number
+            failed?: number
+            skipped?: number
+            error?: string
+          }
+          if (!res.ok) return { ok: false, message: data.error ?? 'No se pudo aplicar la eliminación.' }
+          const applied = data.applied ?? 0
+          const failed = data.failed ?? 0
+          const skipped = data.skipped ?? 0
+          return {
+            ok: true,
+            toastType: failed > 0 ? 'error' as const : 'success' as const,
+            message: `${applied} eliminado${applied === 1 ? '' : 's'}${failed ? ` · ${failed} con error` : ''}${skipped ? ` · ${skipped} ya aplicado${skipped === 1 ? '' : 's'}` : ''}.`,
+          }
+        },
+      })
+      if (!scheduled) {
+        setError('Termina o deshaz la eliminación pendiente antes de iniciar otra.')
+        return
+      }
+      onApplied()
+      onClose()
+      return
+    }
+
     setApplying(true)
     setError(null)
     try {
@@ -181,10 +219,14 @@ export default function BulkDiffPreview({
               </button>
               <button
                 onClick={handleApply}
-                disabled={applying || validCount === 0}
+                disabled={applying || hasPendingDelete || validCount === 0}
                 className="btn btn-primary disabled:opacity-50"
               >
-                {applying ? 'Aplicando…' : alreadyApplied ? 'Ya aplicado — reintentar' : `Aplicar (${validCount})`}
+                {applying
+                  ? 'Aplicando…'
+                  : batch.action?.type === 'delete'
+                    ? `Eliminar en 10 s (${validCount})`
+                    : alreadyApplied ? 'Ya aplicado — reintentar' : `Aplicar (${validCount})`}
               </button>
             </div>
           </>

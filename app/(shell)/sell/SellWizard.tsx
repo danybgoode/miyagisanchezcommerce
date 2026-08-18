@@ -327,7 +327,7 @@ function PhotoUploader({
       <p className="text-xs text-[var(--color-muted)]">
         {photos.length > 0
           ? `${photos.length}/${MAX_PHOTOS} fotos · La primera foto es la portada`
-          : 'Las fotos aumentan hasta 4× las probabilidades de venta'}
+          : 'Agrega fotos claras del frente, los lados y los detalles importantes'}
       </p>
     </div>
   )
@@ -423,7 +423,7 @@ function StepShop({
       {/* Location */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
-          <Label required>Estado / State</Label>
+          <Label required>Estado</Label>
           <select
             value={shopState}
             onChange={e => { setShopState(e.target.value); setShopCity('') }}
@@ -439,7 +439,7 @@ function StepShop({
           <FieldError msg={errors.shopState} />
         </div>
         <div>
-          <Label>Municipio / Municipality</Label>
+          <Label>Municipio</Label>
           <select
             value={shopCity}
             onChange={e => setShopCity(e.target.value)}
@@ -522,8 +522,8 @@ function RepuveSection({
           <h3 className="font-semibold text-sm text-[var(--warning)]">Verificación REPUVE</h3>
           <p className="text-xs text-[var(--warning)] mt-0.5 leading-relaxed">
             El REPUVE es el Registro Público Vehicular del gobierno mexicano. Los compradores
-            confían más en vehículos con reporte limpio.{' '}
-            <span className="font-medium">Aumenta hasta 3× las probabilidades de vender.</span>
+            pueden consultar el estatus del vehículo antes de contactarte. Agrega el folio exacto del
+            reporte para que puedan verificarlo.
           </p>
         </div>
       </div>
@@ -835,7 +835,7 @@ function StepListing({
           seller UI offers US marketplace publication"). */}
       {ownedShopOnlyEnabled && (
         <div>
-          <label className="flex items-start gap-2 cursor-pointer">
+          <label className="flex min-h-11 items-start gap-2 cursor-pointer py-1">
             <input
               type="checkbox"
               checked={ownedShopOnly}
@@ -876,7 +876,7 @@ function StepListing({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wide">Plan {idx + 1}</span>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex min-h-11 items-center gap-1.5 cursor-pointer px-1">
                     <input
                       type="checkbox"
                       checked={tier.is_highlighted}
@@ -889,7 +889,7 @@ function StepListing({
                     <button
                       type="button"
                       onClick={() => setSubTiers(prev => prev.filter(t => t.id !== tier.id))}
-                      className="text-xs text-[var(--danger)] hover:text-[var(--danger)]"
+                      className="inline-flex min-h-11 items-center gap-1 px-2 text-xs text-[var(--danger)] hover:text-[var(--danger)]"
                     >
                       <i className="iconoir-xmark" aria-hidden /> Quitar
                     </button>
@@ -1112,7 +1112,7 @@ function StepListing({
             <FieldError msg={errors.price} />
           </div>
         </div>
-        <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+        <label className="flex min-h-11 items-center gap-2 mt-2 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={priceOnRequest}
@@ -1145,14 +1145,14 @@ function StepListing({
           className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition resize-none"
         />
         <div className="flex justify-between mt-0.5">
-          <p className="text-xs text-[var(--color-muted)]">Los anuncios con descripción reciben un 70% más de contactos.</p>
+          <p className="text-xs text-[var(--color-muted)]">Incluye estado, medidas, accesorios y condiciones de entrega.</p>
           <CharCount current={description.length} max={2000} />
         </div>
       </div>
 
       {/* Location */}
       <div>
-        <Label>Ubicación del anuncio / Listing location</Label>
+        <Label>Ubicación del anuncio</Label>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <select
@@ -1160,7 +1160,7 @@ function StepListing({
               onChange={e => { setListingState(e.target.value); setListingCity('') }}
               className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition"
             >
-              <option value="">Estado / State (opcional)</option>
+              <option value="">Estado (opcional)</option>
               {ESTADOS.map(e => (
                 <option key={e.inegi_code} value={e.name}>{e.name}</option>
               ))}
@@ -1173,7 +1173,7 @@ function StepListing({
               disabled={!listingState}
               className="w-full border border-[var(--color-border)] rounded-[var(--r-sm)] px-3 py-2.5 text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="">{listingState ? 'Municipio / Municipality (opcional)' : 'Primero elige estado'}</option>
+              <option value="">{listingState ? 'Municipio (opcional)' : 'Primero elige estado'}</option>
               {(CITIES_BY_STATE[listingState] ?? []).map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}

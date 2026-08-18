@@ -13,11 +13,38 @@ import { auth } from '@clerk/nextjs/server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 
-export async function PATCH(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const { userId, getToken } = await auth()
   if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
 
   let body: { order_ids?: string[]; status?: string }
+  try { body = await req.json() } catch {
+    return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
+  }
+
+  const clerkJwt = await getToken()
+  const medusaRes = await fetch(`${MEDUSA_BASE}/store/sellers/me/orders/bulk-status/preview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-publishable-api-key': process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? '',
+      ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
+    },
+    body: JSON.stringify({ order_ids: body.order_ids, status: body.status }),
+  })
+
+  const data = await medusaRes.json().catch(() => ({})) as { message?: string }
+  if (!medusaRes.ok) {
+    return NextResponse.json({ error: data.message ?? 'Error al previsualizar pedidos.' }, { status: medusaRes.status })
+  }
+  return NextResponse.json(data)
+}
+
+export async function PATCH(req: NextRequest) {
+  const { userId, getToken } = await auth()
+  if (!userId) return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+
+  let body: { order_ids?: string[]; status?: string; expected_statuses?: Record<string, string> }
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 })
   }
@@ -30,7 +57,11 @@ export async function PATCH(req: NextRequest) {
       'x-publishable-api-key': process.env.MEDUSA_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? '',
       ...(clerkJwt ? { Authorization: `Bearer ${clerkJwt}` } : {}),
     },
-    body: JSON.stringify({ order_ids: body.order_ids, status: body.status }),
+    body: JSON.stringify({
+      order_ids: body.order_ids,
+      status: body.status,
+      expected_statuses: body.expected_statuses,
+    }),
   })
 
   if (!medusaRes.ok) {

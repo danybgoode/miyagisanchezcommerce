@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /**
  * ml-orders-native S3 · US-8 — route-guard smoke for the bulk-status proxy.
@@ -9,6 +11,14 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('orders bulk-status · Clerk-gated, never 500s', () => {
+  test('preview POST checks Clerk before parsing or proxying any order id', () => {
+    const source = readFileSync(join(process.cwd(), 'app/api/orders/bulk-status/route.ts'), 'utf8')
+    const post = source.slice(source.indexOf('export async function POST'), source.indexOf('export async function PATCH'))
+    expect(post.indexOf('if (!userId)')).toBeGreaterThan(-1)
+    expect(post.indexOf('if (!userId)')).toBeLessThan(post.indexOf('await req.json()'))
+    expect(post.indexOf('if (!userId)')).toBeLessThan(post.indexOf('fetch(`${MEDUSA_BASE}'))
+  })
+
   test('anonymous PATCH with a well-formed body → 401', async ({ request }) => {
     const res = await request.patch('/api/orders/bulk-status', {
       data: { order_ids: ['order_01JZZZZZZZZZZZZZZZZZZZZZZZ'], status: 'shipped' },
