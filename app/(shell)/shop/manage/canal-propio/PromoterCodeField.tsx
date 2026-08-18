@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 /**
  * Promoter Program (epic 08, Sprint 1) — a promoter-code field + discount PREVIEW
@@ -28,8 +29,10 @@ export default function PromoterCodeField({
   const [discountCents, setDiscountCents] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
-  const pesos = (cents: number) =>
-    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
+  const fmt = useSellerFormat()
+  // Promoter codes discount a peso-priced SKU, so MXN is explicit — the name of
+  // this helper is `pesos` and it must stay true whatever language is on screen.
+  const pesos = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
 
   async function preview() {
     const c = code.trim()

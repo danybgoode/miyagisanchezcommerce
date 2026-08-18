@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 /* eslint-disable @next/next/no-img-element -- order media preserves arbitrary seller-hosted image URLs */
 
 import { useState } from 'react'
@@ -131,17 +133,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-MX', {
-    day: 'numeric', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/Mexico_City',
-  })
-}
 
 function formatAddress(addr: Record<string, string> | null): string {
   if (!addr) return '—'
@@ -219,6 +210,7 @@ function ShippingSection({
   checkoutShippingCarrier: string | null
   onShipped: (shipment: Partial<Shipment>) => void
 }) {
+  const fmt = useSellerFormat()
   const [mode, setMode] = useState<'choose' | 'envia' | 'manual'>('choose')
 
   // Envia state
@@ -341,7 +333,7 @@ function ShippingSection({
             )}
             {existingShipment.estimated_delivery_date && (
               <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                Entrega estimada: {new Date(existingShipment.estimated_delivery_date).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })}
+                Entrega estimada: {fmt.date(existingShipment.estimated_delivery_date, { day: 'numeric', month: 'long' })}
               </p>
             )}
             <div className="flex gap-2 mt-2.5 flex-wrap">
@@ -477,7 +469,9 @@ function ShippingSection({
                     )}
                   </div>
                   <span className="font-bold text-sm text-[var(--color-accent)]">
-                    {new Intl.NumberFormat('es-MX', { style: 'currency', currency: rate.currency, maximumFractionDigits: 0 }).format(rate.totalPrice)}
+                    {/* Envia quotes `totalPrice` in MAJOR units (pesos), not cents —
+                        `lib/envia.ts` — and `money()` takes cents, hence the ×100. */}
+                    {fmt.money(rate.totalPrice * 100, rate.currency, { maximumFractionDigits: 0 })}
                   </span>
                 </button>
               ))}
@@ -562,6 +556,20 @@ const RETURN_STATUS_META: Record<string, { label: string }> = {
 }
 
 export default function OrderDetail({ order }: OrderDetailProps) {
+  const fmt = useSellerFormat()
+  // The order's own currency; only the formatting follows the merchant's language.
+  const formatPrice = (cents: number, currency: string) =>
+    fmt.money(cents, currency, { maximumFractionDigits: 0 })
+  // The shop's OWN clock, not the language's: "confirmed at 9pm" has to mean 9pm
+  // where the merchant is, and an English-reading MX merchant is still in
+  // Mexico City. `fmt.timeZone` comes from the market record, so this is
+  // America/Mexico_City for an MX shop exactly as the literal here used to be.
+  const formatDate = (iso: string) =>
+    fmt.date(iso, {
+      day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+      timeZone: fmt.timeZone,
+    })
   const orderMeta = (order.metadata ?? {}) as Record<string, unknown>
   const isEscrowOrder = !!orderMeta.escrow_mode
   const escrowCapturedInit = !!orderMeta.escrow_captured

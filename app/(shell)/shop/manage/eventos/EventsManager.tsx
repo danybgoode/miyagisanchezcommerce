@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/dictionary'
@@ -55,14 +57,6 @@ function formFromEvent(event: EventWithStats): FormState {
   }
 }
 
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat('es-MX', {
-    timeZone: 'America/Mexico_City',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(iso))
-}
-
 export default function EventsManager({
   ui,
   initialEvents,
@@ -70,6 +64,12 @@ export default function EventsManager({
   ui: SellerUi
   initialEvents: EventWithStats[]
 }) {
+  const fmt = useSellerFormat()
+  // An event's start time is a WALL CLOCK where the event happens, so the zone
+  // follows the shop's market (`MARKETS[…].timezone`) and never the language —
+  // America/Mexico_City for an MX shop, exactly the literal that was here.
+  const formatDate = (iso: string) =>
+    fmt.date(iso, { timeZone: fmt.timeZone, dateStyle: 'medium', timeStyle: 'short' })
   const [events, setEvents] = useState(initialEvents)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -214,11 +214,11 @@ export default function EventsManager({
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <div className="text-xs text-[var(--color-muted)]">{ui.registrations}</div>
-                        <div className="font-semibold">{event.stats.registrations.toLocaleString('es-MX')}</div>
+                        <div className="font-semibold">{fmt.number(event.stats.registrations)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-[var(--color-muted)]">{ui.capacityLabel}</div>
-                        <div className="font-semibold">{event.capacity == null ? ui.unlimited : event.capacity.toLocaleString('es-MX')}</div>
+                        <div className="font-semibold">{event.capacity == null ? ui.unlimited : fmt.number(event.capacity)}</div>
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">

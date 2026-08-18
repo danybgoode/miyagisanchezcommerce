@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
@@ -57,6 +59,7 @@ function CopyButton({ text, label = 'Copiar' }: { text: string; label?: string }
 // ── Uploader: paste/file → validate → editable staging → import ──────────────
 
 function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pagosConfigured: boolean }) {
+  const fmt = useSellerFormat()
   const publicShopUrl = shopSlug ? shopUrlFor(SITE_ORIGIN, shopSlug) : ''
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
@@ -227,7 +230,7 @@ function Uploader({ shopSlug, pagosConfigured }: { shopSlug: string | null; pago
         />
         <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
           <span className={`text-xs ${pasteText.length > EXTRACT_CHAR_LIMIT ? 'text-red-600 font-semibold' : 'text-[var(--color-muted)]'}`}>
-            {pasteText.length.toLocaleString('es-MX')} / {EXTRACT_CHAR_LIMIT.toLocaleString('es-MX')} caracteres
+            {fmt.number(pasteText.length)} / {fmt.number(EXTRACT_CHAR_LIMIT)} caracteres
           </span>
           <button
             type="button"

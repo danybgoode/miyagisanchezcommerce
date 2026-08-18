@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { formatCents } from '@/lib/profit'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 import { usePendingListingDelete } from '@/components/seller/PendingListingDeleteProvider'
 
 interface BatchItem {
@@ -52,6 +52,8 @@ export default function BulkDiffPreview({
   onClose: () => void
   onApplied: () => void
 }) {
+  const fmt = useSellerFormat()
+  const formatCents = (cents: number) => fmt.money(cents)
   const [batch, setBatch] = useState<Batch | null>(null)
   const [items, setItems] = useState<BatchItem[]>([])
   const [loading, setLoading] = useState(true)

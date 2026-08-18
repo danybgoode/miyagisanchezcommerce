@@ -1,4 +1,5 @@
 'use client'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 import { useState } from 'react'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
@@ -24,16 +25,6 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   pending_confirmation: { label: 'Pendiente SPEI',   color: 'bg-purple-100 text-purple-800' },
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function formatPrice(cents: number | null, currency: string): string {
-  if (!cents) return '—'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(cents / 100)
-}
-
 export default function SubscriptionsClient({
   shopName,
   subscriptions: initialSubs,
@@ -41,6 +32,13 @@ export default function SubscriptionsClient({
   shopName: string
   subscriptions: Subscription[]
 }) {
+  const fmt = useSellerFormat()
+  const formatDate = (iso: string | null) =>
+    iso ? fmt.date(iso, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  // The row's OWN currency code, passed through untouched — only the formatting
+  // locale follows the merchant's language.
+  const formatPrice = (cents: number | null, currency: string) =>
+    cents ? fmt.money(cents, currency) : '—'
   const [subs, setSubs] = useState(initialSubs)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

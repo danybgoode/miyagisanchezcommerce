@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { MlHealth, MlHealthState } from '@/lib/ml-health'
@@ -30,15 +32,6 @@ const ERROR_COPY: Record<string, string> = {
   ml_no_config: 'La integración con Mercado Libre aún no está configurada. Contacta a soporte.',
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return '—'
-  }
-}
-
 export default function MercadoLibreStatus({
   connection,
   health,
@@ -60,6 +53,15 @@ export default function MercadoLibreStatus({
   sellerSyncEnabled?: boolean
   events?: MlEventView[]
 }) {
+  const fmt = useSellerFormat()
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '—'
+    try {
+      return fmt.date(iso, { dateStyle: 'medium', timeStyle: 'short' })
+    } catch {
+      return '—'
+    }
+  }
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)

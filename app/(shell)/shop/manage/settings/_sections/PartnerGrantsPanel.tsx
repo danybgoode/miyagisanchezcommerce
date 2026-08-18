@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 interface PartnerGrant {
   id: string
@@ -10,10 +11,6 @@ interface PartnerGrant {
 }
 
 const ROLE_LABEL: Record<'manager' | 'viewer', string> = { manager: 'Gestor', viewer: 'Solo lectura' }
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' })
-}
 
 /**
  * "Acceso de socios" — Miyagi Partners · Sprint 2 (US-2.3). Lists active
@@ -26,6 +23,8 @@ function fmtDate(iso: string): string {
  * (`Agentes.tsx`) needs zero special-casing for the flag.
  */
 export default function PartnerGrantsPanel() {
+  const fmt = useSellerFormat()
+  const fmtDate = (iso: string) => fmt.date(iso, { year: 'numeric', month: 'short', day: 'numeric' })
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null) // null = not loaded / hidden
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

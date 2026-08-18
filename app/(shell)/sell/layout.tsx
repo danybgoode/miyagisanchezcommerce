@@ -1,11 +1,13 @@
 import { headers } from 'next/headers'
 import SellerShellChrome from '@/app/(shell)/shop/manage/_components/SellerShellChrome'
 import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import SellerFormatProvider from '@/app/components/SellerFormatProvider'
 import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
 import { sellShellEligible } from '@/lib/seller-shell-gate'
 import { cookies } from 'next/headers'
 import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
+import { sellerFormatContextForMarket } from '@/lib/seller-format'
 
 /**
  * Seller shell over `/sell` + `/sell/setup` for a signed-in shop owner
@@ -43,9 +45,18 @@ export default async function SellLayout({ children }: { children: React.ReactNo
   const platformPath = hdrs.get('x-miyagi-path') ?? '/'
   const eligible = await sellShellEligible(platformPath)
 
-  const content = whiteLabel || !eligible
+  const shell = whiteLabel || !eligible
     ? children
     : <SellerShellChrome>{children}</SellerShellChrome>
+
+  // Same three facts, same reason as shop/manage/layout.tsx: the copy boundary
+  // cannot reach a formatted number, so language/currency/clock arrive here. A
+  // context provider emits no DOM, so Spanish stays the byte-for-byte identity.
+  const content = (
+    <SellerFormatProvider context={sellerFormatContextForMarket(locale, market)}>
+      {shell}
+    </SellerFormatProvider>
+  )
 
   // Spanish is the authored tree, byte for byte (see shop/manage/layout.tsx —
   // same resolver, same three states). The shop's Medusa market is the default;

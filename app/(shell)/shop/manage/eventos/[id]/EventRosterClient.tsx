@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useMemo, useState } from 'react'
 import type { Dictionary } from '@/lib/dictionary'
 import type { EventRosterRow } from '@/lib/event-tickets'
@@ -25,6 +27,7 @@ export default function EventRosterClient({
   ui: SellerUi
   initialRoster: EventRosterRow[]
 }) {
+  const fmt = useSellerFormat()
   const [roster, setRoster] = useState(initialRoster)
   const [token, setToken] = useState('')
   const [scanning, setScanning] = useState(false)
@@ -94,8 +97,8 @@ export default function EventRosterClient({
           <div className="flex items-start justify-between gap-4 mb-4">
             <h2 className="text-xl font-semibold">{ui.roster}</h2>
             <div className="text-right text-sm">
-              <div><span className="text-[var(--color-muted)]">{ui.checkedInCount}:</span> <strong>{checkedIn.toLocaleString('es-MX')}</strong></div>
-              <div><span className="text-[var(--color-muted)]">{ui.totalAttendees}:</span> <strong>{roster.length.toLocaleString('es-MX')}</strong></div>
+              <div><span className="text-[var(--color-muted)]">{ui.checkedInCount}:</span> <strong>{fmt.number(checkedIn)}</strong></div>
+              <div><span className="text-[var(--color-muted)]">{ui.totalAttendees}:</span> <strong>{fmt.number(roster.length)}</strong></div>
             </div>
           </div>
 

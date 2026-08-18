@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useState, useCallback } from 'react'
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 
@@ -23,17 +25,19 @@ function randomCode(len = 7): string {
   return out
 }
 
-function formatDiscount(c: Coupon): string {
-  return c.type === 'percentage' ? `${c.value}%` : `$${c.value.toLocaleString('es-MX')} MXN`
-}
-
-function formatExpiry(iso: string | null): string {
-  if (!iso) return 'Sin vencimiento'
-  const d = new Date(iso)
-  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
 export default function PromotionsClient({ shopName, initialCoupons }: { shopName: string; initialCoupons: Coupon[] }) {
+  const fmt = useSellerFormat()
+  // A fixed-amount coupon is stored in whole units of the shop's own money and
+  // rendered with a hand-built "$… MXN" — the suffix stays a literal on purpose:
+  // it names the CURRENCY, which follows the shop's market, not the reader's
+  // language. Only the thousands grouping is localized.
+  const formatDiscount = (c: Coupon) =>
+    c.type === 'percentage' ? `${c.value}%` : `$${fmt.number(c.value)} MXN`
+  const formatExpiry = (iso: string | null) =>
+    iso
+      ? fmt.date(iso, { day: 'numeric', month: 'short', year: 'numeric' })
+      : (fmt.locale === 'en' ? 'No expiry' : 'Sin vencimiento')
+
   const [coupons, setCoupons] = useState<Coupon[]>(initialCoupons)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

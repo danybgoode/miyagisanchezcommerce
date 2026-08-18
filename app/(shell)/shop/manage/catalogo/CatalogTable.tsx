@@ -16,7 +16,8 @@ import {
 import { PROCESSING_LABELS } from '@/lib/trust-inputs'
 import type { CatalogSearchParams } from '@/lib/catalog-query'
 import { deriveProductMargin, type MarginCell } from '@/lib/catalog-margin'
-import { formatCents, formatPct, type SkuMarginRow } from '@/lib/profit'
+import { formatPct, type SkuMarginRow } from '@/lib/profit'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 import { Toast, useToast } from '@/components/feedback/Toast'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -70,11 +71,6 @@ const STATUS_LABEL: Record<string, { label: string }> = {
   sobre_pedido: { label: 'Sobre pedido' },
 }
 
-function formatPrice(cents: number | null, currency: string) {
-  if (cents === null) return 'Precio a convenir'
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
 function stockLabel(listing: CatalogListing) {
   if (listing.manage_inventory && listing.allow_backorder) {
     if (!listing.dispatch_estimate) return 'Sobre pedido'
@@ -90,9 +86,14 @@ function stockLabel(listing: CatalogListing) {
 }
 
 // Margin column (catalog-management S4 · Story 4.1) — one honest cell per
-// channel, never a fake number. `formatCents`/`formatPct` are the SAME
-// formatters the profit dashboard uses (no forked display logic either).
+// channel, never a fake number. `useSellerFormat().money`/`formatPct` are the
+// SAME formatters the profit dashboard uses (no forked display logic either).
+//
+// A margin has no currency column of its own, so it falls back to the SHOP's
+// currency rather than to a literal — `lib/profit.ts`'s `formatCents` defaults to
+// MXN, which rendered a US shop's margins in pesos.
 function MarginCellDisplay({ label, cell }: { label: string; cell: MarginCell }) {
+  const fmt = useSellerFormat()
   if (cell.state === 'no_sales') {
     return <span className="text-[10px] text-[var(--color-muted)]">{label}: sin ventas</span>
   }
@@ -106,7 +107,7 @@ function MarginCellDisplay({ label, cell }: { label: string; cell: MarginCell })
   }
   return (
     <span className={`text-[10px] ${cell.isKiller ? 'text-[var(--danger)] font-semibold' : 'text-[var(--color-muted)]'}`}>
-      {label}: {formatCents(cell.marginCents ?? 0)} · {formatPct(cell.marginPct ?? null)}
+      {label}: {fmt.money(cell.marginCents ?? 0)} · {formatPct(cell.marginPct ?? null)}
       {cell.isKiller && <i className="iconoir-warning-triangle" aria-hidden />}
     </span>
   )
@@ -178,6 +179,15 @@ export default function CatalogTable({
    */
   ownedShopOnlyEnabled?: boolean
 }) {
+  const fmt = useSellerFormat()
+  // The listing's OWN currency. "Precio a convenir" is authored here rather than
+  // left to the copy boundary because the boundary substitutes text nodes against
+  // a generated population, and a string returned from a formatter never reached
+  // that scan — it stayed Spanish in an English portal with every gate green.
+  const formatPrice = (cents: number | null, currency: string) =>
+    cents === null
+      ? (fmt.locale === 'en' ? 'Price on request' : 'Precio a convenir')
+      : fmt.money(cents, currency, { maximumFractionDigits: 0 })
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()

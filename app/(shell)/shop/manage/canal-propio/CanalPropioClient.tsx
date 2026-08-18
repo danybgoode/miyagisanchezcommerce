@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 /**
  * Canal propio — custom domain + free URL/slug editor + embed snippet.
  * Extracted out of the settings `Canal.tsx` mega-section (catalog-management
@@ -126,6 +128,7 @@ export interface CanalPropioInitial {
 }
 
 export default function CanalPropioClient({ initial }: { initial: CanalPropioInitial }) {
+  const fmt = useSellerFormat()
   const accentColor = initial.accent ?? '#1d6f42'
 
   // ── Own channel — custom domain ────────────────────────────────────────────
@@ -708,7 +711,7 @@ export default function CanalPropioClient({ initial }: { initial: CanalPropioIni
                         </span>
                       </>
                     ) : domainStatus === 'unverified' ? (
-                      <span>Tu dominio aún no apunta a nosotros — última comprobación: {domainLastChecked?.toLocaleTimeString()}</span>
+                      <span>Tu dominio aún no apunta a nosotros — última comprobación: {domainLastChecked && fmt.date(domainLastChecked, { timeStyle: 'medium' })}</span>
                     ) : !domainDnsOk ? (
                       <span>Configurando DNS — comprobando automáticamente cada 8 segundos…</span>
                     ) : null}

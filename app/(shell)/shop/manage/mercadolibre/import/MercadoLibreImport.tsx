@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -21,16 +23,20 @@ type ImportRow = {
 
 type ImportResult = { imported: number; duplicate: number; failed: number }
 
-function fmtPrice(cents: number | null, currency: string | null): string {
-  if (cents == null) return 'A convenir'
-  try {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN' }).format(cents / 100)
-  } catch {
-    return `$${(cents / 100).toFixed(2)}`
-  }
-}
-
 export default function MercadoLibreImport({ nickname }: { nickname: string | null }) {
+  const fmt = useSellerFormat()
+  // A source row that carries no currency of its own falls back to the SHOP's
+  // currency, not to a hardcoded MXN: a US merchant importing a priced catalog
+  // was being shown pesos. The code still comes from the market, never the
+  // language — an MX merchant reading English still imports into pesos.
+  const fmtPrice = (cents: number | null, currency: string | null) => {
+    if (cents == null) return fmt.locale === 'en' ? 'Price on request' : 'A convenir'
+    try {
+      return fmt.money(cents, currency)
+    } catch {
+      return `$${(cents / 100).toFixed(2)}`
+    }
+  }
   const router = useRouter()
   const [phase, setPhase] = useState<'idle' | 'fetching' | 'review' | 'importing'>('idle')
   const [batchId, setBatchId] = useState<string | null>(null)

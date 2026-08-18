@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import CopyButton from '@/app/components/CopyButton'
 import type { PrintEditionPublic, PrintAdContent } from '@/lib/print'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 // ── Types shared with the server page ───────────────────────────────────────
 
@@ -28,10 +29,6 @@ export interface SellerPrefill {
 
 type Provider = 'stripe' | 'mercadopago' | 'manual'
 
-function formatMXN(cents: number): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function PrintAdBuilder({
@@ -43,6 +40,11 @@ export default function PrintAdBuilder({
   initialSubmissionId?: string | null
   platformSellerId: string | null
 }) {
+  const fmt = useSellerFormat()
+  // The printed edition is sold in pesos to every merchant, so MXN is explicit —
+  // see PrintEditionCard. Only the digit grouping follows the reading language.
+  const formatMXN = (cents: number) => fmt.money(cents, 'MXN', { maximumFractionDigits: 0 })
+
   const availableTiers = edition.tiers.filter((t) => !t.sold_out)
 
   const [tierKey, setTierKey] = useState<string>(availableTiers[0]?.key ?? '')
