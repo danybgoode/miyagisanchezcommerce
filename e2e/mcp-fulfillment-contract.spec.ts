@@ -22,6 +22,8 @@ test.describe('MCP fulfillment checkout contract', () => {
     expect(createDefinition).toContain('fulfillment_option_id')
     expect(createDefinition).toContain('pickup_appointment: PICKUP_APPOINTMENT_SCHEMA')
     expect(createDefinition).not.toMatch(/shipping_(amount|carrier|service|currency)/)
+    expect(source).toContain('fulfillment_option_id: ${option.id')
+    expect(source).toContain('fulfillment_destination_id: ${destination.id')
   })
 
   test('selection is freshly resolved before the cart write and the legacy no-selection path remains', () => {
@@ -47,6 +49,7 @@ test.describe('MCP fulfillment checkout contract', () => {
     expect(handler).not.toContain('args.currency')
     expect(handler).not.toContain('args.carrier')
     expect(handler).not.toContain('args.service')
+    expect(handler).toContain('marketSession.delivery?.arranged === true')
   })
 
   test('checkout-session projects only the UCP fulfillment shape from backend sources', () => {

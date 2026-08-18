@@ -1294,8 +1294,8 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
         shipping_quote_state?: string
         methods?: Array<{
           type?: string
-          destinations?: Array<{ name?: string }>
-          groups?: Array<{ options?: Array<{ title?: string; description?: string; totals?: Array<{ amount?: number }> }> }>
+          destinations?: Array<{ id?: string; name?: string }>
+          groups?: Array<{ options?: Array<{ id?: string; title?: string; description?: string; totals?: Array<{ amount?: number }> }> }>
         }>
       }
     }
@@ -1320,8 +1320,8 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
           : fulfillment.shipping_quote_state === 'known_empty'
             ? 'No hay tarifas vigentes para esta dirección.'
             : '',
-      ...shippingOptions.map(option => `🚚 **${option.title ?? 'Envío'}** — ${option.description ?? 'Tarifa vigente'} · ${option.totals?.[0]?.amount ?? 0} centavos`),
-      ...pickupDestinations.map(destination => `📦 Recolección: **${destination.name ?? 'Punto de entrega'}**`),
+      ...shippingOptions.map(option => `🚚 **${option.title ?? 'Envío'}** — ${option.description ?? 'Tarifa vigente'} · ${option.totals?.[0]?.amount ?? 0} centavos · fulfillment_option_id: ${option.id ?? 'no disponible'}`),
+      ...pickupDestinations.map(destination => `📦 Recolección: **${destination.name ?? 'Punto de entrega'}** · fulfillment_destination_id: ${destination.id ?? 'no disponible'}`),
     ].filter(Boolean)
 
     const formatOption = (o: typeof opts[0]) => {
@@ -1396,8 +1396,8 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     listing?: {
       listing_type?: string
       shop?: { id?: string; slug?: string }
-      metadata?: Record<string, unknown>
     }
+    delivery?: { arranged?: boolean }
     price?: { amount_cents?: number; is_offer_price?: boolean }
   }
   try {
@@ -1475,7 +1475,7 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     if (!sellerRef) {
       return { isError: true, content: [{ type: 'text', text: 'No pudimos validar la entrega actual del vendedor. Vuelve a consultar get_checkout_options.' }] }
     }
-    const deliveryMode = marketSession.listing.metadata?.delivery_mode === 'arranged' ? 'arranged' as const : 'carrier' as const
+    const deliveryMode = marketSession.delivery?.arranged === true ? 'arranged' as const : 'carrier' as const
     // The checkout-session call above is discovery, not an authorization to
     // write a cart. Read Medusa again immediately before that write: a seller
     // can disable shipping or alter pickup spots after an agent saw them. The

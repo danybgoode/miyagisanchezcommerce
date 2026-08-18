@@ -229,4 +229,30 @@ test.describe('UCP fulfillment selection', () => {
       rateSource: { state: 'not_requested' },
     })).toEqual({ ok: false, code: 'pickup_appointment_required' })
   })
+
+  test('a pickup spot without configured id/name keeps its projection fallback into checkout metadata', () => {
+    const anonymousPickup: BackendDeliveryMethod = {
+      ...PICKUP,
+      pickup_spots: [{ address: 'Ubicación a confirmar' }],
+    }
+    const projected = projectUcpFulfillment({
+      listingId: LISTING_ID,
+      deliveryMethods: [anonymousPickup],
+      destination: normalizeShippingDestination(undefined),
+      rateSource: { state: 'not_requested' },
+    })!
+
+    expect(resolveUcpFulfillmentSelection({
+      listingId: LISTING_ID,
+      methodId: 'pickup',
+      destinationId: projected.methods[0].destinations![0].id,
+      appointment: { date: '2026-08-20', window: '10:00–12:00' },
+      destination: normalizeShippingDestination(undefined),
+      deliveryMethods: [anonymousPickup],
+      rateSource: { state: 'not_requested' },
+    })).toMatchObject({
+      ok: true,
+      value: { fulfillmentMethod: 'local_pickup', pickupSpotId: 'spot-0' },
+    })
+  })
 })

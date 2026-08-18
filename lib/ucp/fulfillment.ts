@@ -178,6 +178,10 @@ function pickupDestinationId(listingId: string, spotId: string): string {
   return stableId('pickup', listingId, spotId)
 }
 
+function pickupSpotInternalId(spot: BackendPickupSpot, index: number): string {
+  return spot.id ?? spot.name ?? `spot-${index}`
+}
+
 function shippingDestinationId(listingId: string, destination: NormalizedShippingDestination & { complete: true }): string {
   return stableId('destination', listingId, destination.signature)
 }
@@ -241,7 +245,7 @@ function projectShippingMethod(input: {
 function projectPickupMethod(listingId: string, method: BackendDeliveryMethod): UcpFulfillmentMethod {
   const spots = method.pickup_spots ?? []
   const destinations = spots.map((spot, index) => {
-    const internalId = spot.id ?? spot.name ?? `spot-${index}`
+    const internalId = pickupSpotInternalId(spot, index)
     return {
       id: pickupDestinationId(listingId, internalId),
       name: spot.name ?? spot.address ?? `Punto de entrega ${index + 1}`,
@@ -387,12 +391,11 @@ export function resolveUcpFulfillmentSelection(input: {
     if (pickup.requires_pickup_spot && !destinationId) {
       return { ok: false, code: 'pickup_destination_required' }
     }
-    const spot = destinationId
-      ? spots.find((candidate, index) => {
-          const internalId = candidate.id ?? candidate.name ?? `spot-${index}`
-          return pickupDestinationId(input.listingId, internalId) === destinationId
-        })
-      : undefined
+    const spotIndex = destinationId
+      ? spots.findIndex((candidate, index) =>
+          pickupDestinationId(input.listingId, pickupSpotInternalId(candidate, index)) === destinationId)
+      : -1
+    const spot = spotIndex >= 0 ? spots[spotIndex] : undefined
     if (destinationId && !spot) return { ok: false, code: 'pickup_destination_not_current' }
 
     const rawAppointment = input.appointment && typeof input.appointment === 'object'
@@ -407,7 +410,7 @@ export function resolveUcpFulfillmentSelection(input: {
       ok: true,
       value: {
         fulfillmentMethod: 'local_pickup',
-        ...(spot ? { pickupSpotId: spot.id ?? spot.name } : {}),
+        ...(spot ? { pickupSpotId: pickupSpotInternalId(spot, spotIndex) } : {}),
         pickupAppointment: { date, window },
       },
     }
