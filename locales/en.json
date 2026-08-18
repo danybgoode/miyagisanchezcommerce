@@ -2698,6 +2698,118 @@
           "closingCta": "Publish experience"
         }
       }
+    },
+    "us": {
+      "metadata": {
+        "title": "Sell in the United States with 0% commission — Miyagi Sánchez",
+        "description": "Open a free shop on Miyagi Sánchez US. Card payments in USD settle straight into your own Stripe account, and the platform takes 0% of the sale.",
+        "ogAlt": "Miyagi Sánchez: sell in the United States with 0% platform commission."
+      },
+      "eyebrow": "United States",
+      "heroTitle": "Sell in the United States. Keep the whole sale.",
+      "heroLead": "Open a shop, list what you sell, and get paid in USD straight into your own Stripe account. The platform takes 0% of the sale.",
+      "trustLine": "Check it yourself: copy the prompt and ask Claude, Gemini, or ChatGPT to read miyagisanchez.com and tell you whether the offer holds up.",
+      "primaryCta": "Start free",
+      "secondaryCta": "How it works",
+      "heroStats": [
+        {
+          "value": "0%",
+          "label": "platform commission"
+        },
+        {
+          "value": "USD",
+          "label": "paid into your own Stripe account"
+        },
+        {
+          "value": "Free",
+          "label": "to open your shop"
+        }
+      ],
+      "heroValues": [
+        {
+          "value": "0%",
+          "label": "platform commission on every sale",
+          "icon": "iconoir-percentage"
+        },
+        {
+          "value": "Stripe",
+          "label": "card payments in USD, settled to your own account",
+          "icon": "iconoir-credit-card"
+        },
+        {
+          "value": "AI",
+          "label": "your shop is readable by Claude, Gemini, and ChatGPT",
+          "icon": "iconoir-sparks"
+        }
+      ],
+      "proofTitle": "What you get",
+      "proofLead": "The US marketplace is open. Here is exactly what that means for a seller today.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% platform commission",
+          "body": "We take nothing from your sale. Stripe charges its own processing fee against your account, and that is the only cut."
+        },
+        {
+          "icon": "iconoir-credit-card",
+          "title": "Paid into your own Stripe account",
+          "body": "US checkout runs on Stripe in USD as a direct charge, so the money lands in the account you own — not in a platform balance you have to withdraw from."
+        },
+        {
+          "icon": "iconoir-box-iso",
+          "title": "You control delivery",
+          "body": "Ship it yourself with the carrier you already use, hand it over in person, or sell something with nothing to ship. We do not add a shipping markup."
+        },
+        {
+          "icon": "iconoir-brain",
+          "title": "Built for agents",
+          "body": "Your catalog is readable by Claude, Gemini, and ChatGPT, so a buyer can find and buy from your shop through the assistant they already use."
+        }
+      ],
+      "stepsTitle": "Three steps to your first listing",
+      "steps": [
+        {
+          "title": "Create your account",
+          "body": "Email or Google. No contract, no card, no setup call."
+        },
+        {
+          "title": "Connect Stripe",
+          "body": "Link the Stripe account that receives your money. If you do not have one, you can create it during setup."
+        },
+        {
+          "title": "Publish",
+          "body": "Add photos, a price in USD, and how you deliver. Your listing goes live immediately — no approval queue."
+        }
+      ],
+      "socialTitle": "Who this is for",
+      "socialBody": "Independent makers, small brands, service providers, and anyone already selling on social who wants a real storefront and the full sale price.",
+      "socialStats": [],
+      "faqTitle": "Questions",
+      "faqs": [
+        {
+          "title": "Is it really 0%?",
+          "body": "Yes. The platform takes no commission on your sales and charges nothing to open or run your shop. Stripe still charges its standard processing fee, which it takes from your own account."
+        },
+        {
+          "title": "How do I get paid?",
+          "body": "Buyers pay by card in USD through Stripe, and the charge is made directly against your connected Stripe account. Your payout schedule is whatever you have set in Stripe."
+        },
+        {
+          "title": "How does shipping work?",
+          "body": "You arrange it. We do not sell carrier labels or quote rates in the US, so you ship with the carrier you already use and price delivery into your listing. Local pickup, digital goods, services, and rentals work too."
+        },
+        {
+          "title": "Do I need to be technical?",
+          "body": "No. You can paste in photos and text, or let your own AI assemble the shop with you and review it before it goes live."
+        },
+        {
+          "title": "What if it is not for me?",
+          "body": "Copy the prompt above and have your own AI compare this against what you pay today. Opening a shop is free and there is nothing to cancel."
+        }
+      ],
+      "closingTitle": "Open your shop today",
+      "closingBody": "Free to start, 0% commission, and your money goes to your own Stripe account.",
+      "closingCta": "Create my free account"
     }
   },
   "terms": {

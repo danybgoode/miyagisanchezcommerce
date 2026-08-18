@@ -4,6 +4,7 @@ import {
   resolveSellerAcquisitionVariant,
   sellerPersonaCtaHref,
   sellerPersonaRouterHref,
+  usSellerCtaHref,
   sellerTrustPrompt,
   type SellerAcquisitionVariant,
   type SellerPersonaId,
@@ -437,6 +438,63 @@ export function buildPromoterPageConfig(
     applyTeaser: isBoundPromoter
       ? undefined
       : { id: APPLY_TEASER_ID, title: page.apply.title, body: page.apply.body },
+  }
+}
+
+/**
+ * The US recruiting landing rendered on a signed-out `/sell`.
+ *
+ * It reuses the same `SellerAcquisitionPage` section system the `/vende` family
+ * uses, so the two markets stay structurally identical and a layout fix lands on
+ * both at once. What differs is entirely COPY and DESTINATION: its own
+ * `sellerAcquisition.us` dictionary block (US money and delivery truth, not a
+ * translation of the Mexican page) and `usSellerCtaHref`, which carries
+ * `market=us` through account creation.
+ *
+ * Deliberately omits `personaRouter`, `benchmark`, `premiumFeatures` and
+ * `aiChannel`: those are anchor-only sections whose content is Mexico-specific
+ * (peso benchmarks, the MX persona family), and an empty or translated version of
+ * them would be a claim we cannot back in the US yet.
+ */
+export function buildUsMarketPageConfig(
+  copy: SellerAcquisitionCopy,
+  query: QueryParams,
+): SellerAcquisitionPageConfig {
+  const page = copy.us
+  const variant = resolveSellerAcquisitionVariant(query)
+  const ctaHref = usSellerCtaHref(query)
+
+  return {
+    pageId: 'us',
+    variant,
+    eyebrow: page.eyebrow,
+    title: page.heroTitle,
+    lead: page.heroLead,
+    trustLine: page.trustLine,
+    trustPrompt: copy.shared.trustPrompt,
+    copyLabel: copy.shared.copyPrompt,
+    copiedLabel: copy.shared.copiedPrompt,
+    primaryCta: { label: page.primaryCta, href: ctaHref, testId: 'us-primary-cta' },
+    secondaryCta: { label: page.secondaryCta, href: '#us-steps-title' },
+    heroStats: page.heroStats,
+    heroValues: page.heroValues,
+    proofTitle: page.proofTitle,
+    proofLead: page.proofLead,
+    proofPoints: page.proofPoints,
+    stepsTitle: page.stepsTitle,
+    steps: page.steps,
+    agentTitle: copy.shared.selfCheck.title,
+    agentBody: copy.shared.selfCheck.body,
+    socialTitle: page.socialTitle,
+    socialBody: page.socialBody,
+    socialStats: page.socialStats,
+    // The US block carries its OWN FAQs: the shared set answers with MercadoPago,
+    // SPEI and cash, none of which exist on a US checkout.
+    faqTitle: page.faqTitle,
+    faqs: page.faqs,
+    closingTitle: page.closingTitle,
+    closingBody: page.closingBody,
+    closingCta: { label: page.closingCta, href: ctaHref, testId: 'us-closing-cta' },
   }
 }
 

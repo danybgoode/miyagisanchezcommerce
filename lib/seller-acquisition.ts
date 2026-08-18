@@ -112,6 +112,34 @@ export function sellerPersonaCtaHref(id: SellerPersonaId, input?: QueryInput): s
   return buildSellHref(route.from, input, route.type)
 }
 
+/**
+ * The US recruiting CTA — the `/sell` signed-out landing's primary and closing
+ * buttons.
+ *
+ * Same convert-on-`/sign-up` shape as the MX personas, with one addition: the
+ * publish destination carries `market=us`, because a shop's market is IMMUTABLE
+ * after creation (us-marketplace S5.2 · D17) and the signup request is the only
+ * moment it can be set. `resolveSellerSignupMarket` is the validator that reads
+ * it — this function only has to make sure the parameter survives the trip
+ * through account creation, which is exactly what `redirect_url` buys.
+ */
+export function usSellerCtaHref(input?: QueryInput): string {
+  const params = new URLSearchParams()
+  params.set('market', 'us')
+  params.set('from', 'us')
+  params.set(SELLER_ACQUISITION_VARIANT_PARAM, resolveSellerAcquisitionVariant(input))
+
+  const utm = parseSellerAcquisitionUtm(input)
+  for (const key of UTM_KEYS) {
+    const value = utm[key]
+    if (value) {
+      params.set(key, value)
+    }
+  }
+
+  return `${SELLER_SIGNUP_PATH}?redirect_url=${encodeURIComponent(`/sell?${params.toString()}`)}`
+}
+
 export function sellerPersonaRouterHref(id: SellerPersonaId, input?: QueryInput): string {
   const route = resolveSellerPersonaRoute(id)
 
@@ -130,7 +158,13 @@ export function sellerPersonaRouterHref(id: SellerPersonaId, input?: QueryInput)
   return qs ? `${route.pagePath}?${qs}` : route.pagePath
 }
 
-function buildSellHref(from: string, input?: QueryInput, type?: string): string {
+export const SELLER_SIGNUP_PATH = '/sign-up'
+
+/**
+ * The publish destination a converted visitor lands on *after* creating their
+ * account. This is what the CTA used to point at directly.
+ */
+function buildPublishHref(from: string, input?: QueryInput, type?: string): string {
   const params = new URLSearchParams()
   if (type) {
     params.set('type', type)
@@ -147,6 +181,27 @@ function buildSellHref(from: string, input?: QueryInput, type?: string): string 
   }
 
   return `/sell?${params.toString()}`
+}
+
+/**
+ * The seller-acquisition CTA target: account creation FIRST, then the wizard.
+ *
+ * A visitor cannot publish without an account, so `/sell` used to greet them
+ * with a second, thinner marketing page before handing them to `/sign-up`
+ * anyway. Sending them straight to `/sign-up` removes that speed bump.
+ *
+ * Attribution — the persona `from`, the A/B `v` variant and every sanitized UTM
+ * — is preserved INSIDE `redirect_url` rather than on `/sign-up` itself. Clerk
+ * carries that parameter through its hosted flow and drops the new seller on
+ * the wizard with exactly the query the CTA would have delivered pre-signup, so
+ * variant reporting and UTM attribution are unbroken. `redirect_url` is the same
+ * parameter the buyer sign-in CTAs already use, and a component-level
+ * `signUpFallbackRedirectUrl` applies only when it is ABSENT — so the two never
+ * fight (see MarketDocument.tsx: fallback, never force).
+ */
+function buildSellHref(from: string, input?: QueryInput, type?: string): string {
+  const publishHref = buildPublishHref(from, input, type)
+  return `${SELLER_SIGNUP_PATH}?redirect_url=${encodeURIComponent(publishHref)}`
 }
 
 function readSellerAcquisitionVariant(input?: QueryInput): {

@@ -7,6 +7,16 @@ import {
   sellerPersonaRouterHref,
 } from '../lib/seller-acquisition'
 
+/**
+ * Every persona CTA now converts on `/sign-up` and carries the publish
+ * destination in `redirect_url`. Asserting through these two helpers keeps the
+ * intent legible: WHERE the visitor is sent, and WHAT attribution survives the
+ * account-creation hop.
+ */
+const signupHref = (publishHref: string) => `/sign-up?redirect_url=${encodeURIComponent(publishHref)}`
+const publishTarget = (href: string) =>
+  decodeURIComponent(new URL(href, 'https://miyagisanchez.com').searchParams.get('redirect_url') ?? '')
+
 test.describe('seller acquisition · persona config and attribution seam', () => {
   test('resolves live persona routes without touching middleware', () => {
     expect(resolveSellerPersonaRoute('vende')).toMatchObject({
@@ -46,12 +56,13 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       ref: 'not-carried',
     })
 
-    expect(href).toBe('/sell?from=creadores&v=a&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
+    expect(href).toBe(signupHref('/sell?from=creadores&v=a&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop'))
+    expect(publishTarget(href)).toBe('/sell?from=creadores&v=a&utm_source=instagram&utm_medium=bio&utm_campaign=creator-drop')
   })
 
   test('keeps World Cup service type on the shipped wedge CTA', () => {
     expect(sellerPersonaCtaHref('mundial', 'utm_source=qr')).toBe(
-      '/sell?type=service&from=mundial&v=a&utm_source=qr',
+      signupHref('/sell?type=service&from=mundial&v=a&utm_source=qr'),
     )
   })
 
@@ -60,7 +71,7 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       '/vende/negocios?utm_source=flyer',
     )
     expect(sellerPersonaCtaHref('negocios', 'utm_source=flyer')).toBe(
-      '/sell?from=negocios&v=a&utm_source=flyer',
+      signupHref('/sell?from=negocios&v=a&utm_source=flyer'),
     )
   })
 
@@ -69,7 +80,7 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
       '/vende/servicios?utm_source=flyer',
     )
     expect(sellerPersonaCtaHref('servicios', 'utm_source=flyer')).toBe(
-      '/sell?type=service&from=servicios&v=a&utm_source=flyer',
+      signupHref('/sell?type=service&from=servicios&v=a&utm_source=flyer'),
     )
   })
 
@@ -80,7 +91,7 @@ test.describe('seller acquisition · persona config and attribution seam', () =>
     expect(resolveSellerAcquisitionVariant({ v: 'bad-value' })).toBe('a')
 
     expect(sellerPersonaCtaHref('creadores', { v: 'b', utm_source: 'ig' })).toBe(
-      '/sell?from=creadores&v=b&utm_source=ig',
+      signupHref('/sell?from=creadores&v=b&utm_source=ig'),
     )
     expect(sellerPersonaRouterHref('creadores', 'v=b&utm_source=ig')).toBe(
       '/vende/creadores?utm_source=ig&v=b',

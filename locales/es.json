@@ -2698,6 +2698,118 @@
           "consentRequiredError": "Necesitamos tu permiso para contactarte antes de enviar la solicitud."
         }
       }
+    },
+    "us": {
+      "metadata": {
+        "title": "Vende en Estados Unidos con 0% de comisión — Miyagi Sánchez",
+        "description": "Abre tu tienda gratis en Miyagi Sánchez US. Los pagos con tarjeta en USD llegan directo a tu propia cuenta de Stripe y la plataforma se queda con 0% de la venta.",
+        "ogAlt": "Miyagi Sánchez: vende en Estados Unidos con 0% de comisión de plataforma."
+      },
+      "eyebrow": "Estados Unidos",
+      "heroTitle": "Vende en Estados Unidos. Quédate con la venta completa.",
+      "heroLead": "Abre tu tienda, publica lo que vendes y cobra en USD directo a tu propia cuenta de Stripe. La plataforma se queda con 0% de la venta.",
+      "trustLine": "Compruébalo tú: copia el prompt y pídele a Claude, Gemini o ChatGPT que lea miyagisanchez.com y te diga si la oferta se sostiene.",
+      "primaryCta": "Empieza gratis",
+      "secondaryCta": "Cómo funciona",
+      "heroStats": [
+        {
+          "value": "0%",
+          "label": "de comisión de plataforma"
+        },
+        {
+          "value": "USD",
+          "label": "a tu propia cuenta de Stripe"
+        },
+        {
+          "value": "Gratis",
+          "label": "abrir tu tienda"
+        }
+      ],
+      "heroValues": [
+        {
+          "value": "0%",
+          "label": "de comisión de plataforma en cada venta",
+          "icon": "iconoir-percentage"
+        },
+        {
+          "value": "Stripe",
+          "label": "pagos con tarjeta en USD, a tu propia cuenta",
+          "icon": "iconoir-credit-card"
+        },
+        {
+          "value": "IA",
+          "label": "tu tienda es legible por Claude, Gemini y ChatGPT",
+          "icon": "iconoir-sparks"
+        }
+      ],
+      "proofTitle": "Lo que obtienes",
+      "proofLead": "El marketplace de Estados Unidos está abierto. Esto es exactamente lo que significa hoy para quien vende.",
+      "proofPoints": [
+        {
+          "icon": "iconoir-percentage",
+          "title": "0% de comisión de plataforma",
+          "body": "No tomamos nada de tu venta. Stripe cobra su propia comisión de procesamiento contra tu cuenta, y ese es el único descuento."
+        },
+        {
+          "icon": "iconoir-credit-card",
+          "title": "Cobras a tu propia cuenta de Stripe",
+          "body": "El checkout de Estados Unidos corre en Stripe en USD como cargo directo, así que el dinero llega a la cuenta que tú controlas — no a un saldo de plataforma del que tengas que retirar."
+        },
+        {
+          "icon": "iconoir-box-iso",
+          "title": "Tú controlas la entrega",
+          "body": "Envía con la paquetería que ya usas, entrégalo en persona o vende algo que no se envía. No agregamos ningún sobreprecio de envío."
+        },
+        {
+          "icon": "iconoir-brain",
+          "title": "Hecho para agentes",
+          "body": "Tu catálogo es legible por Claude, Gemini y ChatGPT, así que un comprador puede encontrarte y comprarte desde el asistente que ya usa."
+        }
+      ],
+      "stepsTitle": "Tres pasos hasta tu primer anuncio",
+      "steps": [
+        {
+          "title": "Crea tu cuenta",
+          "body": "Correo o Google. Sin contrato, sin tarjeta, sin llamada de configuración."
+        },
+        {
+          "title": "Conecta Stripe",
+          "body": "Vincula la cuenta de Stripe que recibe tu dinero. Si no tienes una, puedes crearla durante la configuración."
+        },
+        {
+          "title": "Publica",
+          "body": "Agrega fotos, un precio en USD y cómo entregas. Tu anuncio se publica de inmediato — sin fila de aprobación."
+        }
+      ],
+      "socialTitle": "Para quién es",
+      "socialBody": "Creadores independientes, marcas pequeñas, prestadores de servicios y cualquiera que ya venda en redes y quiera una tienda real y el precio completo de su venta.",
+      "socialStats": [],
+      "faqTitle": "Preguntas",
+      "faqs": [
+        {
+          "title": "¿De verdad es 0%?",
+          "body": "Sí. La plataforma no toma comisión de tus ventas ni cobra por abrir u operar tu tienda. Stripe sí cobra su comisión estándar de procesamiento, que toma de tu propia cuenta."
+        },
+        {
+          "title": "¿Cómo cobro?",
+          "body": "Los compradores pagan con tarjeta en USD por Stripe, y el cargo se hace directo contra tu cuenta de Stripe conectada. Tu calendario de depósitos es el que tengas configurado en Stripe."
+        },
+        {
+          "title": "¿Cómo funciona el envío?",
+          "body": "Tú lo defines. En Estados Unidos no vendemos guías ni cotizamos tarifas, así que envías con la paquetería que ya usas y consideras la entrega en tu precio. También funcionan la entrega en persona, los productos digitales, los servicios y las rentas."
+        },
+        {
+          "title": "¿Necesito saber de tecnología?",
+          "body": "No. Puedes pegar fotos y texto, o dejar que tu propia IA arme la tienda contigo y revisarla antes de publicarla."
+        },
+        {
+          "title": "¿Y si no es para mí?",
+          "body": "Copia el prompt de arriba y pide a tu propia IA que compare esto con lo que pagas hoy. Abrir una tienda es gratis y no hay nada que cancelar."
+        }
+      ],
+      "closingTitle": "Abre tu tienda hoy",
+      "closingBody": "Gratis para empezar, 0% de comisión y tu dinero llega a tu propia cuenta de Stripe.",
+      "closingCta": "Crear mi cuenta gratis"
     }
   },
   "terms": {
