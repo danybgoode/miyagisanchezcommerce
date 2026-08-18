@@ -41,7 +41,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/page.tsx:178",
+        "app/(shell)/sell/page.tsx:194",
         "app/(shell)/shop/manage/catalogo/page.tsx:118",
         "lib/checkout-admission-flag.ts:25"
       ]
@@ -348,7 +348,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/sell/page.tsx:189",
+        "app/(shell)/sell/page.tsx:205",
         "app/(shell)/shop/manage/import/page.tsx:32"
       ]
     },
@@ -542,7 +542,7 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/sell/edit/[id]/page.tsx:193",
-        "app/(shell)/sell/page.tsx:174"
+        "app/(shell)/sell/page.tsx:190"
       ]
     },
     {

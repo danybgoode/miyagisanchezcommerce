@@ -92,4 +92,27 @@ test.describe('US seller recruiting · signed-out /sell', () => {
     expect(landingRender).toBeLessThan(signedInGuard)
     expect(wizardRender).toBeGreaterThan(signedInGuard)
   })
+
+  test('one effective locale drives the page — the preference is never overridden by the market', () => {
+    const page = source('app/(shell)/sell/page.tsx')
+
+    // Cross-family review (PR 389, Codex) caught this: the pre-seller US branch
+    // hardcoded `locale="en"`, so a signup who had explicitly chosen Spanish still
+    // got an English wizard. A visitor with no shop has no Medusa market, so the
+    // validated SIGNUP market defaults the language — and the stored preference
+    // still overrides it, exactly as it does once a shop exists.
+    expect(page).toContain('resolveSellerLocale({')
+    expect(page).toContain('market: signupMarket,')
+    expect(page).not.toMatch(/locale="en"/)
+    expect(page).not.toMatch(/getDictionary\('en'\)/)
+
+    // Spanish stays the identity case here too: no boundary, no dictionary.
+    expect(page).toContain('if (existingShop || !sellerCopyBoundaryNeeded(locale)) return content')
+
+    // Market picks the PAGE, locale picks the LANGUAGE — the recruiting landing is
+    // still chosen by market alone, so a US visitor reading Spanish gets the US
+    // page in Spanish rather than the Mexican one.
+    expect(page).toContain("if (signupMarket !== 'us') return content")
+    expect(page).toContain('getOverriddenDictionary(locale)')
+  })
 })

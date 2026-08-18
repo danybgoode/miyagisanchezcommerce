@@ -5,6 +5,20 @@ import { useTransition } from 'react'
 import { SELLER_LOCALE_COOKIE, type SellerLocale } from '@/lib/seller-locale'
 
 const LABELS: Record<SellerLocale, string> = { es: 'ES', en: 'EN' }
+
+/**
+ * Each option is described IN THE LANGUAGE IT SWITCHES TO, on purpose — the
+ * Wikipedia/Google convention. A merchant who cannot read the language the
+ * portal is currently in is exactly the person who needs this control, and
+ * translating both tooltips into the current locale would hide their own
+ * language behind words they cannot read.
+ *
+ * These deliberately do NOT go through the seller dictionaries: the boundary
+ * translates the portal into ONE language, and the whole point here is that the
+ * two options stay in two different ones. They are paired with `lang` on the
+ * button below so assistive tech pronounces each with the right voice instead of
+ * reading Spanish through an English synthesiser.
+ */
 const TITLES: Record<SellerLocale, string> = {
   es: 'Cambiar idioma a español',
   en: 'Switch language to English',
@@ -57,6 +71,7 @@ export default function SellerLanguageToggle({ locale }: { locale: SellerLocale 
             type="button"
             onClick={() => choose(option)}
             aria-pressed={active}
+            lang={option}
             title={TITLES[option]}
             style={{
               // 28px tall inside a 52px bar keeps the whole control inside the
