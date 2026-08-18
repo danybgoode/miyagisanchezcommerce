@@ -379,7 +379,7 @@ export default function OfferInbox({ shopSlug, initialOffers, convByOfferId = {}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Ofertas</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Ofertas</h1>
           {pendingOffers.length > 0 && (
             <p className="text-sm text-[var(--color-muted)] mt-0.5">
               {pendingOffers.length} oferta{pendingOffers.length > 1 ? 's' : ''} pendiente{pendingOffers.length > 1 ? 's' : ''} de respuesta

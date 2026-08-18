@@ -4,6 +4,8 @@ import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
 import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
 import { sellShellEligible } from '@/lib/seller-shell-gate'
+import { cookies } from 'next/headers'
+import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
 
 /**
  * Seller shell over `/sell` + `/sell/setup` for a signed-in shop owner
@@ -33,6 +35,10 @@ export default async function SellLayout({ children }: { children: React.ReactNo
   const whiteLabel = isEmbed || isChannel
   const seller = await getMySeller()
   const market = seller?.market ?? 'mx'
+  const locale = resolveSellerLocale({
+    preference: (await cookies()).get(SELLER_LOCALE_COOKIE)?.value,
+    market,
+  })
 
   const platformPath = hdrs.get('x-miyagi-path') ?? '/'
   const eligible = await sellShellEligible(platformPath)
@@ -41,11 +47,12 @@ export default async function SellLayout({ children }: { children: React.ReactNo
     ? children
     : <SellerShellChrome>{children}</SellerShellChrome>
 
-  // MX is the authored tree, byte for byte: no boundary and no dictionary are
-  // introduced into its render path. Existing shops are owned by Medusa market.
-  if (market !== 'us') return content
+  // Spanish is the authored tree, byte for byte (see shop/manage/layout.tsx —
+  // same resolver, same three states). The shop's Medusa market is the default;
+  // the seller's stored choice is what actually decides.
+  if (!sellerCopyBoundaryNeeded(locale)) return content
 
-  const copy = (await getDictionary('en')).sellerCopy
+  const copy = (await getDictionary(locale)).sellerCopy
 
-  return <SellerCopyBoundary market={market} copy={copy}>{content}</SellerCopyBoundary>
+  return <SellerCopyBoundary locale={locale} copy={copy}>{content}</SellerCopyBoundary>
 }

@@ -20,7 +20,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { shopUrlFor } from '@/lib/market-url'
 import { PendingMark } from '@/app/components/LinkPending'
 import { SITE_ORIGIN } from '@/lib/market-seo'
-import type { MarketCode } from '@/lib/markets'
+import type { SellerLocale } from '@/lib/seller-locale'
 
 interface SellerNavProps {
   /** Server-resolved via `isEnabled()` in `layout.tsx` — never forked here. */
@@ -32,10 +32,11 @@ interface SellerNavProps {
   /** Backs the "Ver tienda pública" link in the "Más" sheet; omitted when no shop/user. */
   shopSlug?: string | null
   /**
-   * The shop's operating market, resolved server-side from Medusa (D17). Drives the
+   * The render locale, resolved server-side (the shop's Medusa market defaults it,
+   * the seller's stored choice overrides it — D17 + lib/seller-locale.ts). Drives the
    * nav language only — never a channel, payment or publication decision (D9).
    */
-  market?: MarketCode
+  locale?: SellerLocale
 }
 
 // ── Desktop left rail ─────────────────────────────────────────────────────────
@@ -206,16 +207,16 @@ function OverflowEntry({
   )
 }
 
-export default function SellerNav({ enabledFlags = new Set(), badges = {}, configIncomplete = false, shopSlug = null, market = 'mx' }: SellerNavProps) {
+export default function SellerNav({ enabledFlags = new Set(), badges = {}, configIncomplete = false, shopSlug = null, locale = 'es' }: SellerNavProps) {
   const pathname = usePathname() ?? ''
   const active = activeSellerNavHref(pathname)
   const [moreOpen, setMoreOpen] = useState(false)
-  // The market comes from the shop row via the server shell (D17) — never from the
+  // The locale comes from the server shell (D17) — never from the
   // browser. Localizing is a TRANSFORM over the one nav tree, so the structure, hrefs
   // and flag gating cannot drift between languages.
-  const railGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV, enabledFlags), market)
-  const primaryEntries = localizeSellerNavEntries(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_PRIMARY, enabledFlags), market)
-  const overflowGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, enabledFlags), market)
+  const railGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV, enabledFlags), locale)
+  const primaryEntries = localizeSellerNavEntries(filterEntriesByEnabledFlags(SELLER_NAV_MOBILE_PRIMARY, enabledFlags), locale)
+  const overflowGroups = localizeSellerNav(filterNavByEnabledFlags(SELLER_NAV_MOBILE_OVERFLOW_GROUPS, enabledFlags), locale)
   const relayActive = hasRelayBadge(overflowGroups, badges)
 
   return (
@@ -223,7 +224,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
       {/* ── Desktop left rail ── */}
       <nav
         className="hidden md:flex"
-        aria-label={market === 'us' ? 'Seller navigation' : 'Navegación de vendedor'}
+        aria-label={locale === 'en' ? 'Seller navigation' : 'Navegación de vendedor'}
         style={{
           flexDirection: 'column',
           gap: 18,
@@ -354,7 +355,7 @@ export default function SellerNav({ enabledFlags = new Set(), badges = {}, confi
 
       <nav
         className="glass-liquid flex md:hidden"
-        aria-label={market === 'us' ? 'Seller navigation' : 'Navegación de vendedor'}
+        aria-label={locale === 'en' ? 'Seller navigation' : 'Navegación de vendedor'}
         style={{
           position: 'fixed',
           bottom: 'max(16px, env(safe-area-inset-bottom))',

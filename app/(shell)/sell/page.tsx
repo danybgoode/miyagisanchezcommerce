@@ -9,6 +9,13 @@ import { getMySeller } from '@/lib/get-my-seller'
 import { isEnabled } from '@/lib/flags'
 import { getTenantIntake } from '@/lib/tenant-intake'
 import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
+import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
+import type { Metadata } from 'next'
+import en from '@/locales/en.json'
+import { SITE_ORIGIN } from '@/lib/market-seo'
+import { getOverriddenDictionary } from '@/lib/copy-overrides'
+import { SellerAcquisitionPage } from '@/app/(shell)/vende/_components/SellerAcquisitionSections'
+import { buildUsMarketPageConfig } from '@/app/(shell)/vende/_components/page-config'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -35,9 +42,40 @@ function AgentSetupNudge() {
   )
 }
 
-export const metadata = {
-  title: 'Publicar anuncio — Miyagi Sánchez',
-  description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
+/**
+ * `/sell` serves two audiences off one URL, so its metadata cannot be a constant:
+ * `?market=us` is the US recruiting landing (indexable, English, its own title and
+ * description), everything else is the publish wizard it has always been.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}): Promise<Metadata> {
+  const params = (await searchParams) ?? {}
+  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
+  if (resolveSellerSignupMarket(marketParam) !== 'us') {
+    return {
+      title: 'Publicar anuncio — Miyagi Sánchez',
+      description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
+    }
+  }
+
+  const meta = en.sellerAcquisition.us.metadata
+  return {
+    title: meta.title,
+    description: meta.description,
+    alternates: { canonical: `${SITE_ORIGIN}/sell?market=us` },
+    openGraph: {
+      type: 'website',
+      locale: 'en_US',
+      url: `${SITE_ORIGIN}/sell?market=us`,
+      siteName: 'Miyagi Sánchez',
+      title: meta.title,
+      description: meta.description,
+    },
+    twitter: { card: 'summary_large_image', title: meta.title, description: meta.description },
+  }
 }
 
 export default async function SellPage({
@@ -50,6 +88,21 @@ export default async function SellPage({
   const params = (await searchParams) ?? {}
   const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
   const signupMarket = resolveSellerSignupMarket(marketParam)
+
+  // A visitor with no shop yet has no Medusa market, so the validated signup
+  // market is what DEFAULTS their language here — and their stored preference
+  // still overrides it, exactly as it does for a seller who already has a shop.
+  // Hardcoding 'en' on this branch would hand an English wizard to a US signup
+  // who had explicitly chosen Spanish.
+  //
+  // The seller shell around this page cannot make the same call: middleware
+  // publishes `x-miyagi-path` as the pathname only, so a layout never sees
+  // `?market=us`. Market therefore picks the PAGE (below) and the resolved
+  // locale picks the LANGUAGE.
+  const locale = resolveSellerLocale({
+    preference: (await cookies()).get(SELLER_LOCALE_COOKIE)?.value,
+    market: signupMarket,
+  })
   const user = await currentUser()
 
   if (!user) {
@@ -113,9 +166,15 @@ export default async function SellPage({
         </p>
       </div>
     )
+    // A signed-out visitor whose validated signup market is US gets the US
+    // recruiting landing — authored English on US money/delivery truth, NOT the
+    // Mexican hero pushed through the seller-copy boundary. The boundary is a
+    // portal-chrome transform; a recruiting page's claims have to be written,
+    // because "0% comisión · SPEI · Mercado Pago" is not true in the US however
+    // well it is translated.
     if (signupMarket !== 'us') return content
-    const copy = (await getDictionary('en')).sellerCopy
-    return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
+    const ui = (await getOverriddenDictionary(locale)).sellerAcquisition
+    return <SellerAcquisitionPage config={buildUsMarketPageConfig(ui, params)} />
   }
 
   // Medusa is the source of truth for sellers (same as /shop/manage). Checking it
@@ -162,7 +221,7 @@ export default async function SellPage({
   )
   // Existing US shops are wrapped by the layout from their Medusa market. This
   // branch is only for a fresh seller whose validated signup market is US.
-  if (existingShop || signupMarket !== 'us') return content
-  const copy = (await getDictionary('en')).sellerCopy
-  return <SellerCopyBoundary market="us" copy={copy}>{content}</SellerCopyBoundary>
+  if (existingShop || !sellerCopyBoundaryNeeded(locale)) return content
+  const copy = (await getDictionary(locale)).sellerCopy
+  return <SellerCopyBoundary locale={locale} copy={copy}>{content}</SellerCopyBoundary>
 }

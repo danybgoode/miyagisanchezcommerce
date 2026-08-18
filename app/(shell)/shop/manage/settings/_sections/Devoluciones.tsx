@@ -54,7 +54,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
             Las ventanas de 14–30 días generan más confianza y menos disputas.
             {' '}<strong className="font-semibold text-[var(--color-text)]">Independientemente de tu política</strong>, los compradores siempre pueden abrir un caso si el artículo no es como se describió.
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
               { key: '14d', label: '14 días', desc: 'Recomendado · genera confianza, reduce disputas' },
               { key: '30d', label: '30 días',  desc: 'Política amplia — ideal para artículos nuevos' },
@@ -95,7 +95,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
             <div className="border-t border-[var(--color-border)] pt-4 mb-4">
               <p className="text-sm font-medium mb-1">Condición aceptada</p>
               <p className="text-xs text-[var(--color-muted)] mb-3">¿En qué estado debe estar el artículo para aceptar la devolución?</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { key: 'original',  label: 'Estado original', desc: 'Sin uso, sin daños, con empaque original' },
                   { key: 'undamaged', label: 'Sin daños',       desc: 'Puede tener uso normal, pero sin roturas' },
@@ -120,7 +120,7 @@ export default function Devoluciones({ initial }: { initial?: ReturnsPolicySetti
             <div className="border-t border-[var(--color-border)] pt-4 mb-4">
               <p className="text-sm font-medium mb-1">Flete de devolución</p>
               <p className="text-xs text-[var(--color-muted)] mb-3">¿Quién paga el envío de regreso?</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { key: 'buyer',  label: 'El comprador', desc: 'El comprador paga el envío de regreso' },
                   { key: 'seller', label: 'Yo lo pago',   desc: 'Cubres el costo — genera más confianza' },

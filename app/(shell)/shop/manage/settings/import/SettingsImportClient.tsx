@@ -189,7 +189,7 @@ export default function SettingsImportClient() {
         <Link href="/shop/manage/settings" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] no-underline">
           ← Configuración
         </Link>
-        <h1 className="text-2xl font-bold leading-tight mt-2">Importar configuración</h1>
+        <h1 className="text-xl sm:text-2xl font-bold leading-tight mt-2">Importar configuración</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
           Trae la configuración de tu tienda de otra plataforma en un solo archivo. Tu IA la convierte
           al formato de Miyagi y aquí la aplicas de un jalón — sin pasar por cada pantalla.

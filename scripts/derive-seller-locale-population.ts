@@ -5,9 +5,22 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { literalUiCandidates } from './derive-buyer-locale-population'
 
+/**
+ * Every directory whose TSX renders INSIDE the seller-copy boundary.
+ *
+ * `components/seller` is here because the boundary is mounted by the layout and
+ * translates whatever is beneath it — but it can only translate strings this scan
+ * collected. When the depth pass moved shared seller components out of
+ * `app/(shell)/shop/manage` into `components/seller`, their copy silently left the
+ * population and an English portal started rendering Spanish undo toasts, with
+ * every gate still green. A root list that is narrower than the boundary's reach
+ * is the failure mode to watch: if a seller component lands somewhere new, it
+ * belongs here on the same commit.
+ */
 const SELLER_PORTAL_DIRS = [
   'app/(shell)/shop/manage',
   'app/(shell)/sell',
+  'components/seller',
 ] as const
 
 export interface SellerLocalePopulation {
@@ -41,7 +54,18 @@ const COPY_PROPERTY_NAMES = new Set([
   'text', 'title', 'warning',
 ])
 
-const COPY_SETTERS = /^(?:alert|confirm|set(?:Error|Message|Toast|Notice|Feedback|[A-Z].*(?:Error|Message|Toast|Notice|Feedback)))$/
+/**
+ * Calls whose string arguments reach the user.
+ *
+ * `showToast` is listed explicitly: it is the portal's single most common way to
+ * say something to a merchant (60+ call sites), and because it is neither an
+ * `alert` nor a `set*` state setter, the original pattern collected none of them
+ * — every toast in the merchant hub stayed Spanish for an English portal while
+ * the population spec passed. Matching a NAME, not a shape, is the weakness here:
+ * a new helper needs adding, so prefer routing user-facing text through one of
+ * these rather than inventing a sibling.
+ */
+const COPY_SETTERS = /^(?:alert|confirm|showToast|toast|notify|set(?:Error|Message|Toast|Notice|Feedback|[A-Z].*(?:Error|Message|Toast|Notice|Feedback)))$/
 
 function normalizedTemplate(expression: ts.Expression): string | null {
   if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) return expression.text
@@ -103,8 +127,12 @@ export function indirectSellerUiCandidates(source: string, file = 'fixture.tsx')
     }
     if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(parsed).split('.').at(-1) ?? ''
-      if (COPY_SETTERS.test(callee)) {
-        for (const argument of node.arguments) addExpressionStrings(argument, add)
+      // FIRST argument only. These helpers take the message first and a
+      // machine-readable variant/type second (`showToast(msg, 'success')`), and
+      // collecting every argument put literals like "success" and "error" into
+      // the population, where they would be matched against real page text.
+      if (COPY_SETTERS.test(callee) && node.arguments.length > 0) {
+        addExpressionStrings(node.arguments[0], add)
       }
     }
     if (

@@ -2,6 +2,7 @@
 import { Fragment } from 'react'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
+import SellerPageHeader from '@/components/seller/SellerPageHeader'
 import SetupGuideCard from './SetupGuideCard'
 import { pendingSummary as buildPendingSummary } from '@/lib/seller-pending-summary'
 import type { SetupStep } from '@/lib/setup-guide'
@@ -63,16 +64,16 @@ export default function ManageDashboard({
     <div className="max-w-3xl mx-auto px-4 py-8">
 
       {/* ── Shop header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 mb-8">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-tight">{shop.name}</h1>
-          {shop.location && (
-            <p className="text-sm text-[var(--color-muted)] mt-0.5"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>
-          )}
-          {/* Navigation lives in the SellerNav rail (lib/seller-nav.ts) — the
-              dashboard header keeps only the public-shop link + a compact
-              pending-work signal (the Pedidos/Ofertas badges' replacement). */}
-          <div className="mt-2 flex flex-col gap-1">
+      <SellerPageHeader
+        title={shop.name}
+        meta={
+          <>
+            {shop.location && (
+              <p className="text-sm text-[var(--color-muted)]"><i className="iconoir-map-pin" aria-hidden /> {shop.location}</p>
+            )}
+            {/* Navigation lives in the SellerNav rail (lib/seller-nav.ts) — the
+                dashboard header keeps only the public-shop link + a compact
+                pending-work signal (the Pedidos/Ofertas badges' replacement). */}
             <Link
               href={shopUrlFor(SITE_ORIGIN, shop.slug)}
               className="text-xs text-[var(--color-accent)] hover:underline no-underline w-fit"
@@ -81,7 +82,7 @@ export default function ManageDashboard({
               Ver tienda pública ↗
             </Link>
             {pendingSummary && (
-              <span className="text-xs text-[var(--color-muted)] inline-flex items-center gap-1.5 w-fit">
+              <span className="text-xs text-[var(--color-muted)] inline-flex flex-wrap items-center gap-1.5">
                 <span className="inline-block w-1.5 h-1.5 rounded-[var(--r-pill)] bg-[var(--warning)]" aria-hidden />
                 {pendingSummary.segments.map((seg, i) => (
                   <Fragment key={seg.href}>
@@ -94,36 +95,32 @@ export default function ManageDashboard({
                 <span>{pendingSummary.suffix}</span>
               </span>
             )}
-          </div>
-        </div>
-        <div className="flex-shrink-0 flex items-center gap-2">
-          <Link
-            href="/shop/manage/import"
-            className="btn btn-secondary"
-          >
-            Importar catálogo
-          </Link>
-          <Link
-            href="/sell"
-            className="btn btn-primary"
-          >
-            + Nuevo anuncio
-          </Link>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <Link href="/shop/manage/import" className="btn btn-secondary">
+              Importar catálogo
+            </Link>
+            <Link href="/sell" className="btn btn-primary">
+              + Nuevo anuncio
+            </Link>
+          </>
+        }
+      />
 
       {/* ── Setup guide (renders nothing once dismissed or all 5 steps done) ──── */}
       <SetupGuideCard steps={setupSteps} initialDismissed={guideDismissed} shopSlug={shop.slug} />
 
       {/* ── Stats row ───────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         {[
           { label: 'Activos', value: activeCount, color: 'text-[var(--success)]' },
           { label: 'Pausados', value: pausedCount, color: 'text-[var(--warning)]' },
           { label: 'Vistas totales', value: totalViews, color: 'text-[var(--color-foreground)]' },
         ].map(stat => (
           <div key={stat.label} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-center">
-            <div className={`text-2xl font-bold ${stat.color}`}>{stat.value.toLocaleString('es-MX')}</div>
+            <div className={`text-xl sm:text-2xl font-bold ${stat.color}`}>{stat.value.toLocaleString('es-MX')}</div>
             <div className="text-xs text-[var(--color-muted)] mt-0.5">{stat.label}</div>
           </div>
         ))}

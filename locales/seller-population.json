@@ -119,7 +119,11 @@
     "app/(shell)/shop/manage/subscriptions/SubscriptionsClient.tsx",
     "app/(shell)/shop/manage/subscriptions/page.tsx",
     "app/(shell)/shop/manage/sweepstakes/SweepstakesManager.tsx",
-    "app/(shell)/shop/manage/sweepstakes/page.tsx"
+    "app/(shell)/shop/manage/sweepstakes/page.tsx",
+    "components/seller/PendingListingDeleteProvider.tsx",
+    "components/seller/SellerLanguageToggle.tsx",
+    "components/seller/SellerPageHeader.tsx",
+    "components/seller/SellerPageSkeleton.tsx"
   ],
   "files": [
     {
@@ -771,7 +775,10 @@
     {
       "file": "app/(shell)/shop/manage/_components/SellerShellChrome.tsx",
       "keys": [
-        "s_4e27bb88c402d405",
+        "s_2b7e61fedd557d8c",
+        "s_a59bdfb20a4ebc28",
+        "s_01498fa31d5a344a",
+        "s_f9e63aa43ae0cd57",
         "s_60f80e121d2db2a8"
       ]
     },
@@ -1189,16 +1196,23 @@
         "s_c429fc51e4d109a8",
         "s_723858144bd5482d",
         "s_ddc801f086ab9a53",
+        "s_3ab46c424e63bca4",
         "s_0ddc8d470698ec1b",
+        "s_36b76ce7b7113bf9",
         "s_9b73881b69ec5f3b",
         "s_ee827d40c1b44ae5",
         "s_bb9dbb406dcbd524",
         "s_aeccae342e4bd0a7",
         "s_2382bb61c01bd0a2",
+        "s_c030d66ab86078ac",
         "s_29fa864fd744397e",
+        "s_91e1d073adbc6b02",
         "s_22f067cf9e0581a7",
         "s_c9894cf002f90bd0",
         "s_6c9634c10c50c84b",
+        "s_0fadf7e90fb280d0",
+        "s_aa439c97f7e58da4",
+        "s_2663f49ef0cc2c6b",
         "s_98e5acddb6c46a24",
         "s_a5713dc015b27286",
         "s_2b4a73faf9b7b162",
@@ -1213,15 +1227,19 @@
         "s_fbfece705212fdef",
         "s_ddefb12b435b08df",
         "s_a4aa045f9a5646e8",
+        "s_69115376ccef81a3",
         "s_db603278b52aa4ee",
         "s_d455cfb682d3705f",
         "s_cd25ee5b1db8f5b0",
         "s_e2d65973f01aba4e",
         "s_2e4385b6057f6d7f",
         "s_77b9238931ed566d",
+        "s_81c7f15cb907225e",
+        "s_de320d719d2f736a",
         "s_08cd756e5f767071",
         "s_7e807673dafac125",
         "s_5e94724018aac487",
+        "s_9bb8f20d697815d5",
         "s_75acf2c8ce97a6bf",
         "s_0d61e028a88e813f",
         "s_bbaa3fb46f1b74b9",
@@ -1230,9 +1248,12 @@
         "s_f88ba99c9b342767",
         "s_1466356fce365a59",
         "s_6a8cb9e1367e5618",
+        "s_bddeac18b7d65856",
         "s_ebac9070075d3a83",
         "s_d5cade7ef3191690",
         "s_03a7d15df94f2cde",
+        "s_44e6d5f616d3d2e3",
+        "s_279c03d900c54809",
         "s_51e7b91f949b39b1",
         "s_b289d6c8922cca1f",
         "s_4d88574e2160afe4"
@@ -1293,7 +1314,9 @@
         "s_49ad65de07a6d851",
         "s_d8dd878fb14359e9",
         "s_db164690a5469f43",
+        "s_f7aa761caa6b3ddb",
         "s_08f271887ce94707",
+        "s_567782a98469f195",
         "s_497aee4628ed062e",
         "s_85dc0c638f095c20",
         "s_043a718774c572bd",
@@ -1636,6 +1659,7 @@
         "s_c6d784c3d5f790b1",
         "s_e80ca94aeba2cd77",
         "s_cab705d7a525b487",
+        "s_34346b3374a5c175",
         "s_1a9d58c54d163e5b",
         "s_26c50289b2b2fef9",
         "s_3b003fc1ad5f0400",
@@ -1644,6 +1668,7 @@
         "s_9415ac2416c5719d",
         "s_c5e5391ae82cadf9",
         "s_14543dac9ed0ec93",
+        "s_a630abac60872beb",
         "s_af61e822200007bb",
         "s_5e77e1785d574f9b",
         "s_5baff9701fcbd3e9",
@@ -1651,11 +1676,13 @@
         "s_d2af31712ead0414",
         "s_5b5ab4725a464641",
         "s_7b2696be239b9062",
+        "s_cdcbd6ceb95d68de",
         "s_2d9219ead0cf092d",
         "s_a6e63474985fa190",
         "s_bb6e430ce0a7eb8b",
         "s_2a0515602d315876",
         "s_b470ba4010c32fa6",
+        "s_bddeac18b7d65856",
         "s_2197610da91f23ba",
         "s_9cea559b305d9e9d",
         "s_aff4d19d6ee43b20",
@@ -1671,7 +1698,8 @@
         "s_d4bb5362ff0fb1ec",
         "s_b66292585132b8e9",
         "s_043a718774c572bd",
-        "s_2273059330f4ceb8"
+        "s_2273059330f4ceb8",
+        "s_29658837a0926b95"
       ]
     },
     {
@@ -1752,6 +1780,7 @@
         "s_bb9dbb406dcbd524",
         "s_c904ce59747cd3b0",
         "s_b163ca53185e8c49",
+        "s_df658bc31179406f",
         "s_cfc4badc32042671",
         "s_36402266e67b8db8",
         "s_923b438a98a7e03b",
@@ -1799,11 +1828,18 @@
         "s_4332f12393d2cb11",
         "s_e4f216d074de601e",
         "s_02888a569b461f7b",
+        "s_b1a875ccb32b44b0",
+        "s_1afa2bd9ae647f5b",
         "s_99eccd5245b1cf47",
+        "s_3c9c5256dc8a3409",
         "s_ac1f4653f2c1574e",
+        "s_ddafdbdc7d9eb6d0",
+        "s_d5d8f56e00e1ccec",
+        "s_67e9386840f8f1b9",
         "s_769644ce88f82b53",
         "s_4e8d87f2b6449e6a",
         "s_6833d80dbcab03bb",
+        "s_068fba1c1b912387",
         "s_9aee7e8da6d3e81b",
         "s_137cb944c5267302",
         "s_29ba5727c91940f6",
@@ -1814,11 +1850,13 @@
         "s_4539ed378de3d73c",
         "s_4cc4b68b1793f1e5",
         "s_e3586e7aa9c152f3",
+        "s_f9d03ad0738e1b8a",
         "s_26b9efb5e15ec9b4",
         "s_6322a4c6cc18e8d9",
         "s_e0cde72248589986",
         "s_85cc3ac01597a067",
         "s_3d81a965f7b25491",
+        "s_74492143ac0a69b0",
         "s_634d2dfbd7de5a4a",
         "s_c0b15baabb686394",
         "s_a528db434445feb8",
@@ -1827,6 +1865,10 @@
         "s_c7b288b1c0bb6542",
         "s_7b0d1c60251740d4",
         "s_f1c4ac184507bb88",
+        "s_9b39d9abf3a90f3d",
+        "s_79de694b6cef2cd4",
+        "s_7b168a069902ccd0",
+        "s_76ee053a0fdbe35c",
         "s_562bb15757a8b593",
         "s_fb00ecd88b97936b",
         "s_86f2532ff5752534",
@@ -1834,8 +1876,10 @@
         "s_fb7a40ae35d4ea66",
         "s_18acbd66061a36bc",
         "s_8c57c2c4746c9b5c",
+        "s_1ac4068115bfb28a",
         "s_a662e2f1243b7c78",
         "s_cfd1f553ea617afb",
+        "s_5c83349bf860313e",
         "s_0df7f7089ec4ed15",
         "s_3df9d7f553f14a7e",
         "s_12d9b0ce50b7bc6f",
@@ -1849,23 +1893,31 @@
         "s_a4a06c1819b7f9fb",
         "s_8bd93100e763a751",
         "s_7040166bf486d2d2",
+        "s_18940555fb47b80e",
         "s_5bc80579fa851aea",
+        "s_74d9c61bfef5c9f1",
         "s_32a9ead7c7bdcb14",
         "s_85c639461bcd2640",
         "s_ed91db3266d088f0",
         "s_2a0515602d315876",
         "s_5c8de7cb13b472e7",
         "s_9ceadf9e7265c7c9",
+        "s_04c8a123b8f60f04",
+        "s_ac9dea50efeb2029",
+        "s_b7fdbffd852a0554",
         "s_ab74ff72e2f971ea",
         "s_88c32d8f8e1fb289",
+        "s_d9d2501728ba3ff0",
         "s_42257aa7b50ff29e",
         "s_4c0bb67ddc91436e",
         "s_ca1918c5600b8bcd",
         "s_c331de215904dc34",
         "s_da8c171aee826f7e",
+        "s_1221e672dcc9001d",
         "s_3a48c766b08d9900",
         "s_ee5250e8b39cf9de",
         "s_934438dbffda4c5e",
+        "s_231b13775e2d8b7e",
         "s_2ce5d57569b08041",
         "s_ab744fe26b887abd",
         "s_18e872be2359d76e",
@@ -1883,6 +1935,7 @@
         "s_983796b993e69ab7",
         "s_fa28424d94695ab6",
         "s_52e7a0299ba59e10",
+        "s_adb4fb1788f839d0",
         "s_97a62d98182f6a0f",
         "s_4cc23e0a93771b58",
         "s_264a35a501019719",
@@ -2169,6 +2222,8 @@
       "keys": [
         "s_84c7ba2253b2e5b4",
         "s_ec2ec3bb5aa27c85",
+        "s_57f6f09bbdd77eb5",
+        "s_762d01c16e1244ca",
         "s_df86ffc7a03cbff6",
         "s_e29381208055a18b",
         "s_bb9dbb406dcbd524",
@@ -2185,6 +2240,9 @@
         "s_d36a0b86bc1bb569",
         "s_89130f77b7fa436b",
         "s_ad730f5de914c282",
+        "s_1ad29710ee3d3af7",
+        "s_e1233170e418c219",
+        "s_c0653fa4a504e3ce",
         "s_204fa2d474e2bc39",
         "s_3af28ff811f0616c",
         "s_ce6a699e792c749f",
@@ -2193,7 +2251,9 @@
         "s_5cbbb04e4d1eb016",
         "s_dd680772877e1917",
         "s_c44380e4e66ddc74",
+        "s_ef071fcb4a386e09",
         "s_eceef20f0530d78a",
+        "s_d67c0098c3bcead1",
         "s_611950b9f7a03884",
         "s_fd7905f630222173",
         "s_a57ac1542687dc37",
@@ -2284,11 +2344,13 @@
         "s_90c17dd872dd1ae6",
         "s_6488a5dee901a7af",
         "s_300031ae3c05b015",
+        "s_76282996ad5f89ea",
         "s_d41f5b4977ee05c6",
         "s_e98618bbbb028d95",
         "s_a4663398628310e2",
         "s_218b602e5819880f",
         "s_bad57ef7837c8e6b",
+        "s_ceb9d3bc00401d5b",
         "s_660b14a32295f15c",
         "s_c59121ce9657b902",
         "s_1ea442a134b2a184",
@@ -2297,6 +2359,7 @@
         "s_9b57191b2c4822a8",
         "s_2a657d94e879e2ce",
         "s_f98a26c7ebf3cd09",
+        "s_cde954a27cb0688f",
         "s_ac7ad4af11b3ae5a",
         "s_ff89b5f55560971e",
         "s_3d91f3036860b149",
@@ -2791,6 +2854,30 @@
       "keys": [
         "s_aa0a3bc9efda7b72"
       ]
+    },
+    {
+      "file": "components/seller/PendingListingDeleteProvider.tsx",
+      "keys": [
+        "s_29fa864fd744397e",
+        "s_a6e0b802adfc2d43",
+        "s_2a1da3db611593b7",
+        "s_babb61e9e42fe100",
+        "s_953b8cbdba6e5cb6"
+      ]
+    },
+    {
+      "file": "components/seller/SellerLanguageToggle.tsx",
+      "keys": [
+        "s_e28d9bf145b3fdb6",
+        "s_ed7e6f81519f2c9e"
+      ]
+    },
+    {
+      "file": "components/seller/SellerPageSkeleton.tsx",
+      "keys": [
+        "s_1dc176d9ec6f5315",
+        "s_cbf6e99a4ba60555"
+      ]
     }
   ],
   "entries": [
@@ -2821,6 +2908,10 @@
     {
       "key": "s_0119803da011816a",
       "source": "Canal"
+    },
+    {
+      "key": "s_01498fa31d5a344a",
+      "source": "Seller"
     },
     {
       "key": "s_01d406463a81f4ed",
@@ -2919,6 +3010,10 @@
       "source": "Código postal no encontrado."
     },
     {
+      "key": "s_04c8a123b8f60f04",
+      "source": "Reembolso aceptado. Haz la transferencia y marca \"Ya transferí\"."
+    },
+    {
       "key": "s_04f8f3d40a385cad",
       "source": "Gestionar →"
     },
@@ -2965,6 +3060,10 @@
     {
       "key": "s_0682c5f2076f099c",
       "source": "original"
+    },
+    {
+      "key": "s_068fba1c1b912387",
+      "source": "Estado actualizado."
     },
     {
       "key": "s_069d9fe0de77566d",
@@ -3189,6 +3288,10 @@
     {
       "key": "s_0f9a7451f0a52304",
       "source": "— Descarga el PDF del resultado. El folio aparece en la parte superior del documento."
+    },
+    {
+      "key": "s_0fadf7e90fb280d0",
+      "source": "Error al cambiar Mercado Libre."
     },
     {
       "key": "s_0fb4618723afda76",
@@ -3459,6 +3562,10 @@
       "source": "Copia y pega la key aquí arriba"
     },
     {
+      "key": "s_18940555fb47b80e",
+      "source": "Propusiste una nueva hora."
+    },
+    {
       "key": "s_18ac3e7343f01689",
       "source": "d"
     },
@@ -3525,6 +3632,14 @@
     {
       "key": "s_1ac1ca805afc41ed",
       "source": "Nombre de tienda"
+    },
+    {
+      "key": "s_1ac4068115bfb28a",
+      "source": "Pago confirmado. El pedido sigue su flujo normal."
+    },
+    {
+      "key": "s_1ad29710ee3d3af7",
+      "source": "Error al conectar."
     },
     {
       "key": "s_1adaf0abab47201b",
@@ -3633,6 +3748,10 @@
     {
       "key": "s_1d9a5bd66efc0cce",
       "source": "· comisión ML no disponible, estimando sin ella"
+    },
+    {
+      "key": "s_1dc176d9ec6f5315",
+      "source": "Cargando contenido"
     },
     {
       "key": "s_1dd36851e2228ed2",
@@ -3779,6 +3898,10 @@
       "source": "Efectivo"
     },
     {
+      "key": "s_231b13775e2d8b7e",
+      "source": "Solicitud rechazada."
+    },
+    {
       "key": "s_23274f9d1ed73e94",
       "source": "Paso 1 — Consultar gratis en repuve.gob.mx →"
     },
@@ -3867,6 +3990,10 @@
       "source": "¿Ya contactaste al comprador?"
     },
     {
+      "key": "s_2663f49ef0cc2c6b",
+      "source": "Error al cambiar la visibilidad."
+    },
+    {
       "key": "s_26a6bdfdb3c08277",
       "source": "Migrar desde Shopify"
     },
@@ -3891,6 +4018,10 @@
       "source": "Ocurrió un error al conectar con Mercado Libre."
     },
     {
+      "key": "s_279c03d900c54809",
+      "source": "Visible en el marketplace Miyagi."
+    },
+    {
       "key": "s_27aaa41ec82c9bb4",
       "source": "Cerrado"
     },
@@ -3913,6 +4044,10 @@
     {
       "key": "s_294c698b994ec928",
       "source": "activos ahora"
+    },
+    {
+      "key": "s_29658837a0926b95",
+      "source": "✓ Oferta aceptada — el comprador recibió el enlace de pago."
     },
     {
       "key": "s_2974868d8c6d2937",
@@ -3949,6 +4084,10 @@
     {
       "key": "s_2a098b6cd257020d",
       "source": "Botón &ldquo;Pagar con tarjeta&rdquo; visible en cada anuncio"
+    },
+    {
+      "key": "s_2a1da3db611593b7",
+      "source": "No se pudo eliminar. Inténtalo de nuevo."
     },
     {
       "key": "s_2a3c6dd72caa5563",
@@ -3989,6 +4128,10 @@
     {
       "key": "s_2b5b539ac46cff32",
       "source": "El porcentaje de rechazo ("
+    },
+    {
+      "key": "s_2b7e61fedd557d8c",
+      "source": "Back to shopping"
     },
     {
       "key": "s_2bfbedb6646a826b",
@@ -4239,6 +4382,10 @@
       "source": "Cambiar categoría"
     },
     {
+      "key": "s_34346b3374a5c175",
+      "source": "Contraoferta enviada — el comprador tiene 24 horas para responder."
+    },
+    {
       "key": "s_3453008ee275b950",
       "source": "Tu tienda en tu dominio, sin comisiones ni marca ajena. Tus clientes llegan a"
     },
@@ -4289,6 +4436,10 @@
     {
       "key": "s_368ecdcc4ae43c50",
       "source": "Conecta tu agente"
+    },
+    {
+      "key": "s_36b76ce7b7113bf9",
+      "source": "Anuncio pausado."
     },
     {
       "key": "s_36f6bde0d096aa32",
@@ -4395,6 +4546,10 @@
       "source": "Frecuencia de pago"
     },
     {
+      "key": "s_3ab46c424e63bca4",
+      "source": "Anuncio activado."
+    },
+    {
       "key": "s_3abf104e90295c0a",
       "source": "No hay precio posible con ese margen y comisión"
     },
@@ -4469,6 +4624,10 @@
     {
       "key": "s_3c8dc4dc7a83dd2d",
       "source": "Guardando…"
+    },
+    {
+      "key": "s_3c9c5256dc8a3409",
+      "source": "Error al emitir el reembolso."
     },
     {
       "key": "s_3cebfff1403d95e1",
@@ -5127,6 +5286,10 @@
       "source": "Fija el stock disponible de esta combinación al valor que pongas (las combinaciones nuevas empiezan en 0). Pon 0 para marcarla como agotada."
     },
     {
+      "key": "s_567782a98469f195",
+      "source": "No se pudo copiar el enlace"
+    },
+    {
       "key": "s_56820657ccd4edef",
       "source": "No hay un precio posible con ese margen objetivo para los productos seleccionados. Baja el margen e intenta de nuevo."
     },
@@ -5169,6 +5332,10 @@
     {
       "key": "s_57afc3690aacb2dd",
       "source": "Campañas de votación — Miyagi Sánchez"
+    },
+    {
+      "key": "s_57f6f09bbdd77eb5",
+      "source": "Cal.com conectado correctamente."
     },
     {
       "key": "s_57fb63109d5f6b20",
@@ -5309,6 +5476,10 @@
     {
       "key": "s_5c5db430479122ab",
       "source": "El texto no es un JSON válido."
+    },
+    {
+      "key": "s_5c83349bf860313e",
+      "source": "Pago liberado exitosamente."
     },
     {
       "key": "s_5c8de7cb13b472e7",
@@ -5631,6 +5802,10 @@
       "source": ". Realiza el pago para confirmar tu anuncio."
     },
     {
+      "key": "s_67e9386840f8f1b9",
+      "source": "Error al procesar."
+    },
+    {
       "key": "s_67ed7fc56cd3ef76",
       "source": "● Configurando DNS…"
     },
@@ -5677,6 +5852,10 @@
     {
       "key": "s_68fb6fbfc02b0003",
       "source": "Paso 4 — Folio del reporte"
+    },
+    {
+      "key": "s_69115376ccef81a3",
+      "source": "Oculto del marketplace Miyagi (sigue en tu tienda)."
     },
     {
       "key": "s_691e1804898fb3d8",
@@ -6047,8 +6226,16 @@
       "source": "Conectado"
     },
     {
+      "key": "s_74492143ac0a69b0",
+      "source": "Marcado como transferido. El comprador debe confirmar que lo recibió."
+    },
+    {
       "key": "s_749251c8d47177d5",
       "source": "seleccionada(s)"
+    },
+    {
+      "key": "s_74d9c61bfef5c9f1",
+      "source": "Prueba enviada al comprador."
     },
     {
       "key": "s_74e59f0166de0061",
@@ -6099,6 +6286,14 @@
       "source": "Opción {0}"
     },
     {
+      "key": "s_76282996ad5f89ea",
+      "source": "Error al subir imagen."
+    },
+    {
+      "key": "s_762d01c16e1244ca",
+      "source": "Cal.com desconectado."
+    },
+    {
       "key": "s_76365232416ac3af",
       "source": "(se renueva cada año)"
     },
@@ -6137,6 +6332,10 @@
     {
       "key": "s_76dc807518c45596",
       "source": "Quitar nivel"
+    },
+    {
+      "key": "s_76ee053a0fdbe35c",
+      "source": "No se pudo subir la foto."
     },
     {
       "key": "s_77342245063b5f11",
@@ -6227,6 +6426,10 @@
       "source": "Cuando los compradores paguen tus productos, aparecerán aquí."
     },
     {
+      "key": "s_79de694b6cef2cd4",
+      "source": "No se pudo agregar la etiqueta."
+    },
+    {
       "key": "s_79e0f856a11bc5bb",
       "source": "Copia este prompt en tu IA (Claude u otro cliente MCP), junto con tu token de abajo, y tu agente podrá pulir, fijar precios, promover, resurtir y mantener tu tienda — en tu idioma."
     },
@@ -6249,6 +6452,10 @@
     {
       "key": "s_7b0d1c60251740d4",
       "source": "Máx. ${0}"
+    },
+    {
+      "key": "s_7b168a069902ccd0",
+      "source": "No se pudo enviar la prueba."
     },
     {
       "key": "s_7b2696be239b9062",
@@ -6405,6 +6612,10 @@
     {
       "key": "s_81bd5aae4dfad331",
       "source": "Casa matriz, Bodega norte, Local 12…"
+    },
+    {
+      "key": "s_81c7f15cb907225e",
+      "source": "Publicado en Mercado Libre."
     },
     {
       "key": "s_81db3b5709d0ba95",
@@ -6887,6 +7098,10 @@
       "source": "No se pudo crear la colección."
     },
     {
+      "key": "s_91e1d073adbc6b02",
+      "source": "Elige una categoría de Mercado Libre para terminar de publicar…"
+    },
+    {
       "key": "s_91f990da528f985a",
       "source": "Te llevaremos a Mercado Pago para autorizar. Al terminar regresas aquí solito, con todo guardado."
     },
@@ -6981,6 +7196,10 @@
     {
       "key": "s_9536d53c4922de14",
       "source": "Pegar"
+    },
+    {
+      "key": "s_953b8cbdba6e5cb6",
+      "source": "{0} se eliminará en 10 segundos."
     },
     {
       "key": "s_9563ebf29d7a3c06",
@@ -7139,6 +7358,10 @@
       "source": "Ubicación del anuncio"
     },
     {
+      "key": "s_9b39d9abf3a90f3d",
+      "source": "No se pudo actualizar la cita."
+    },
+    {
       "key": "s_9b488186039b5bd2",
       "source": "En la página de Cloudflare, clic en"
     },
@@ -7177,6 +7400,10 @@
     {
       "key": "s_9bb4d087a3379410",
       "source": "Tarjeta, OXXO, saldo MP, meses sin intereses"
+    },
+    {
+      "key": "s_9bb8f20d697815d5",
+      "source": "Quitado del marketplace — sigue a la venta en tu tienda."
     },
     {
       "key": "s_9bd777664399d340",
@@ -7451,6 +7678,10 @@
       "source": "Ver página ↗"
     },
     {
+      "key": "s_a59bdfb20a4ebc28",
+      "source": "Miyagi Sánchez ·"
+    },
+    {
       "key": "s_a5c379f496ede071",
       "source": "cobradas por Mercado Libre"
     },
@@ -7461,6 +7692,10 @@
     {
       "key": "s_a604d0dc113516f2",
       "source": "Seller navigation"
+    },
+    {
+      "key": "s_a630abac60872beb",
+      "source": "Error al responder."
     },
     {
       "key": "s_a6403507e279e1ae",
@@ -7481,6 +7716,10 @@
     {
       "key": "s_a6c7e373fd0781cc",
       "source": "Por enviar"
+    },
+    {
+      "key": "s_a6e0b802adfc2d43",
+      "source": "Eliminación completada."
     },
     {
       "key": "s_a6e1ed6e213532be",
@@ -7603,6 +7842,10 @@
       "source": "Ve a dcc.godaddy.com → Mis dominios → \"Administrar DNS\""
     },
     {
+      "key": "s_aa439c97f7e58da4",
+      "source": "Error al cambiar el estado."
+    },
+    {
       "key": "s_aa4806e8ab9658ca",
       "source": "Tu nota al autor:"
     },
@@ -7711,6 +7954,10 @@
       "source": "Se crearán"
     },
     {
+      "key": "s_ac9dea50efeb2029",
+      "source": "Reembolso confirmado. El comprador fue notificado."
+    },
+    {
       "key": "s_acc2e245d5b9518a",
       "source": "Nombre completo"
     },
@@ -7737,6 +7984,10 @@
     {
       "key": "s_ada000093d8cf967",
       "source": "Cambia tu facturación cuando quieras — se prorratea, sin cargo doble."
+    },
+    {
+      "key": "s_adb4fb1788f839d0",
+      "source": "¡Envío confirmado! El comprador recibió una notificación."
     },
     {
       "key": "s_adb988c9bb38badf",
@@ -7849,6 +8100,10 @@
     {
       "key": "s_b163ca53185e8c49",
       "source": "Cita de recolección"
+    },
+    {
+      "key": "s_b1a875ccb32b44b0",
+      "source": "Error al actualizar."
     },
     {
       "key": "s_b1f7a79dd8f225e9",
@@ -8027,6 +8282,10 @@
       "source": "{0} anuncio{1}"
     },
     {
+      "key": "s_b7fdbffd852a0554",
+      "source": "Reembolso emitido. El comprador fue notificado."
+    },
+    {
       "key": "s_b81a855c0cddcc45",
       "source": "Publica tu anuncio"
     },
@@ -8109,6 +8368,10 @@
     {
       "key": "s_ba7b85f1f126accf",
       "source": "junto a"
+    },
+    {
+      "key": "s_babb61e9e42fe100",
+      "source": "Sin conexión. El anuncio no se eliminó."
     },
     {
       "key": "s_bad57ef7837c8e6b",
@@ -8279,8 +8542,16 @@
       "source": "o pega un enlace:"
     },
     {
+      "key": "s_c030d66ab86078ac",
+      "source": "Desactivado en Mercado Libre."
+    },
+    {
       "key": "s_c04ba9d41c1d1cf1",
       "source": "pzas"
+    },
+    {
+      "key": "s_c0653fa4a504e3ce",
+      "source": "Error de red al conectar Cal.com."
     },
     {
       "key": "s_c08f8821f107af1b",
@@ -8651,6 +8922,10 @@
       "source": "Planes de suscripción"
     },
     {
+      "key": "s_cbf6e99a4ba60555",
+      "source": "Cargando contenido…"
+    },
+    {
       "key": "s_cc190ab9f5ec058f",
       "source": "Conectando…"
     },
@@ -8699,8 +8974,16 @@
       "source": "Procesando {0}/{1}…"
     },
     {
+      "key": "s_cdcbd6ceb95d68de",
+      "source": "Oferta rechazada."
+    },
+    {
       "key": "s_cde75dd60e41b51a",
       "source": "← Configuración"
+    },
+    {
+      "key": "s_cde954a27cb0688f",
+      "source": "Sin conexión al subir imagen."
     },
     {
       "key": "s_ce344a418127968f",
@@ -8733,6 +9016,10 @@
     {
       "key": "s_ce8ecc22b2ce0fd5",
       "source": "Titular:"
+    },
+    {
+      "key": "s_ceb9d3bc00401d5b",
+      "source": "La imagen es demasiado grande (máx. 8 MB)."
     },
     {
       "key": "s_cefe1c006050b503",
@@ -8947,12 +9234,20 @@
       "source": "Stock"
     },
     {
+      "key": "s_d5d8f56e00e1ccec",
+      "source": "Error al marcar la transferencia."
+    },
+    {
       "key": "s_d5df3708bc688543",
       "source": "Tema"
     },
     {
       "key": "s_d624ae7b8d83c8db",
       "source": "Valor {0} (p. ej. {1})"
+    },
+    {
+      "key": "s_d67c0098c3bcead1",
+      "source": "URL inválida — debe comenzar con https://"
     },
     {
       "key": "s_d6912feb6ab75621",
@@ -9041,6 +9336,10 @@
     {
       "key": "s_d9ab8c014a69233f",
       "source": "Procesando"
+    },
+    {
+      "key": "s_d9d2501728ba3ff0",
+      "source": "Reembolso registrado. Haz la transferencia y marca \"Ya transferí\"."
     },
     {
       "key": "s_d9d2545871544c82",
@@ -9159,6 +9458,10 @@
       "source": "Más"
     },
     {
+      "key": "s_ddafdbdc7d9eb6d0",
+      "source": "Error al liberar."
+    },
+    {
       "key": "s_ddc801f086ab9a53",
       "source": "Agotado"
     },
@@ -9177,6 +9480,10 @@
     {
       "key": "s_ddfd8abf0a15841a",
       "source": "Precio: menor a mayor"
+    },
+    {
+      "key": "s_de320d719d2f736a",
+      "source": "Publicado en el marketplace de México."
     },
     {
       "key": "s_de495dd761136e4d",
@@ -9201,6 +9508,10 @@
     {
       "key": "s_df245c70203254fa",
       "source": "Tu suscripción al dominio propio terminó y tu dominio se desconectó. Tu tienda sigue activa en tu URL gratis y tu subdominio. Vuelve a activarla para reconectar tu dominio."
+    },
+    {
+      "key": "s_df658bc31179406f",
+      "source": "Cita de recolección confirmada."
     },
     {
       "key": "s_df77b141f147b0e4",
@@ -9255,6 +9566,10 @@
       "source": "Emitir reembolso total"
     },
     {
+      "key": "s_e1233170e418c219",
+      "source": "Error al desconectar."
+    },
+    {
       "key": "s_e125b637693d9979",
       "source": "Tipo de tienda"
     },
@@ -9289,6 +9604,10 @@
     {
       "key": "s_e252efe6974743f6",
       "source": "Desactivado"
+    },
+    {
+      "key": "s_e28d9bf145b3fdb6",
+      "source": "Idioma del portal"
     },
     {
       "key": "s_e29381208055a18b",
@@ -9607,6 +9926,10 @@
       "source": "Error al traer el catálogo."
     },
     {
+      "key": "s_ed7e6f81519f2c9e",
+      "source": "Portal language"
+    },
+    {
       "key": "s_ed8ba6bbffe55317",
       "source": "Tienda:"
     },
@@ -9657,6 +9980,10 @@
     {
       "key": "s_eef76f9f8544d827",
       "source": "(sin título)"
+    },
+    {
+      "key": "s_ef071fcb4a386e09",
+      "source": "Pega tu API key de Cal.com primero."
     },
     {
       "key": "s_ef4464384730004e",
@@ -9899,6 +10226,10 @@
       "source": "Acceso de socios"
     },
     {
+      "key": "s_f7aa761caa6b3ddb",
+      "source": "Enlace copiado"
+    },
+    {
       "key": "s_f8320d7048d87951",
       "source": "Hola,"
     },
@@ -9941,6 +10272,14 @@
     {
       "key": "s_f9cf1402b2f53fb7",
       "source": "— un enlace más corto y con tu marca. Compártelos en redes y tarjetas. ¿Quieres tu propio dominio sin"
+    },
+    {
+      "key": "s_f9d03ad0738e1b8a",
+      "source": "Ingresa un monto válido."
+    },
+    {
+      "key": "s_f9e63aa43ae0cd57",
+      "source": "Vendedor"
     },
     {
       "key": "s_f9fabd279efa679d",

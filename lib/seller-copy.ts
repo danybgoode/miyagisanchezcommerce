@@ -1,11 +1,11 @@
-import type { MarketCode } from './markets'
+import type { SellerLocale } from './seller-locale'
 
 export interface SellerCopyEntry {
   readonly key: string
   readonly source: string
 }
 
-export type SellerCopyTransform = (value: string, market?: MarketCode) => string
+export type SellerCopyTransform = (value: string, locale?: SellerLocale) => string
 
 const PLACEHOLDER = /\{(\d+)\}/g
 
@@ -39,8 +39,14 @@ function interpolate(value: string, captures: readonly string[]): string {
 }
 
 /**
- * Build the one page-copy transform. The original strings remain in the TSX
- * files and generated population manifest; only a US shop substitutes words.
+ * Build the one page-copy transform.
+ *
+ * The original strings remain in the TSX files and the generated population
+ * manifest — Spanish is the authored source and therefore the IDENTITY case.
+ * Only English substitutes words, which is why the switch here is the render
+ * LOCALE and not the shop's market: the market merely defaults the locale
+ * (`lib/seller-locale.ts`), and a US shop reading Spanish must get the authored
+ * strings back untouched.
  */
 export function createSellerCopyTransform(
   entries: readonly SellerCopyEntry[],
@@ -62,8 +68,8 @@ export function createSellerCopyTransform(
   }
   templates.sort((a, b) => b.source.length - a.source.length)
 
-  return (value, market = 'mx') => {
-    if (market !== 'us') return value
+  return (value, locale = 'es') => {
+    if (locale !== 'en') return value
     const direct = exact.get(value)
     if (direct !== undefined) return direct
     for (const template of templates) {
@@ -79,14 +85,14 @@ const LOCALIZED_ATTRIBUTES = new Set(['title', 'placeholder', 'aria-label'])
 /** Transform only copy-bearing attributes; every structural prop is preserved. */
 export function localizeSellerAttributes<T extends Readonly<Record<string, string>>>(
   attributes: T,
-  market: MarketCode,
+  locale: SellerLocale,
   copy: SellerCopyTransform,
 ): T {
-  if (market !== 'us') return attributes
+  if (locale !== 'en') return attributes
   return Object.fromEntries(
     Object.entries(attributes).map(([key, value]) => [
       key,
-      LOCALIZED_ATTRIBUTES.has(key) ? copy(value, market) : value,
+      LOCALIZED_ATTRIBUTES.has(key) ? copy(value, locale) : value,
     ]),
   ) as T
 }

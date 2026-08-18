@@ -119,7 +119,7 @@ export default function PromotionsClient({ shopName, initialCoupons }: { shopNam
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <SellerBreadcrumb className="mb-1" />
-      <h1 className="text-2xl font-bold mb-1">Cupones de descuento</h1>
+      <h1 className="text-xl sm:text-2xl font-bold mb-1">Cupones de descuento</h1>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         Crea códigos promocionales para {shopName}. Los compradores los aplican al pagar.
       </p>

@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 /**
  * Gestión de pedidos — processing time, auto-confirm, dispatch + auto-confirm
@@ -49,7 +50,7 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
         <div className="mb-5">
           <p className="text-sm font-medium mb-1">Tiempo de procesamiento</p>
           <p className="text-xs text-[var(--color-muted)] mb-3">¿Cuánto tardas en preparar y enviar un pedido?</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
               { key: '1d',   label: '1 día hábil',      desc: 'Ideal para artículos listos para enviar' },
               { key: '1-3d', label: '1–3 días hábiles', desc: 'Estándar para la mayoría de tiendas' },
@@ -132,9 +133,9 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
         {/* Inbox link */}
         <div className="mt-5 pt-4 border-t border-[var(--color-border)] flex items-center justify-between">
           <p className="text-xs text-[var(--color-muted)]">Ver y gestionar tus pedidos activos</p>
-          <a href="/shop/manage/orders" className="text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline flex items-center gap-1">
+          <Link href="/shop/manage/orders" className="text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline flex items-center gap-1">
             Ir a pedidos →
-          </a>
+          </Link>
         </div>
       </section>
 

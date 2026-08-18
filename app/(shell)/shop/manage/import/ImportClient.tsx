@@ -490,7 +490,7 @@ export default function ImportClient({
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="mb-6">
         <SellerBreadcrumb />
-        <h1 className="text-2xl font-bold leading-tight mt-2">Importar catálogo</h1>
+        <h1 className="text-xl sm:text-2xl font-bold leading-tight mt-2">Importar catálogo</h1>
         <p className="text-sm text-[var(--color-muted)] mt-1">
           Trae toda tu tienda en minutos. Pega tu texto y deja que la IA lo arme, o sube un archivo que
           generó tu propio asistente — sin formatos complicados ni mapeos manuales.

@@ -50,7 +50,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
       <SellerBreadcrumb />
 
       <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Analíticas de suscripciones</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)]">Analíticas de suscripciones</h1>
         <p className="text-[var(--color-muted)] text-sm mt-1">{shopName}</p>
       </div>
 
@@ -102,7 +102,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
       {data.planBreakdown.length > 0 && (
         <section>
           <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Desglose por plan</h2>
-          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[var(--color-background)]">
                 <tr>
@@ -134,7 +134,7 @@ export default function AnalyticsClient({ data, shopName }: { data: AnalyticsDat
             <p className="text-sm">Aún no hay suscriptores.</p>
           </div>
         ) : (
-          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-hidden">
+          <div className="border border-[var(--color-border)] rounded-[var(--r-md)] overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[var(--color-background)]">
                 <tr>

@@ -386,7 +386,7 @@ function ShippingSection({
 
         {/* Mode chooser */}
         {mode === 'choose' && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setMode('envia')}
@@ -420,7 +420,7 @@ function ShippingSection({
               ← Volver
             </button>
             <h3 className="font-semibold text-sm mb-3">Datos del paquete</h3>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <div>
                 <label className="block text-xs font-medium text-[var(--color-muted)] mb-1">Peso (gramos)</label>
                 <input type="number" value={weightGrams} onChange={e => setWeightGrams(e.target.value)} min="1"
