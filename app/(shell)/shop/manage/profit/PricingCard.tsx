@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { formatCents, formatPct, solveForPrice, type SkuMarginRow } from '@/lib/profit'
+import { solveForPrice, type SkuMarginRow } from '@/lib/profit'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 /**
  * Per-SKU target-margin control + one-click Apply (profit-analyzer S2 ·
@@ -38,6 +39,8 @@ function ConfirmApplyDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const fmt = useSellerFormat()
+  const formatCents = (cents: number) => fmt.money(cents)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal>
       <div className="bg-[var(--fg-inverse)] rounded-[var(--r-md)] shadow-xl w-full max-w-sm p-6">
@@ -77,6 +80,10 @@ async function fetchFeeEstimate(productId: string, priceCents: number): Promise<
 }
 
 export default function PricingCard({ row }: { row: SkuMarginRow }) {
+  const fmt = useSellerFormat()
+  // No per-row currency here — a SKU's price is the shop's own money, so it
+  // defaults to the shop currency instead of `formatCents`'s hardcoded MXN.
+  const formatCents = (cents: number) => fmt.money(cents)
   const [targetMarginPct, setTargetMarginPct] = useState(DEFAULT_TARGET_MARGIN_PCT)
   const [fee, setFee] = useState<FeeEstimate | null>(null)
   const [verifying, setVerifying] = useState(false)

@@ -3,22 +3,23 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { PrintEditionPublic } from '@/lib/print'
-
-function formatMXN(cents: number): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
-}
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 /**
  * Seller-portal entry point for "Sal en la edición impresa". Self-fetches the open
  * editions and deep-links into the ad builder. Renders nothing when no edition is open.
  */
 export default function PrintEditionCard() {
+  const fmt = useSellerFormat()
   const [editions, setEditions] = useState<PrintEditionPublic[] | null>(null)
+
+  // The print edition is a Mexico product priced in pesos for everyone, so MXN
+  // is passed EXPLICITLY rather than defaulted from the shop: a US merchant
+  // reading this card is being quoted the same pesos, and letting the shop's
+  // currency win here would relabel the amount without converting it.
+  const formatMXN = (cents: number) => fmt.price(cents, 'MXN')
+  const formatDate = (iso: string | null) =>
+    iso ? fmt.date(iso, { day: 'numeric', month: 'long' }) : null
 
   useEffect(() => {
     let active = true

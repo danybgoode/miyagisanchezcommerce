@@ -1,5 +1,7 @@
 'use client'
 
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -25,16 +27,20 @@ type ImportRow = {
 
 type FetchResult = { imported: number; duplicate: number; failed: number }
 
-function fmtPrice(cents: number | null, currency: string | null): string {
-  if (cents == null) return 'A convenir'
-  try {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: currency || 'MXN' }).format(cents / 100)
-  } catch {
-    return `$${(cents / 100).toFixed(2)}`
-  }
-}
-
 export default function ShopifyImport() {
+  const fmt = useSellerFormat()
+  // A source row that carries no currency of its own falls back to the SHOP's
+  // currency, not to a hardcoded MXN: a US merchant importing a priced catalog
+  // was being shown pesos. The code still comes from the market, never the
+  // language — an MX merchant reading English still imports into pesos.
+  const fmtPrice = (cents: number | null, currency: string | null) => {
+    if (cents == null) return fmt.locale === 'en' ? 'Price on request' : 'A convenir'
+    try {
+      return fmt.money(cents, currency)
+    } catch {
+      return `$${(cents / 100).toFixed(2)}`
+    }
+  }
   const router = useRouter()
   const [domain, setDomain] = useState('')
   const [phase, setPhase] = useState<'idle' | 'fetching' | 'review' | 'importing'>('idle')
@@ -221,8 +227,8 @@ export default function ShopifyImport() {
                         aria-label={`Importar ${row.listing_title ?? 'producto'}`}
                         style={{ width: 18, height: 18, flexShrink: 0 }}
                       />
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- imported source images are arbitrary remote hosts
                         <img src={img} alt="" width={44} height={44} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 'var(--r-sm)', flexShrink: 0 }} />
                       ) : (
                         <span style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', background: 'var(--bg-sunk)', flexShrink: 0 }} />

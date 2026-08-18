@@ -19,6 +19,7 @@ import {
   selectionAfterBulkApply,
   type BulkOrderTransitionPlan,
 } from '@/lib/order-bulk-preview'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,21 +82,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100)
-}
-
-function relativeDate(iso: string) {
-  const d = new Date(iso)
-  const diff = Date.now() - d.getTime()
-  const mins  = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days  = Math.floor(diff / 86400000)
-  if (mins  < 60)  return `Hace ${mins}m`
-  if (hours < 24)  return `Hace ${hours}h`
-  if (days  < 30)  return `Hace ${days} día${days > 1 ? 's' : ''}`
-  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-}
 
 function getListing(order: Order) {
   const l = order.marketplace_listings
@@ -187,6 +173,19 @@ function OrderCard({
   selected: boolean
   onToggleSelect: () => void
 }) {
+  const fmt = useSellerFormat()
+  // Captured once at mount — keeps render pure (no Date.now() in the render body).
+  // Same pattern as PromotionsClient; `relativeShort` takes the clock as an
+  // argument precisely so the impurity lives at one visible call site.
+  const [now] = useState(() => Date.now())
+  // The order's OWN currency, never the shop's and never the language's: a US
+  // order on an MX shop is dollars, and an MX merchant reading English is still
+  // owed pesos. Only the grouping and the month name follow `fmt.locale`.
+  // `price()` (not `money()`) so the peso convention stops rounding dollars —
+  // this line used to render a $12.50 order as "$13".
+  const formatPrice = (cents: number, currency: string) =>
+    fmt.price(cents, currency)
+
   const listing  = getListing(order)
   const shipment = getShipment(order)
   const thumb    = listing?.images?.[0]?.url ?? null
@@ -248,7 +247,7 @@ function OrderCard({
               {formatPrice(order.amount_cents, order.currency)}
             </span>
             <span>{order.buyer_name ?? 'Comprador'}</span>
-            <span>{relativeDate(order.created_at)}</span>
+            <span>{fmt.relativeShort(order.created_at, now)}</span>
           </div>
 
           {/* Tag chips */}

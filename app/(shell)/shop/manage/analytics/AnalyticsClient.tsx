@@ -1,4 +1,5 @@
 'use client'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 
@@ -22,14 +23,6 @@ interface AnalyticsData {
   }>
 }
 
-function fmt(cents: number, currency: string): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency, minimumFractionDigits: 0 }).format(cents / 100)
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-}
-
 const STATUS_COLOR: Record<string, string> = {
   active:               'bg-green-100 text-green-800',
   trialing:             'bg-blue-100 text-blue-800',
@@ -40,6 +33,13 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 export default function AnalyticsClient({ data, shopName }: { data: AnalyticsData; shopName: string }) {
+  const sellerFormat = useSellerFormat()
+  // The row's OWN currency code, passed through untouched — only the formatting
+  // locale follows the merchant's language.
+  const fmt = (cents: number, currency: string) =>
+    sellerFormat.money(cents, currency, { minimumFractionDigits: 0 })
+  const fmtDate = (iso: string) => sellerFormat.date(iso, { day: 'numeric', month: 'short' })
+
   const churnRate = data.activeCount + data.churnedThisMonth > 0
     ? ((data.churnedThisMonth / (data.activeCount + data.churnedThisMonth)) * 100).toFixed(1)
     : '0.0'

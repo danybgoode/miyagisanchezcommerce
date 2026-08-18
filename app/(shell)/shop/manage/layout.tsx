@@ -1,10 +1,12 @@
 import { headers } from 'next/headers'
 import SellerShellChrome from './_components/SellerShellChrome'
 import SellerCopyBoundary from '@/app/components/SellerCopyBoundary'
+import SellerFormatProvider from '@/app/components/SellerFormatProvider'
 import { getDictionary } from '@/lib/dictionary'
 import { getMySeller } from '@/lib/get-my-seller'
 import { cookies } from 'next/headers'
 import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
+import { sellerFormatContextForMarket } from '@/lib/seller-format'
 import { PendingListingDeleteProvider } from '@/components/seller/PendingListingDeleteProvider'
 
 /**
@@ -37,9 +39,22 @@ export default async function SellerManageLayout({ children }: { children: React
   })
 
   const managedContent = <PendingListingDeleteProvider>{children}</PendingListingDeleteProvider>
-  const content = whiteLabel
+  const shell = whiteLabel
     ? managedContent
     : <SellerShellChrome>{managedContent}</SellerShellChrome>
+
+  // Numbers, dates and prices are NOT copy: the boundary substitutes text nodes
+  // against a generated population, and a formatted amount has no letters to
+  // match, so ~30 call sites here used to hardcode `es-MX` and stayed Spanish in
+  // an English portal. This provider carries all three facts the formatters need
+  // — the merchant's LANGUAGE, and the market's CURRENCY and CLOCK, which must
+  // never follow the language (`lib/seller-format.ts`). It renders no DOM node,
+  // so it sits ABOVE the Spanish early-return without touching the authored tree.
+  const content = (
+    <SellerFormatProvider context={sellerFormatContextForMarket(locale, market)}>
+      {shell}
+    </SellerFormatProvider>
+  )
 
   // Spanish is the authored tree, byte for byte: no boundary and no dictionary are
   // introduced into its render path. The seller's stored choice decides, and the

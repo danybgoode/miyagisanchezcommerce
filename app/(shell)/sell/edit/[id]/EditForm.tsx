@@ -1,4 +1,7 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- seller-uploaded media comes from arbitrary remote hosts */
+
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -106,6 +109,7 @@ export default function EditForm({
    */
   arrangedOnlyEnabled?: boolean
 }) {
+  const fmt = useSellerFormat()
   const router = useRouter()
   const [title, setTitle] = useState(initial.title)
   const [description, setDescription] = useState(initial.description ?? '')
@@ -385,7 +389,7 @@ export default function EditForm({
           />
           <p className="text-xs text-[var(--color-muted)] mt-1">
             Muestra un fragmento gratis para dar ganas de leer más. El archivo completo sigue
-            siendo privado hasta la compra. Déjalo vacío para no mostrar adelanto. {excerpt.length.toLocaleString('es-MX')}/{EXCERPT_MAX_CHARS.toLocaleString('es-MX')}
+            siendo privado hasta la compra. Déjalo vacío para no mostrar adelanto. {fmt.number(excerpt.length)}/{fmt.number(EXCERPT_MAX_CHARS)}
           </p>
         </div>
       )}

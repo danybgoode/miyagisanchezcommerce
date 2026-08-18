@@ -2,7 +2,6 @@
 
 import { SellerBreadcrumb } from '../SellerBreadcrumb'
 import {
-  formatCents,
   totalsByCurrency,
   formatPct,
   classifyMarginKillers,
@@ -12,6 +11,7 @@ import {
   type PendingPiece,
 } from '@/lib/profit'
 import PricingCard from './PricingCard'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 /**
  * Profit dashboard v1 (profit-analyzer S1 · US-3) — presentational only; all
@@ -29,15 +29,12 @@ const PENDING_LABEL: Record<PendingPiece, string> = {
   ml_fee: 'comisión ML pendiente',
 }
 
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '—'
-}
-
 function MarginCell({ cents, pct, currency }: { cents: number; pct: number | null; currency?: string }) {
+  const fmt = useSellerFormat()
   const negative = cents < 0
   return (
     <span className={negative ? 'text-red-600 font-semibold' : 'text-green-700 font-semibold'}>
-      {formatCents(cents, currency)}
+      {fmt.money(cents, currency)}
       <span className="text-xs font-normal text-[var(--color-muted)]"> · {formatPct(pct)}</span>
     </span>
   )
@@ -54,6 +51,14 @@ export default function ProfitClient({
   showMlFees: boolean
   loadFailed: boolean
 }) {
+  const fmt = useSellerFormat()
+  // `lib/profit.ts`'s `formatCents` picks its locale FROM the money (mxn→es-MX,
+  // usd→en-US). That was the best available proxy for "the language this seller
+  // reads" before the portal had an ES/EN switch; now the seller states it, so the
+  // proxy is replaced by the real thing. The currency still comes from the row.
+  const formatCents = (cents: number, currency?: string) => fmt.money(cents, currency)
+  const fmtDate = (iso: string | null) =>
+    iso ? fmt.date(iso, { day: 'numeric', month: 'short' }) : '—'
   const marginKillers = classifyMarginKillers(skuRows)
   const underpriced = classifyUnderpriced(skuRows)
   // Only SKUs with an addressable variant + a positive realized unit price

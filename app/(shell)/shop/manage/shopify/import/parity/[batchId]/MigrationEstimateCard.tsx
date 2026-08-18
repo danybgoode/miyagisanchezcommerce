@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 interface EstimateBreakdown {
   id: string
@@ -11,9 +12,6 @@ interface EstimateBreakdown {
   total_price_cents: number
 }
 
-const mxn = (cents: number) =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(cents / 100)
-
 /**
  * Client island — generates (or fetches the existing) quoted-estimate for a
  * batch above the flat 150-listing cap (epic 03 · platform-migrations S2 ·
@@ -23,6 +21,11 @@ const mxn = (cents: number) =>
  * card is purely informational/courtesy.
  */
 export default function MigrationEstimateCard({ batchId }: { batchId: string }) {
+  const fmt = useSellerFormat()
+  // MXN explicitly: this quote must match, to the peso, the amount the promoter's
+  // close will charge (`app/api/promoter/close/migration` refuses a mismatch), and
+  // that amount is stored in pesos. Only the FORMATTING follows the language.
+  const mxn = (cents: number) => fmt.price(cents, 'MXN')
   const [estimate, setEstimate] = useState<EstimateBreakdown | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

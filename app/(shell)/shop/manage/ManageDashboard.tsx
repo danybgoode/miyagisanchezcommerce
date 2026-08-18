@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- seller catalog media may use arbitrary remote hosts */
 import { Fragment } from 'react'
+import { createSellerFormat } from '@/lib/seller-format'
+import { getSellerFormatContext } from '@/lib/seller-format-server'
 import Link from 'next/link'
 import PrintEditionCard from './PrintEditionCard'
 import SellerPageHeader from '@/components/seller/SellerPageHeader'
@@ -39,7 +41,7 @@ interface Shop {
 // Sprint 1 · Story 1.2) — this stays a compact summary card + link, so the
 // dashboard doesn't duplicate a second live-editable listing grid.
 
-export default function ManageDashboard({
+export default async function ManageDashboard({
   shop,
   initialListings,
   pendingOffersCount = 0,
@@ -54,6 +56,11 @@ export default function ManageDashboard({
   setupSteps: SetupStep[]
   guideDismissed?: boolean
 }) {
+  // A SERVER component cannot consume React context, so it cannot use
+  // `useSellerFormat()` — it resolves the same three facts through the same
+  // `cache()`d server seam the layouts use, and builds the same formatter. One
+  // resolver means the server and client halves of the portal cannot disagree.
+  const fmt = createSellerFormat(await getSellerFormatContext())
   const totalViews = initialListings.reduce((s, l) => s + (l.views ?? 0), 0)
   const activeCount = initialListings.filter((l) => l.status === 'active').length
   const pausedCount = initialListings.filter((l) => l.status === 'paused').length
@@ -120,7 +127,7 @@ export default function ManageDashboard({
           { label: 'Vistas totales', value: totalViews, color: 'text-[var(--color-foreground)]' },
         ].map(stat => (
           <div key={stat.label} className="border border-[var(--color-border)] rounded-[var(--r-md)] p-4 text-center">
-            <div className={`text-xl sm:text-2xl font-bold ${stat.color}`}>{stat.value.toLocaleString('es-MX')}</div>
+            <div className={`text-xl sm:text-2xl font-bold ${stat.color}`}>{fmt.number(stat.value)}</div>
             <div className="text-xs text-[var(--color-muted)] mt-0.5">{stat.label}</div>
           </div>
         ))}
