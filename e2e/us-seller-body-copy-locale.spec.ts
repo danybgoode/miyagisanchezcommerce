@@ -122,7 +122,7 @@ test('the population covers every directory the boundary renders, and the portal
 
   const uncollected: string[] = []
   for (const file of files) {
-    for (const [, quote, literal] of source(file).matchAll(/showToast\(\s*(['"])((?:[^\\]|\\.)*?)\1/g)) {
+    for (const [, , literal] of source(file).matchAll(/showToast\(\s*(['"])((?:[^\\]|\\.)*?)\1/g)) {
       const value = literal.replace(/\\(['"])/g, '$1').replace(/\s+/g, ' ').trim()
       if (/[\p{L}]/u.test(value) && !collected.has(value)) uncollected.push(`${file}: ${value}`)
     }

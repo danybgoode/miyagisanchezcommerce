@@ -39,13 +39,29 @@ const TITLES: Record<SellerLocale, string> = {
  * it is a plain cookie and not a profile field: it must work on the very first
  * render, before any authenticated round-trip.
  */
+/**
+ * Write the preference cookie.
+ *
+ * A module function rather than an inline statement because
+ * `react-hooks/immutability` (React Compiler) rejects assigning to anything
+ * declared outside the component from inside it — `document` included. The write
+ * is a genuine browser side effect, so moving it out is the honest shape, not a
+ * lint dodge.
+ *
+ * `max-age` is a year and the path is `/` so the preference survives navigating
+ * out to a public shop page and back.
+ */
+function persistSellerLocale(locale: SellerLocale): void {
+  document.cookie = `${SELLER_LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`
+}
+
 export default function SellerLanguageToggle({ locale }: { locale: SellerLocale }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   function choose(next: SellerLocale) {
     if (next === locale) return
-    document.cookie = `${SELLER_LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`
+    persistSellerLocale(next)
     startTransition(() => router.refresh())
   }
 

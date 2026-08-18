@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 /**
  * Gestión de pedidos — processing time, auto-confirm, dispatch + auto-confirm
@@ -132,9 +133,9 @@ export default function Pedidos({ initial }: { initial: OrdersSettings | null })
         {/* Inbox link */}
         <div className="mt-5 pt-4 border-t border-[var(--color-border)] flex items-center justify-between">
           <p className="text-xs text-[var(--color-muted)]">Ver y gestionar tus pedidos activos</p>
-          <a href="/shop/manage/orders" className="text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline flex items-center gap-1">
+          <Link href="/shop/manage/orders" className="text-xs font-semibold text-[var(--color-accent)] no-underline hover:underline flex items-center gap-1">
             Ir a pedidos →
-          </a>
+          </Link>
         </div>
       </section>
 
