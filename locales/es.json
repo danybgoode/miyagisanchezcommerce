@@ -799,7 +799,26 @@
     "market.checkoutComingSoon": "El checkout para este mercado estará disponible pronto. Puedes explorar el artículo sin entrar a un checkout que aún no está listo.",
     "messages.loadFailed.title": "No pudimos cargar tus mensajes",
     "messages.loadFailed.body": "Esto es una falla nuestra, no que no tengas conversaciones. Vuelve a intentarlo en un momento.",
-    "messages.loadFailed.retry": "Reintentar"
+    "messages.loadFailed.retry": "Reintentar",
+    "wall.sectionLabel": "Novedades",
+    "wall.emptyTitle": "Esta tienda apenas empieza",
+    "wall.emptyBody": "Todavía no hay publicaciones. Mientras tanto, mira lo que hay a la venta.",
+    "wall.emptyCta": "Ver la tienda",
+    "wall.pinned": "Fijado",
+    "wall.loadMore": "Ver más publicaciones",
+    "wall.loadMoreBusy": "Cargando…",
+    "wall.loadMoreFailed": "No se pudo cargar. Intenta de nuevo.",
+    "wall.readMore": "Leer más",
+    "wall.readLess": "Leer menos",
+    "wall.productCta": "Ver producto",
+    "wall.productSoldOut": "Agotado",
+    "wall.collectionCta": "Ver la colección",
+    "wall.collectionCount": "{0} artículos",
+    "wall.collectionCountOne": "1 artículo",
+    "wall.eventCta": "Ver el evento",
+    "wall.eventCancelled": "Cancelado",
+    "wall.eventPast": "Ya pasó",
+    "wall.byShop": "Publicado por la tienda"
   },
   "partnersRecruiting": {
     "landing": {

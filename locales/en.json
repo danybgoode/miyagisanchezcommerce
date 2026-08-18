@@ -799,7 +799,26 @@
     "market.checkoutComingSoon": "Checkout for US listings is coming next. You can browse this item now without being sent to a checkout that is not ready.",
     "messages.loadFailed.title": "We couldn't load your messages",
     "messages.loadFailed.body": "This is a problem on our side, not an empty inbox. Please try again in a moment.",
-    "messages.loadFailed.retry": "Try again"
+    "messages.loadFailed.retry": "Try again",
+    "wall.sectionLabel": "Latest",
+    "wall.emptyTitle": "This shop is just getting started",
+    "wall.emptyBody": "No posts yet. In the meantime, take a look at what is for sale.",
+    "wall.emptyCta": "Browse the shop",
+    "wall.pinned": "Pinned",
+    "wall.loadMore": "See more posts",
+    "wall.loadMoreBusy": "Loading…",
+    "wall.loadMoreFailed": "Could not load. Try again.",
+    "wall.readMore": "Read more",
+    "wall.readLess": "Read less",
+    "wall.productCta": "View product",
+    "wall.productSoldOut": "Sold out",
+    "wall.collectionCta": "View collection",
+    "wall.collectionCount": "{0} items",
+    "wall.collectionCountOne": "1 item",
+    "wall.eventCta": "View event",
+    "wall.eventCancelled": "Cancelled",
+    "wall.eventPast": "Already happened",
+    "wall.byShop": "Posted by the shop"
   },
   "partnersRecruiting": {
     "landing": {

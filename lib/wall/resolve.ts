@@ -23,67 +23,15 @@ import 'server-only'
  */
 
 import { db } from '@/lib/supabase'
-import { getShopListings, getShopCollections, formatPrice } from '@/lib/listings'
+import { getShopListings, getShopCollections } from '@/lib/listings'
 import type { Listing } from '@/lib/types'
 import type { MarketplaceEvent } from '@/lib/events-types'
-import type {
-  WallEntry,
-  PublicWallEntry,
-  WallReferenceResolution,
-  WallProductView,
-  WallCollectionView,
-  WallEventView,
-} from './types'
+import type { WallEntry, PublicWallEntry, WallReferenceResolution } from './types'
 import { effectiveInstant } from './visibility'
-
-/** A bounded sample is a design decision, not a query limit — 4 tiles fit one row. */
-export const COLLECTION_SAMPLE_SIZE = 4
-
-// ── Pure views ───────────────────────────────────────────────────────────────
-// Exported so specs can assert the mapping without any network.
-
-export function toProductView(listing: Listing, basePath: string, locale: string): WallProductView {
-  return {
-    id: listing.id,
-    title: listing.title,
-    href: `${basePath}/l/${listing.id}`,
-    imageUrl: listing.images?.[0]?.url ?? null,
-    formattedPrice: listing.price_cents != null ? formatPrice(listing, locale) : null,
-    available: listing.in_stock !== false,
-  }
-}
-
-export function toCollectionView(
-  collection: { handle: string; name: string },
-  members: Listing[],
-  basePath: string,
-): WallCollectionView {
-  return {
-    handle: collection.handle,
-    name: collection.name,
-    href: `${basePath}/c/${collection.handle}`,
-    productCount: members.length,
-    sample: members.slice(0, COLLECTION_SAMPLE_SIZE).map((l) => ({
-      id: l.id,
-      title: l.title,
-      imageUrl: l.images?.[0]?.url ?? null,
-      href: `${basePath}/l/${l.id}`,
-    })),
-  }
-}
-
-export function toEventView(event: MarketplaceEvent, now: Date): WallEventView {
-  const startsMs = Date.parse(event.starts_at)
-  return {
-    slug: event.slug,
-    title: event.title,
-    href: `/e/${event.slug}`,
-    startsAt: event.starts_at,
-    venueName: event.venue_name,
-    cancelled: event.status === 'cancelled',
-    past: Number.isFinite(startsMs) && startsMs < now.getTime(),
-  }
-}
+// The pure mapping half lives in `views.ts` so specs can reach it — this module
+// carries `server-only` and would drag `next/cache` into any spec that imported it.
+import { toProductView, toCollectionView, toEventView } from './views'
+export { toProductView, toCollectionView, toEventView, COLLECTION_SAMPLE_SIZE } from './views'
 
 // ── The batched shell ────────────────────────────────────────────────────────
 

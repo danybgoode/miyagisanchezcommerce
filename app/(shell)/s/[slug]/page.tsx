@@ -20,6 +20,7 @@ import AnnouncementBar from './AnnouncementBar'
 import HeroSection from './HeroSection'
 import ShopCollectionNav from './ShopCollectionNav'
 import ShopContentLinks from './ShopContentLinks'
+import WallFeed from '@/app/(shell)/_wall/WallFeed'
 import { returnsWindowLabel } from '@/lib/trust-signals'
 import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
 import { readableTextOn } from '@/lib/platform-theme'
@@ -31,6 +32,8 @@ import { marketCatalogCanonical } from '@/lib/market-seo'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
+import { readPublicWall } from '@/lib/wall/public'
+import { resolvePublicWallShop } from '@/lib/wall/store'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -143,7 +146,10 @@ export async function ShopPage({
     ? ''
     : `${marketBasePath}/s/${shop.slug}`
 
-  const [listingRead, allCollections] = await Promise.all([
+  // The Wall's shop is the SUPABASE mirror row, not the Medusa seller `shop`
+  // above — their ids live in different systems and only the slug is shared.
+  // A seller with no mirror row yet simply has no Wall (known-absent).
+  const [listingRead, allCollections, wallShop] = await Promise.all([
     market
       ? getMarketplaceShopListings(shop.slug, market)
       : getShopListings(shop.slug).then((listings) => ({
@@ -152,7 +158,16 @@ export async function ShopPage({
           market_unavailable: null,
         })),
     getShopCollections(shop.slug, market),
+    resolvePublicWallShop(shop.slug),
   ])
+  const wall = wallShop
+    ? await readPublicWall({
+        shopId: wallShop.id,
+        shopSlug: wallShop.slug,
+        basePath: navBasePath,
+        locale: resolveMarketPresentation(presentationMarket).htmlLang,
+      })
+    : { entries: [], hasMore: false, total: 0 }
   // A refused/mismatched catalog is unavailable, not an empty successful shop.
   // Rendering the latter would cache and index a confident falsehood.
   if (listingRead.market_unavailable) notFound()
@@ -366,6 +381,27 @@ export async function ShopPage({
         activeTextColor={accentTextColor}
         activeShortSlug={null}
       />
+
+      {/* ── The Wall (Living Shop, epic 07 · Sprint 2) ────────────────────────
+          Rendered only when the merchant has actually published something. A
+          shop with a catalog and an empty Wall keeps today's storefront exactly
+          as it is — an empty-feed box above a full product grid would be noise,
+          and S2.5 asks that a shop with no new settings degrade to the new
+          Default WITHOUT losing content. WallFeed's designed empty state belongs
+          to the dedicated Wall destination, where the feed is the whole page. */}
+      {wall.total > 0 && (
+        <WallFeed
+          entries={wall.entries}
+          hasMore={wall.hasMore}
+          shopSlug={shop.slug}
+          emptyShopHref={`${navBasePath}/tienda`}
+          ctx={{
+            copy: buyerCopy,
+            basePath: navBasePath,
+            htmlLang: resolveMarketPresentation(presentationMarket).htmlLang,
+          }}
+        />
+      )}
 
       {/* ── Listings grid ────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 pb-12">

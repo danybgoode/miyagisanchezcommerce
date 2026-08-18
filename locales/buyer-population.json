@@ -89,6 +89,10 @@
     "app/(shell)/_shop-content/AcercaBody.tsx",
     "app/(shell)/_shop-content/FaqBody.tsx",
     "app/(shell)/_shop-content/PoliticasBody.tsx",
+    "app/(shell)/_wall/WallEntryCard.tsx",
+    "app/(shell)/_wall/WallFeed.tsx",
+    "app/(shell)/_wall/WallLoadMore.tsx",
+    "app/(shell)/_wall/WallPostBody.tsx",
     "app/(shell)/account/favorites/page.tsx",
     "app/(shell)/account/notificaciones/BuyerNotificationPreferences.tsx",
     "app/(shell)/account/notificaciones/page.tsx",
@@ -223,6 +227,10 @@
   "copyClassification": {
     "dictionaryConsuming": [
       "app/(mx-site)/mx/page.tsx",
+      "app/(shell)/_wall/WallEntryCard.tsx",
+      "app/(shell)/_wall/WallFeed.tsx",
+      "app/(shell)/_wall/WallLoadMore.tsx",
+      "app/(shell)/_wall/WallPostBody.tsx",
       "app/(shell)/account/orders/[id]/OrderTrackingClient.tsx",
       "app/(shell)/account/referrals/ReferralsClient.tsx",
       "app/(shell)/checkout/CheckoutExperience.tsx",

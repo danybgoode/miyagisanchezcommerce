@@ -49,6 +49,32 @@ export async function resolveOwnShop(clerkUserId: string): Promise<WallShop | nu
   return data ?? null
 }
 
+/**
+ * The Supabase shop row behind a PUBLIC slug.
+ *
+ * 🚨 `getShop()` in `lib/listings.ts` returns the MEDUSA SELLER, whose `id` is a
+ * Medusa id — NOT the `marketplace_shops.id` this table's foreign key points at.
+ * Passing one where the other is expected reads as correct and matches nothing;
+ * it is the same class of mistake as calling a module with an invented key. So
+ * every public Wall read resolves the shop HERE, by slug, against the table the
+ * FK actually references.
+ *
+ * The two slugs are kept identical by `ensureSupabaseShopMirror`
+ * (`lib/provisioning.ts` writes `slug: seller.slug` on every sync), which is why
+ * the slug — and not either id — is the safe join key across the two systems.
+ *
+ * Returns null for a Medusa seller with no Supabase mirror yet. That is
+ * known-absent (no Wall), never an error.
+ */
+export async function resolvePublicWallShop(slug: string): Promise<WallShop | null> {
+  const { data } = await db
+    .from('marketplace_shops')
+    .select('id, slug, name')
+    .eq('slug', slug)
+    .maybeSingle()
+  return data ?? null
+}
+
 function rowToEntry(row: Record<string, unknown>): WallEntry {
   return {
     ...(row as unknown as WallEntry),
