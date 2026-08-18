@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- seller-uploaded media comes from arbitrary remote hosts */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'

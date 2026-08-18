@@ -50,9 +50,9 @@ export default function SellerFormatProvider({
  * `Intl` formatter in the tree beneath it.
  */
 export function useSellerFormat(): SellerFormat {
-  const context = useContext(SellerFormatCtx)
+  const { locale, currency, timeZone } = useContext(SellerFormatCtx)
   return useMemo(
-    () => createSellerFormat(context),
-    [context.locale, context.currency, context.timeZone],
+    () => createSellerFormat({ locale, currency, timeZone }),
+    [locale, currency, timeZone],
   )
 }

@@ -94,6 +94,29 @@ test.describe('seller format · the language moves, the money does not', () => {
     expect(es.number(1_234_567)).toBe((1_234_567).toLocaleString('es-MX'))
   })
 
+  test('a relative time reads in the merchant\u2019s language, and only Spanish is unchanged', () => {
+    const NOW = Date.parse('2026-08-15T12:00:00Z')
+    const ago = (minutes: number) => new Date(NOW - minutes * 60_000)
+    const es = createSellerFormat(MX_ES)
+    const en = createSellerFormat(MX_EN)
+
+    expect(es.relativeShort(ago(3), NOW)).toBe('Hace 3m')
+    expect(en.relativeShort(ago(3), NOW)).toBe('3m ago')
+    expect(es.relativeShort(ago(150), NOW)).toBe('Hace 2h')
+    expect(en.relativeShort(ago(150), NOW)).toBe('2h ago')
+    // Spanish pluralizes the noun, English the noun and nothing else \u2014 and the
+    // singular day must not read "1 days".
+    expect(es.relativeShort(ago(60 * 24), NOW)).toBe('Hace 1 día')
+    expect(en.relativeShort(ago(60 * 24), NOW)).toBe('1 day ago')
+    expect(es.relativeShort(ago(60 * 24 * 3), NOW)).toBe('Hace 3 días')
+    expect(en.relativeShort(ago(60 * 24 * 3), NOW)).toBe('3 days ago')
+
+    // Past the cutoff there is no useful relative phrasing \u2014 an absolute date,
+    // still in the reader's language.
+    expect(es.relativeShort(ago(60 * 24 * 40), NOW)).toBe('6 jul')
+    expect(en.relativeShort(ago(60 * 24 * 40), NOW)).toBe('Jul 6')
+  })
+
   test('an unparseable date degrades instead of throwing mid-render', () => {
     // `Intl.DateTimeFormat.format` throws a RangeError on an invalid Date; the
     // `toLocaleDateString` call sites this replaces returned "Invalid Date". A

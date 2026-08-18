@@ -109,6 +109,20 @@ export interface SellerFormat {
   /** A plain number: grouping and decimal marks only. */
   number(value: number, options?: Intl.NumberFormatOptions): string
   /**
+   * A terse "how long ago", e.g. "Hace 3m" / "3m ago".
+   *
+   * Not `Intl.RelativeTimeFormat`: that renders "hace 3 minutos", and the orders
+   * inbox is a dense list authored around the short form. Both languages are
+   * spelled out here because this string is BUILT AT RENDER TIME from a number,
+   * so the seller-copy population scan never collected it and the copy boundary
+   * has nothing to substitute — it stayed Spanish in an English portal.
+   *
+   * Beyond `dayCutoff` days there is no useful relative phrasing, so it falls
+   * through to an absolute short date. `now` is a parameter, not a `Date.now()`
+   * read, so this stays pure and the caller owns the impurity.
+   */
+  relativeShort(value: string | number | Date, now: number, dayCutoff?: number): string
+  /**
    * A date and/or a time. Always pass explicit component options.
    *
    * Implemented on `Date.prototype.toLocaleString` rather than
@@ -143,6 +157,21 @@ export function createSellerFormat(
     },
     date(value, options) {
       return new Date(value).toLocaleString(tag, options)
+    },
+    relativeShort(value, now, dayCutoff = 30) {
+      const then = new Date(value)
+      const mins  = Math.floor((now - then.getTime()) / 60_000)
+      const hours = Math.floor(mins / 60)
+      const days  = Math.floor(hours / 24)
+      if (days >= dayCutoff) return this.date(then, { day: 'numeric', month: 'short' })
+      if (context.locale === 'en') {
+        if (mins  < 60) return `${mins}m ago`
+        if (hours < 24) return `${hours}h ago`
+        return `${days} day${days > 1 ? 's' : ''} ago`
+      }
+      if (mins  < 60) return `Hace ${mins}m`
+      if (hours < 24) return `Hace ${hours}h`
+      return `Hace ${days} día${days > 1 ? 's' : ''}`
     },
   }
   return Object.freeze(format)

@@ -174,34 +174,15 @@ function OrderCard({
   onToggleSelect: () => void
 }) {
   const fmt = useSellerFormat()
+  // Captured once at mount — keeps render pure (no Date.now() in the render body).
+  // Same pattern as PromotionsClient; `relativeShort` takes the clock as an
+  // argument precisely so the impurity lives at one visible call site.
+  const [now] = useState(() => Date.now())
   // The order's OWN currency, never the shop's and never the language's: a US
   // order on an MX shop is dollars, and an MX merchant reading English is still
   // owed pesos. Only the grouping and the month name follow `fmt.locale`.
   const formatPrice = (cents: number, currency: string) =>
     fmt.money(cents, currency, { maximumFractionDigits: 0 })
-
-  // "Hace 3m" has no dictionary key: the copy boundary substitutes text nodes
-  // against a generated population, and this string is built at render time from
-  // a number, so the scan never saw it. Authoring both forms here is what makes
-  // an English orders list read in English — and the Spanish branch is character
-  // for character what it was, which is the portal's identity guarantee.
-  const relativeDate = (iso: string) => {
-    const d = new Date(iso)
-    const diff = Date.now() - d.getTime()
-    const mins  = Math.floor(diff / 60000)
-    const hours = Math.floor(mins / 60)
-    const days  = Math.floor(hours / 24)
-    if (fmt.locale === 'en') {
-      if (mins  < 60) return `${mins}m ago`
-      if (hours < 24) return `${hours}h ago`
-      if (days  < 30) return `${days} day${days > 1 ? 's' : ''} ago`
-    } else {
-      if (mins  < 60) return `Hace ${mins}m`
-      if (hours < 24) return `Hace ${hours}h`
-      if (days  < 30) return `Hace ${days} día${days > 1 ? 's' : ''}`
-    }
-    return fmt.date(d, { day: 'numeric', month: 'short' })
-  }
 
   const listing  = getListing(order)
   const shipment = getShipment(order)
@@ -264,7 +245,7 @@ function OrderCard({
               {formatPrice(order.amount_cents, order.currency)}
             </span>
             <span>{order.buyer_name ?? 'Comprador'}</span>
-            <span>{relativeDate(order.created_at)}</span>
+            <span>{fmt.relativeShort(order.created_at, now)}</span>
           </div>
 
           {/* Tag chips */}

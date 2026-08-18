@@ -227,8 +227,8 @@ export default function ShopifyImport() {
                         aria-label={`Importar ${row.listing_title ?? 'producto'}`}
                         style={{ width: 18, height: 18, flexShrink: 0 }}
                       />
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- imported source images are arbitrary remote hosts
                         <img src={img} alt="" width={44} height={44} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 'var(--r-sm)', flexShrink: 0 }} />
                       ) : (
                         <span style={{ width: 44, height: 44, borderRadius: 'var(--r-sm)', background: 'var(--bg-sunk)', flexShrink: 0 }} />

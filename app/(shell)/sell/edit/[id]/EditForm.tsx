@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- seller-uploaded media comes from arbitrary remote hosts */
 
 import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 

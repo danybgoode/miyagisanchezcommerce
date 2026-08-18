@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { formatPct, solveForPrice, type SkuMarginRow } from '@/lib/profit'
+import { solveForPrice, type SkuMarginRow } from '@/lib/profit'
 import { useSellerFormat } from '@/app/components/SellerFormatProvider'
 
 /**
