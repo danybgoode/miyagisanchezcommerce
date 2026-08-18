@@ -79,6 +79,9 @@ export default function BulkDiffPreview({
     }
   }, [batchId])
 
+  // This effect is the route-loader boundary; the async callback owns all
+  // state updates after the request settles.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   async function handleApply() {

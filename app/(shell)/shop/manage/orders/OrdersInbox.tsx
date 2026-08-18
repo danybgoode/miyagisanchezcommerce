@@ -14,6 +14,11 @@ import { Banner } from '@/components/feedback/Banner'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 import { formatWaitingOrderUrgency } from '@/lib/order-urgency'
+import {
+  reviewedStatusMap,
+  selectionAfterBulkApply,
+  type BulkOrderTransitionPlan,
+} from '@/lib/order-bulk-preview'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +65,7 @@ interface Shop {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 type FilterTab = 'pending' | 'shipped' | 'delivered' | 'all'
+type BulkTargetStatus = 'processing' | 'shipped' | 'delivered'
 
 const STATUS_LABEL: Record<string, string> = {
   pending_payment: 'Pago pendiente',
@@ -102,6 +108,72 @@ function getShipment(order: Order): OrderShipment | null {
 
 function needsAction(order: Order) {
   return order.status === 'pending_payment' || order.status === 'paid' || order.status === 'processing'
+}
+
+function statusLabel(status: string | null) {
+  return status ? (STATUS_LABEL[status] ?? status) : 'No disponible'
+}
+
+function BulkStatusPreview({
+  plans,
+  target,
+  applying,
+  onCancel,
+  onApply,
+}: {
+  plans: BulkOrderTransitionPlan[]
+  target: BulkTargetStatus
+  applying: boolean
+  onCancel: () => void
+  onApply: () => void
+}) {
+  const eligibleCount = plans.filter((plan) => plan.eligible).length
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/40 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="bulk-preview-title">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--bg-elevated)] p-5 shadow-[var(--shadow-3)] sm:p-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Antes de aplicar</p>
+            <h2 id="bulk-preview-title" className="text-lg font-bold">Revisa el cambio de estado</h2>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              {eligibleCount} de {plans.length} pedido{plans.length === 1 ? '' : 's'} listo{eligibleCount === 1 ? '' : 's'} para cambiar a {statusLabel(target)}.
+            </p>
+          </div>
+          <button type="button" onClick={onCancel} disabled={applying} className="inline-flex min-h-11 min-w-11 items-center justify-center" aria-label="Cerrar previsualización">
+            <i className="iconoir-xmark" aria-hidden />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {plans.map((plan) => (
+            <div key={plan.order_id} className="rounded-[var(--r-md)] border border-[var(--color-border)] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{plan.title ?? 'Pedido sin detalle disponible'}</p>
+                  <p className="mt-1 text-xs text-[var(--color-muted)]">
+                    Pedido {plan.order_id.slice(-8)} · {statusLabel(plan.current_status)} <span aria-hidden>→</span> {statusLabel(plan.proposed_status)}
+                  </p>
+                </div>
+                <StatusBadge token={plan.eligible ? 'success' : 'warning'}>
+                  {plan.eligible ? 'Listo' : 'Sin cambio'}
+                </StatusBadge>
+              </div>
+              {!plan.eligible && plan.reason && (
+                <p className="mt-2 text-xs text-[var(--warning)]">{plan.reason}</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onCancel} disabled={applying} className="btn btn-secondary min-h-11">Cancelar</button>
+          <button type="button" onClick={onApply} disabled={applying || eligibleCount === 0} className="btn btn-primary min-h-11 disabled:opacity-50" aria-busy={applying || undefined}>
+            {applying ? 'Aplicando cambios…' : `Aplicar ${eligibleCount} cambio${eligibleCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Order card ────────────────────────────────────────────────────────────────
@@ -234,8 +306,17 @@ export default function OrdersInbox({
   const [filter, setFilter] = useState<FilterTab>('pending')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [bulkBusy, setBulkBusy] = useState(false)
+  const [previewBusy, setPreviewBusy] = useState<BulkTargetStatus | null>(null)
+  const [bulkApplying, setBulkApplying] = useState(false)
+  const [preview, setPreview] = useState<{ target: BulkTargetStatus; plans: BulkOrderTransitionPlan[] } | null>(null)
   const [bulkMessage, setBulkMessage] = useState<{ text: string; variant: 'success' | 'warning' | 'danger' } | null>(null)
+  const [bulkResult, setBulkResult] = useState<{
+    target: BulkTargetStatus
+    plans: BulkOrderTransitionPlan[]
+    advanced: string[]
+    skipped: Array<{ order_id: string; reason: string }>
+  } | null>(null)
+  const bulkBusy = previewBusy !== null || bulkApplying
 
   // Compute counts per tab
   const needsActionOrders = initialOrders.filter(o => needsAction(o))
@@ -272,15 +353,46 @@ export default function OrdersInbox({
   // Bulk fulfillment-status action (ml-orders-native S3 · US-8). Status-only
   // transitions (no bulk carrier/tracking entry) — mixed ML + native selections
   // work with zero special-casing (the backend endpoint is source-agnostic).
-  async function handleBulkStatus(status: 'processing' | 'shipped' | 'delivered') {
+  async function handleBulkPreview(status: BulkTargetStatus) {
     if (selected.size === 0) return
-    setBulkBusy(true)
+    setPreviewBusy(status)
+    setBulkMessage(null)
+    setBulkResult(null)
+    try {
+      const res = await fetch('/api/orders/bulk-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_ids: Array.from(selected), status }),
+      })
+      const data = await res.json() as {
+        plans?: BulkOrderTransitionPlan[]
+        error?: string
+      }
+      if (!res.ok) {
+        setBulkMessage({ text: data.error ?? 'Error al previsualizar pedidos.', variant: 'danger' })
+        return
+      }
+      setPreview({ target: status, plans: data.plans ?? [] })
+    } catch {
+      setBulkMessage({ text: 'Sin conexión.', variant: 'danger' })
+    } finally {
+      setPreviewBusy(null)
+    }
+  }
+
+  async function handleBulkApply() {
+    if (!preview) return
+    setBulkApplying(true)
     setBulkMessage(null)
     try {
       const res = await fetch('/api/orders/bulk-status', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_ids: Array.from(selected), status }),
+        body: JSON.stringify({
+          order_ids: preview.plans.map((plan) => plan.order_id),
+          status: preview.target,
+          expected_statuses: reviewedStatusMap(preview.plans),
+        }),
       })
       const data = await res.json() as {
         advanced?: string[]
@@ -291,20 +403,20 @@ export default function OrdersInbox({
         setBulkMessage({ text: data.error ?? 'Error al actualizar pedidos.', variant: 'danger' })
         return
       }
-      const advancedCount = data.advanced?.length ?? 0
+      const advanced = data.advanced ?? []
       const skipped = data.skipped ?? []
-      let msg = `${advancedCount} pedido${advancedCount !== 1 ? 's' : ''} actualizado${advancedCount !== 1 ? 's' : ''}.`
-      if (skipped.length) {
-        const reasons = skipped.slice(0, 3).map(s => s.reason).join('; ')
-        msg += ` ${skipped.length} sin cambios: ${reasons}${skipped.length > 3 ? '…' : ''}`
-      }
-      setBulkMessage({ text: msg, variant: skipped.length ? 'warning' : 'success' })
-      setSelected(new Set())
+      setSelected((current) => selectionAfterBulkApply(current, advanced))
+      setBulkResult({ target: preview.target, plans: preview.plans, advanced, skipped })
+      setBulkMessage({
+        text: `${advanced.length} actualizado${advanced.length === 1 ? '' : 's'} · ${skipped.length} sin cambios.`,
+        variant: skipped.length ? 'warning' : 'success',
+      })
+      setPreview(null)
       router.refresh()
     } catch {
       setBulkMessage({ text: 'Sin conexión.', variant: 'danger' })
     } finally {
-      setBulkBusy(false)
+      setBulkApplying(false)
     }
   }
 
@@ -398,17 +510,17 @@ export default function OrdersInbox({
             {selected.size} seleccionado{selected.size !== 1 ? 's' : ''}
           </span>
           <div className="flex flex-wrap gap-1.5 ml-auto">
-            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('processing')}
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkPreview('processing')}
               className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
-              Procesando
+              {previewBusy === 'processing' ? 'Preparando…' : 'Procesando'}
             </button>
-            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('shipped')}
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkPreview('shipped')}
               className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
-              Enviado
+              {previewBusy === 'shipped' ? 'Preparando…' : 'Enviado'}
             </button>
-            <button type="button" disabled={bulkBusy} onClick={() => handleBulkStatus('delivered')}
+            <button type="button" disabled={bulkBusy} onClick={() => handleBulkPreview('delivered')}
               className="min-h-11 text-xs font-semibold px-3 py-1 rounded-[var(--r-md)] bg-white/15 hover:bg-white/25 disabled:opacity-50">
-              Entregado
+              {previewBusy === 'delivered' ? 'Preparando…' : 'Entregado'}
             </button>
             <button type="button" disabled={bulkBusy} onClick={() => setSelected(new Set())}
               className="min-h-11 text-xs font-medium px-3 py-1 rounded-[var(--r-md)] hover:bg-white/10">
@@ -422,6 +534,43 @@ export default function OrdersInbox({
         <Banner variant={bulkMessage.variant} className="mb-4 text-xs">
           {bulkMessage.text}
         </Banner>
+      )}
+
+      {bulkResult && (
+        <section className="mb-4 rounded-[var(--r-lg)] border border-[var(--color-border)] bg-[var(--bg-elevated)] p-4" aria-label="Resultado del cambio en bloque" aria-live="polite">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]">Resultado</p>
+              <h2 className="text-sm font-semibold">Cambio a {statusLabel(bulkResult.target)}</h2>
+            </div>
+            <button type="button" onClick={() => setBulkResult(null)} className="inline-flex min-h-11 min-w-11 items-center justify-center" aria-label="Cerrar resultado">
+              <i className="iconoir-xmark" aria-hidden />
+            </button>
+          </div>
+          <div className="space-y-2 text-xs">
+            {bulkResult.advanced.map((orderId) => {
+              const plan = bulkResult.plans.find((item) => item.order_id === orderId)
+              return (
+                <div key={orderId} className="flex items-center justify-between gap-3 rounded-[var(--r-md)] bg-[var(--success-soft)] px-3 py-2">
+                  <span className="truncate">{plan?.title ?? `Pedido ${orderId.slice(-8)}`}</span>
+                  <StatusBadge token="success">Actualizado</StatusBadge>
+                </div>
+              )
+            })}
+            {bulkResult.skipped.map((skip) => {
+              const plan = bulkResult.plans.find((item) => item.order_id === skip.order_id)
+              return (
+                <div key={skip.order_id} className="rounded-[var(--r-md)] bg-[var(--warning-soft)] px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-medium">{plan?.title ?? `Pedido ${skip.order_id.slice(-8)}`}</span>
+                    <StatusBadge token="warning">Sin cambio</StatusBadge>
+                  </div>
+                  <p className="mt-1 text-[var(--warning)]">{skip.reason}</p>
+                </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {/* Orders list */}
@@ -473,6 +622,16 @@ export default function OrdersInbox({
             confirma su pago cuando corresponda y mantén el estado de entrega al día.
           </p>
         </div>
+      )}
+
+      {preview && (
+        <BulkStatusPreview
+          plans={preview.plans}
+          target={preview.target}
+          applying={bulkApplying}
+          onCancel={() => setPreview(null)}
+          onApply={handleBulkApply}
+        />
       )}
     </div>
   )

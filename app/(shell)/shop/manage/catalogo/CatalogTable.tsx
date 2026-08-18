@@ -193,6 +193,9 @@ export default function CatalogTable({
   // A router refresh after an expired delete brings the new server list into
   // this long-lived client component. Without this sync, React would preserve
   // the pre-delete useState initializer and briefly resurrect a deleted row.
+  // The server router refresh is the external source of truth after the undo
+  // window expires; keep the long-lived client island aligned with it.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setListings(initialListings), [initialListings])
 
   // Margin cells, keyed by product id — derived once per render from the
