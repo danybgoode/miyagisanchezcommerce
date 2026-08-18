@@ -2,6 +2,7 @@ import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import ShopSectionNav from '@/app/(shell)/_shop-sections/ShopSectionNav'
+import ShopThemeShell from '@/app/(shell)/_shop-sections/ShopThemeShell'
 import { resolveShopNav } from '@/lib/shop-presentation/context'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
@@ -36,6 +37,7 @@ export default async function PoliticasBody({ shop, basePath, returnsLabel: loca
   const navCopy = (await getDictionary(resolveMarketPresentation(market).language)).buyerCopy
 
   return (
+    <ShopThemeShell theme={nav.theme} accent={nav.accent}>
     <div className="max-w-2xl mx-auto px-4 py-8">
       <ShopSectionNav
         config={nav.sections}
@@ -64,5 +66,6 @@ export default async function PoliticasBody({ shop, basePath, returnsLabel: loca
         )}
       </section>
     </div>
+    </ShopThemeShell>
   )
 }

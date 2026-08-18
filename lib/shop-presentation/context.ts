@@ -23,8 +23,9 @@ import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import { readableTextOn } from '@/lib/platform-theme'
 import { normalizeSections } from './sections'
+import { resolveTheme } from './theme'
 import { resolveSectionAvailability } from './availability'
-import type { SectionConfig, SectionAvailability } from './types'
+import type { SectionConfig, SectionAvailability, ResolvedTheme } from './types'
 import type { Shop } from '@/lib/types'
 import type { MarketCode } from '@/lib/markets'
 
@@ -36,6 +37,8 @@ export interface ShopPresentationContext {
   sections: SectionConfig
   availability: SectionAvailability
   collections: Array<{ id: string; handle: string; name: string; sort_order: number }>
+  /** The merchant's resolved look — one derivation, shared by every shop surface. */
+  theme: ResolvedTheme
   /** `''` on an owned host, `/mx/s/<slug>` on the marketplace. */
   basePath: string
   accent: string
@@ -57,6 +60,7 @@ export interface ShopPresentationContext {
 export async function resolveShopNav(shop: Shop): Promise<{
   sections: SectionConfig
   availability: SectionAvailability
+  theme: ResolvedTheme
   accent: string
   accentTextColor: string
 }> {
@@ -73,6 +77,7 @@ export async function resolveShopNav(shop: Shop): Promise<{
       settings,
       collectionCount: collections.length,
     }),
+    theme: resolveTheme(settings),
     accent: theme.accent_color ?? 'var(--color-accent)',
     accentTextColor: readableTextOn(theme.accent_color ?? undefined),
   }
@@ -145,6 +150,7 @@ export async function resolveShopPresentation(
     sections,
     availability,
     collections,
+    theme: resolveTheme(settings),
     basePath: onOwnedHost ? '' : `${marketBasePath}/s/${shop.slug}`,
     accent,
     accentTextColor: readableTextOn(theme.accent_color ?? undefined),

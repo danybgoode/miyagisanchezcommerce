@@ -2,6 +2,7 @@ import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import ShopSectionNav from '@/app/(shell)/_shop-sections/ShopSectionNav'
+import ShopThemeShell from '@/app/(shell)/_shop-sections/ShopThemeShell'
 import { resolveShopNav } from '@/lib/shop-presentation/context'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
@@ -31,6 +32,7 @@ export default async function AcercaBody({ shop, basePath }: { shop: Shop; baseP
   if (!body) notFound()
 
   return (
+    <ShopThemeShell theme={nav.theme} accent={nav.accent}>
     <div className="max-w-2xl mx-auto px-4 py-8">
       <ShopSectionNav
         config={nav.sections}
@@ -47,5 +49,6 @@ export default async function AcercaBody({ shop, basePath }: { shop: Shop; baseP
       <h1 className="text-xl font-bold mt-3 mb-4"><BuyerCopyText copyKey="shop.content.AcercaBody.1a7485f9" />{' '}{shop.name}</h1>
       <p className="text-sm leading-relaxed whitespace-pre-line">{body}</p>
     </div>
+    </ShopThemeShell>
   )
 }

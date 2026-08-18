@@ -8,6 +8,7 @@ import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 import { normalizeSupportSettings } from '@/lib/support-widget'
 import { httpUrl } from '@/lib/settings-import'
 import { validateSectionConfig } from '@/lib/shop-presentation/sections'
+import { validateRecipe, THEME_MODES } from '@/lib/shop-presentation/theme'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -145,6 +146,13 @@ interface ShopUpdatePayload {
      * normalized through that module below.
      */
     sections?: unknown
+    /**
+     * Living Shop (epic 07, Story 4.1) — theme mode + Custom recipe. Same
+     * reasoning as `sections`: the shape is owned by
+     * `lib/shop-presentation/theme.ts` and validated through it.
+     */
+    theme_mode?: unknown
+    theme_recipe?: unknown
     offers?: {
       min_buyer_trust_level?: string
       negotiation?: {
@@ -240,6 +248,30 @@ export async function PATCH(req: NextRequest) {
     normalizedSections = sectionResult.value
   }
 
+  // Living Shop (epic 07, Story 4.1/4.4). An invalid colour is REFUSED here
+  // rather than dropped: silently discarding it is how a merchant comes to
+  // believe they set something they did not. The same validator serves the MCP
+  // path, so an agent cannot reach a laxer rule than a person (epic D12).
+  let normalizedMode: string | undefined
+  if (body.settings?.theme_mode !== undefined) {
+    const mode = body.settings.theme_mode
+    if (typeof mode !== 'string' || !(THEME_MODES as readonly string[]).includes(mode)) {
+      return NextResponse.json(
+        { error: `theme_mode debe ser ${THEME_MODES.join(', ')}.`, field: 'theme_mode' },
+        { status: 422 },
+      )
+    }
+    normalizedMode = mode
+  }
+  let normalizedRecipe: unknown
+  if (body.settings?.theme_recipe !== undefined) {
+    const recipeResult = validateRecipe(body.settings.theme_recipe)
+    if (!recipeResult.ok) {
+      return NextResponse.json({ error: recipeResult.issues[0], field: 'theme_recipe' }, { status: 422 })
+    }
+    normalizedRecipe = recipeResult.value
+  }
+
   const launchpadGuidelines = body.settings?.launchpad?.guidelines
   if (launchpadGuidelines !== undefined && launchpadGuidelines !== null && launchpadGuidelines.length > 2000) {
     return NextResponse.json({ error: 'Las indicaciones de la convocatoria no pueden superar los 2000 caracteres.', field: 'launchpad' }, { status: 422 })
@@ -328,6 +360,12 @@ export async function PATCH(req: NextRequest) {
   // defend against forever.
   if (normalizedSections !== undefined) {
     settingsOverride = { ...settingsOverride, sections: normalizedSections }
+  }
+  if (normalizedMode !== undefined) {
+    settingsOverride = { ...settingsOverride, theme_mode: normalizedMode }
+  }
+  if (normalizedRecipe !== undefined) {
+    settingsOverride = { ...settingsOverride, theme_recipe: normalizedRecipe }
   }
 
   const mergedSettings = Object.keys(settingsOverride).length > 0

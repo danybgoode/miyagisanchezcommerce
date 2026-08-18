@@ -16,6 +16,7 @@ import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import AnnouncementBar from '../s/[slug]/AnnouncementBar'
 import ShopCollectionNav from '../s/[slug]/ShopCollectionNav'
 import ShopSectionNav from '../_shop-sections/ShopSectionNav'
+import ShopThemeShell from '../_shop-sections/ShopThemeShell'
 import { resolveShopNav } from '@/lib/shop-presentation/context'
 import ClosetListingCard from '../s/[slug]/ClosetListingCard'
 import type { AnnouncementSettings } from '@/lib/shop-settings/types'
@@ -100,6 +101,7 @@ export default async function CollectionPage({
   const paymentAvailability = publicShopPaymentAvailability(shop.metadata)
 
   return (
+    <ShopThemeShell theme={sectionNav.theme} accent={sectionNav.accent}>
     <div data-shop-preset={themePreset || undefined}>
       <AnnouncementBar announcement={announcement} textColor={accentTextColor} />
 
@@ -173,5 +175,6 @@ export default async function CollectionPage({
         )}
       </div>
     </div>
+    </ShopThemeShell>
   )
 }

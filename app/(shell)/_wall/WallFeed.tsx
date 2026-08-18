@@ -62,7 +62,10 @@ export default function WallFeed({
       <h2 id="wall-heading" className="text-sm font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-3">
         {ctx.copy['wall.sectionLabel']}
       </h2>
-      <div className="flex flex-col gap-3">
+      {/* `wall-feed` is what the theme keys its layout off — the feed-sidebar
+          recipe becomes a grid here at desktop width and stays one column below
+          it, so every mode shares the same mobile rendering. */}
+      <div className="wall-feed flex flex-col gap-3">
         {shown.map((entry) => (
           <WallEntryCard key={entry.id} entry={entry} ctx={ctx} />
         ))}

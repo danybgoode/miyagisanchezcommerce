@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getShopListings } from '@/lib/listings'
 import { deriveShopCollections } from '@/lib/collection-derive'
 import ShopSectionNav from './ShopSectionNav'
+import ShopThemeShell from './ShopThemeShell'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { readPublicSellerMarket } from '@/lib/owned-market'
@@ -33,6 +34,7 @@ export default async function CollectionsIndexBody({ ctx }: { ctx: ShopPresentat
     .filter((entry) => entry.shortSlug !== null)
 
   return (
+    <ShopThemeShell theme={ctx.theme} accent={ctx.accent}>
     <div className="pb-12">
       <ShopSectionNav
         config={ctx.sections}
@@ -70,5 +72,6 @@ export default async function CollectionsIndexBody({ ctx }: { ctx: ShopPresentat
         )}
       </div>
     </div>
+    </ShopThemeShell>
   )
 }

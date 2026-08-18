@@ -33,6 +33,7 @@ import { readPublicWall } from '@/lib/wall/public'
 import { resolvePublicWallShop } from '@/lib/wall/store'
 import { normalizeSections } from '@/lib/shop-presentation/sections'
 import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
+import { resolveTheme } from '@/lib/shop-presentation/theme'
 
 export const revalidate = 120   // re-render shop page at most every 2 minutes
 
@@ -202,7 +203,10 @@ export async function ShopPage({
   // Own-shop premium presentation (epic 07, Sprint 1) — absent keys render today's storefront.
   const announcement = settings.announcement as AnnouncementSettings | null | undefined
   const hero = settings.hero as HeroSettings | null | undefined
-  const themePreset = settings.theme_preset as string | null | undefined
+  // Theme engine v2 (Story 4.1). The resolver decides the attribute AND whether
+  // the legacy preset attribute still applies — a shop that never chose a mode
+  // keeps painting exactly what it painted yesterday (epic D5).
+  const shopTheme = resolveTheme(settings)
   // Own-shop premium presentation (epic 07, Sprint 3) — content-page footer
   // links. Unauthored pages are simply omitted (never a dead link).
   // The controlled information architecture (Story 3.1/3.2). Config is what the
@@ -239,8 +243,13 @@ export async function ShopPage({
 
   const pageContent = (
     <div
-      style={{ '--shop-accent': accent } as React.CSSProperties}
-      data-shop-preset={themePreset || undefined}
+      style={{ '--shop-accent': accent, ...shopTheme.variables } as React.CSSProperties}
+      data-shop-theme={shopTheme.attribute}
+      data-shop-surface={shopTheme.recipe.surface}
+      data-shop-background={shopTheme.recipe.background}
+      data-shop-wall={shopTheme.recipe.wall_layout}
+      data-shop-identity={shopTheme.recipe.identity}
+      data-shop-preset={shopTheme.presetAttribute || undefined}
     >
 
       {/* Push the shop name into AgentContext so the navbar AI card's copied prompt names

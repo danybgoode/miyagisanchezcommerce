@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { db } from '@/lib/supabase'
 import ShopSectionNav from './ShopSectionNav'
+import ShopThemeShell from './ShopThemeShell'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { readPublicSellerMarket } from '@/lib/owned-market'
@@ -70,6 +71,7 @@ export default async function EventsIndexBody({ ctx }: { ctx: ShopPresentationCo
   )
 
   return (
+    <ShopThemeShell theme={ctx.theme} accent={ctx.accent}>
     <div className="pb-12">
       <ShopSectionNav
         config={ctx.sections}
@@ -100,5 +102,6 @@ export default async function EventsIndexBody({ ctx }: { ctx: ShopPresentationCo
         )}
       </div>
     </div>
+    </ShopThemeShell>
   )
 }

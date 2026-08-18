@@ -3,6 +3,7 @@ import { hasExcerpt } from '@/lib/excerpt'
 import { publicShopPaymentAvailability } from '@/lib/public-shop-commerce'
 import ClosetListingCard from '@/app/(shell)/s/[slug]/ClosetListingCard'
 import ShopSectionNav from './ShopSectionNav'
+import ShopThemeShell from './ShopThemeShell'
 import ShopCollectionNav from '@/app/(shell)/s/[slug]/ShopCollectionNav'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
@@ -33,6 +34,7 @@ export default async function ShopIndexBody({ ctx }: { ctx: ShopPresentationCont
   const payments = publicShopPaymentAvailability(ctx.shop.metadata)
 
   return (
+    <ShopThemeShell theme={ctx.theme} accent={ctx.accent}>
     <div className="pb-12">
       <ShopSectionNav
         config={ctx.sections}
@@ -88,5 +90,6 @@ export default async function ShopIndexBody({ ctx }: { ctx: ShopPresentationCont
         )}
       </div>
     </div>
+    </ShopThemeShell>
   )
 }

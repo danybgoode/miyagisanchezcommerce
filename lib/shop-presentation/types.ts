@@ -82,6 +82,8 @@ export type ThemeWallCard = 'quiet' | 'framed' | 'editorial'
 export type ThemeProductCard = 'quiet' | 'framed' | 'tile'
 export type ThemeIdentity = 'compact' | 'standard' | 'prominent'
 
+/** Normalizers live in `./theme.ts`; re-exported nowhere so there is one import path. */
+
 /**
  * The complete Custom vocabulary. Every axis is a CLOSED enum or a validated
  * colour; there is deliberately no field that can carry a URL, a selector or a
