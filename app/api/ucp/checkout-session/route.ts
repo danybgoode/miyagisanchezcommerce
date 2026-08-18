@@ -36,6 +36,8 @@ import { clampTicketQuantity, ticketTotalLabel } from '@/lib/ticket-quantity'
 import { readEventDetails } from '@/lib/event-listing'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 import { resolveUcpRentalQuote, rentalPricingHint, type UcpRentalQuote } from '@/lib/ucp/rental-quote'
+import { normalizeShippingDestination, projectUcpFulfillment, type UcpFulfillment } from '@/lib/ucp/fulfillment'
+import { fetchBackendCheckoutOptions, fetchBackendShippingRates } from '@/lib/ucp/fulfillment-server'
 import type { Listing, Shop } from '@/lib/types'
 import { randomUUID } from 'crypto'
 
@@ -132,6 +134,8 @@ interface UcpCheckoutSession {
     arranged: boolean
     note: string
   }
+  /** Official UCP fulfillment shape for ordinary MX physical listings. */
+  fulfillment?: UcpFulfillment
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -149,67 +153,6 @@ function whatsappLink(phone: string, listingTitle: string): string {
 
 function listingLookupColumn(listingId: string) {
   return listingId.startsWith('prod_') ? 'medusa_product_id' : 'id'
-}
-
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
-const MEDUSA_PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
-
-interface BackendPaymentMethods {
-  methods: Set<PaymentMethodKey> | null
-  // Arranged-only delivery epic, S2.1 — mirrors checkout-options' own
-  // `only_coordinated` + the coord delivery method's note, so this route
-  // never needs its own copy of the coordination logic (checkout-options
-  // stays the single source of truth).
-  onlyCoordinated: boolean
-  coordNote: string | null
-}
-
-/**
- * Authoritative payment-method availability from Medusa's checkout-options —
- * the SAME source the web checkout uses, so agents and humans see identical
- * options. `methods` is null if the backend is unreachable (caller falls
- * back to local computation); `onlyCoordinated`/`coordNote` default to
- * false/null in that case (additive — never blocks the fallback path).
- */
-async function fetchBackendPaymentMethods(
-  sellerRef: string,
-  listingType: string,
-  isDigital: boolean,
-  deliveryMode: 'carrier' | 'arranged',
-): Promise<BackendPaymentMethods> {
-  try {
-    const qs = new URLSearchParams({ listing_type: listingType, is_digital: String(isDigital), delivery_mode: deliveryMode })
-    const res = await fetch(
-      `${MEDUSA_BASE}/store/sellers/${encodeURIComponent(sellerRef)}/checkout-options?${qs}`,
-      { headers: { 'x-publishable-api-key': MEDUSA_PUB_KEY } },
-    )
-    if (!res.ok) return { methods: null, onlyCoordinated: false, coordNote: null }
-    const data = await res.json() as {
-      payment_methods?: Array<{ id: string; kind?: string; sub_options?: Array<{ type: string }> }>
-      only_coordinated?: boolean
-      delivery_methods?: Array<{ id: string; note?: string }>
-    }
-    const set = new Set<PaymentMethodKey>()
-    for (const m of data.payment_methods ?? []) {
-      if (m.id === 'mercadopago') set.add('mercadopago')
-      else if (m.id === 'stripe') set.add('stripe')
-      else if (m.id === 'manual') {
-        // Manual now carries structured sub-options (clabe=SPEI, cash=on-pickup).
-        for (const so of m.sub_options ?? []) {
-          if (so.type === 'clabe') set.add('bank_transfer')
-          else if (so.type === 'cash') set.add('cash_on_pickup')
-        }
-      }
-    }
-    const coordMethod = (data.delivery_methods ?? []).find(d => d.id === 'coord')
-    return {
-      methods: set,
-      onlyCoordinated: data.only_coordinated === true,
-      coordNote: coordMethod?.note ?? null,
-    }
-  } catch {
-    return { methods: null, onlyCoordinated: false, coordNote: null }
-  }
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────────
@@ -240,6 +183,7 @@ export async function POST(req: NextRequest) {
     quantity?: number
     check_in?: string
     check_out?: string
+    shipping_destination?: unknown
   }
   try {
     body = await req.json()
@@ -421,12 +365,31 @@ export async function POST(req: NextRequest) {
   // server-side, S2.2, independent of this param).
   const deliveryMode: 'carrier' | 'arranged' =
     (listing.metadata as Record<string, unknown> | undefined)?.delivery_mode === 'arranged' ? 'arranged' : 'carrier'
-  const { methods: beMethods, onlyCoordinated: coordinatedDelivery, coordNote } = await fetchBackendPaymentMethods(
-    shop?.slug ?? shop?.id ?? '',
-    listing.listing_type ?? 'product',
+  const checkoutOptionsSource = await fetchBackendCheckoutOptions({
+    sellerRef: shop?.slug ?? shop?.id ?? '',
+    listingType: listing.listing_type ?? 'product',
     isDigital,
     deliveryMode,
-  )
+  })
+  const beMethods = checkoutOptionsSource.state === 'available' ? new Set<PaymentMethodKey>() : null
+  if (checkoutOptionsSource.state === 'available') {
+    for (const method of checkoutOptionsSource.paymentMethods) {
+      if (method.id === 'mercadopago') beMethods!.add('mercadopago')
+      else if (method.id === 'stripe') beMethods!.add('stripe')
+      else if (method.id === 'manual') {
+        for (const option of method.sub_options ?? []) {
+          if (option.type === 'clabe') beMethods!.add('bank_transfer')
+          else if (option.type === 'cash') beMethods!.add('cash_on_pickup')
+        }
+      }
+    }
+  }
+  const coordinatedDelivery = checkoutOptionsSource.state === 'available'
+    ? checkoutOptionsSource.onlyCoordinated
+    : false
+  const coordNote = checkoutOptionsSource.state === 'available'
+    ? checkoutOptionsSource.coordNote
+    : null
   const beHas = (k: PaymentMethodKey) => (beMethods ? beMethods.has(k) : null)
   // available = backend says so (when reachable) else local; price/claim always required.
   const mpAvailable = (beHas('mercadopago') ?? (hasMp && !isDigital)) && hasPrice && isClaimed && !rentalDatesRejected
@@ -598,6 +561,26 @@ export async function POST(req: NextRequest) {
   // ── Compose session ────────────────────────────────────────────────────────
   const now       = new Date()
   const expiresAt = new Date(now.getTime() + 30 * 60 * 1000)
+  const shippingDestination = normalizeShippingDestination(body.shipping_destination)
+  let fulfillment: UcpFulfillment | null = null
+  if (!coordinatedDelivery && !isDigital && listing.listing_type === 'product') {
+    if (checkoutOptionsSource.state === 'available') {
+      const hasShipping = checkoutOptionsSource.deliveryMethods.some(method => method.id === 'shipping')
+      const rateSource = hasShipping && shippingDestination.complete
+        ? await fetchBackendShippingRates({ listingId: publicListingId, address: shippingDestination.address })
+        : { state: 'not_requested' as const }
+      fulfillment = projectUcpFulfillment({
+        listingId: publicListingId,
+        deliveryMethods: checkoutOptionsSource.deliveryMethods,
+        destination: shippingDestination,
+        rateSource,
+      })
+    } else {
+      // A failed catalog read says nothing about seller availability. Surface
+      // that third state instead of turning an outage into "no delivery".
+      fulfillment = { methods: [], available_methods: [], shipping_quote_state: 'unavailable' }
+    }
+  }
 
   const session: UcpCheckoutSession = {
     session_id:         randomUUID(),
@@ -650,6 +633,7 @@ export async function POST(req: NextRequest) {
         note: coordNote ?? 'Coordina la entrega directamente con el vendedor — no se ofrece envío.',
       },
     } : {}),
+    ...(fulfillment ? { fulfillment } : {}),
   }
 
   return NextResponse.json(session, { headers: CORS })

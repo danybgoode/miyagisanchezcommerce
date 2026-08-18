@@ -29,7 +29,7 @@ import { getPriceGrid } from '@/lib/listings'
 import { resolveTierForQuantity, formatPriceGridAmount, formatOptionsLines, type PriceGrid } from '@/lib/price-grid'
 import { ingestArtworkBytes } from '@/lib/artwork-ingest'
 import { getCustomFields, MAX_ARTWORK_SIZE_MB, type PersonalizationPayload } from '@/lib/personalization'
-import { startCheckout, type CheckoutProvider } from '@/lib/cart'
+import { startCheckout, type CheckoutProvider, type StartCheckoutParams } from '@/lib/cart'
 import { isShopClaimed } from '@/lib/claim'
 import { shopMustStayPrivate, getPreviewByShop } from '@/lib/preview-access'
 import { invalidateIfMaterialChange } from '@/lib/preview-consent'
@@ -121,6 +121,8 @@ import costComparatorBaselineDataset from '@/lib/cost-comparator-dataset.json' w
 import { isMarketUnavailable, planMarketCatalogRead, verifyMarketFilter } from '@/lib/market-catalog'
 import { MARKETS, type MarketCode } from '@/lib/markets'
 import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
+import { normalizeShippingDestination, resolveUcpFulfillmentSelection } from '@/lib/ucp/fulfillment'
+import { fetchBackendCheckoutOptions, fetchBackendShippingRates } from '@/lib/ucp/fulfillment-server'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -173,6 +175,34 @@ function err(id: string | number | null, code: number, message: string): JsonRpc
 // compare_costs' `apps` enum, derived from the baseline dataset once at module
 // init rather than hand-duplicated (second-opinion review, PR 278).
 const COMPARE_COSTS_APP_IDS = premiumAppsFromDataset(costComparatorBaselineDataset as ComparatorDataset).map((a) => a.id)
+
+const SHIPPING_DESTINATION_SCHEMA = {
+  type: 'object',
+  description: 'Dirección MX completa para cotizar envío. Usa los mismos campos que el checkout web; ext_number es obligatorio para la guía.',
+  properties: {
+    name: { type: 'string', description: 'Nombre de quien recibe' },
+    phone: { type: 'string', description: 'Teléfono de contacto' },
+    line1: { type: 'string', description: 'Calle, sin número exterior' },
+    ext_number: { type: 'string', description: 'Número exterior' },
+    int_number: { type: 'string', description: 'Número interior, opcional' },
+    line2: { type: 'string', description: 'Colonia, opcional' },
+    city: { type: 'string', description: 'Municipio o alcaldía' },
+    state: { type: 'string', description: 'Estado mexicano' },
+    state_code: { type: 'string', description: 'Código estatal de dos letras si se conoce' },
+    postal_code: { type: 'string', description: 'Código postal' },
+    country: { type: 'string', enum: ['MX'], default: 'MX' },
+  },
+} as const
+
+const PICKUP_APPOINTMENT_SCHEMA = {
+  type: 'object',
+  description: 'Horario que propone el comprador para recoger; no es una confirmación del vendedor.',
+  required: ['date', 'window'],
+  properties: {
+    date: { type: 'string', description: 'Fecha propuesta, YYYY-MM-DD' },
+    window: { type: 'string', description: 'Ventana propuesta, por ejemplo 10:00–12:00' },
+  },
+} as const
 
 // ── Tool definitions ───────────────────────────────────────────────────────────
 
@@ -232,7 +262,7 @@ const TOOLS = [
   },
   {
     name: 'get_checkout_options',
-    description: 'Get ALL available payment methods for a listing in one call. Returns instant methods (MercadoPago, Stripe) with ready-to-use checkout URLs AND privacy-safe availability for contact-first methods (bank transfer/SPEI, cash on pickup, WhatsApp). Bank coordinates are intentionally omitted here and arrive only from the protected checkout response after checkout starts. Always call this before create_checkout so you can present the buyer their best options. For a RENTAL listing, pass check_in/check_out to get an exact nights×rate+deposit quote (rental_quote) with a checkout URL that charges that exact total — omitting them returns only the per-period rate (never quote the per-period rate as the full price).',
+    description: 'Get ALL payment and physical fulfillment choices for a listing in one call. For MX shipping, pass shipping_destination to receive current Envía/Correos option ids and centavo totals; without it the response names destination_required instead of pretending no rates exist. Pickup destinations are returned when configured. Bank coordinates are intentionally omitted here and remain private until after checkout starts. Always call this before create_checkout. For a RENTAL listing, pass check_in/check_out for the exact nights×rate+deposit quote.',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -241,6 +271,7 @@ const TOOLS = [
         market:      { type: 'string', enum: ['mx', 'us'], default: 'mx', description: 'Active country market code. US returns named checkout_not_available until its direct-charge rail ships.' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — session will use negotiated price' },
         buyer_email: { type: 'string', description: 'Buyer email (optional)' },
+        shipping_destination: SHIPPING_DESTINATION_SCHEMA,
         check_in:    { type: 'string', description: 'Rental check-in date, YYYY-MM-DD. Only applies to rental listings — send with check_out for an exact bookable total.' },
         check_out:   { type: 'string', description: 'Rental check-out date, YYYY-MM-DD. Send with check_in.' },
       },
@@ -248,7 +279,7 @@ const TOOLS = [
   },
   {
     name: 'create_checkout',
-    description: 'Generate a payment checkout URL for a single specific instant payment method (MercadoPago or Stripe). Prefer get_checkout_options first to see all available methods including SPEI and cash options. For a configurator listing (get_listing shows a price_grid — multiple sizes/materials and/or quantity price tiers), pass variant_id + quantity so the price is resolved correctly, and artwork_url when get_listing says artwork is required — the server downloads and validates it into storage. NOT rental-aware — it charges a bare one-unit rate with no dates. For a RENTAL listing, always use get_checkout_options with check_in/check_out instead: it returns a checkout_url that charges the correct nights×rate+deposit total.',
+    description: 'Generate a payment checkout URL for one instant method. For physical delivery, first call get_checkout_options, then pass its fulfillment method/destination/option ids. Shipping also requires the same shipping_destination; the server re-quotes and derives every money field from the fresh Medusa result. Pickup requires its returned destination when structured spots exist plus pickup_appointment. Calls without fulfillment ids preserve the legacy flat checkout. For configurator listings, pass variant_id + quantity/artwork_url as before. Rentals must use the dated checkout_url from get_checkout_options.',
     inputSchema: {
       type: 'object',
       required: ['listing_id'],
@@ -258,6 +289,11 @@ const TOOLS = [
         method:      { type: 'string', enum: ['mercadopago','stripe'], default: 'mercadopago', description: 'Payment method' },
         buyer_email: { type: 'string', description: 'Buyer email (optional, pre-fills checkout form)' },
         offer_id:    { type: 'string', description: 'Accepted offer UUID — uses negotiated price instead of list price' },
+        fulfillment_method_id: { type: 'string', enum: ['shipping', 'pickup'], description: 'Method id returned by get_checkout_options fulfillment.methods[].id' },
+        fulfillment_destination_id: { type: 'string', description: 'Returned shipping/pickup destination id; required for structured pickup spots' },
+        fulfillment_option_id: { type: 'string', description: 'Current shipping option id returned by get_checkout_options; required for shipping' },
+        shipping_destination: SHIPPING_DESTINATION_SCHEMA,
+        pickup_appointment: PICKUP_APPOINTMENT_SCHEMA,
         variant_id:  { type: 'string', description: 'Configurator variant id from get_listing.price_grid.variants[].id — required for a listing that has a price_grid' },
         quantity:    { type: 'number', description: 'Units to buy, resolves the quantity price tier from price_grid. Only used with variant_id. Defaults to 1.' },
         artwork_url: { type: 'string', description: 'Publicly reachable URL to the buyer\'s artwork file. The server downloads it, validates format/size against the listing\'s real requirement, and stores its own copy — only used with variant_id.' },
@@ -1214,12 +1250,15 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
     return { content: [{ type: 'text', text: JSON.stringify({ market_code: 'us', commerce_readiness: { ready: false, market_code: 'us', reason: 'checkout_not_available' } }, null, 2) }] }
   }
 
-  const body: Record<string, string> = {
+  const body: Record<string, unknown> = {
     listing_id: listingId,
     market: marketDecision.market.code,
   }
   if (args.offer_id)    body.offer_id    = String(args.offer_id)
   if (args.buyer_email) body.buyer_email = String(args.buyer_email)
+  if (args.shipping_destination && typeof args.shipping_destination === 'object') {
+    body.shipping_destination = args.shipping_destination
+  }
   if (args.check_in)    body.check_in    = String(args.check_in)
   if (args.check_out)   body.check_out   = String(args.check_out)
 
@@ -1251,11 +1290,39 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
         total_cents: number; formatted: string
       } | null
       rental_pricing_hint?: string | null
+      fulfillment?: {
+        shipping_quote_state?: string
+        methods?: Array<{
+          type?: string
+          destinations?: Array<{ id?: string; name?: string }>
+          groups?: Array<{ options?: Array<{ id?: string; title?: string; description?: string; totals?: Array<{ amount?: number }> }> }>
+        }>
+      }
     }
 
     const opts = session.payment_options ?? []
     const available = opts.filter(o => o.available)
     const unavailable = opts.filter(o => !o.available)
+    const fulfillment = session.fulfillment
+    const shippingOptions = fulfillment?.methods
+      ?.filter(method => method.type === 'shipping')
+      .flatMap(method => method.groups ?? [])
+      .flatMap(group => group.options ?? []) ?? []
+    const pickupDestinations = fulfillment?.methods
+      ?.filter(method => method.type === 'pickup')
+      .flatMap(method => method.destinations ?? []) ?? []
+    const fulfillmentLines = !fulfillment ? [] : [
+      '## Entrega',
+      fulfillment.shipping_quote_state === 'destination_required'
+        ? '📍 Falta una dirección MX completa para cotizar envío; vuelve a llamar con shipping_destination.'
+        : fulfillment.shipping_quote_state === 'unavailable'
+          ? '⚠️ La fuente de entrega/cotización no está disponible; no lo interpretes como cero opciones.'
+          : fulfillment.shipping_quote_state === 'known_empty'
+            ? 'No hay tarifas vigentes para esta dirección.'
+            : '',
+      ...shippingOptions.map(option => `🚚 **${option.title ?? 'Envío'}** — ${option.description ?? 'Tarifa vigente'} · ${option.totals?.[0]?.amount ?? 0} centavos · fulfillment_option_id: ${option.id ?? 'no disponible'}`),
+      ...pickupDestinations.map(destination => `📦 Recolección: **${destination.name ?? 'Punto de entrega'}** · fulfillment_destination_id: ${destination.id ?? 'no disponible'}`),
+    ].filter(Boolean)
 
     const formatOption = (o: typeof opts[0]) => {
       const lines = [`**${o.label}** ${o.instant ? '⚡ Pago inmediato' : '📋 Coordinación requerida'}`]
@@ -1273,6 +1340,7 @@ async function handleGetCheckoutOptions(args: Record<string, unknown>, baseUrl: 
         ? `🗓️ **Reserva:** ${session.rental_quote.check_in} → ${session.rental_quote.check_out} (${session.rental_quote.nights} noches) — **Total: ${session.rental_quote.formatted}** (renta + depósito). Este es el monto real que se cobrará, usa el checkout_url de un método instantáneo o las instrucciones del método manual arriba.`
         : session.rental_pricing_hint ? `🗓️ ${session.rental_pricing_hint}` : '',
       session.escrow?.available ? `🛡️ ${session.escrow.description}` : '',
+      ...fulfillmentLines,
       '',
       `### Disponibles (${available.length})`,
       ...available.map(o => formatOption(o)),
@@ -1323,17 +1391,28 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   // All buyer checkout creation starts with the same market-scoped discovery
   // boundary as get_checkout_options. This verifies Sales Channel membership
   // before either a flat gateway checkout or a configured Medusa cart can write.
-  let marketSession: { listing?: { listing_type?: string } }
+  let marketSession: {
+    listing_id?: string
+    listing?: {
+      listing_type?: string
+      shop?: { id?: string; slug?: string }
+    }
+    delivery?: { arranged?: boolean }
+    price?: { amount_cents?: number; is_offer_price?: boolean }
+  }
   try {
+    const validationBody: Record<string, unknown> = {
+      listing_id: listingId,
+      market: marketDecision.market.code,
+    }
+    if (args.offer_id) validationBody.offer_id = String(args.offer_id)
     const validation = await fetch(`${baseUrl}/api/ucp/checkout-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        listing_id: listingId,
-        market: marketDecision.market.code,
-      }),
+      body: JSON.stringify(validationBody),
     })
     const data = await validation.json() as {
+      listing_id?: string
       listing?: { listing_type?: string }
       unavailable?: boolean
       error?: unknown
@@ -1355,14 +1434,6 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
     return { isError: true, content: [{ type: 'text', text: `Network error: ${String(error)}` }] }
   }
 
-  // Configurator path: a variant_id means this is a multi-variant/tiered
-  // listing, which MUST resolve its price through Medusa's own cart —
-  // the flat MP/Stripe preference below can't compute a tier price at all
-  // (custom-print-products S4 · 4.2).
-  if (args.variant_id) {
-    return handleCreateConfiguredCheckout(args, marketDecision.market.code, configuredPriceGrid!)
-  }
-
   // Rental guard (S3.1 cross-review catch): this endpoint charges a bare
   // one-unit rate with no dates — it is NOT rental-aware. A rental listing
   // must go through get_checkout_options(check_in, check_out) instead, whose
@@ -1377,6 +1448,106 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
   }
 
   const method = String(args.method ?? 'mercadopago')
+  const provider: CheckoutProvider = method === 'stripe' ? 'stripe' : 'mercadopago'
+  // checkout-session resolves legacy mirror UUIDs to Medusa's canonical product
+  // id. Fulfillment ids and the rate/cart rails are bound to that canonical id.
+  const canonicalListingId = marketSession.listing_id ?? listingId
+  const hasAnyFulfillmentInput = [
+    args.fulfillment_method_id,
+    args.fulfillment_destination_id,
+    args.fulfillment_option_id,
+    args.shipping_destination,
+    args.pickup_appointment,
+  ].some(value => value !== undefined)
+  if (hasAnyFulfillmentInput && !args.fulfillment_method_id) {
+    return { isError: true, content: [{ type: 'text', text: 'fulfillment_method_id es obligatorio cuando envías una selección de entrega.' }] }
+  }
+
+  let resolvedFulfillment: Pick<
+    StartCheckoutParams,
+    'fulfillmentMethod' | 'shippingAddress' | 'shippingQuote' | 'pickupSpotId' | 'pickupAppointment'
+  > | undefined
+  if (args.fulfillment_method_id) {
+    if (marketSession.listing?.listing_type !== 'product') {
+      return { isError: true, content: [{ type: 'text', text: 'La selección física de fulfillment sólo está disponible para anuncios de producto MX.' }] }
+    }
+    const sellerRef = marketSession.listing.shop?.slug ?? marketSession.listing.shop?.id
+    if (!sellerRef) {
+      return { isError: true, content: [{ type: 'text', text: 'No pudimos validar la entrega actual del vendedor. Vuelve a consultar get_checkout_options.' }] }
+    }
+    const deliveryMode = marketSession.delivery?.arranged === true ? 'arranged' as const : 'carrier' as const
+    // The checkout-session call above is discovery, not an authorization to
+    // write a cart. Read Medusa again immediately before that write: a seller
+    // can disable shipping or alter pickup spots after an agent saw them. The
+    // public fulfillment projection deliberately does not expose the backend
+    // spot/rate authority needed by startCheckout.
+    const checkoutOptions = await fetchBackendCheckoutOptions({
+      sellerRef,
+      listingType: 'product',
+      isDigital: false,
+      deliveryMode,
+    })
+    if (checkoutOptions.state !== 'available') {
+      return { isError: true, content: [{ type: 'text', text: 'No pudimos validar la entrega actual del vendedor. Vuelve a intentarlo antes de pagar.' }] }
+    }
+    const destination = normalizeShippingDestination(args.shipping_destination)
+    const rateSource = args.fulfillment_method_id === 'shipping' && destination.complete
+      ? await fetchBackendShippingRates({ listingId: canonicalListingId, address: destination.address })
+      : { state: 'not_requested' as const }
+    const selection = resolveUcpFulfillmentSelection({
+      listingId: canonicalListingId,
+      methodId: args.fulfillment_method_id,
+      destinationId: args.fulfillment_destination_id,
+      optionId: args.fulfillment_option_id,
+      appointment: args.pickup_appointment,
+      destination,
+      deliveryMethods: checkoutOptions.deliveryMethods,
+      rateSource,
+    })
+    if (!selection.ok) {
+      return { isError: true, content: [{ type: 'text', text: fulfillmentSelectionError(selection.code) }] }
+    }
+    resolvedFulfillment = selection.value
+  }
+
+  if (args.offer_id && marketSession.price?.is_offer_price !== true) {
+    return { isError: true, content: [{ type: 'text', text: 'La oferta ya no está aceptada o no pertenece a este anuncio. Vuelve a consultar get_checkout_options.' }] }
+  }
+
+  // Configurator path: still resolves price through the same Medusa cart. When
+  // fulfillment was selected above, pass only its freshly resolved internal value.
+  if (args.variant_id) {
+    return handleCreateConfiguredCheckout(
+      args,
+      marketDecision.market.code,
+      configuredPriceGrid!,
+      resolvedFulfillment,
+    )
+  }
+
+  if (resolvedFulfillment) {
+    try {
+      const result = await startCheckout({
+        productId: canonicalListingId,
+        provider,
+        buyerEmail: args.buyer_email ? String(args.buyer_email) : undefined,
+        offerId: args.offer_id ? String(args.offer_id) : undefined,
+        offerAmountCents: args.offer_id && marketSession.price?.is_offer_price
+          ? marketSession.price.amount_cents
+          : undefined,
+        market: marketDecision.market.code,
+        ...resolvedFulfillment,
+      })
+      if (!result.redirect_url) {
+        return { isError: true, content: [{ type: 'text', text: 'Checkout failed: el proveedor no devolvió un enlace de pago.' }] }
+      }
+      return { content: [{ type: 'text', text: `✅ Checkout con entrega validada listo vía ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n**Abre este enlace para completar el pago:**\n${result.redirect_url}\n\nEl enlace es válido por 30 minutos.` }] }
+    } catch (error) {
+      return { isError: true, content: [{ type: 'text', text: `Checkout failed: ${publicCheckoutError(error, 'No fue posible iniciar el checkout con entrega')}` }] }
+    }
+  }
+
+  // No fulfillment selection: preserve the existing flat gateway path exactly.
   const endpoint = method === 'stripe' ? `${baseUrl}/api/stripe/checkout` : `${baseUrl}/api/mp/checkout`
 
   const body: Record<string, string> = { listingId }
@@ -1410,6 +1581,22 @@ async function handleCreateCheckout(args: Record<string, unknown>, baseUrl: stri
 // into per-cause strings.
 const ARTWORK_DOWNLOAD_ERROR = 'No pudimos descargar o validar el archivo de artwork_url. Usa una URL pública https:// que apunte directo a la imagen.'
 
+function fulfillmentSelectionError(code: string): string {
+  const messages: Record<string, string> = {
+    method_not_current: 'Ese método de entrega ya no está disponible. Vuelve a consultar get_checkout_options.',
+    shipping_address_required: 'shipping_destination debe incluir nombre, calle, número exterior, municipio, estado y código postal MX.',
+    shipping_destination_required: 'fulfillment_destination_id es obligatorio para envío y debe venir de get_checkout_options.',
+    shipping_destination_not_current: 'La dirección elegida ya no corresponde a shipping_destination. Vuelve a consultar get_checkout_options.',
+    shipping_source_unavailable: 'No pudimos volver a cotizar el envío. No se creó carrito ni enlace de pago; inténtalo de nuevo.',
+    shipping_option_required: 'fulfillment_option_id es obligatorio para envío y debe venir de get_checkout_options.',
+    option_not_current: 'La tarifa elegida ya no corresponde a este anuncio/dirección. Vuelve a consultar get_checkout_options.',
+    pickup_destination_required: 'fulfillment_destination_id es obligatorio para los puntos de recolección de este vendedor.',
+    pickup_destination_not_current: 'Ese punto de recolección ya no está disponible. Vuelve a consultar get_checkout_options.',
+    pickup_appointment_required: 'pickup_appointment requiere date (YYYY-MM-DD) y window.',
+  }
+  return messages[code] ?? 'No pudimos validar la selección de entrega. Vuelve a consultar get_checkout_options.'
+}
+
 /**
  * Convert the deliberately loose error shapes returned by gateway/session
  * boundaries into one short public message. Read only `message`/`error`; never
@@ -1436,6 +1623,10 @@ async function handleCreateConfiguredCheckout(
   args: Record<string, unknown>,
   marketCode: MarketCode,
   priceGrid: PriceGrid,
+  fulfillment?: Pick<
+    StartCheckoutParams,
+    'fulfillmentMethod' | 'shippingAddress' | 'shippingQuote' | 'pickupSpotId' | 'pickupAppointment'
+  >,
 ) {
   const listingId = String(args.listing_id ?? '')
   const variantId = String(args.variant_id ?? '')
@@ -1504,6 +1695,7 @@ async function handleCreateConfiguredCheckout(
       provider,
       buyerEmail,
       market: marketCode,
+      ...fulfillment,
     })
     if (result.redirect_url) {
       return { content: [{ type: 'text', text: `✅ Checkout ready via ${method === 'stripe' ? 'Stripe' : 'Mercado Pago'}.\n\n${restatement}\n\n**Abre este enlace para completar el pago:**\n${result.redirect_url}` }] }
