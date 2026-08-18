@@ -134,6 +134,10 @@ export const MCP_SELLER_TOOLS = [
   'respond_to_offer',
   'create_listing',
   'list_my_listings',
+  'list_wall_entries',         // living-shop S6.3 — the storefront Wall (token-scoped)
+  'create_wall_entry',         // living-shop S6.3 (token-scoped)
+  'update_wall_entry',         // living-shop S6.3 (token-scoped)
+  'delete_wall_entry',         // living-shop S6.3 (token-scoped)
   'list_my_collections',       // own-shop-premium-presentation S2 (token-scoped)
   'create_collection',         // panfleto-premium-shop S2 (token-scoped)
   'update_collection',         // mcp-parity-config S1.1 — rename a collection (token-scoped)

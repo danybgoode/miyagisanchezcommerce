@@ -49,6 +49,32 @@ async function appendAuditEntry(shopId: string, entry: AgentAuditEntry): Promise
   }
 }
 
+/**
+ * Audit one agent Wall write (Living Shop, epic 07 · Story 6.3).
+ *
+ * The Wall is what a merchant's storefront SAYS, which is at least as
+ * consequential as how it looks — and the log is the only after-the-fact record
+ * either way. Reuses the same capped log so a seller reviewing agent activity
+ * sees config changes and Wall posts in one place, in order.
+ *
+ * Best-effort, like every other write here: a logging failure must never fail
+ * the operation the seller's agent already completed.
+ */
+export async function recordAgentWallChange(
+  shop: { id: string; name?: string | null },
+  tool: string,
+  data: unknown,
+): Promise<void> {
+  const entryId = (data as { id?: string } | null)?.id
+  await appendAuditEntry(shop.id, {
+    at: new Date().toISOString(),
+    tool,
+    applied_blocks: ['wall'],
+    fields: { wall: entryId ? [entryId] : [] },
+    sensitive_blocks: [],
+  })
+}
+
 export async function recordAgentConfigChange(
   shop: AgentShop,
   result: ApplyConfigResult,

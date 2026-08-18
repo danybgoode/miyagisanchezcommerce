@@ -48,6 +48,18 @@ import {
 } from '@/lib/partner-auth'
 import { MCP_SELLER_TOOLS } from '@/lib/ucp/capabilities'
 import { isEnabled } from '@/lib/flags'
+import {
+  agentListWall, agentCreateWallEntry, agentUpdateWallEntry, agentDeleteWallEntry,
+  type WallToolOutcome,
+} from '@/lib/wall/agent'
+import { recordAgentWallChange } from '@/lib/agent-audit'
+import { readPublicWall } from '@/lib/wall/public'
+import { resolvePublicWallShop } from '@/lib/wall/store'
+import { normalizeSections, navEntries } from '@/lib/shop-presentation/sections'
+import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
+
+/** Bounded agent Wall view — enough to understand the shop, never its whole history. */
+const AGENT_WALL_LIMIT = 6
 import { listSubmissionsForShop, getLaunchpadShopBySlug, transitionSubmission, publishSubmission } from '@/lib/launchpad'
 import { REVIEWABLE_TARGET_STATUSES, type SubmissionStatus } from '@/lib/launchpad-types'
 import {
@@ -500,6 +512,57 @@ const TOOLS = [
     name: 'list_my_listings',
     description: "SELLER TOOL. List YOUR OWN shop's listings (all statuses, incl. paused) so you can manage them. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Returns each listing's product_id, title, price, status, and type. Use product_id with update_listing / set_listing_status.",
     inputSchema: { type: 'object', properties: {} },
+  },
+  // ── Living Shop — the Wall (epic 07, Story 6.3) ─────────────────────────────
+  // Four tools, one validator: these share `lib/wall/validate.ts` with the human
+  // HTTP route (epic D12), so an agent cannot reach a laxer rule than a person.
+  {
+    name: 'list_wall_entries',
+    description: "SELLER TOOL. List YOUR OWN shop's Wall — the storefront homepage narrative — including drafts and scheduled entries. Requires the shop agent token (Authorization: Bearer ms_agent_…), scoped to one shop. Each entry has a kind (post/product/collection/event), a status (draft/published/scheduled), and for the three referenced kinds a reference_id pointing at YOUR product, collection or event.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_wall_entry',
+    description: "SELLER TOOL. Publish to YOUR OWN shop's Wall. A `post` carries text and up to 4 images already uploaded to Miyagi Sánchez (https URLs only — remote images are NOT fetched). A `product`, `collection` or `event` carries a reference_id that MUST belong to your shop, plus an optional seller note; price, availability and event details are resolved live and never copied. Scheduling requires an explicit timezone offset (e.g. 2026-09-01T18:00:00-06:00) — a bare local datetime is refused on purpose.",
+    inputSchema: {
+      type: 'object',
+      required: ['kind'],
+      properties: {
+        kind: { type: 'string', enum: ['post', 'product', 'collection', 'event'], description: 'What kind of entry this is.' },
+        status: { type: 'string', enum: ['draft', 'published', 'scheduled'], description: 'Defaults to draft.' },
+        body: { type: 'string', description: 'Text. Required for a post with no images; optional seller note otherwise. Max 2000 characters.' },
+        media: { type: 'array', description: 'Post only. Up to 4 { url, alt } images already hosted by Miyagi Sánchez.', items: { type: 'object' } },
+        reference_id: { type: 'string', description: 'Product id, collection handle, or event slug — must belong to YOUR shop.' },
+        scheduled_for: { type: 'string', description: 'ISO 8601 WITH an explicit offset or Z. Required when status is scheduled.' },
+        pinned: { type: 'boolean', description: 'Pin to the top. One pinned entry per shop; pinning a new one unpins the previous.' },
+      },
+    },
+  },
+  {
+    name: 'update_wall_entry',
+    description: "SELLER TOOL. Edit, publish, unpublish, reschedule or pin one of YOUR OWN Wall entries. `kind` is immutable — create a new entry instead. Omitted fields keep their current value, and the WHOLE resulting entry is validated, so a status change cannot leave a stranded schedule.",
+    inputSchema: {
+      type: 'object',
+      required: ['entry_id'],
+      properties: {
+        entry_id: { type: 'string', description: 'The entry id from list_wall_entries.' },
+        status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
+        body: { type: 'string' },
+        media: { type: 'array', items: { type: 'object' } },
+        reference_id: { type: 'string' },
+        scheduled_for: { type: 'string', description: 'ISO 8601 with an explicit offset or Z.' },
+        pinned: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'delete_wall_entry',
+    description: "SELLER TOOL. Permanently delete one of YOUR OWN Wall entries. The product, collection or event it referenced is untouched — the Wall only ever held a reference.",
+    inputSchema: {
+      type: 'object',
+      required: ['entry_id'],
+      properties: { entry_id: { type: 'string', description: 'The entry id from list_wall_entries.' } },
+    },
   },
   {
     name: 'list_my_collections',
@@ -1895,6 +1958,40 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
 
   const isClaimed = isShopClaimed({ clerk_user_id: seller.clerk_user_id == null ? null : String(seller.clerk_user_id) })
 
+  // ── The living storefront, structurally (Living Shop, epic 07 · Story 6.4) ───
+  // A shopping agent should be able to read what is HAPPENING at a shop, not
+  // only what is for sale — a merchant who posted "new batch Friday" is telling
+  // a buyer something a catalog listing cannot.
+  //
+  // PUBLISHED-AND-EFFECTIVE ONLY. This goes through `readPublicWall`, the same
+  // function the human page renders, so a draft or a not-yet-due scheduled entry
+  // cannot leak here. A second read path is exactly how one eventually would.
+  const wallShop = await resolvePublicWallShop(String(seller.slug))
+  const wall = wallShop
+    ? await readPublicWall({
+        shopId: wallShop.id,
+        shopSlug: wallShop.slug,
+        basePath: `/${marketDecision.market.code}/s/${wallShop.slug}`,
+        locale: marketDecision.market.default_locale,
+        pageSize: AGENT_WALL_LIMIT,
+      })
+    : { entries: [], hasMore: false, total: 0 }
+
+  const settings = ((seller.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
+  const sectionConfig = normalizeSections(settings.sections)
+  const sectionAvailability = await resolveSectionAvailability({
+    shopId: wallShop?.id ?? null,
+    settings,
+    collectionCount: 0,
+  })
+  const destinations = navEntries(
+    sectionConfig,
+    // The catalog is always a real destination even when the collections read
+    // above was skipped; `collections` is reported from its own availability.
+    sectionAvailability,
+    `/${marketDecision.market.code}/s/${String(seller.slug)}`,
+  )
+
   const english = marketDecision.market.default_locale === 'en-US'
   const profile = [
     `# ${seller.name}${seller.verified ? (english ? ' ✓ verified' : ' ✓ verificado') : ''}`,
@@ -1904,12 +2001,23 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
     `**URL:** ${baseUrl}/${marketDecision.market.code}/s/${seller.slug}`,
     `\n**${listings.length} ${english ? 'active listings' : 'anuncios activos'}:**`,
     ...listings.map(item => `• ${item.title} — ${item.price?.formatted ?? (english ? 'Ask for price' : 'A consultar')} (ID: \`${item.id}\`)`),
+    ...(wall.entries.length
+      ? [`\n**${english ? 'Recently on this shop\'s wall' : 'Últimamente en el muro'}:**`,
+         ...wall.entries.map(e => `• ${e.kind}${e.pinned ? ' (pinned)' : ''} — ${(e.body ?? '').slice(0, 120) || e.reference.state}`)]
+      : []),
   ].filter(s => s !== '').join('\n')
 
   return {
     content: [
       { type: 'text', text: profile },
-      { type: 'text', text: JSON.stringify({ market_code: marketDecision.market.code, shop: seller, listings }, null, 2) },
+      { type: 'text', text: JSON.stringify({
+        market_code: marketDecision.market.code,
+        shop: seller,
+        listings,
+        // Typed, bounded, and free of drafts — see the comment above the read.
+        wall: { entries: wall.entries, total: wall.total, has_more: wall.hasMore },
+        sections: destinations,
+      }, null, 2) },
     ],
   }
 }
@@ -2261,6 +2369,77 @@ async function handlePatchStoreConfiguration(args: Record<string, unknown>, auth
       { type: 'text', text: JSON.stringify({ ok: true, blocks: result.blocks, ignored_manual: ignoredManual, ...(result.supportProduct ? { support_product: result.supportProduct } : {}) }, null, 2) },
     ],
   }
+}
+
+// ── Living Shop — Wall tools (epic 07, Story 6.3) ─────────────────────────────
+// Thin dispatchers. The behaviour lives in `lib/wall/agent.ts` so it is
+// reachable from a spec, and so this route stays a router rather than growing a
+// fifth copy of the Wall's rules.
+
+async function resolveWallShop(args: Record<string, unknown>, authHeader: string | null | undefined, tool: string) {
+  const agentAuth = await resolveToolShop(authHeader, args, tool)
+  if (!agentAuth.ok) return { ok: false as const, message: agentAuth.message ?? `Unauthorized. ${AGENT_AUTH_HINT}` }
+  const shop = agentAuth.shop
+  if (!shop.id || !shop.slug) {
+    return { ok: false as const, message: 'Esta credencial no resuelve una tienda con muro.' }
+  }
+  return { ok: true as const, shop: { id: shop.id, slug: shop.slug, name: shop.name ?? shop.slug }, clerkUserId: shop.clerk_user_id }
+}
+
+function wallToolResponse(outcome: WallToolOutcome) {
+  if (!outcome.ok) return { isError: true, content: [{ type: 'text', text: outcome.message }] }
+  return {
+    content: [
+      { type: 'text', text: outcome.message },
+      { type: 'text', text: JSON.stringify(outcome.data, null, 2) },
+    ],
+  }
+}
+
+async function handleListWallEntries(args: Record<string, unknown>, authHeader?: string | null) {
+  const resolved = await resolveWallShop(args, authHeader, 'list_wall_entries')
+  if (!resolved.ok) return { isError: true, content: [{ type: 'text', text: resolved.message }] }
+  return wallToolResponse(await agentListWall(resolved.shop))
+}
+
+async function handleCreateWallEntry(args: Record<string, unknown>, authHeader?: string | null) {
+  const resolved = await resolveWallShop(args, authHeader, 'create_wall_entry')
+  if (!resolved.ok) return { isError: true, content: [{ type: 'text', text: resolved.message }] }
+  const outcome = await agentCreateWallEntry(resolved.shop, resolved.clerkUserId ?? 'agent', args)
+  if (outcome.ok) {
+    revalidateTag('listings', 'default')
+    // Every Wall write is audited, same as a config patch: an agent changing what
+    // a merchant's storefront SAYS is at least as consequential as changing how
+    // it looks, and the log is the only after-the-fact record either way.
+    await recordAgentWallChange(resolved.shop, 'create_wall_entry', outcome.data)
+  }
+  return wallToolResponse(outcome)
+}
+
+async function handleUpdateWallEntry(args: Record<string, unknown>, authHeader?: string | null) {
+  const resolved = await resolveWallShop(args, authHeader, 'update_wall_entry')
+  if (!resolved.ok) return { isError: true, content: [{ type: 'text', text: resolved.message }] }
+  const entryId = String(args.entry_id ?? '')
+  if (!entryId) return { isError: true, content: [{ type: 'text', text: 'Falta entry_id.' }] }
+  const outcome = await agentUpdateWallEntry(resolved.shop, entryId, args)
+  if (outcome.ok) {
+    revalidateTag('listings', 'default')
+    await recordAgentWallChange(resolved.shop, 'update_wall_entry', outcome.data)
+  }
+  return wallToolResponse(outcome)
+}
+
+async function handleDeleteWallEntry(args: Record<string, unknown>, authHeader?: string | null) {
+  const resolved = await resolveWallShop(args, authHeader, 'delete_wall_entry')
+  if (!resolved.ok) return { isError: true, content: [{ type: 'text', text: resolved.message }] }
+  const entryId = String(args.entry_id ?? '')
+  if (!entryId) return { isError: true, content: [{ type: 'text', text: 'Falta entry_id.' }] }
+  const outcome = await agentDeleteWallEntry(resolved.shop, entryId)
+  if (outcome.ok) {
+    revalidateTag('listings', 'default')
+    await recordAgentWallChange(resolved.shop, 'delete_wall_entry', outcome.data)
+  }
+  return wallToolResponse(outcome)
 }
 
 async function handleListOffers(args: Record<string, unknown>, authHeader?: string | null) {
@@ -4390,6 +4569,10 @@ async function handleMcpMethod(
       case 'respond_to_offer':          { const r = await handleRespondToOffer(args, baseUrl, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_listing':            { const r = await handleCreateListing(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_listings':          { const r = await handleListMyListings(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'list_wall_entries':         { const r = await handleListWallEntries(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'create_wall_entry':         { const r = await handleCreateWallEntry(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'update_wall_entry':         { const r = await handleUpdateWallEntry(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
+      case 'delete_wall_entry':         { const r = await handleDeleteWallEntry(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'list_my_collections':       { const r = await handleListMyCollections(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'create_collection':         { const r = await handleCreateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }
       case 'update_collection':         { const r = await handleUpdateCollection(args, authHeader); return { content: r.content, ...(r.isError ? { isError: true } : {}) } }

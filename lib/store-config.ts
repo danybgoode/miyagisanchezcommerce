@@ -43,6 +43,9 @@ function splitLocation(location?: string | null): { city?: string; state?: strin
   return {}
 }
 
+import { resolveTheme } from './shop-presentation/theme'
+import { normalizeSections } from './shop-presentation/sections'
+
 export function buildStoreConfigSnapshot(
   shop: ShopProfile,
   publicSellerMarket: PublicSellerMarket | null = null,
@@ -91,6 +94,27 @@ export function buildStoreConfigSnapshot(
   }
   if (typeof settings.theme_preset === 'string' && settings.theme_preset) profile.theme_preset = settings.theme_preset
   if (Object.keys(profile).length) configuration.profile = profile
+
+  // ── presentation (Living Shop, epic 07 · Story 6.1) ──────────────────────────
+  // Exported through the same NORMALIZERS the renderer uses, so what an agent
+  // reads is what a visitor sees — not the raw stored value, which may predate a
+  // schema change or carry a legacy preset the resolver reinterprets.
+  //
+  // Emitted only when the merchant has actually configured something: a snapshot
+  // full of defaults would make every shop look customized and would round-trip
+  // a decision nobody made.
+  const presentation: NonNullable<StoreConfigManifest['presentation']> = {}
+  const resolvedTheme = resolveTheme(settings)
+  if (settings.theme_mode !== undefined || settings.theme_preset !== undefined) {
+    presentation.theme_mode = resolvedTheme.mode
+  }
+  if (settings.theme_recipe !== undefined || settings.theme_preset !== undefined) {
+    presentation.theme_recipe = resolvedTheme.recipe
+  }
+  if (settings.sections !== undefined) {
+    presentation.sections = normalizeSections(settings.sections)
+  }
+  if (Object.keys(presentation).length) configuration.presentation = presentation
 
   // ── pass-through declarative blocks (already secret-free) ─────────────────────
   const shipping = obj(settings.shipping)
