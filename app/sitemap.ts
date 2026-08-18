@@ -2,8 +2,9 @@ import type { MetadataRoute } from 'next'
 import { headers } from 'next/headers'
 import { getShop, getShopListings, getShopCollections } from '@/lib/listings'
 import { shortCollectionSlug } from '@/lib/collection-derive'
-import { returnsWindowLabel } from '@/lib/trust-signals'
-import { authoredAboutBody, wellFormedFaqItems } from '@/lib/shop-content'
+import { normalizeSections, navEntries } from '@/lib/shop-presentation/sections'
+import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
+import { resolvePublicWallShop } from '@/lib/wall/store'
 import { PLATFORM_SITEMAP_ENTRIES } from '@/lib/market-sitemap'
 import { listingUrlFor, marketplaceUrl } from '@/lib/market-url'
 
@@ -46,17 +47,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ])
       listings = l
       collections = c
-      // Own-shop premium presentation (epic 07, Sprint 3) — only authored
-      // content pages join the sitemap, same gate the nav links use.
       const settings = ((shop?.metadata as Record<string, unknown> | null)?.settings ?? {}) as Record<string, unknown>
-      const about = settings.about as { body?: string } | null | undefined
-      const faq = settings.faq as { items?: Array<{ question?: string; answer?: string }> } | null | undefined
-      const returnsPolicy = settings.returns_policy as { window?: string } | null | undefined
-      contentPaths = [
-        authoredAboutBody(about) ? '/acerca' : null,
-        wellFormedFaqItems(faq?.items).length > 0 ? '/faq' : null,
-        returnsWindowLabel(returnsPolicy?.window) ? '/politicas' : null,
-      ].filter((p): p is string => !!p)
+      // Living Shop (epic 07 · Story 7.2). The sitemap lists exactly the
+      // destinations the NAV lists, through the same two functions — a section
+      // the seller hid, or one with nothing behind it, must not be crawlable
+      // when it is not reachable. Two independent derivations of "which sections
+      // exist" is how a hidden page ends up indexed.
+      //
+      // Individual Wall ENTRIES are deliberately absent: they have no durable
+      // route of their own, and the scope requires that to be justified in build
+      // rather than assumed. The Wall is the homepage, which is already here.
+      const wallShop = await resolvePublicWallShop(shopSlug)
+      const sectionConfig = normalizeSections(settings.sections)
+      const availability = await resolveSectionAvailability({
+        shopId: wallShop?.id ?? null,
+        settings,
+        collectionCount: c.length,
+      })
+      contentPaths = navEntries(sectionConfig, availability, '')
+        // The Wall IS `/`, already emitted below with priority 1.
+        .filter((entry) => entry.key !== 'wall')
+        .map((entry) => entry.path)
     } catch {
       listings = []
       collections = []
