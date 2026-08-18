@@ -618,7 +618,14 @@ export function validateConfig(manifest: StoreConfigManifest): ValidatedConfig {
       } else {
         // support_product_id is stamped by the provisioning step in
         // applyStoreConfig — never from caller input.
-        const { support_product_id: _ignored, ...safe } = normalized.settings
+        //
+        // Written as an explicit delete on a copy rather than a discarding
+        // destructure: the discarded binding was an unused variable, and
+        // `lint-changed` judges every file a branch touches, so this file's
+        // existing warning became this branch's problem the moment it was
+        // edited. Behaviour is identical.
+        const safe = { ...normalized.settings }
+        delete safe.support_product_id
         settings.support = safe
         f.push(...Object.keys(safe))
       }
