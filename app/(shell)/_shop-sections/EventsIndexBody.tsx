@@ -74,6 +74,8 @@ export default async function EventsIndexBody({ ctx }: { ctx: ShopPresentationCo
     <ShopThemeShell theme={ctx.theme} accent={ctx.accent}>
     <div className="pb-12">
       <ShopSectionNav
+        shopName={ctx.shop.name}
+        logoUrl={ctx.shop.logo_url ?? null}
         config={ctx.sections}
         availability={ctx.availability}
         basePath={ctx.basePath}

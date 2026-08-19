@@ -116,6 +116,41 @@ export function relativeDay(iso: string, now: Date, cutoffDays = 7): RelativeDay
 }
 
 /**
+ * WHICH rail panels have something real in them.
+ *
+ * 🚨 ONE DERIVATION, because there were two and they disagreed. The page counted
+ * panels from `[about||contacts, collections, dispatch]` while the component
+ * decided to render the About panel from `about || chips || contacts ||
+ * claimHref` — so an unclaimed shop with no About (`el-manchon`) rendered a
+ * panel the count said did not exist, the second track never opened, and the
+ * Wall stacked full-width above a lone floating panel. Two independent
+ * derivations of the same question is the trap this epic has now hit three
+ * times; the count and the render read this function.
+ */
+export interface RailInputs {
+  about: string | null
+  chipCount: number
+  contactCount: number
+  hasClaim: boolean
+  collectionCount: number
+  hasStatus: boolean
+}
+
+export interface RailPanels {
+  about: boolean
+  collections: boolean
+  status: boolean
+  count: number
+}
+
+export function railPanels(input: RailInputs): RailPanels {
+  const about = !!input.about || input.chipCount > 0 || input.contactCount > 0 || input.hasClaim
+  const collections = input.collectionCount > 0
+  const status = input.hasStatus
+  return { about, collections, status, count: [about, collections, status].filter(Boolean).length }
+}
+
+/**
  * Whether the supporting rail should occupy its own grid track.
  *
  * 🚨 THIS CLOSES A REAL DEFECT. Sprint 4's `feed-sidebar` recipe turned the Wall
@@ -130,4 +165,16 @@ export function relativeDay(iso: string, now: Date, cutoffDays = 7): RelativeDay
  */
 export function railOccupiesTrack(wallLayout: string, panelCount: number): boolean {
   return wallLayout === 'feed-sidebar' && panelCount > 0
+}
+
+/**
+ * Whether the Wall should render as a narrow column at all.
+ *
+ * A Wall in a 1fr track with NO rail beside it is a full-width column of posts,
+ * which reads as a broken layout rather than a feed — reported live on
+ * `el-manchon`. When the rail is not taking a track, the shell constrains the
+ * Wall to a readable measure instead of letting it span the page.
+ */
+export function wallIsNarrow(railInTrack: boolean): boolean {
+  return !railInTrack
 }

@@ -196,8 +196,12 @@ test.describe('accessibility · merchant expression never trades away access (St
   })
 
   test('the shop nav marks the current destination', () => {
-    const nav = readFileSync(path.join(ROOT, 'app/(shell)/_shop-sections/ShopSectionNav.tsx'), 'utf8')
-    expect(nav).toContain('aria-current')
-    expect(nav).toContain('aria-label')
+    // Reads the HEADER, because that is where the markup lives now:
+    // `ShopSectionNav` became a thin delegate so every shop surface renders one
+    // chrome instead of two. Following the markup rather than loosening the
+    // assertion — the rule is unchanged, only its address moved.
+    const header = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopHeader.tsx'), 'utf8')
+    expect(header).toContain('aria-current')
+    expect(header).toContain('aria-label')
   })
 })

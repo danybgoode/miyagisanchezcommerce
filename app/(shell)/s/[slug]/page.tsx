@@ -34,7 +34,7 @@ import { readPublicWall } from '@/lib/wall/public'
 import { resolvePublicWallShop } from '@/lib/wall/store'
 import { normalizeSections } from '@/lib/shop-presentation/sections'
 import { resolveSectionAvailability } from '@/lib/shop-presentation/availability'
-import { trustChips, railOccupiesTrack } from '@/lib/shop-presentation/chrome'
+import { trustChips, railOccupiesTrack, railPanels } from '@/lib/shop-presentation/chrome'
 import { sectionPath } from '@/lib/shop-presentation/sections'
 import { resolveTheme } from '@/lib/shop-presentation/theme'
 import { applyPreviewOverlay } from '@/lib/shop-presentation/preview'
@@ -282,11 +282,15 @@ export async function ShopPage({
     theme.social?.facebook && { href: theme.social.facebook, label: 'Facebook' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
 
-  const railPanelCount = [
-    !!aboutBody || railContacts.length > 0,
-    railCollections.length > 0,
-    !!shopStatus.dispatch,
-  ].filter(Boolean).length
+  // ONE derivation, shared with ShopRail — see `railPanels`.
+  const railPanelCount = railPanels({
+    about: aboutBody,
+    chipCount: [shop.verified === true, !!shipping.envia_enabled, hasPickup].filter(Boolean).length,
+    contactCount: railContacts.length,
+    hasClaim: !shop.clerk_user_id,
+    collectionCount: railCollections.length,
+    hasStatus: !!shopStatus.dispatch,
+  }).count
 
 
   const accent = theme.accent_color ?? 'var(--color-accent)'
@@ -328,7 +332,6 @@ export async function ShopPage({
         active="wall"
         accent={accent}
         accentTextColor={accentTextColor}
-        cartHref={`${marketBasePath}/checkout`}
         copy={buyerCopy}
       />
 

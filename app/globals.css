@@ -656,6 +656,12 @@
 .shop-shell-main { min-width: 0; }
 @media (min-width: 900px) {
   .shop-shell[data-rail="on"] { grid-template-columns: minmax(0, 1fr) 310px; align-items: start; }
+  /* With NO rail in a track, a full-width column of posts reads as a broken
+     layout rather than a feed — reported live on el-manchon, where Novedades
+     spanned the page above a lone floating panel. Constrain the Wall to a
+     readable measure and let the rail sit beneath it. */
+  .shop-shell[data-rail="off"] { justify-items: center; }
+  .shop-shell[data-rail="off"] > * { width: 100%; max-width: 720px; }
 }
 .shop-rail { display: grid; align-content: start; gap: 12px; }
 .shop-panel {

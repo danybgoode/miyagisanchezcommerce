@@ -117,6 +117,8 @@ export default async function CollectionPage({
           filter within one of them. On the homepage the chips were competing
           with the nav, which is why they no longer render there. */}
       <ShopSectionNav
+        shopName={shop.name}
+        logoUrl={shop.logo_url ?? null}
         config={sectionNav.sections}
         availability={sectionNav.availability}
         basePath={basePath}
