@@ -124,8 +124,11 @@ test.describe('theme · the four shipped presets do not visually reset', () => {
   test('Retro differs structurally from Default — framing, rhythm, identity, not a colour', () => {
     const differing = (Object.keys(PRESET_RECIPES.retro) as Array<keyof typeof DEFAULT_RECIPE>)
       .filter((k) => PRESET_RECIPES.retro[k] !== DEFAULT_RECIPE[k])
+    // `wall_layout` used to be on this list. It is gone from the schema
+    // entirely — the Wall-beside-rail shell is now every theme's layout, as the
+    // design concept has it, so it is no longer something Retro differs BY.
     expect(differing.length).toBeGreaterThanOrEqual(5)
-    for (const axis of ['surface', 'typography', 'wall_card', 'identity', 'wall_layout'] as const) {
+    for (const axis of ['surface', 'typography', 'wall_card', 'identity', 'corners'] as const) {
       expect(differing, axis).toContain(axis)
     }
   })

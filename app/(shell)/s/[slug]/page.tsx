@@ -149,9 +149,8 @@ export async function ShopPage({
   // custom domain — both already serve `/c/...` at the domain root), the
   // full `/s/[slug]/c/...` prefix only on the marketplace host.
   const channelValue = reqHeaders.get('x-miyagi-channel')
-  const navBasePath = (channelValue === 'custom' || channelValue === 'subdomain')
-    ? ''
-    : `${marketBasePath}/s/${shop.slug}`
+  const onChannelHost = channelValue === 'custom' || channelValue === 'subdomain'
+  const navBasePath = onChannelHost ? '' : `${marketBasePath}/s/${shop.slug}`
 
   // The Wall's shop is the SUPABASE mirror row, not the Medusa seller `shop`
   // above — their ids live in different systems and only the slug is shared.
@@ -172,6 +171,9 @@ export async function ShopPage({
         shopId: wallShop.id,
         shopSlug: wallShop.slug,
         basePath: navBasePath,
+        // The PDP is not shop-scoped on the marketplace — `/mx/l/<id>`, never
+        // `/mx/s/<slug>/l/<id>`. On an owned host both are ''.
+        listingBase: onChannelHost ? '' : marketBasePath,
         locale: resolveMarketPresentation(presentationMarket).htmlLang,
       })
     : { entries: [], hasMore: false, total: 0 }
@@ -282,10 +284,35 @@ export async function ShopPage({
     theme.social?.facebook && { href: theme.social.facebook, label: 'Facebook' },
   ].filter(Boolean) as Array<{ href: string; label: string }>
 
+  /**
+   * The commerce facts that used to sit in a loose chip row above the grid.
+   *
+   * They move into the rail's Perfil panel — that panel answers "can I trust
+   * this shop", which is what these are. It is also what gives every shop a
+   * rail: all 30 live shops have a payment method while only 2 have an About
+   * body, so without these the two-column shell would collapse on nearly every
+   * shop.
+   *
+   * Copy keys are the SAME ones the chip row used, so nothing new to translate
+   * and no wording drifts.
+   */
+  const railSignals = [
+    sellerHasMp && { key: 'mp', label: buyerCopy['s.slug.page.85cbb14f'] },
+    sellerHasStripe && { key: 'stripe', label: buyerCopy['s.slug.page.15146f83'] },
+    hasBankTransfer && { key: 'spei', label: buyerCopy['s.slug.page.9bc19390'] },
+    hasDimo && { key: 'dimo', label: buyerCopy['s.slug.page.4df902a1'] },
+    hasPickup && {
+      key: 'pickup',
+      label: buyerCopy['s.slug.page.ad1b2858'] + (shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''),
+    },
+    hasScheduling && { key: 'agenda', label: calcom.event_type_title ?? scheduling.links?.[0]?.label ?? buyerCopy['s.slug.page.a762f91d'] },
+    returnsLabel && { key: 'returns', label: `${buyerCopy['s.slug.page.b4c1603f']} ${returnsLabel}` },
+  ].filter(Boolean) as Array<{ key: string; label: string }>
+
   // ONE derivation, shared with ShopRail — see `railPanels`.
   const railPanelCount = railPanels({
     about: aboutBody,
-    chipCount: [shop.verified === true, !!shipping.envia_enabled, hasPickup].filter(Boolean).length,
+    chipCount: [shop.verified === true, !!shipping.envia_enabled].filter(Boolean).length + railSignals.length,
     contactCount: railContacts.length,
     hasClaim: !shop.clerk_user_id,
     collectionCount: railCollections.length,
@@ -304,7 +331,6 @@ export async function ShopPage({
       style={{ '--shop-accent': accent, ...shopTheme.variables } as React.CSSProperties}
       data-shop-surface={shopTheme.recipe.surface}
       data-shop-background={shopTheme.recipe.background}
-      data-shop-wall={shopTheme.recipe.wall_layout}
       data-shop-identity={shopTheme.recipe.identity}
       data-shop-preset={shopTheme.presetAttribute || undefined}
     >
@@ -359,7 +385,7 @@ export async function ShopPage({
           The rail is a real grid SIBLING of the Wall. Before this it did not
           exist, so the `feed-sidebar` recipe tiled the post cards into two
           columns with nothing in the second track. */}
-      <div className="shop-shell" data-rail={railOccupiesTrack(shopTheme.recipe.wall_layout, railPanelCount) ? 'on' : 'off'}>
+      <div className="shop-shell" data-rail={railOccupiesTrack(railPanelCount) ? 'on' : 'off'}>
       <main className="shop-shell-main" id="wall">
       {wall.total > 0 && (
         <WallFeed
@@ -378,36 +404,7 @@ export async function ShopPage({
         />
       )}
 
-      </main>
-
-      <ShopRail
-        about={aboutBody}
-        chips={trustChips({
-          verified: shop.verified === true,
-          shipsNationwide: !!shipping.envia_enabled,
-          localPickup: hasPickup,
-        })}
-        collections={railCollections}
-        status={shopStatus}
-        contacts={railContacts}
-        claimHref={shop.clerk_user_id ? null : `${marketBasePath}/s/${slug}/claim`}
-        copy={buyerCopy}
-      />
-      </div>
-
-      {/* ── Listings grid ────────────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 pb-12">
-        {(sellerHasMp || sellerHasStripe || hasBankTransfer || hasDimo || hasPickup || hasScheduling || returnsLabel) && (
-          <div className="flex flex-wrap gap-2 mb-5">
-            {sellerHasMp && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.85cbb14f" /></span>}
-            {sellerHasStripe && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.15146f83" /></span>}
-            {hasBankTransfer && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.9bc19390" /></span>}
-            {hasDimo && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.4df902a1" /></span>}
-            {hasPickup && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]"><BuyerCopyText copyKey="s.slug.page.ad1b2858" />{shipping.pickup_spots?.[0]?.name ? `: ${shipping.pickup_spots[0].name}` : ''}</span>}
-            {hasScheduling && <span className="text-xs px-2.5 py-1 rounded-full bg-[var(--color-surface-alt)] text-[var(--color-muted)]">{calcom.event_type_title ?? scheduling.links?.[0]?.label ?? <BuyerCopyText copyKey="s.slug.page.a762f91d" />}</span>}
-            {returnsLabel && <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700"><BuyerCopyText copyKey="s.slug.page.b4c1603f" />{' '}{returnsLabel}</span>}
-          </div>
-        )}
+      <div className="pt-2 pb-10">
         {listings.length === 0 ? (
           <div className="text-center py-16 text-[var(--color-muted)]">
             <div className="text-4xl mb-3"><i className="iconoir-package" aria-hidden /></div>
@@ -444,6 +441,36 @@ export async function ShopPage({
           </>
         )}
       </div>
+
+      {/* The catalog lives in the SAME column as the Wall.
+          It used to sit outside the shell at a wider measure, so the page
+          stepped from a 42rem feed to a 72rem grid and read as two pages
+          stapled together. One column, one measure — and on the 26 of 30 live
+          shops with no Wall entries yet, this is simply the shop: products
+          leading, with the rail beside them. */}
+      </main>
+
+      <ShopRail
+        about={aboutBody}
+        chips={trustChips({
+          verified: shop.verified === true,
+          shipsNationwide: !!shipping.envia_enabled,
+          // NOT `hasPickup`: local pickup already travels as a commerce signal
+          // below, and feeding it to both put the same claim in the same panel
+          // twice. The signal is the better of the two — it names the pickup
+          // SPOT where the shop configured one ("Recolección local: Roma Norte"),
+          // while the chip could only say that pickup exists.
+          localPickup: false,
+        })}
+        collections={railCollections}
+        status={shopStatus}
+        contacts={railContacts}
+        signals={railSignals}
+        claimHref={shop.clerk_user_id ? null : `${marketBasePath}/s/${slug}/claim`}
+        copy={buyerCopy}
+      />
+      </div>
+
 
       <ShopFooter
         shopName={shop.name}

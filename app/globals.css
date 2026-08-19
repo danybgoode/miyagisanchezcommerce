@@ -649,20 +649,26 @@
 }
 .shop-sticker-1 { left: 18px; bottom: 22px; transform: rotate(-8deg); }
 
-/* The shell. `data-rail="on"` is the ONLY thing that opens the second track —
-   set by `railOccupiesTrack`, which requires both a recipe that asks for it AND
-   at least one panel with real content. That is what stops an empty column. */
-.shop-shell { max-width: 1120px; margin: auto; padding: 10px 18px 8px; display: grid; gap: 22px; }
+/* The shell — Wall (and catalog) beside the supporting rail.
+   ONE layout for every theme, as the design concept has it: it uses this shell
+   for all three of its themes and overrides it for none. Making it a per-theme
+   choice left the four presets that predate the Wall rendering a lone column,
+   which reads as a leftover rather than a decision.
+   `data-rail="off"` is now only the honest case — a shop with nothing to put
+   beside its content — and then the single column is centred rather than left
+   stranded against the page edge. */
+.shop-shell { max-width: 1120px; margin: auto; padding: 10px 18px 8px; display: grid; gap: 26px; }
 .shop-shell-main { min-width: 0; }
 @media (min-width: 900px) {
   .shop-shell[data-rail="on"] { grid-template-columns: minmax(0, 1fr) 310px; align-items: start; }
-  /* With NO rail in a track, a full-width column of posts reads as a broken
-     layout rather than a feed — reported live on el-manchon, where Novedades
-     spanned the page above a lone floating panel. Constrain the Wall to a
-     readable measure and let the rail sit beneath it. */
   .shop-shell[data-rail="off"] { justify-items: center; }
-  .shop-shell[data-rail="off"] > * { width: 100%; max-width: 720px; }
+  .shop-shell[data-rail="off"] > * { width: 100%; max-width: 52rem; }
 }
+
+/* The Wall is a READING column even when the catalog beside it is a grid: a feed
+   at full track width gives lines nobody wants to read. The catalog is not
+   capped — it is a grid, and it wants the whole track. */
+.shop-shell-main > .wall-section { max-width: 42rem; }
 .shop-rail { display: grid; align-content: start; gap: 12px; }
 .shop-panel {
   background: var(--shop-surface, var(--bg-elevated));

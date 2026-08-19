@@ -16,6 +16,39 @@
 
 import type { Shop } from '@/lib/types'
 
+/**
+ * 🚨 A SHOP HAS TWO BASES, AND CONFUSING THEM 404s.
+ *
+ * `shopBase` is where the shop's OWN routes live — `/tienda`, `/colecciones`,
+ * `/c/[handle]`, `/acerca`. On the marketplace that is `/mx/s/<slug>`; on an
+ * owned host it is `''`.
+ *
+ * `listingBase` is where a PRODUCT lives, and a product is NOT shop-scoped on
+ * the marketplace: the PDP is `/mx/l/<id>`, never `/mx/s/<slug>/l/<id>` — no
+ * such route exists. On an owned host the two coincide (`''`), which is exactly
+ * why the mistake was invisible until someone opened a marketplace shop.
+ *
+ * Reported live: every product on `/mx/s/el-manchon/tienda` 404'd, while the
+ * same product from the homepage grid worked, because the homepage happened to
+ * build its own links from the market base and everything I added built them
+ * from the shop base.
+ *
+ * Returning them as one object with two names is deliberate: a single
+ * `basePath` string invites exactly this bug, and a call site that has to pick
+ * between two named fields has to think about which one it means.
+ */
+export interface ShopBases {
+  /** `/mx/s/<slug>` on the marketplace, `''` on an owned host. */
+  shopBase: string
+  /** `/mx` on the marketplace, `''` on an owned host. Products live here. */
+  listingBase: string
+}
+
+/** The PDP href for a listing. The ONE place that knows a product is not shop-scoped. */
+export function listingHref(bases: Pick<ShopBases, 'listingBase'>, listingId: string): string {
+  return `${bases.listingBase}/l/${listingId}`
+}
+
 /** Initials for a shop with no logo. Two letters, from the first two words. */
 export function shopInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
@@ -153,18 +186,17 @@ export function railPanels(input: RailInputs): RailPanels {
 /**
  * Whether the supporting rail should occupy its own grid track.
  *
- * 🚨 THIS CLOSES A REAL DEFECT. Sprint 4's `feed-sidebar` recipe turned the Wall
- * container into a two-column grid whose only children were the post cards — so
- * at desktop width the cards tiled into two columns and nothing filled the
- * second track, because the rail it promised was never built. The rail is now a
- * real sibling, and this predicate is what the layout keys off.
+ * EVERY THEME GETS THE SHELL. The design concept uses one Wall-beside-rail
+ * layout for all of its themes and overrides it for none; making it a per-recipe
+ * choice was an invention, and it left the four presets that predate the Wall
+ * rendering a lone column that reads as a leftover. So the only question left is
+ * the honest one: is there anything to put in the rail?
  *
- * It needs BOTH: a recipe that asks for the rail, and at least one panel with
- * real content to put in it. A rail of empty panels is the same empty column
- * wearing a border.
+ * A rail of empty panels is an empty column wearing a border — which is the
+ * defect this predicate originally shipped to close.
  */
-export function railOccupiesTrack(wallLayout: string, panelCount: number): boolean {
-  return wallLayout === 'feed-sidebar' && panelCount > 0
+export function railOccupiesTrack(panelCount: number): boolean {
+  return panelCount > 0
 }
 
 /**

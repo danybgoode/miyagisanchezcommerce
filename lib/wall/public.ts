@@ -25,8 +25,10 @@ export interface PublicWallPage {
 export interface PublicWallRequest {
   shopId: string
   shopSlug: string
-  /** `''` on an owned host, `/mx/s/<slug>` on the marketplace. */
+  /** Where the SHOP's routes live: `''` on an owned host, `/mx/s/<slug>` otherwise. */
   basePath: string
+  /** Where a PRODUCT lives: `''` on an owned host, `/mx` on the marketplace. */
+  listingBase: string
   locale?: string
   offset?: number
   pageSize?: number
@@ -53,6 +55,7 @@ export async function readPublicWall(req: PublicWallRequest): Promise<PublicWall
     shopId: req.shopId,
     shopSlug: req.shopSlug,
     basePath: req.basePath,
+    listingBase: req.listingBase,
     locale: req.locale ?? 'es-MX',
     now,
   })

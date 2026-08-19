@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { test, expect } from '@playwright/test'
 import {
+  listingHref,
   shopInitials,
   heroContent,
   trustChips,
@@ -10,7 +11,7 @@ import {
   railOccupiesTrack,
   railPanels,
 } from '../lib/shop-presentation/chrome'
-import { PRESET_RECIPES } from '../lib/shop-presentation/theme'
+import { PRESET_RECIPES, THEME_RECIPE_FIELDS } from '../lib/shop-presentation/theme'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 
@@ -136,17 +137,22 @@ test.describe('chrome · relative dates compare CALENDAR days', () => {
 })
 
 test.describe('chrome · the rail closes the empty-column defect', () => {
-  test('the second track opens only when the recipe asks AND there is content', () => {
+  test('the second track opens whenever there is something to put in it', () => {
     // 🚨 THE REGRESSION THIS PINS. Sprint 4's feed-sidebar recipe made the Wall a
     // two-column grid whose only children were the post cards, so the cards
     // tiled into columns with nothing in the second track.
-    expect(railOccupiesTrack('feed-sidebar', 3)).toBe(true)
-    expect(railOccupiesTrack('feed-sidebar', 0)).toBe(false)
-    expect(railOccupiesTrack('single', 3)).toBe(false)
+    expect(railOccupiesTrack(3)).toBe(true)
+    expect(railOccupiesTrack(0)).toBe(false)
   })
 
-  test('Retro is the recipe that asks for it', () => {
-    expect(PRESET_RECIPES.retro.wall_layout).toBe('feed-sidebar')
+  test('NO theme opts out of the shell — the layout is not a recipe choice', () => {
+    // The design concept uses one Wall-beside-rail shell for all three of its
+    // themes and overrides it for none. As a per-recipe axis it left the four
+    // presets that predate the Wall rendering a lone column.
+    for (const recipe of Object.values(PRESET_RECIPES)) {
+      expect(Object.keys(recipe)).not.toContain('wall_layout')
+    }
+    expect(THEME_RECIPE_FIELDS).not.toContain('wall_layout')
   })
 
   test('the grid is opened by the SHELL, never by the feed itself', () => {
@@ -229,7 +235,7 @@ test.describe('chrome · the count and the render agree (reported live)', () => 
       hasClaim: false, collectionCount: 0, hasStatus: false,
     })
     expect(panels.count).toBe(0)
-    expect(railOccupiesTrack('feed-sidebar', panels.count)).toBe(false)
+    expect(railOccupiesTrack(panels.count)).toBe(false)
   })
 
   test('each input alone is enough for its own panel', () => {
@@ -288,5 +294,118 @@ test.describe('chrome · exactly one cart, and it is the platform’s', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
     expect(header).not.toContain('shop-bag')
     expect(header).not.toContain('cartHref')
+  })
+})
+
+test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', () => {
+  test('a shop with only payment rails still earns a rail', () => {
+    // Measured on the live population: 30/30 shops have a payment method while
+    // only 2 have an About body and only 4 have any Wall entry. If commerce
+    // signals did not count, the two-column shell would collapse on nearly every
+    // real shop — which is the leftover-looking single column this change fixes.
+    const panels = railPanels({
+      about: null, chipCount: 2, contactCount: 0,
+      hasClaim: false, collectionCount: 0, hasStatus: false,
+    })
+    expect(panels.about).toBe(true)
+    expect(railOccupiesTrack(panels.count)).toBe(true)
+  })
+
+  test('and the WIRING actually feeds them in — both call sites', () => {
+    // The test above proves the pure function. It stayed GREEN through a
+    // mutation that stopped ShopRail passing signals at all, because a pure core
+    // is only as true as its inputs. These assert the inputs.
+    const rail = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopRail.tsx'), 'utf8')
+    expect(rail).toMatch(/chipCount:\s*chips\.length \+ signals\.length/)
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    expect(page).toMatch(/\+ railSignals\.length/)
+  })
+
+  test('the catalog shares the Wall’s column rather than a wider one', () => {
+    // The page used to step from a 42rem feed to a 72rem grid, reading as two
+    // pages stapled together. The grid now lives inside the shell's main track.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const shell = page.slice(page.indexOf('className="shop-shell"'), page.indexOf('<ShopRail'))
+    expect(shell).toContain('ClosetListingCard')
+    // And no wider container survives around it.
+    expect(shell).not.toContain('max-w-6xl')
+  })
+
+  test('the Wall keeps a reading measure; the catalog does not', () => {
+    const css = readFileSync(path.join(ROOT, 'app/globals.css'), 'utf8')
+    expect(css).toMatch(/\.shop-shell-main > \.wall-section \{[^}]*max-width:\s*42rem/)
+  })
+
+  test('trust signals moved INTO the rail, not duplicated beside it', () => {
+    // Two copies of "acepta SPEI" on one page is worse than none.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    expect(page).toContain('signals={railSignals}')
+    // The old loose chip row is gone.
+    expect(page).not.toMatch(/sellerHasMp && <span className="text-xs/)
+  })
+})
+
+test.describe('chrome · no fact is claimed twice in one panel', () => {
+  test('local pickup travels as a signal OR a chip, never both', () => {
+    // Found by the codex cross-family review: `hasPickup` fed BOTH `trustChips`
+    // and `railSignals`, and the Perfil panel renders both arrays — so a shop
+    // with pickup said so twice, side by side. The signal wins because it can
+    // name the actual spot ("Recolección local: Roma Norte"); the chip could
+    // only say pickup exists.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const chipsCall = page.slice(page.indexOf('chips={trustChips({'), page.indexOf('collections={railCollections}'))
+    expect(chipsCall).not.toMatch(/localPickup:\s*hasPickup/)
+    // And the signal really is still there — the fix must not drop the fact.
+    expect(page).toMatch(/key: 'pickup'/)
+  })
+})
+
+test.describe('chrome · a product is NOT shop-scoped (reported live: 404)', () => {
+  test('on the marketplace a PDP href is /mx/l/<id>, never /mx/s/<slug>/l/<id>', () => {
+    // 🚨 THE REPORTED BUG. Every product on /mx/s/el-manchon/tienda 404'd while
+    // the same product from the homepage grid worked, because the homepage built
+    // its links from the MARKET base and everything added later built them from
+    // the SHOP base. `/mx/s/<slug>/l/<id>` is not a route and never was.
+    expect(listingHref({ listingBase: '/mx' }, 'prod_1')).toBe('/mx/l/prod_1')
+    expect(listingHref({ listingBase: '/mx' }, 'prod_1')).not.toContain('/s/')
+  })
+
+  test('on an owned host the two bases coincide, which is why this hid', () => {
+    // Subdomain and custom domain serve the PDP at /l/<id>, so the shop base and
+    // the listing base are both '' and the mistake is invisible there.
+    expect(listingHref({ listingBase: '' }, 'prod_1')).toBe('/l/prod_1')
+  })
+
+  test('no surface builds a PDP href from the SHOP base, whatever it is called', () => {
+    // The POPULATION, not the one spelling that was reported.
+    //
+    // The first version of this test matched only `${basePath}/l/` — the exact
+    // form the reported bug happened to use — and stayed green through a
+    // mutation that rebuilt the same defect as `${bases.shopBase}/l/`. A guard
+    // pinned to one spelling of a name guards one spelling of a name.
+    //
+    // Every identifier below IS the shop base under some name; none of them may
+    // be followed by `/l/`. `marketBasePath` and `listingBase` are absent from
+    // the list on purpose — those are the correct bases for a PDP.
+    const SHOP_BASE_NAMES = ['basePath', 'ctx.basePath', 'shopBase', 'bases.shopBase', 'navBasePath']
+    const pattern = new RegExp(
+      `\\$\\{\\s*(?:${SHOP_BASE_NAMES.map((n) => n.replace('.', '\\.')).join('|')})\\s*\\}/l/`,
+    )
+    for (const file of [
+      'lib/wall/views.ts',
+      'app/(shell)/_shop-sections/ShopIndexBody.tsx',
+      'app/(shell)/s/[slug]/page.tsx',
+      'app/(shell)/_wall/WallEntryCard.tsx',
+    ]) {
+      const source = readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, `${file} builds a PDP href from the shop base`).not.toMatch(pattern)
+    }
+  })
+
+  test('a COLLECTION is shop-scoped, and still uses the shop base', () => {
+    // The negation: this fix must not push collections onto the market base,
+    // where /mx/c/<handle> is not a route either.
+    const views = readFileSync(path.join(ROOT, 'lib/wall/views.ts'), 'utf8')
+    expect(views).toMatch(/\$\{bases\.shopBase\}\/c\//)
   })
 })
