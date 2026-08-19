@@ -10,7 +10,7 @@ import { authEnabled, buyerEmail, sellerEmail, adminEmail, signIn } from '../_he
  * real `e2e/<name>.browser.spec.ts` and run it via `--spec` instead (see
  * `skills/live-smoke/SKILL.md`).
  *
- *   LIVE_SMOKE_PATH   — required. The path to navigate (e.g. /vende/migracion).
+ *   LIVE_SMOKE_PATH   — required. The path to navigate (e.g. /mx/vende/migracion).
  *   LIVE_SMOKE_FLOW   — 'unauthed' | 'buyer' | 'seller' | 'admin' (default 'unauthed').
  *   LIVE_SMOKE_OUT    — output dir for report.json + screenshot.png
  *                       (default test-results/live-smoke).

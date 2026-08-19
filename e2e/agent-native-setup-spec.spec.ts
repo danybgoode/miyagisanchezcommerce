@@ -92,7 +92,7 @@ test.describe('setup-spec · buildSetupPrompt (1.2)', () => {
   test('instructs the agent to read Miyagi context before asking or emitting', () => {
     expect(prompt).toContain('PASO 1')
     expect(prompt).toContain('/api/ucp/setup-spec')
-    expect(prompt).toContain('/vende')
+    expect(prompt).toContain('/mx/vende')
     expect(prompt).toContain('/acerca')
   })
 

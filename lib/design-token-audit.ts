@@ -93,10 +93,10 @@ export const guardExcludedFiles = new Set([
   'app/(shell)/shop/manage/PrintAdPreview.tsx',
   // Printable promoter sell-sheet (epic 08 · S4) — a print surface whose @media
   // print CSS needs literal colors (same rationale as the print-export libs).
-  'app/(shell)/vende/promotor/sell-sheet/page.tsx',
+  'app/(shell)/mx/vende/promotor/sell-sheet/page.tsx',
   // Printable migration runbook (epic 03 · platform-migrations S3) — same print
   // surface + injected <style> idiom as the sell-sheet above, same rationale.
-  'app/(shell)/vende/promotor/migracion/page.tsx',
+  'app/(shell)/mx/vende/promotor/migracion/page.tsx',
   'lib/email.ts',
   'lib/design-token-audit.ts',
   'lib/platform-theme.ts',

@@ -30,6 +30,8 @@
  * `api` runner can unit-test it directly.
  */
 
+import { SELLER_LANDING_PATHS } from './seller-acquisition'
+
 export type AboutLocale = 'es' | 'en'
 
 export type AboutSectionId =
@@ -106,7 +108,7 @@ export const ABOUT_SECTION_IDS: AboutSectionId[] = [
 /** Soft CTA target — onboarding, attributed to the about page. */
 export const ABOUT_CTA_HREF = '/sell?from=acerca'
 /** Cross-link to the #6 seller-acquisition funnel. */
-export const ABOUT_SELLERS_HREF = '/vende'
+export const ABOUT_SELLERS_HREF = SELLER_LANDING_PATHS.mx
 
 export const ABOUT_PAGE: Record<AboutLocale, AboutPageCopy> = {
   es: {

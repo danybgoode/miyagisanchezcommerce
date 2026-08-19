@@ -5,7 +5,7 @@ test.describe('seller acquisition · local business page', () => {
   test('anonymous local merchant sees the print bridge and reaches attributed onboarding', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const res = await page.goto('/vende/negocios?utm_source=browser-smoke')
+    const res = await page.goto('/mx/vende/negocios?utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(

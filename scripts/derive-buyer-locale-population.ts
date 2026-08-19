@@ -27,6 +27,29 @@ const DIRECT_BUYER_DIRS = [
   'app/(us-shell)/us',
 ] as const
 
+/**
+ * Subtrees that sit INSIDE a buyer root but are not buyer surfaces.
+ *
+ * `app/(shell)/mx/vende` is the Mexican seller-acquisition family — the landing,
+ * its six persona pages, the migration hub and the promoter pages. They are es-MX
+ * by design (AGENTS rule 5: es-MX default, bilingual only on a named allow-list),
+ * they have always been outside this scan, and they render marketing prose that is
+ * authored per market rather than translated.
+ *
+ * They only appear here because their URL moved: `/vende` became `/mx/vende` when
+ * each market got one landing of its own, which dropped ~35 files into a scan root
+ * whose meaning is "buyer chrome, must be dictionary-backed". A page's URL is not
+ * what decides which language rule it is held to, so the exclusion is stated by
+ * path, with this reason, rather than allowed to show up as 35 new violations that
+ * the next person silences by extracting copy nobody asked to translate.
+ *
+ * Named as a prefix list and asserted in `e2e/buyer-locale-population.spec.ts`, so
+ * adding a second exclusion is a visible decision instead of a quiet widening.
+ */
+export const NON_BUYER_SUBTREES = [
+  'app/(shell)/mx/vende',
+] as const
+
 const BUYER_ENTRYPOINTS = [
   'app/components/MarketDocument.tsx',
   'app/(shell)/layout.tsx',
@@ -253,6 +276,7 @@ export function deriveBuyerLocalePopulation(root: string): BuyerLocalePopulation
     .flatMap((dir) => filesBelow(path.join(root, dir)))
     .filter((file) => file.endsWith('.tsx'))
     .map((file) => relative(root, file))
+    .filter((file) => !NON_BUYER_SUBTREES.some((prefix) => file === prefix || file.startsWith(`${prefix}/`)))
     .sort()
 
   const marketRoots = [

@@ -179,7 +179,7 @@ export const enforcedSweptPaths = new Set<string>([
   'app/(shell)/shop/manage/shopify/import/parity/[batchId]/page.tsx',
   'app/(shell)/shop/manage/subscriptions/SubscriptionsClient.tsx',
   'app/(shell)/v/[slug]/VoteClient.tsx',
-  'app/(shell)/vende/promotor/sell-sheet/page.tsx',
+  'app/(shell)/mx/vende/promotor/sell-sheet/page.tsx',
   'app/components/AgentHandoff.tsx',
   'app/components/ArtworkFileInput.tsx',
   'app/components/BuyButton.tsx',

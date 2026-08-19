@@ -5,7 +5,7 @@ test.describe('seller acquisition · Creator page', () => {
   test('anonymous creator sees the migration pitch and reaches attributed onboarding', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const res = await page.goto('/vende/creadores?utm_source=browser-smoke')
+    const res = await page.goto('/mx/vende/creadores?utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(
@@ -26,7 +26,7 @@ test.describe('seller acquisition · Creator page', () => {
   test('B variant swaps creator headline and tags conversion links', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const res = await page.goto('/vende/creadores?v=b&utm_source=browser-smoke')
+    const res = await page.goto('/mx/vende/creadores?v=b&utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(

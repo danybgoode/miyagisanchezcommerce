@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test'
  * bogus-path variant below is the observed-red mechanism for that guard.
  */
 
-const OG_IMAGE_PAGES = ['/', '/mx', '/us', '/vende', '/acerca', '/agent']
+const OG_IMAGE_PAGES = ['/', '/mx', '/us', '/mx/vende', '/acerca', '/agent']
 
 function ogTag(html: string, property: string): string | null {
   const re = new RegExp(`<meta property="${property}" content="([^"]*)"`)
@@ -56,8 +56,8 @@ test.describe('Agent-readability surface — substantive content', () => {
     expect(html).toContain('¿Qué estás buscando?')
   })
 
-  test('/vende returns the seller-acquisition pitch', async ({ request }) => {
-    const res = await request.get('/vende')
+  test('/mx/vende returns the seller-acquisition pitch', async ({ request }) => {
+    const res = await request.get('/mx/vende')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html.length).toBeGreaterThan(20_000)
@@ -115,7 +115,7 @@ test.describe('Agent-readability surface — substantive content', () => {
     // app/llms.txt/route.ts), so assert on the path only, not a hardcoded
     // domain — this must hold against prod AND a local/preview build alike.
     expect(body).toContain('/acerca')
-    expect(body).toContain('/vende')
+    expect(body).toContain('/mx/vende')
     expect(body).toContain('/agent')
     expect(body).toContain('/api/ucp/manifest')
   })
@@ -150,8 +150,8 @@ test.describe('Agent-readability surface — OG/social-preview sweep (Story 1.2)
     })
   }
 
-  test('/mx and /vende share the same visual OG frame (shared template) with distinct headlines', async ({ request }) => {
-    const [home, vende] = await Promise.all([request.get('/mx'), request.get('/vende')])
+  test('/mx and /mx/vende share the same visual OG frame (shared template) with distinct headlines', async ({ request }) => {
+    const [home, vende] = await Promise.all([request.get('/mx'), request.get('/mx/vende')])
     const homeAlt = ogTag(await home.text(), 'og:image:alt')
     const vendeAlt = ogTag(await vende.text(), 'og:image:alt')
     expect(homeAlt).toBeTruthy()

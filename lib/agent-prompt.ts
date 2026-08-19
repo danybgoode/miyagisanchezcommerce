@@ -133,13 +133,22 @@ export function resolveAgentContext(
     return { kind: 'account', orderRef }
   }
 
-  // Promoter: /promotor/* (close workspace, code dashboard) · /vende/promotor (resources
-  // mini-site) — checked before the general /vende* seller match below.
+  // Promoter: /promotor/* (close workspace, code dashboard) · /mx/vende/promotor
+  // (resources mini-site) — checked before the general seller match below. The `/mx`
+  // is already stripped above, so this reads the same as it did pre-prefix.
   if (seg[0] === 'promotor') return { kind: 'promoter' }
   if (seg[0] === 'vende' && seg[1] === 'promotor') return { kind: 'promoter' }
 
-  // Seller acquisition: /vende* (anchor + persona pages) · /sell* (the seller portal).
+  // Seller acquisition: /mx/vende* (anchor + persona pages) · /sell* (the portal).
   if (seg[0] === 'vende' || seg[0] === 'sell') return { kind: 'seller' }
+
+  // `/us/sell` — the US seller landing. It is matched on the RAW segments because
+  // `/us` is deliberately not stripped above (the US has no catalog namespace, and
+  // discarding its prefix would invent one). Without this it would fall through to
+  // `generic`, and the page's own "ask your AI" button would hand a US merchant the
+  // buyer prompt — which is what `/sell?market=us` used to avoid only by accident,
+  // by having `sell` as its first segment.
+  if (rawSegments[0] === 'us' && rawSegments[1] === 'sell') return { kind: 'seller' }
 
   return { kind: 'generic' }
 }
@@ -226,10 +235,10 @@ Usa el API del marketplace (UCP/MCP) para revisar el estado de un pedido, el env
     }
 
     case 'seller':
-      return `Estoy pensando en vender en Miyagi Sánchez. Abre ${PLATFORM_ORIGIN}/vende, dime qué es, cuánto pagaría vs. Mercado Libre y Shopify, qué puedo vender y cómo abro mi tienda.`
+      return `Estoy pensando en vender en Miyagi Sánchez. Abre ${PLATFORM_ORIGIN}/mx/vende, dime qué es, cuánto pagaría vs. Mercado Libre y Shopify, qué puedo vender y cómo abro mi tienda.`
 
     case 'promoter':
-      return `Quiero ser promotor de Miyagi Sánchez y ganar comisión abriendo tiendas para negocios en persona. Abre ${PLATFORM_ORIGIN}/vende/promotor, dime cómo funciona, cuánto puedo ganar y cómo empiezo.`
+      return `Quiero ser promotor de Miyagi Sánchez y ganar comisión abriendo tiendas para negocios en persona. Abre ${PLATFORM_ORIGIN}/mx/vende/promotor, dime cómo funciona, cuánto puedo ganar y cómo empiezo.`
 
     case 'generic':
     default:

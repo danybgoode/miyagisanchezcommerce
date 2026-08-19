@@ -12,12 +12,12 @@ test.describe('routeForKey / routeForNamespaceSection', () => {
     expect(routeForKey('acerca', 'intro')).toEqual({ label: 'Acerca (plataforma)', path: '/acerca' })
   })
 
-  test('sellerAcquisition fans out per-section to the real /vende/* page', () => {
-    expect(routeForKey('sellerAcquisition', 'anchor.heroTitle')).toEqual({ label: 'Vende (portada)', path: '/vende' })
-    expect(routeForKey('sellerAcquisition', 'autos.heroTitle')).toEqual({ label: 'Vende — Autos', path: '/vende/autos' })
+  test('sellerAcquisition fans out per-section to the real /mx/vende/* page', () => {
+    expect(routeForKey('sellerAcquisition', 'anchor.heroTitle')).toEqual({ label: 'Vende (portada)', path: '/mx/vende' })
+    expect(routeForKey('sellerAcquisition', 'autos.heroTitle')).toEqual({ label: 'Vende — Autos', path: '/mx/vende/autos' })
     expect(routeForKey('sellerAcquisition', 'migracionShopify.heroTitle')).toEqual({
       label: 'Vende — Migración Shopify',
-      path: '/vende/migracion/shopify',
+      path: '/mx/vende/migracion/shopify',
     })
   })
 
@@ -60,7 +60,7 @@ test.describe('routeForKey / routeForNamespaceSection', () => {
     })
   })
 
-  test('every KNOWN no-single-page case (shared /vende/* copy, site-wide config, email templates) is a real RouteInfo, not null', () => {
+  test('every KNOWN no-single-page case (shared /mx/vende/* copy, site-wide config, email templates) is a real RouteInfo, not null', () => {
     expect(routeForNamespaceSection('sellerAcquisition', 'shared')).not.toBeNull()
     expect(routeForNamespaceSection('platformTheme', 'toggle')).not.toBeNull()
     expect(routeForNamespaceSection('pwaSearch', 'title')).not.toBeNull()
@@ -71,15 +71,15 @@ test.describe('routeForKey / routeForNamespaceSection', () => {
   test('mundial, promotorMigracion, and aiChannel — the 3 sections a review pass found missing — now resolve', () => {
     expect(routeForNamespaceSection('sellerAcquisition', 'mundial')).toEqual({
       label: 'Vende — Mundial',
-      path: '/vende/mundial',
+      path: '/mx/vende/mundial',
     })
     expect(routeForNamespaceSection('sellerAcquisition', 'promotorMigracion')).toEqual({
       label: 'Vende — Promotor Migración',
-      path: '/vende/promotor/migracion',
+      path: '/mx/vende/promotor/migracion',
     })
     expect(routeForNamespaceSection('sellerAcquisition', 'aiChannel')).toEqual({
       label: 'Vende (portada)',
-      path: '/vende',
+      path: '/mx/vende',
     })
   })
 

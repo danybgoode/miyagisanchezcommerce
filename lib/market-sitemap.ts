@@ -10,18 +10,22 @@ export const PLATFORM_SITEMAP_ENTRIES = [
   { path: '/us', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/us/l', changeFrequency: 'daily', priority: 0.9 },
   { path: '/acerca', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/vende', changeFrequency: 'weekly', priority: 0.9 },
-  { path: '/vende/creadores', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/mundial', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/negocios', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/servicios', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/autos', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/migracion', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/vende/migracion/shopify', changeFrequency: 'weekly', priority: 0.7 },
-  { path: '/vende/migracion/tiendanube', changeFrequency: 'weekly', priority: 0.7 },
-  { path: '/vende/migracion/woocommerce', changeFrequency: 'weekly', priority: 0.7 },
-  { path: '/vende/migracion/bigcartel', changeFrequency: 'weekly', priority: 0.7 },
-  { path: '/sell', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/en', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/mx/vende', changeFrequency: 'weekly', priority: 0.9 },
+  { path: '/mx/vende/creadores', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/mundial', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/negocios', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/servicios', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/autos', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/migracion', changeFrequency: 'weekly', priority: 0.8 },
+  { path: '/mx/vende/migracion/shopify', changeFrequency: 'weekly', priority: 0.7 },
+  { path: '/mx/vende/migracion/tiendanube', changeFrequency: 'weekly', priority: 0.7 },
+  { path: '/mx/vende/migracion/woocommerce', changeFrequency: 'weekly', priority: 0.7 },
+  { path: '/mx/vende/migracion/bigcartel', changeFrequency: 'weekly', priority: 0.7 },
+  // `/us/sell`, not `/sell`. `/sell` is the publish wizard behind auth and its
+  // signed-out branch is now a 308 to the market landing — listing a redirect
+  // spends crawl budget rediscovering the page the sitemap could have named.
+  { path: '/us/sell', changeFrequency: 'weekly', priority: 0.9 },
 ] as const
 
 export function platformSitemapUrls(origin = 'https://miyagisanchez.com'): string[] {

@@ -4,7 +4,7 @@ import {
   buildAnchorPageConfig,
   buildCreatorPageConfig,
   buildServicesPageConfig,
-} from '../app/(shell)/vende/_components/page-config'
+} from '../app/(shell)/mx/vende/_components/page-config'
 
 // Sprint 2 (US-2) — section redesign contract at the pure config seam (api gate). The rendered facts
 // (premium grid renders in place of the social block, the worked-example table reflows, router cards

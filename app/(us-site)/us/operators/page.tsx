@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 import { recruitingV3Enabled } from '@/lib/recruiting-v3'
 import { coarseRecruitingSource } from '@/lib/recruiting-source'
 import { getOverriddenDictionary } from '@/lib/copy-overrides'
-import { SellerAcquisitionPage } from '@/app/(shell)/vende/_components/SellerAcquisitionSections'
+import { SellerAcquisitionPage } from '@/app/(shell)/mx/vende/_components/SellerAcquisitionSections'
 import { buildUsOperatorPageConfig } from './page-config'
 import { OperatorApplication } from './OperatorApplication'
 

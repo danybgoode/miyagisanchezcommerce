@@ -19,7 +19,7 @@ test.describe('analytics-gating · shouldLoadAnalytics', () => {
     expect(load('/shop/manage/pedidos')).toBe(true)
     expect(load('/checkout')).toBe(true) // checkout
     expect(load('/account/compras')).toBe(true) // account
-    expect(load('/vende')).toBe(true) // seller pitch
+    expect(load('/mx/vende')).toBe(true) // seller pitch
   })
 
   test('loads on www and a Vercel preview host', () => {

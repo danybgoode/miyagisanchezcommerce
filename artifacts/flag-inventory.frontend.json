@@ -41,7 +41,7 @@
       "criticality": "high",
       "enforcement": "both",
       "callsites": [
-        "app/(shell)/sell/page.tsx:194",
+        "app/(shell)/sell/page.tsx:114",
         "app/(shell)/shop/manage/catalogo/page.tsx:118",
         "lib/checkout-admission-flag.ts:25"
       ]
@@ -120,7 +120,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/vende/fundadoras/page.tsx:53",
+        "app/(shell)/mx/vende/fundadoras/page.tsx:53",
         "app/api/vende/fundadoras/apply/route.ts:67"
       ]
     },
@@ -131,7 +131,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/vende/fundadoras/page.tsx:55",
+        "app/(shell)/mx/vende/fundadoras/page.tsx:55",
         "app/api/growth/fundadoras/track/route.ts:68",
         "app/api/growth/track/route.ts:39",
         "app/api/vende/fundadoras/apply/route.ts:88",
@@ -348,7 +348,7 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
-        "app/(shell)/sell/page.tsx:205",
+        "app/(shell)/sell/page.tsx:125",
         "app/(shell)/shop/manage/import/page.tsx:32"
       ]
     },
@@ -424,10 +424,10 @@
       "criticality": "low",
       "enforcement": "frontend",
       "callsites": [
+        "app/(shell)/mx/vende/promotor/page.tsx:45",
         "app/(shell)/promotor/[code]/page.tsx:26",
         "app/(shell)/promotor/cerrar/page.tsx:18",
         "app/(shell)/shop/manage/canal-propio/page.tsx:54",
-        "app/(shell)/vende/promotor/page.tsx:45",
         "app/api/print/submissions/[id]/checkout/route.ts:100",
         "app/api/promoter/attribute/route.ts:22",
         "app/api/promoter/claim/link/route.ts:22",
@@ -542,7 +542,7 @@
       "enforcement": "both",
       "callsites": [
         "app/(shell)/sell/edit/[id]/page.tsx:193",
-        "app/(shell)/sell/page.tsx:190"
+        "app/(shell)/sell/page.tsx:110"
       ]
     },
     {

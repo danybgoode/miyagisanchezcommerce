@@ -29,6 +29,27 @@ const nextConfig: NextConfig = {
       { source: '/.well-known/ucp', destination: '/api/ucp/manifest' },
     ]
   },
+  async redirects() {
+    return [
+      // The Mexican seller landing moved under its market prefix when the seller
+      // landings became one-per-market (`/mx/vende` and `/us/sell`). `/vende` has
+      // been printed on flyers, bought as ad traffic and linked from outside for
+      // months, so it keeps resolving — permanently, in one hop, query preserved
+      // (Next carries the query string through a redirect, so UTM and the A/B `v`
+      // survive; that is what makes this safe for paid traffic).
+      //
+      // Here rather than in `middleware.ts` deliberately: this is a static path
+      // rule with no request state in it, `redirects()` is evaluated ahead of the
+      // middleware, and every middleware edit widens the blast radius of a file
+      // that also decides tenant channels and the subdomain paywall.
+      //
+      // `permanent: true` is a 308, which preserves the METHOD and the body. A
+      // 301 lets an intermediary rewrite a POST into a GET, and
+      // `/vende/fundadoras` posts an application form.
+      { source: '/vende', destination: '/mx/vende', permanent: true },
+      { source: '/vende/:path*', destination: '/mx/vende/:path*', permanent: true },
+    ]
+  },
   async headers() {
     return [
       {

@@ -1,5 +1,5 @@
 import type { Dictionary } from '@/lib/dictionary'
-import type { SellerAcquisitionPageConfig } from '@/app/(shell)/vende/_components/SellerAcquisitionSections'
+import type { SellerAcquisitionPageConfig } from '@/app/(shell)/mx/vende/_components/SellerAcquisitionSections'
 
 export type OperatorLandingCopy = Dictionary['partnersRecruiting']['landing']
 

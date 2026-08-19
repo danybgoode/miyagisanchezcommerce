@@ -48,16 +48,34 @@ test.describe('market route population', () => {
       const relative = path.relative(ROOT, file).replace(/\\/g, '/')
       return relative.slice(relative.indexOf(`/${market}/`) + market.length + 2)
     }
+    // CATALOG routes — the families that carry a market prefix BECAUSE they are
+    // market-scoped inventory, read from `MARKET_PREFIXED_PATH_FAMILIES` rather than
+    // restated, so the two lists cannot drift apart.
+    //
+    // Not every page under `/mx` is one. `/mx/vende` — the Mexican seller landing and
+    // its persona pages — also lives there, and it has no US mirror by design: the US
+    // landing is `/us/sell`, a different word in a different language with different
+    // money claims, not a translated adapter over one shared implementation the way
+    // `/us/l` and `/us/s` are. Scanning it here would demand `app/(us-shell)/us/vende`,
+    // a Spanish URL on the US market.
+    const isCatalogRoute = (tail: string) =>
+      MARKET_PREFIXED_PATH_FAMILIES.some((family) => tail.startsWith(`${family.slice(1)}/`))
     const mx = filesBelow('app/(shell)/mx')
       .filter((file) => file.endsWith('/page.tsx'))
       .map((file) => routeTail(file, 'mx'))
+      .filter(isCatalogRoute)
       .sort()
     const us = filesBelow('app/(us-shell)/us')
       .filter((file) => file.endsWith('/page.tsx'))
       .map((file) => routeTail(file, 'us'))
+      .filter(isCatalogRoute)
       .sort()
     expect(mx.length, 'the MX adapter scan found nothing').toBeGreaterThan(5)
     expect(us).toEqual(mx)
+    // The filter must not be what makes this pass: the seller landing IS under
+    // `app/(shell)/mx` and IS excluded, and both facts are asserted rather than assumed.
+    expect(filesBelow('app/(shell)/mx').some((file) => file.includes('/mx/vende/'))).toBe(true)
+    expect(mx.some((tail) => tail.startsWith('vende/'))).toBe(false)
   })
 
   test('the root selector is a zero-catalog static surface', () => {
@@ -96,7 +114,7 @@ test.describe('market route population', () => {
     // The three `*-site` groups are the whole static population; the language split
     // deliberately moved MX and US out of the shared selector group.
     // `app/(shell)/layout.tsx` reads `headers()`, so everything under `(shell)`
-    // renders per-request (verified live — `/vende`, `/terminos` and a 404 all return
+    // renders per-request (verified live — `/mx/vende`, `/terminos` and a 404 all return
     // `private, no-cache, no-store`). A future sibling route group with a static
     // layout WOULD escape this, so it must be added here when one appears.
     const pages = ['app/(site)', 'app/(mx-site)', 'app/(us-site)']
