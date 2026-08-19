@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { resolvedSellTarget } from './_helpers/seller-acquisition'
 
 test.describe('seller acquisition · services page', () => {
   test('anonymous services pro sees booking hooks and reaches service onboarding', async ({ page }) => {
@@ -17,10 +18,10 @@ test.describe('seller acquisition · services page', () => {
 
     await page.getByTestId('servicios-primary-cta').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/sell' &&
-      url.searchParams.get('type') === 'service' &&
-      url.searchParams.get('from') === 'servicios' &&
-      url.searchParams.get('utm_source') === 'browser-smoke'
+      resolvedSellTarget(url)?.pathname === '/sell' &&
+      resolvedSellTarget(url)?.searchParams.get('type') === 'service' &&
+      resolvedSellTarget(url)?.searchParams.get('from') === 'servicios' &&
+      resolvedSellTarget(url)?.searchParams.get('utm_source') === 'browser-smoke'
     ))
   })
 })

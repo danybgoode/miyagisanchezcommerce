@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { resolvedSellTarget } from './_helpers/seller-acquisition'
 
 test.describe('seller acquisition · Creator page', () => {
   test('anonymous creator sees the migration pitch and reaches attributed onboarding', async ({ page }) => {
@@ -16,9 +17,9 @@ test.describe('seller acquisition · Creator page', () => {
 
     await page.getByTestId('creadores-primary-cta').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/sell' &&
-      url.searchParams.get('from') === 'creadores' &&
-      url.searchParams.get('utm_source') === 'browser-smoke'
+      resolvedSellTarget(url)?.pathname === '/sell' &&
+      resolvedSellTarget(url)?.searchParams.get('from') === 'creadores' &&
+      resolvedSellTarget(url)?.searchParams.get('utm_source') === 'browser-smoke'
     ))
   })
 
@@ -36,10 +37,10 @@ test.describe('seller acquisition · Creator page', () => {
 
     await page.getByTestId('creadores-primary-cta').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/sell' &&
-      url.searchParams.get('from') === 'creadores' &&
-      url.searchParams.get('v') === 'b' &&
-      url.searchParams.get('utm_source') === 'browser-smoke'
+      resolvedSellTarget(url)?.pathname === '/sell' &&
+      resolvedSellTarget(url)?.searchParams.get('from') === 'creadores' &&
+      resolvedSellTarget(url)?.searchParams.get('v') === 'b' &&
+      resolvedSellTarget(url)?.searchParams.get('utm_source') === 'browser-smoke'
     ))
   })
 })
