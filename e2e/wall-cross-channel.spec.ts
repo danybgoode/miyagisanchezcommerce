@@ -145,12 +145,20 @@ test.describe('performance · the Wall is bounded and its resolution is batched 
     expect(mapBlock).not.toContain('await')
   })
 
-  test('Wall media is lazy and asynchronously decoded', () => {
+  test('Wall CONTENT media is lazy and asynchronously decoded', () => {
+    // Scoped to the entry's own media and its commerce thumbnails. The post
+    // head's avatar is deliberately excluded: it is ~34px, sits ABOVE the fold
+    // on the first card, and lazy-loading it would delay the one image that is
+    // always immediately visible. Sprint 8 added it, and the original assertion
+    // — "every <img> in this file" — would have forced the wrong behaviour on it.
     const card = readFileSync(path.join(ROOT, 'app/(shell)/_wall/WallEntryCard.tsx'), 'utf8')
-    const imgCount = (card.match(/<img/g) ?? []).length
-    expect(imgCount).toBeGreaterThan(0)
-    expect((card.match(/loading="lazy"/g) ?? []).length).toBe(imgCount)
-    expect((card.match(/decoding="async"/g) ?? []).length).toBe(imgCount)
+    const contentImgs = (card.match(/<img[\s\S]*?\/>/g) ?? [])
+      .filter((img) => !img.includes('wall-miniavatar'))
+    expect(contentImgs.length).toBeGreaterThan(0)
+    for (const img of contentImgs) {
+      expect(img).toContain('loading="lazy"')
+      expect(img).toContain('decoding="async"')
+    }
   })
 
   test('every Wall image carries an alt attribute — none is omitted', () => {

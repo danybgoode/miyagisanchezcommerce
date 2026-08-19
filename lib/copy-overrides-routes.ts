@@ -143,6 +143,11 @@ const BUYER_COPY_SECTIONS: Record<string, RouteInfo | null> = {
   wall: { label: 'Muro de la tienda', path: '/s/[slug]' },
   shopNav: { label: 'Navegación de la tienda', path: '(en todas las páginas de la tienda)' },
   shopSections: { label: 'Secciones de la tienda', path: '/s/[slug]/tienda' },
+  // Living Shop (epic 07, Sprint 8) — the shop's own header, hero and footer,
+  // and the supporting rail beside the Wall. Both render on every page of a
+  // merchant's shop, which is a KNOWN multi-page case rather than one route.
+  shopChrome: { label: 'Encabezado y portada de la tienda', path: '(en todas las páginas de la tienda)' },
+  panels: { label: 'Panel lateral de la tienda', path: '(en todas las páginas de la tienda)' },
 }
 
 /**

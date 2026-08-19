@@ -12,13 +12,23 @@ import type { Dictionary } from '@/lib/dictionary'
 
 export type WallCopy = Dictionary['buyerCopy']
 
-/** The card's own instant, already formatted by the caller that knows the locale. */
+/** Everything a Wall card needs that is not the entry itself. */
 export interface WallCardContext {
   copy: WallCopy
   /** `''` on an owned host, `/mx/s/<slug>` on the marketplace. */
   basePath: string
   /** BCP-47 tag for dates — the market decides it, never the server's zone. */
   htmlLang: string
+  /** The shop posts as itself: its name and avatar head every entry (Story 8.3). */
+  shopName: string
+  shopLogoUrl: string | null
+  /**
+   * ONE render-time instant, passed in rather than read per card.
+   *
+   * Reading the clock inside each card could straddle midnight mid-list and
+   * label two posts from the same minute "hoy" and "ayer".
+   */
+  now: Date
 }
 
 /**
