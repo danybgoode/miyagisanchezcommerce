@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { resolvedSellTarget } from './_helpers/seller-acquisition'
 
 test.describe('seller acquisition · anchor page', () => {
   test('anonymous visitor sees the router and reaches onboarding with attribution', async ({ page }) => {
@@ -45,9 +46,9 @@ test.describe('seller acquisition · anchor page', () => {
     await page.goto('/vende?utm_source=browser-smoke')
     await page.getByTestId('vende-primary-cta').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/sell' &&
-      url.searchParams.get('from') === 'vende' &&
-      url.searchParams.get('utm_source') === 'browser-smoke'
+      resolvedSellTarget(url)?.pathname === '/sell' &&
+      resolvedSellTarget(url)?.searchParams.get('from') === 'vende' &&
+      resolvedSellTarget(url)?.searchParams.get('utm_source') === 'browser-smoke'
     ))
   })
 })

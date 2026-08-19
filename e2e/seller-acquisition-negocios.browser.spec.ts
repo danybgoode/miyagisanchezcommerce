@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { resolvedSellTarget } from './_helpers/seller-acquisition'
 
 test.describe('seller acquisition · local business page', () => {
   test('anonymous local merchant sees the print bridge and reaches attributed onboarding', async ({ page }) => {
@@ -16,9 +17,9 @@ test.describe('seller acquisition · local business page', () => {
 
     await page.getByTestId('negocios-primary-cta').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/sell' &&
-      url.searchParams.get('from') === 'negocios' &&
-      url.searchParams.get('utm_source') === 'browser-smoke'
+      resolvedSellTarget(url)?.pathname === '/sell' &&
+      resolvedSellTarget(url)?.searchParams.get('from') === 'negocios' &&
+      resolvedSellTarget(url)?.searchParams.get('utm_source') === 'browser-smoke'
     ))
   })
 })
