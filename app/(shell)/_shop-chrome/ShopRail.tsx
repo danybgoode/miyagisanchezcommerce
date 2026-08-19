@@ -30,12 +30,29 @@ export interface RailContact {
   label: string
 }
 
+/**
+ * A commerce fact the shop can stand behind — payment rails, pickup, returns.
+ *
+ * These used to sit in a loose chip row above the product grid. They belong in
+ * the Perfil panel: they are the answer to "can I trust this shop", which is the
+ * panel's whole job, and putting them here is also what gives EVERY shop a rail.
+ * Measured on the live population — all 30 shops have at least one payment
+ * method, while only 2 have an About body — so without them the two-column shell
+ * would collapse to one column on almost every shop, which is exactly the
+ * leftover-looking layout this change exists to remove.
+ */
+export interface RailSignal {
+  key: string
+  label: string
+}
+
 export default function ShopRail({
   about,
   chips,
   collections,
   status,
   contacts,
+  signals,
   claimHref,
   copy,
 }: {
@@ -53,6 +70,8 @@ export default function ShopRail({
    * refactor causes.
    */
   contacts: RailContact[]
+  /** Payment / pickup / returns facts. See `RailSignal`. */
+  signals: RailSignal[]
   /** Present only for an UNCLAIMED shop — the "this is my shop" path. */
   claimHref: string | null
   copy: Dictionary['buyerCopy']
@@ -62,7 +81,7 @@ export default function ShopRail({
   // rendered a panel the layout had already decided did not exist.
   const panels = railPanels({
     about,
-    chipCount: chips.length,
+    chipCount: chips.length + signals.length,
     contactCount: contacts.length,
     hasClaim: !!claimHref,
     collectionCount: collections.length,
@@ -79,10 +98,13 @@ export default function ShopRail({
         <section className="shop-panel" data-label={copy['panels.labelProfile']}>
           <h2 className="shop-panel-title">{copy['panels.aboutTitle']}</h2>
           {about && <p className="shop-panel-text">{about}</p>}
-          {chips.length > 0 && (
+          {(chips.length > 0 || signals.length > 0) && (
             <ul className="shop-chips">
               {chips.map((chip) => (
                 <li key={chip.key} className="shop-chip">{copy[chipLabel[chip.key]]}</li>
+              ))}
+              {signals.map((signal) => (
+                <li key={signal.key} className="shop-chip">{signal.label}</li>
               ))}
             </ul>
           )}

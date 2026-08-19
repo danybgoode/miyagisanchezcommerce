@@ -10,7 +10,7 @@ import {
   railOccupiesTrack,
   railPanels,
 } from '../lib/shop-presentation/chrome'
-import { PRESET_RECIPES } from '../lib/shop-presentation/theme'
+import { PRESET_RECIPES, THEME_RECIPE_FIELDS } from '../lib/shop-presentation/theme'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 
@@ -136,17 +136,22 @@ test.describe('chrome · relative dates compare CALENDAR days', () => {
 })
 
 test.describe('chrome · the rail closes the empty-column defect', () => {
-  test('the second track opens only when the recipe asks AND there is content', () => {
+  test('the second track opens whenever there is something to put in it', () => {
     // 🚨 THE REGRESSION THIS PINS. Sprint 4's feed-sidebar recipe made the Wall a
     // two-column grid whose only children were the post cards, so the cards
     // tiled into columns with nothing in the second track.
-    expect(railOccupiesTrack('feed-sidebar', 3)).toBe(true)
-    expect(railOccupiesTrack('feed-sidebar', 0)).toBe(false)
-    expect(railOccupiesTrack('single', 3)).toBe(false)
+    expect(railOccupiesTrack(3)).toBe(true)
+    expect(railOccupiesTrack(0)).toBe(false)
   })
 
-  test('Retro is the recipe that asks for it', () => {
-    expect(PRESET_RECIPES.retro.wall_layout).toBe('feed-sidebar')
+  test('NO theme opts out of the shell — the layout is not a recipe choice', () => {
+    // The design concept uses one Wall-beside-rail shell for all three of its
+    // themes and overrides it for none. As a per-recipe axis it left the four
+    // presets that predate the Wall rendering a lone column.
+    for (const recipe of Object.values(PRESET_RECIPES)) {
+      expect(Object.keys(recipe)).not.toContain('wall_layout')
+    }
+    expect(THEME_RECIPE_FIELDS).not.toContain('wall_layout')
   })
 
   test('the grid is opened by the SHELL, never by the feed itself', () => {
@@ -229,7 +234,7 @@ test.describe('chrome · the count and the render agree (reported live)', () => 
       hasClaim: false, collectionCount: 0, hasStatus: false,
     })
     expect(panels.count).toBe(0)
-    expect(railOccupiesTrack('feed-sidebar', panels.count)).toBe(false)
+    expect(railOccupiesTrack(panels.count)).toBe(false)
   })
 
   test('each input alone is enough for its own panel', () => {
@@ -288,5 +293,53 @@ test.describe('chrome · exactly one cart, and it is the platform’s', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
     expect(header).not.toContain('shop-bag')
     expect(header).not.toContain('cartHref')
+  })
+})
+
+test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', () => {
+  test('a shop with only payment rails still earns a rail', () => {
+    // Measured on the live population: 30/30 shops have a payment method while
+    // only 2 have an About body and only 4 have any Wall entry. If commerce
+    // signals did not count, the two-column shell would collapse on nearly every
+    // real shop — which is the leftover-looking single column this change fixes.
+    const panels = railPanels({
+      about: null, chipCount: 2, contactCount: 0,
+      hasClaim: false, collectionCount: 0, hasStatus: false,
+    })
+    expect(panels.about).toBe(true)
+    expect(railOccupiesTrack(panels.count)).toBe(true)
+  })
+
+  test('and the WIRING actually feeds them in — both call sites', () => {
+    // The test above proves the pure function. It stayed GREEN through a
+    // mutation that stopped ShopRail passing signals at all, because a pure core
+    // is only as true as its inputs. These assert the inputs.
+    const rail = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopRail.tsx'), 'utf8')
+    expect(rail).toMatch(/chipCount:\s*chips\.length \+ signals\.length/)
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    expect(page).toMatch(/\+ railSignals\.length/)
+  })
+
+  test('the catalog shares the Wall’s column rather than a wider one', () => {
+    // The page used to step from a 42rem feed to a 72rem grid, reading as two
+    // pages stapled together. The grid now lives inside the shell's main track.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const shell = page.slice(page.indexOf('className="shop-shell"'), page.indexOf('<ShopRail'))
+    expect(shell).toContain('ClosetListingCard')
+    // And no wider container survives around it.
+    expect(shell).not.toContain('max-w-6xl')
+  })
+
+  test('the Wall keeps a reading measure; the catalog does not', () => {
+    const css = readFileSync(path.join(ROOT, 'app/globals.css'), 'utf8')
+    expect(css).toMatch(/\.shop-shell-main > \.wall-section \{[^}]*max-width:\s*42rem/)
+  })
+
+  test('trust signals moved INTO the rail, not duplicated beside it', () => {
+    // Two copies of "acepta SPEI" on one page is worse than none.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    expect(page).toContain('signals={railSignals}')
+    // The old loose chip row is gone.
+    expect(page).not.toMatch(/sellerHasMp && <span className="text-xs/)
   })
 })

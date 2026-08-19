@@ -153,18 +153,17 @@ export function railPanels(input: RailInputs): RailPanels {
 /**
  * Whether the supporting rail should occupy its own grid track.
  *
- * 🚨 THIS CLOSES A REAL DEFECT. Sprint 4's `feed-sidebar` recipe turned the Wall
- * container into a two-column grid whose only children were the post cards — so
- * at desktop width the cards tiled into two columns and nothing filled the
- * second track, because the rail it promised was never built. The rail is now a
- * real sibling, and this predicate is what the layout keys off.
+ * EVERY THEME GETS THE SHELL. The design concept uses one Wall-beside-rail
+ * layout for all of its themes and overrides it for none; making it a per-recipe
+ * choice was an invention, and it left the four presets that predate the Wall
+ * rendering a lone column that reads as a leftover. So the only question left is
+ * the honest one: is there anything to put in the rail?
  *
- * It needs BOTH: a recipe that asks for the rail, and at least one panel with
- * real content to put in it. A rail of empty panels is the same empty column
- * wearing a border.
+ * A rail of empty panels is an empty column wearing a border — which is the
+ * defect this predicate originally shipped to close.
  */
-export function railOccupiesTrack(wallLayout: string, panelCount: number): boolean {
-  return wallLayout === 'feed-sidebar' && panelCount > 0
+export function railOccupiesTrack(panelCount: number): boolean {
+  return panelCount > 0
 }
 
 /**

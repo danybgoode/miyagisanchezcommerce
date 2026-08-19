@@ -76,7 +76,6 @@ export type ThemeCorners = 'square' | 'soft' | 'round'
 export type ThemeSurface = 'flat' | 'bordered' | 'elevated'
 export type ThemeBackground = 'plain' | 'tinted' | 'paper' | 'grid' | 'dots'
 export type ThemeHero = 'none' | 'compact' | 'feature'
-export type ThemeWallLayout = 'single' | 'feed-sidebar'
 export type ThemeWallCard = 'quiet' | 'framed' | 'editorial'
 export type ThemeProductCard = 'quiet' | 'framed' | 'tile'
 export type ThemeIdentity = 'compact' | 'standard' | 'prominent'
@@ -101,7 +100,6 @@ export interface ThemeRecipe {
   surface: ThemeSurface
   background: ThemeBackground
   hero: ThemeHero
-  wall_layout: ThemeWallLayout
   wall_card: ThemeWallCard
   product_card: ThemeProductCard
   identity: ThemeIdentity

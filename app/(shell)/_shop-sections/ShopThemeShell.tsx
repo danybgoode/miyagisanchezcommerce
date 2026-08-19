@@ -33,7 +33,6 @@ export default function ShopThemeShell({
       style={{ '--shop-accent': accent, ...theme.variables } as React.CSSProperties}
       data-shop-surface={theme.recipe.surface}
       data-shop-background={theme.recipe.background}
-      data-shop-wall={theme.recipe.wall_layout}
       data-shop-identity={theme.recipe.identity}
       data-shop-preset={theme.presetAttribute || undefined}
     >

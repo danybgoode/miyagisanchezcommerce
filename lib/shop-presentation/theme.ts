@@ -35,7 +35,6 @@ import type {
   ThemeSurface,
   ThemeBackground,
   ThemeHero,
-  ThemeWallLayout,
   ThemeWallCard,
   ThemeProductCard,
   ThemeIdentity,
@@ -43,6 +42,13 @@ import type {
 
 /**
  * The closed vocabulary a recipe is written in.
+ *
+ * NOTE there is no `wall_layout`. The design concept
+ * (`references/miyagi-sanchez-living-shop-concepts.html`) uses ONE shell — Wall
+ * beside a supporting rail — for all three of its themes; nothing overrides it
+ * per theme. Making the layout a per-recipe choice was an invention, and it left
+ * the four presets that predate the Wall rendering a lone column, which reads as
+ * a leftover rather than a decision. Every theme now gets the shell.
  *
  * Recipes are AUTHORED HERE, one per preset — they are not seller input any
  * more. The enums stay because they keep each recipe honest: a preset cannot
@@ -56,7 +62,6 @@ export const THEME_ENUMS = {
   surface: ['flat', 'bordered', 'elevated'] as readonly ThemeSurface[],
   background: ['plain', 'tinted', 'paper', 'grid', 'dots'] as readonly ThemeBackground[],
   hero: ['none', 'compact', 'feature'] as readonly ThemeHero[],
-  wall_layout: ['single', 'feed-sidebar'] as readonly ThemeWallLayout[],
   wall_card: ['quiet', 'framed', 'editorial'] as readonly ThemeWallCard[],
   product_card: ['quiet', 'framed', 'tile'] as readonly ThemeProductCard[],
   identity: ['compact', 'standard', 'prominent'] as readonly ThemeIdentity[],
@@ -65,7 +70,7 @@ export const THEME_ENUMS = {
 /** Every axis a recipe has. Asserted complete by spec, so a new one cannot be forgotten. */
 export const THEME_RECIPE_FIELDS = [
   'typography', 'density', 'corners', 'surface', 'background',
-  'hero', 'wall_layout', 'wall_card', 'product_card', 'identity',
+  'hero', 'wall_card', 'product_card', 'identity',
 ] as const
 
 /** No preset selected — today's storefront, unchanged. */
@@ -76,7 +81,6 @@ export const DEFAULT_RECIPE: ThemeRecipe = Object.freeze({
   surface: 'flat',
   background: 'plain',
   hero: 'compact',
-  wall_layout: 'single',
   wall_card: 'quiet',
   product_card: 'quiet',
   identity: 'standard',
@@ -112,7 +116,6 @@ export const PRESET_RECIPES: Record<string, ThemeRecipe> = Object.freeze({
     surface: 'bordered',
     background: 'tinted',
     hero: 'compact',
-    wall_layout: 'feed-sidebar',
     wall_card: 'framed',
     product_card: 'framed',
     identity: 'prominent',

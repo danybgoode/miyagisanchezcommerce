@@ -38,7 +38,7 @@ export default function WallFeed({
   // broken" must not look the same.
   if (shown.length === 0) {
     return (
-      <section aria-labelledby="wall-empty" className="max-w-2xl mx-auto px-4 pb-10">
+      <section aria-labelledby="wall-empty" className="wall-section pb-10">
         <div className="border border-dashed border-[var(--color-border)] rounded-xl p-8 text-center">
           <h2 id="wall-empty" className="text-base font-semibold m-0">{ctx.copy['wall.emptyTitle']}</h2>
           <p className="text-sm text-[var(--color-muted)] mt-1.5 mb-4">{ctx.copy['wall.emptyBody']}</p>
@@ -55,7 +55,7 @@ export default function WallFeed({
   }
 
   return (
-    <section aria-labelledby="wall-heading" className="max-w-2xl mx-auto px-4 pb-10">
+    <section aria-labelledby="wall-heading" className="wall-section pb-10">
       {/* A real, visible heading: on the homepage the Wall sits above the product
           grid, and an unlabelled stack of cards between the hero and the catalog
           reads as chrome. It is also the landmark a screen reader announces. */}
