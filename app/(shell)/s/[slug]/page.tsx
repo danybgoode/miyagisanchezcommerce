@@ -312,7 +312,7 @@ export async function ShopPage({
   // ONE derivation, shared with ShopRail — see `railPanels`.
   const railPanelCount = railPanels({
     about: aboutBody,
-    chipCount: [shop.verified === true, !!shipping.envia_enabled, hasPickup].filter(Boolean).length + railSignals.length,
+    chipCount: [shop.verified === true, !!shipping.envia_enabled].filter(Boolean).length + railSignals.length,
     contactCount: railContacts.length,
     hasClaim: !shop.clerk_user_id,
     collectionCount: railCollections.length,
@@ -455,7 +455,12 @@ export async function ShopPage({
         chips={trustChips({
           verified: shop.verified === true,
           shipsNationwide: !!shipping.envia_enabled,
-          localPickup: hasPickup,
+          // NOT `hasPickup`: local pickup already travels as a commerce signal
+          // below, and feeding it to both put the same claim in the same panel
+          // twice. The signal is the better of the two — it names the pickup
+          // SPOT where the shop configured one ("Recolección local: Roma Norte"),
+          // while the chip could only say that pickup exists.
+          localPickup: false,
         })}
         collections={railCollections}
         status={shopStatus}

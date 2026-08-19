@@ -345,6 +345,21 @@ test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', (
   })
 })
 
+test.describe('chrome · no fact is claimed twice in one panel', () => {
+  test('local pickup travels as a signal OR a chip, never both', () => {
+    // Found by the codex cross-family review: `hasPickup` fed BOTH `trustChips`
+    // and `railSignals`, and the Perfil panel renders both arrays — so a shop
+    // with pickup said so twice, side by side. The signal wins because it can
+    // name the actual spot ("Recolección local: Roma Norte"); the chip could
+    // only say pickup exists.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const chipsCall = page.slice(page.indexOf('chips={trustChips({'), page.indexOf('collections={railCollections}'))
+    expect(chipsCall).not.toMatch(/localPickup:\s*hasPickup/)
+    // And the signal really is still there — the fix must not drop the fact.
+    expect(page).toMatch(/key: 'pickup'/)
+  })
+})
+
 test.describe('chrome · a product is NOT shop-scoped (reported live: 404)', () => {
   test('on the marketplace a PDP href is /mx/l/<id>, never /mx/s/<slug>/l/<id>', () => {
     // 🚨 THE REPORTED BUG. Every product on /mx/s/el-manchon/tienda 404'd while
