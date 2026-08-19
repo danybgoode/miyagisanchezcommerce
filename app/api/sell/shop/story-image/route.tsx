@@ -11,7 +11,7 @@ import { PLATFORM_OG_COLORS } from '@/lib/platform-theme'
  * "Para tu historia" — a downloadable, vertical (Instagram-Story-ratio) share
  * image for the current seller's own shop (onboarding three-doors Sprint 3 ·
  * Story 3.2). Follows the same `ImageResponse` pattern as
- * app/(shell)/vende/_components/SellerAcquisitionOgImage.tsx and
+ * app/(shell)/mx/vende/_components/SellerAcquisitionOgImage.tsx and
  * app/api/splash/route.tsx — server-rendered, no canvas, no new dependency.
  * Seller-scoped: reads the caller's OWN shop from Clerk auth, never an
  * arbitrary slug param (nothing here is guessable/leakable to other sellers).

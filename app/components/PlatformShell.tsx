@@ -10,6 +10,7 @@ import PlatformThemeToggle from '@/app/components/PlatformThemeToggle'
 import CartButton from '@/app/components/CartButton'
 import { getDictionary } from '@/lib/dictionary'
 import { marketBasePath, type MarketCode } from '@/lib/markets'
+import { sellerLandingPath } from '@/lib/seller-acquisition'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 
@@ -40,6 +41,12 @@ export default async function PlatformShell({
   const copy = dict.buyerShell
   const marketHome = marketBasePath(market)
   const browsePath = `${marketHome}/l`
+  // The seller pitch page for THIS market. Every one of the three signed-out sell
+  // affordances below (mobile header, desktop header, footer) used to be a literal
+  // `/vende` — so the English US chrome sent a US merchant to the Spanish Mexican
+  // landing, in every viewport, on every page that renders this shell. The chrome
+  // already knows its market; the destination now follows from it.
+  const sellerLanding = sellerLandingPath(market)
   return (
     <>
       {/* ── Sticky header ── */}
@@ -145,7 +152,7 @@ export default async function PlatformShell({
                 </Link>
               </AuthShow>
               <AuthShow when="signed-out">
-                <Link href="/vende" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
+                <Link href={sellerLanding} className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
                   {copy.sell}
                 </Link>
               </AuthShow>
@@ -293,7 +300,7 @@ export default async function PlatformShell({
                     variant="desktop"
                     initialEligible={platformThemeEligible}
                   />
-                  <Link href="/vende" className="btn btn-primary btn-sm">
+                  <Link href={sellerLanding} className="btn btn-primary btn-sm">
                     {copy.publishFree}
                   </Link>
                   <Link
@@ -326,7 +333,7 @@ export default async function PlatformShell({
           <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{copy.footer.copyright}</span>
           <Link href={browsePath} style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.listings}</Link>
           <Link href="/vecindario" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.neighborhood}</Link>
-          <Link href="/vende" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.sellFree}</Link>
+          <Link href={sellerLanding} style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.sellFree}</Link>
           <AuthShow when="signed-out">
             <Link href="/sign-up" data-testid="footer-signup" style={{ fontSize: 12, color: 'var(--fg-muted)', textDecoration: 'none' }} className="hover:text-[var(--fg)]">{copy.footer.createAccount}</Link>
           </AuthShow>

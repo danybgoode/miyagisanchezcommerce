@@ -10,12 +10,7 @@ import { isEnabled } from '@/lib/flags'
 import { getTenantIntake } from '@/lib/tenant-intake'
 import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 import { SELLER_LOCALE_COOKIE, resolveSellerLocale, sellerCopyBoundaryNeeded } from '@/lib/seller-locale'
-import type { Metadata } from 'next'
-import en from '@/locales/en.json'
-import { SITE_ORIGIN } from '@/lib/market-seo'
-import { getOverriddenDictionary } from '@/lib/copy-overrides'
-import { SellerAcquisitionPage } from '@/app/(shell)/vende/_components/SellerAcquisitionSections'
-import { buildUsMarketPageConfig } from '@/app/(shell)/vende/_components/page-config'
+import { sellerLandingRedirectPath } from '@/lib/seller-acquisition'
 
 // First-run, agent-native path (Onboarding 0, Sprint 2). Offered to signed-in
 // users who don't have a shop yet; the manual <SellWizard> stays as the no-agent
@@ -43,39 +38,23 @@ function AgentSetupNudge() {
 }
 
 /**
- * `/sell` serves two audiences off one URL, so its metadata cannot be a constant:
- * `?market=us` is the US recruiting landing (indexable, English, its own title and
- * description), everything else is the publish wizard it has always been.
+ * `/sell` is the publish wizard, and nothing else.
+ *
+ * It used to serve two audiences off one URL: signed-out it rendered a marketing
+ * hero (Mexican by default, the US recruiting landing when the request happened to
+ * carry `?market=us`), signed-in it rendered the wizard. That made the most
+ * guessable URL on the site a page in the wrong language for half its visitors, and
+ * gave the US landing no address of its own. Both landings now have real URLs
+ * (`/mx/vende`, `/us/sell`) and the signed-out branch is a redirect to whichever
+ * one belongs to the visitor's market.
+ *
+ * So the metadata is a constant again, and it is `noindex`: everything here is
+ * behind an account, and the only thing a crawler can reach is the redirect.
  */
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>
-}): Promise<Metadata> {
-  const params = (await searchParams) ?? {}
-  const marketParam = Array.isArray(params.market) ? params.market[0] : params.market
-  if (resolveSellerSignupMarket(marketParam) !== 'us') {
-    return {
-      title: 'Publicar anuncio — Miyagi Sánchez',
-      description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
-    }
-  }
-
-  const meta = en.sellerAcquisition.us.metadata
-  return {
-    title: meta.title,
-    description: meta.description,
-    alternates: { canonical: `${SITE_ORIGIN}/sell?market=us` },
-    openGraph: {
-      type: 'website',
-      locale: 'en_US',
-      url: `${SITE_ORIGIN}/sell?market=us`,
-      siteName: 'Miyagi Sánchez',
-      title: meta.title,
-      description: meta.description,
-    },
-    twitter: { card: 'summary_large_image', title: meta.title, description: meta.description },
-  }
+export const metadata = {
+  title: 'Publicar anuncio — Miyagi Sánchez',
+  description: 'Publica tu producto, servicio o renta en segundos. Sin comisiones, sin complicaciones.',
+  robots: { index: false, follow: true },
 }
 
 export default async function SellPage({
@@ -106,75 +85,16 @@ export default async function SellPage({
   const user = await currentUser()
 
   if (!user) {
-    const content = (
-      <div className="max-w-2xl mx-auto px-4 py-16">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <span className="badge badge-mono" style={{ marginBottom: 16, display: 'inline-block' }}>
-            0% comisión
-          </span>
-          <h1 className="t-h1" style={{ marginBottom: 12 }}>
-            Vende en Miyagi Sánchez.
-          </h1>
-          <p className="t-lead" style={{ maxWidth: 400, margin: '0 auto 0' }}>
-            Crea tu tienda en minutos. Tus productos, tus reglas, tu ganancia completa.
-          </p>
-        </div>
-
-        {/* Feature cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          {[
-            {
-              icon: 'iconoir-flash',
-              title: 'Publicación instantánea',
-              desc: 'Tu anuncio aparece de inmediato, sin esperar aprobación.',
-            },
-            {
-              icon: 'iconoir-percentage',
-              title: '0% comisión',
-              desc: 'Todo lo que cobres es tuyo. La plataforma no cobra.',
-            },
-            {
-              icon: 'iconoir-shield-check',
-              title: 'Pagos protegidos',
-              desc: 'Activa Compra Protegida y tus clientes pagan con confianza.',
-            },
-          ].map(f => (
-            <div key={f.title} className="card-panel" style={{ padding: '20px 16px', textAlign: 'center' }}>
-              <i className={f.icon} style={{ fontSize: 28, color: 'var(--accent)', display: 'block', marginBottom: 10 }} />
-              <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg)', marginBottom: 4 }}>{f.title}</p>
-              <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5 }}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-          <Link href="/sign-up" className="btn btn-primary btn-lg no-underline w-full sm:w-auto text-center">
-            Crear cuenta gratis →
-          </Link>
-          <Link href="/sign-in" className="btn btn-secondary btn-lg no-underline w-full sm:w-auto text-center">
-            Ya tengo cuenta
-          </Link>
-        </div>
-
-        <p style={{ fontSize: 11, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 20 }}>
-          Al registrarte aceptas los{' '}
-          <Link href="/terminos" style={{ textDecoration: 'underline', color: 'inherit' }}>Términos de uso</Link>
-          {' '}y la{' '}
-          <Link href="/privacidad" style={{ textDecoration: 'underline', color: 'inherit' }}>Política de privacidad</Link>.
-        </p>
-      </div>
-    )
-    // A signed-out visitor whose validated signup market is US gets the US
-    // recruiting landing — authored English on US money/delivery truth, NOT the
-    // Mexican hero pushed through the seller-copy boundary. The boundary is a
-    // portal-chrome transform; a recruiting page's claims have to be written,
-    // because "0% comisión · SPEI · Mercado Pago" is not true in the US however
-    // well it is translated.
-    if (signupMarket !== 'us') return content
-    const ui = (await getOverriddenDictionary(locale)).sellerAcquisition
-    return <SellerAcquisitionPage config={buildUsMarketPageConfig(ui, params)} />
+    // A visitor who cannot publish yet belongs on the pitch page for their market,
+    // not on a thinner copy of it wearing the wizard's URL. `/mx/vende` in Spanish,
+    // `/us/sell` in English, with the campaign attribution carried across so the
+    // hop does not cost the landing its `from`, its A/B variant or its UTM.
+    //
+    // A redirect and not a render: two pages that say the same thing drift, and the
+    // one nobody links to drifts first — this branch had been promising "0% comisión ·
+    // SPEI · Mercado Pago" to US visitors before PR 389, and nothing caught it because
+    // nothing pointed at it.
+    redirect(sellerLandingRedirectPath(signupMarket, params))
   }
 
   // Medusa is the source of truth for sellers (same as /shop/manage). Checking it

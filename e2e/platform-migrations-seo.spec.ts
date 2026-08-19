@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { buildMigracionHubPageConfig } from '../app/(shell)/vende/_components/page-config'
+import { buildMigracionHubPageConfig } from '../app/(shell)/mx/vende/_components/page-config'
 
 const BASE_URL = 'https://miyagisanchez.com'
 
@@ -17,11 +17,11 @@ const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url
 }
 
 const migrationPages = [
-  { path: '/vende/migracion', meta: es.sellerAcquisition.migracion.metadata },
-  { path: '/vende/migracion/shopify', meta: es.sellerAcquisition.migracionShopify.metadata },
-  { path: '/vende/migracion/tiendanube', meta: es.sellerAcquisition.migracionTiendanube.metadata },
-  { path: '/vende/migracion/woocommerce', meta: es.sellerAcquisition.migracionWoocommerce.metadata },
-  { path: '/vende/migracion/bigcartel', meta: es.sellerAcquisition.migracionBigcartel.metadata },
+  { path: '/mx/vende/migracion', meta: es.sellerAcquisition.migracion.metadata },
+  { path: '/mx/vende/migracion/shopify', meta: es.sellerAcquisition.migracionShopify.metadata },
+  { path: '/mx/vende/migracion/tiendanube', meta: es.sellerAcquisition.migracionTiendanube.metadata },
+  { path: '/mx/vende/migracion/woocommerce', meta: es.sellerAcquisition.migracionWoocommerce.metadata },
+  { path: '/mx/vende/migracion/bigcartel', meta: es.sellerAcquisition.migracionBigcartel.metadata },
 ]
 
 // Mirrors e2e/seller-acquisition-seo.spec.ts exactly — same shell, same assertions
@@ -72,11 +72,11 @@ test.describe('platform migrations · SEO and OpenGraph', () => {
   })
 
   test('the hub page links to all 4 platform pages', async ({ request }) => {
-    const res = await request.get('/vende/migracion')
+    const res = await request.get('/mx/vende/migracion')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     for (const platform of ['shopify', 'tiendanube', 'woocommerce', 'bigcartel']) {
-      expect(html).toContain(`/vende/migracion/${platform}`)
+      expect(html).toContain(`/mx/vende/migracion/${platform}`)
     }
   })
 
@@ -90,17 +90,17 @@ test.describe('platform migrations · SEO and OpenGraph', () => {
     const config = buildMigracionHubPageConfig(copy, {})
     const badCard = config.personaRouter!.cards.find((c) => c.testId === 'migracion-router-tiendanube-typo')
     expect(badCard).toBeTruthy()
-    expect(badCard!.href).toBe('/vende/migracion')
+    expect(badCard!.href).toBe('/mx/vende/migracion')
   })
 
   test('the Shopify page links into the real, already-shipped connector flow', async ({ request }) => {
-    const res = await request.get('/vende/migracion/shopify')
+    const res = await request.get('/mx/vende/migracion/shopify')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
     expect(html).toContain('/shop/manage/shopify/import')
   })
 
-  for (const path of ['/vende/migracion/tiendanube', '/vende/migracion/woocommerce', '/vende/migracion/bigcartel']) {
+  for (const path of ['/mx/vende/migracion/tiendanube', '/mx/vende/migracion/woocommerce', '/mx/vende/migracion/bigcartel']) {
     test(`${path} links into the shipped importer, not a dead/new route`, async ({ request }) => {
       const res = await request.get(path)
       expect(res.ok()).toBeTruthy()
@@ -111,20 +111,20 @@ test.describe('platform migrations · SEO and OpenGraph', () => {
 })
 
 test.describe('platform migrations · negocios/servicios migration callout (US-3.2)', () => {
-  for (const path of ['/vende/negocios', '/vende/servicios']) {
-    test(`${path} nudges a merchant coming from another platform toward /vende/migracion`, async ({ request }) => {
+  for (const path of ['/mx/vende/negocios', '/mx/vende/servicios']) {
+    test(`${path} nudges a merchant coming from another platform toward /mx/vende/migracion`, async ({ request }) => {
       const res = await request.get(path)
       expect(res.ok()).toBeTruthy()
       const html = await res.text()
-      expect(html).toContain('/vende/migracion')
+      expect(html).toContain('/mx/vende/migracion')
       expect(html).toContain(es.sellerAcquisition.shared.migrationCallout.title)
     })
   }
 })
 
 test.describe('platform migrations · consultant runbook (US-3.2)', () => {
-  test('GET /vende/promotor/migracion → 200 printable, noindex runbook', async ({ request }) => {
-    const res = await request.get('/vende/promotor/migracion', { headers: { Accept: 'text/html' } })
+  test('GET /mx/vende/promotor/migracion → 200 printable, noindex runbook', async ({ request }) => {
+    const res = await request.get('/mx/vende/promotor/migracion', { headers: { Accept: 'text/html' } })
     expect(res.status()).toBe(200)
     const html = await res.text()
     expect(html).toContain('Guardar como PDF') // the .no-print toolbar hint, same as sell-sheet
@@ -132,11 +132,11 @@ test.describe('platform migrations · consultant runbook (US-3.2)', () => {
   })
 
   test('the runbook links back to the promoter sell-sheet, and vice versa', async ({ request }) => {
-    const runbook = await (await request.get('/vende/promotor/migracion')).text()
-    expect(runbook).toContain('/vende/promotor/sell-sheet')
+    const runbook = await (await request.get('/mx/vende/promotor/migracion')).text()
+    expect(runbook).toContain('/mx/vende/promotor/sell-sheet')
 
-    const sellSheet = await (await request.get('/vende/promotor/sell-sheet')).text()
-    expect(sellSheet).toContain('/vende/promotor/migracion')
+    const sellSheet = await (await request.get('/mx/vende/promotor/sell-sheet')).text()
+    expect(sellSheet).toContain('/mx/vende/promotor/migracion')
   })
 
   // platform-migrations S2's own review found a hardcoded-price bug (the estimator's
@@ -144,7 +144,7 @@ test.describe('platform migrations · consultant runbook (US-3.2)', () => {
   // uses). Nothing in this repo lints for a hardcoded price in JSX automatically —
   // guard it at the source level: both pages must call the live reader, and must not
   // hardcode the epic-doc's $999 reference price as a bare literal.
-  for (const relPath of ['app/(shell)/vende/promotor/migracion/page.tsx', 'app/(shell)/vende/promotor/sell-sheet/page.tsx']) {
+  for (const relPath of ['app/(shell)/mx/vende/promotor/migracion/page.tsx', 'app/(shell)/mx/vende/promotor/sell-sheet/page.tsx']) {
     test(`${relPath} sources the migration price from getPromoterSkuPrices(), not a literal`, () => {
       const source = readFileSync(new URL(`../${relPath}`, import.meta.url), 'utf8')
       expect(source).toContain('getPromoterSkuPrices')

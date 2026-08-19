@@ -553,24 +553,10 @@
     {
       "file": "app/(shell)/sell/page.tsx",
       "keys": [
-        "s_79fa3015414d4671",
         "s_af1dc76965b004b4",
-        "s_b5f298524036a777",
-        "s_868d233869625584",
-        "s_734db6fd03728c01",
-        "s_bfc73eb850166663",
-        "s_f834c4b341fb02fb",
-        "s_298dfe180a7fba91",
         "s_321ac03c9b5feecc",
-        "s_e7dd9078eb6dc1d1",
         "s_095d56431946b163",
         "s_7689cb849a11730f",
-        "s_9e6a39ba28d793ff",
-        "s_93cfe03920f8e089",
-        "s_66f9c13075fef371",
-        "s_e7351b8e0fb84afb",
-        "s_e0d523cfb867289b",
-        "s_b6ca6ff82099e813",
         "s_e4a9efcc07867f69"
       ]
     },
@@ -4227,10 +4213,6 @@
       "source": "Si no tienes un sistema técnico,"
     },
     {
-      "key": "s_298dfe180a7fba91",
-      "source": "Política de privacidad"
-    },
-    {
       "key": "s_298e244603d3adfe",
       "source": "Contenido exclusivo — Mi tienda"
     },
@@ -6011,10 +5993,6 @@
       "source": "Puedes agregar la verificación después desde tu panel de gestión."
     },
     {
-      "key": "s_66f9c13075fef371",
-      "source": "Términos de uso"
-    },
-    {
       "key": "s_6715627a557bd591",
       "source": "Subdominio propio activo"
     },
@@ -6423,10 +6401,6 @@
       "source": "Como es un subdominio, usa Nombre/Host"
     },
     {
-      "key": "s_734db6fd03728c01",
-      "source": "Crea tu tienda en minutos. Tus productos, tus reglas, tu ganancia completa."
-    },
-    {
       "key": "s_736c23b8d6db8a19",
       "source": "Tu nombre o razón social"
     },
@@ -6673,10 +6647,6 @@
     {
       "key": "s_79e0f856a11bc5bb",
       "source": "Copia este prompt en tu IA (Claude u otro cliente MCP), junto con tu token de abajo, y tu agente podrá pulir, fijar precios, promover, resurtir y mantener tu tienda — en tu idioma."
-    },
-    {
-      "key": "s_79fa3015414d4671",
-      "source": "0% comisión"
     },
     {
       "key": "s_7a37f9b594ac3e5d",
@@ -7013,10 +6983,6 @@
     {
       "key": "s_8678b7516627b4e8",
       "source": "SSL activado automáticamente. Verás aquí los links a tus dos canales."
-    },
-    {
-      "key": "s_868d233869625584",
-      "source": "Al registrarte aceptas los"
     },
     {
       "key": "s_86ae5f4846468541",
@@ -7439,10 +7405,6 @@
       "source": "Fecha"
     },
     {
-      "key": "s_93cfe03920f8e089",
-      "source": "Tu anuncio aparece de inmediato, sin esperar aprobación."
-    },
-    {
       "key": "s_9415ac2416c5719d",
       "source": "Enviando…"
     },
@@ -7733,10 +7695,6 @@
     {
       "key": "s_9e3330b289114cd5",
       "source": "El título es obligatorio."
-    },
-    {
-      "key": "s_9e6a39ba28d793ff",
-      "source": "Todo lo que cobres es tuyo. La plataforma no cobra."
     },
     {
       "key": "s_9e6ff9c1a1f107fd",
@@ -8527,10 +8485,6 @@
       "source": "Precio ("
     },
     {
-      "key": "s_b5f298524036a777",
-      "source": "Activa Compra Protegida y tus clientes pagan con confianza."
-    },
-    {
       "key": "s_b5fa51d564a9d880",
       "source": "Listo"
     },
@@ -8557,10 +8511,6 @@
     {
       "key": "s_b6b49b735c9e32bd",
       "source": "Cuéntale a tus compradores qué ofreces, tu especialidad, años de experiencia..."
-    },
-    {
-      "key": "s_b6ca6ff82099e813",
-      "source": "y la"
     },
     {
       "key": "s_b6f416b2137a0c91",
@@ -8829,10 +8779,6 @@
     {
       "key": "s_bfc2d16235868e7c",
       "source": "Limpiar filtros"
-    },
-    {
-      "key": "s_bfc73eb850166663",
-      "source": "Crear cuenta gratis →"
     },
     {
       "key": "s_bffdd9d3a5098594",
@@ -9903,10 +9849,6 @@
       "source": "¿No tienes dominio?"
     },
     {
-      "key": "s_e0d523cfb867289b",
-      "source": "Ya tengo cuenta"
-    },
-    {
       "key": "s_e0d8e5b42b0a2879",
       "source": "Error al cargar colecciones."
     },
@@ -10101,10 +10043,6 @@
     {
       "key": "s_e7333b5a9a20aa29",
       "source": "Configuración en 2 minutos"
-    },
-    {
-      "key": "s_e7351b8e0fb84afb",
-      "source": "Vende en Miyagi Sánchez."
     },
     {
       "key": "s_e73a83c8f6bafdff",
@@ -10609,10 +10547,6 @@
     {
       "key": "s_f8320d7048d87951",
       "source": "Hola,"
-    },
-    {
-      "key": "s_f834c4b341fb02fb",
-      "source": "Pagos protegidos"
     },
     {
       "key": "s_f88ba99c9b342767",

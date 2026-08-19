@@ -5,7 +5,7 @@ test.describe('seller acquisition · services page', () => {
   test('anonymous services pro sees booking hooks and reaches service onboarding', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const res = await page.goto('/vende/servicios?utm_source=browser-smoke')
+    const res = await page.goto('/mx/vende/servicios?utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(

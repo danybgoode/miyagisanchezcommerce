@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { expect, test } from '@playwright/test'
 import { resolveSellerSignupMarket } from '../lib/seller-signup-market'
+import { sellerLandingPath } from '../lib/seller-acquisition'
 
 /**
  * us-marketplace S5.2 (D17) — the signup handoff carries the intended market into the
@@ -86,9 +87,29 @@ test.describe('the US has a seller entry at all', () => {
   })
 
   test('a US visitor is not sent to the Spanish pitch page', () => {
-    // `/vende` is the es-MX recruitment page. Sending a US merchant there would be a
-    // language mismatch at the very first step of onboarding.
+    // The property, stated against the function that decides it rather than against
+    // the shape of one call site. `/mx/vende` is the es-MX recruitment page; sending a
+    // US merchant there is a language mismatch at the very first step of onboarding.
+    //
+    // This used to pin the literal ternary `market === 'mx' ? … : …` in the market
+    // home's source. That passed for exactly as long as the destinations lived in that
+    // one expression — and the same bug it was written to catch was live the whole time
+    // in `PlatformShell`, whose header, mobile and footer CTAs were a hardcoded
+    // `/vende` in BOTH markets. A source-shape assertion guards a spelling; this guards
+    // the rule, and every call site now reads it from here.
+    expect(sellerLandingPath('mx')).toBe('/mx/vende')
+    expect(sellerLandingPath('us')).toBe('/us/sell')
+    expect(sellerLandingPath('us')).not.toBe(sellerLandingPath('mx'))
+  })
+
+  test('every signed-out sell CTA in the shared chrome is market-derived, not a literal', () => {
+    const shell = source('app/components/PlatformShell.tsx')
+    // Three affordances render a signed-out sell CTA — mobile header, desktop header,
+    // footer. All three read the same resolved landing.
+    expect(shell.match(/href=\{sellerLanding\}/g) ?? []).toHaveLength(3)
+    expect(shell).not.toMatch(/href="\/vende"/)
+
     const home = source('app/(mx-site)/mx/page.tsx')
-    expect(home).toMatch(/market === 'mx' \? '\/vende' : '\/sell\?market=us'/)
+    expect(home).toMatch(/href=\{sellerLandingPath\(market\)\}/)
   })
 })

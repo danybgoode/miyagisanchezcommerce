@@ -42,30 +42,32 @@ export interface RouteInfo {
 }
 
 const SELLER_ACQUISITION_SECTIONS: Record<string, RouteInfo | null> = {
-  anchor: { label: 'Vende (portada)', path: '/vende' },
-  // Rendered as part of the /vende portada (`buildAnchorPageConfig` reads
-  // `copy.aiChannel` directly, `app/(shell)/vende/_components/page-config.ts`)
+  anchor: { label: 'Vende (portada)', path: '/mx/vende' },
+  // Rendered as part of the /mx/vende portada (`buildAnchorPageConfig` reads
+  // `copy.aiChannel` directly, `app/(shell)/mx/vende/_components/page-config.ts`)
   // — same page as `anchor`, not a separate one.
-  aiChannel: { label: 'Vende (portada)', path: '/vende' },
-  creadores: { label: 'Vende — Creadores', path: '/vende/creadores' },
-  negocios: { label: 'Vende — Negocios', path: '/vende/negocios' },
-  fundadoras: { label: 'Vende — Fundadoras', path: '/vende/fundadoras' },
-  servicios: { label: 'Vende — Servicios', path: '/vende/servicios' },
-  autos: { label: 'Vende — Autos', path: '/vende/autos' },
-  mundial: { label: 'Vende — Mundial', path: '/vende/mundial' },
-  migracion: { label: 'Vende — Migración (hub)', path: '/vende/migracion' },
-  migracionShopify: { label: 'Vende — Migración Shopify', path: '/vende/migracion/shopify' },
-  migracionTiendanube: { label: 'Vende — Migración Tiendanube', path: '/vende/migracion/tiendanube' },
-  migracionWoocommerce: { label: 'Vende — Migración WooCommerce', path: '/vende/migracion/woocommerce' },
-  migracionBigcartel: { label: 'Vende — Migración BigCartel', path: '/vende/migracion/bigcartel' },
-  // The US recruiting landing is the signed-out face of /sell, not a /vende page
-  // — same section system, different market and destination.
-  us: { label: 'Sell — Estados Unidos', path: '/sell?market=us' },
-  promotor: { label: 'Vende — Promotor', path: '/vende/promotor' },
-  promotorMigracion: { label: 'Vende — Promotor Migración', path: '/vende/promotor/migracion' },
+  aiChannel: { label: 'Vende (portada)', path: '/mx/vende' },
+  creadores: { label: 'Vende — Creadores', path: '/mx/vende/creadores' },
+  negocios: { label: 'Vende — Negocios', path: '/mx/vende/negocios' },
+  fundadoras: { label: 'Vende — Fundadoras', path: '/mx/vende/fundadoras' },
+  servicios: { label: 'Vende — Servicios', path: '/mx/vende/servicios' },
+  autos: { label: 'Vende — Autos', path: '/mx/vende/autos' },
+  mundial: { label: 'Vende — Mundial', path: '/mx/vende/mundial' },
+  migracion: { label: 'Vende — Migración (hub)', path: '/mx/vende/migracion' },
+  migracionShopify: { label: 'Vende — Migración Shopify', path: '/mx/vende/migracion/shopify' },
+  migracionTiendanube: { label: 'Vende — Migración Tiendanube', path: '/mx/vende/migracion/tiendanube' },
+  migracionWoocommerce: { label: 'Vende — Migración WooCommerce', path: '/mx/vende/migracion/woocommerce' },
+  migracionBigcartel: { label: 'Vende — Migración BigCartel', path: '/mx/vende/migracion/bigcartel' },
+  // The US recruiting landing is its own page under the US market prefix — same
+  // section system, different market, different language. It used to have no URL
+  // of its own at all (it rendered as the signed-out branch of `/sell?market=us`),
+  // which is why an admin editing this copy had nowhere to go and look at it.
+  us: { label: 'Sell — Estados Unidos', path: '/us/sell' },
+  promotor: { label: 'Vende — Promotor', path: '/mx/vende/promotor' },
+  promotorMigracion: { label: 'Vende — Promotor Migración', path: '/mx/vende/promotor/migracion' },
   // Shared copy (trust lines, FAQ, self-check aside, …) rendered across every
-  // /vende/* page above — a KNOWN no-single-page case, not "unrecognized".
-  shared: { label: 'Vende — compartido', path: '(aparece en cada página /vende/*)' },
+  // /mx/vende/* page above — a KNOWN no-single-page case, not "unrecognized".
+  shared: { label: 'Vende — compartido', path: '(aparece en cada página /mx/vende/*)' },
 }
 
 /**

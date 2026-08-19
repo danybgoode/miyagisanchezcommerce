@@ -23,8 +23,21 @@ const isProtected = createRouteMatcher([
   '/shop/manage(.*)',
 ])
 
+/**
+ * The page moved under the market prefix (`/vende/fundadoras` → `/mx/vende/fundadoras`)
+ * when the seller landings became one-per-market; the two API paths did NOT, because
+ * an API route is not a market surface and prefixing it would break every client that
+ * already posts to it.
+ *
+ * The OLD page path stays matched on purpose. `next.config.ts` 308s it to the new one,
+ * but a 308 is a response — the visitor's FIRST request still arrives here, and if it
+ * arrived without a subject cookie the experiment would lose the visitor it was about
+ * to assign. Matching both means the cookie is set on the hop, not one navigation late.
+ */
 function isFundadorasSubjectPath(pathname: string): boolean {
-  return pathname === '/vende/fundadoras' ||
+  return pathname === '/mx/vende/fundadoras' ||
+    pathname.startsWith('/mx/vende/fundadoras/') ||
+    pathname === '/vende/fundadoras' ||
     pathname.startsWith('/vende/fundadoras/') ||
     pathname === '/api/growth/fundadoras/track' ||
     pathname === '/api/vende/fundadoras/apply'

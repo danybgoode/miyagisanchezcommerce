@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { buildAgentPrompt, resolveAgentContext, withDetails } from '../lib/agent-prompt'
-import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
+import { buildPromoterPageConfig } from '../app/(shell)/mx/vende/_components/page-config'
 
 test.describe('buildAgentPrompt · generic es-MX hand-off (S1.2)', () => {
   const prompt = buildAgentPrompt({ kind: 'generic' })
@@ -230,20 +230,20 @@ test.describe('buildAgentPrompt · account/order handoff (S2.3)', () => {
 })
 
 test.describe('resolveAgentContext · seller/promoter paths (promoter-funnel-fixes S1.3)', () => {
-  test('/vende → seller', () => {
-    expect(resolveAgentContext('/vende', null)).toEqual({ kind: 'seller' })
+  test('/mx/vende → seller', () => {
+    expect(resolveAgentContext('/mx/vende', null)).toEqual({ kind: 'seller' })
   })
 
-  test('/vende/creadores (persona sub-page) → seller', () => {
-    expect(resolveAgentContext('/vende/creadores', null)).toEqual({ kind: 'seller' })
+  test('/mx/vende/creadores (persona sub-page) → seller', () => {
+    expect(resolveAgentContext('/mx/vende/creadores', null)).toEqual({ kind: 'seller' })
   })
 
   test('/sell → seller', () => {
     expect(resolveAgentContext('/sell', null)).toEqual({ kind: 'seller' })
   })
 
-  test('/vende/promotor (resources mini-site) → promoter, not seller', () => {
-    expect(resolveAgentContext('/vende/promotor', null)).toEqual({ kind: 'promoter' })
+  test('/mx/vende/promotor (resources mini-site) → promoter, not seller', () => {
+    expect(resolveAgentContext('/mx/vende/promotor', null)).toEqual({ kind: 'promoter' })
   })
 
   test('/promotor/cerrar (close workspace) → promoter', () => {
@@ -275,23 +275,39 @@ test.describe('promoter landing hero prompt · single source (promoter-funnel-v2
   test('the hero prompt is the real promoter ask, not the generic Mercado Libre/Shopify comparison', () => {
     const config = buildPromoterPageConfig(copy, { customDomainPriceMxn: 499, enabled: true })
     expect(config.trustPrompt).toContain('Quiero ser promotor de Miyagi Sánchez')
-    expect(config.trustPrompt).toContain('https://miyagisanchez.com/vende/promotor')
+    expect(config.trustPrompt).toContain('https://miyagisanchez.com/mx/vende/promotor')
   })
 })
 
 test.describe('buildAgentPrompt · seller/promoter asks (promoter-funnel-fixes S1.3)', () => {
-  test('seller ask pitches selling + points at /vende, not the generic buyer ask', () => {
+  test('the US landing resolves to the seller ask, not the generic buyer one', () => {
+    // `/us` is deliberately NOT stripped as a market prefix (it has no catalog
+    // namespace), so `/us/sell` has to be matched on the raw segments. Before the
+    // landing had its own route this worked by accident: `/sell?market=us` began with
+    // `sell`. Moving it to `/us/sell` would have silently handed a US merchant the
+    // buyer prompt on the page whose entire job is recruiting them.
+    expect(resolveAgentContext('/us/sell')).toEqual({ kind: 'seller' })
+    expect(resolveAgentContext('/us/sell/')).toEqual({ kind: 'seller' })
+    // And the market prefix does not turn the Mexican family into something else.
+    expect(resolveAgentContext('/mx/vende')).toEqual({ kind: 'seller' })
+    expect(resolveAgentContext('/mx/vende/creadores')).toEqual({ kind: 'seller' })
+    expect(resolveAgentContext('/mx/vende/promotor')).toEqual({ kind: 'promoter' })
+    // `/us` itself is still the market home, never a seller surface.
+    expect(resolveAgentContext('/us')).toEqual({ kind: 'generic' })
+  })
+
+  test('seller ask pitches selling + points at /mx/vende, not the generic buyer ask', () => {
     const p = buildAgentPrompt({ kind: 'seller' })
     expect(p).toContain('vender en Miyagi Sánchez')
-    expect(p).toContain('https://miyagisanchez.com/vende')
+    expect(p).toContain('https://miyagisanchez.com/mx/vende')
     expect(p).not.toContain('¿Qué estás buscando hoy?')
   })
 
-  test('promoter ask pitches the commission program + points at /vende/promotor', () => {
+  test('promoter ask pitches the commission program + points at /mx/vende/promotor', () => {
     const p = buildAgentPrompt({ kind: 'promoter' })
     expect(p).toContain('promotor')
     expect(p).toContain('comisión')
-    expect(p).toContain('https://miyagisanchez.com/vende/promotor')
+    expect(p).toContain('https://miyagisanchez.com/mx/vende/promotor')
     expect(p).not.toContain('¿Qué estás buscando hoy?')
   })
 

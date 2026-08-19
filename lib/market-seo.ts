@@ -34,6 +34,7 @@
 
 import type { Metadata } from 'next'
 import { MARKETS, marketBasePath, requireMarket, type MarketCode } from './markets'
+import { ROOT_LANGUAGE_PATHS, type RootLanguage } from './root-language'
 
 /** The canonical platform origin for every marketplace URL. */
 export const SITE_ORIGIN = 'https://miyagisanchez.com'
@@ -65,19 +66,39 @@ function landingLanguageAlternates(): Record<string, string> {
 }
 
 /**
- * Metadata for the master-brand selector at `/`.
+ * Metadata for a master-brand selector document — `/` in Spanish, `/en` in English.
  *
- * Self-canonical (it is a real page with its own content, not a redirect), and
- * `x-default` — it is the correct destination for any locale we do not operate
- * in, which is most of them.
+ * Each is SELF-canonical: they are two real pages with the same content in two
+ * languages, not one page and a redirect, and telling a crawler that `/en`
+ * canonicalizes to `/` would ask it to drop the English document from the index
+ * entirely — the opposite of why it exists.
+ *
+ * The `languages` map carries both levels, and the distinction is the point:
+ *
+ *   · bare `es` / `en` → the two SELECTOR documents. A language, no country: this
+ *     is the page for a reader, before they have chosen a market.
+ *   · `es-MX` / `en-US` → the two MARKET landings. A language AND a country, with
+ *     that country's currency, payments and shipping behind it.
+ *
+ * `x-default` stays `/`, the Spanish selector: it is the right destination for any
+ * locale we do not operate in, which is most of them, and it offers the switcher.
  */
-export function selectorMetadata(): Pick<Metadata, 'alternates'> {
+export function rootSelectorMetadata(language: RootLanguage): Pick<Metadata, 'alternates'> {
   return {
     alternates: {
-      canonical: absoluteUrl('/'),
-      languages: landingLanguageAlternates(),
+      canonical: absoluteUrl(ROOT_LANGUAGE_PATHS[language]),
+      languages: {
+        es: absoluteUrl(ROOT_LANGUAGE_PATHS.es),
+        en: absoluteUrl(ROOT_LANGUAGE_PATHS.en),
+        ...landingLanguageAlternates(),
+      },
     },
   }
+}
+
+/** The Spanish selector's metadata. Kept as its own name because `/` is the entry point every caller means. */
+export function selectorMetadata(): Pick<Metadata, 'alternates'> {
+  return rootSelectorMetadata('es')
 }
 
 /**

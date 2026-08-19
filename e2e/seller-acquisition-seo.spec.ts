@@ -14,12 +14,12 @@ const es = JSON.parse(readFileSync(new URL('../locales/es.json', import.meta.url
 }
 
 const sellerPages = [
-  { path: '/vende', meta: es.sellerAcquisition.anchor.metadata },
-  { path: '/vende/mundial', meta: es.sellerAcquisition.mundial.metadata },
-  { path: '/vende/creadores', meta: es.sellerAcquisition.creadores.metadata },
-  { path: '/vende/negocios', meta: es.sellerAcquisition.negocios.metadata },
-  { path: '/vende/servicios', meta: es.sellerAcquisition.servicios.metadata },
-  { path: '/vende/autos', meta: es.sellerAcquisition.autos.metadata },
+  { path: '/mx/vende', meta: es.sellerAcquisition.anchor.metadata },
+  { path: '/mx/vende/mundial', meta: es.sellerAcquisition.mundial.metadata },
+  { path: '/mx/vende/creadores', meta: es.sellerAcquisition.creadores.metadata },
+  { path: '/mx/vende/negocios', meta: es.sellerAcquisition.negocios.metadata },
+  { path: '/mx/vende/servicios', meta: es.sellerAcquisition.servicios.metadata },
+  { path: '/mx/vende/autos', meta: es.sellerAcquisition.autos.metadata },
 ]
 
 test.describe('seller acquisition · SEO and OpenGraph', () => {
@@ -41,7 +41,7 @@ test.describe('seller acquisition · SEO and OpenGraph', () => {
 
     // agent-discovery-and-indexing S1.3 — regression guard. The og:image URL used to be
     // hand-built as `${path}/opengraph-image`, which 404s: Next serves file-convention OG
-    // images at a content-hashed path (e.g. `/vende/opengraph-image-<hash>`), so a substring
+    // images at a content-hashed path (e.g. `/mx/vende/opengraph-image-<hash>`), so a substring
     // check on the meta tag's URL text passed even while the route itself was dead. Assert
     // the meta tag's own URL is actually LIVE, not just shaped like the page's path.
     test(`${page.path} og:image meta tag points at a route that actually renders`, async ({ request }) => {

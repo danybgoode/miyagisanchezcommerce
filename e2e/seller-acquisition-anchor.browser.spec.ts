@@ -7,7 +7,7 @@ test.describe('seller acquisition · anchor page', () => {
 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
 
-    const res = await page.goto('/vende?utm_source=browser-smoke')
+    const res = await page.goto('/mx/vende?utm_source=browser-smoke')
     expect(res?.ok()).toBeTruthy()
 
     await expect(
@@ -26,24 +26,24 @@ test.describe('seller acquisition · anchor page', () => {
     await expect(page.getByText(/Compara cuánto pagaría ahí contra Mercado Libre y Shopify/i).first()).toBeVisible()
     await page.getByTestId('vende-prompt-copy').click()
     const clipboard = await page.evaluate(() => navigator.clipboard.readText())
-    expect(clipboard).toContain('https://miyagisanchez.com/vende')
+    expect(clipboard).toContain('https://miyagisanchez.com/mx/vende')
     expect(clipboard).toContain('Mercado Libre')
     expect(clipboard).toContain('Shopify')
 
     await page.getByTestId('vende-router-creadores').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/vende/creadores' &&
+      url.pathname === '/mx/vende/creadores' &&
       url.searchParams.get('utm_source') === 'browser-smoke'
     ))
 
-    await page.goto('/vende?utm_source=browser-smoke')
+    await page.goto('/mx/vende?utm_source=browser-smoke')
     await page.getByTestId('vende-router-servicios').click()
     await expect(page).toHaveURL((url) => (
-      url.pathname === '/vende/servicios' &&
+      url.pathname === '/mx/vende/servicios' &&
       url.searchParams.get('utm_source') === 'browser-smoke'
     ))
 
-    await page.goto('/vende?utm_source=browser-smoke')
+    await page.goto('/mx/vende?utm_source=browser-smoke')
     await page.getByTestId('vende-primary-cta').click()
     await expect(page).toHaveURL((url) => (
       resolvedSellTarget(url)?.pathname === '/sell' &&

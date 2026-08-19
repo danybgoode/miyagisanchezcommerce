@@ -16,7 +16,7 @@ const PARTNER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
 ] as const
 const PROMOTER_IDENTITY_BY_CLERK_ID_CONSUMERS = [
   'app/(shell)/promotor/cerrar/page.tsx',
-  'app/(shell)/vende/promotor/page.tsx',
+  'app/(shell)/mx/vende/promotor/page.tsx',
   'app/api/promoter/claim/link/route.ts',
   'app/api/promoter/close/domain/route.ts',
   'app/api/promoter/close/listing/route.ts',

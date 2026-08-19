@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { sellerTrustPrompt } from '../lib/seller-acquisition'
-import { buildPromoterPageConfig } from '../app/(shell)/vende/_components/page-config'
+import { buildPromoterPageConfig } from '../app/(shell)/mx/vende/_components/page-config'
 
 // Locked es-MX copy from COPY-BRIEF.md (Sprint 1, approved 2026-06-25). These guards keep the
 // distrust framing, internal jargon, and un-accented offenders from creeping back into the
@@ -56,16 +56,16 @@ test.describe('seller acquisition · es-MX copy guards', () => {
 
   test('sellerTrustPrompt substitutes the page URL and keeps the comparison instruction', () => {
     const anchor = sellerTrustPrompt('vende', sa.shared.trustPrompt)
-    expect(anchor).toContain('https://miyagisanchez.com/vende')
+    expect(anchor).toContain('https://miyagisanchez.com/mx/vende')
     expect(anchor).not.toContain('{url}')
     expect(anchor).toContain('Mercado Libre')
     expect(anchor).toContain('Shopify')
 
     const creators = sellerTrustPrompt('creadores', sa.shared.trustPrompt)
-    expect(creators).toContain('https://miyagisanchez.com/vende/creadores')
+    expect(creators).toContain('https://miyagisanchez.com/mx/vende/creadores')
 
     const servicios = sellerTrustPrompt('servicios', sa.shared.trustPrompt)
-    expect(servicios).toContain('https://miyagisanchez.com/vende/servicios')
+    expect(servicios).toContain('https://miyagisanchez.com/mx/vende/servicios')
   })
 
   // ── launch polish (seller-landing-launch-polish, Sprint 1) ──────────────────────────────

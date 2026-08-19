@@ -28,6 +28,7 @@ import {
 import { getNeighborhoodPulseItems } from '@/lib/neighborhood-pulse-server'
 import { getActiveAnnouncement } from '@/lib/announcements'
 import { marketBasePath, type MarketCode } from '@/lib/markets'
+import { sellerLandingPath } from '@/lib/seller-acquisition'
 import { marketLandingMetadata } from '@/lib/market-seo'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 import { PROCESS_MARKET_ENV, resolvePublishableKeyForMarket } from '@/lib/market-medusa'
@@ -519,18 +520,18 @@ export async function MarketHomePage({ market }: { market: MarketCode }) {
           <p style={{ fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>{home.emptyState.heading}</p>
           <p style={{ fontSize: 14, marginBottom: 16 }}>{home.emptyState.body}</p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Recruit CTA is auth-aware: signed-out → /vende pitch (prerenders into the
-                static HTML), signed-in → /sell publish wizard. Both via the client AuthShow,
-                so no headers() and / stays static. (Empty-state path — marketplace non-empty today.) */}
-            {/* us-marketplace S5.2 (D17): the US now has a real seller entry. It was
-                MX-only because US could not sell — true until S4 built the rail, and
-                a misleading CTA then. `?market=us` is the signup handoff: the server
-                page narrows it and the backend refuses anything it dislikes.
-                `/vende` is the Spanish pitch page, so a signed-out US visitor goes
-                straight to the wizard rather than to a page in the wrong language. */}
+            {/* Recruit CTA is auth-aware: signed-out → this market's landing (prerenders
+                into the static HTML), signed-in → /sell publish wizard. Both via the
+                client AuthShow, so no headers() and the page stays static.
+                (Empty-state path — marketplace non-empty today.) */}
+            {/* Each market has its own landing now (`/mx/vende`, `/us/sell`), so this
+                is one lookup rather than a per-market ternary. The US arm used to send
+                a signed-out visitor STRAIGHT to `/sell?market=us` — the wizard's URL —
+                because the only Spanish-free seller page was the one hiding in that
+                route's signed-out branch. It has an address of its own now. */}
             <AuthShow when="signed-out">
               <Link
-                href={market === 'mx' ? '/vende' : '/sell?market=us'}
+                href={sellerLandingPath(market)}
                 className="btn btn-primary btn-sm"
               >{home.emptyState.publishCta}</Link>
             </AuthShow>

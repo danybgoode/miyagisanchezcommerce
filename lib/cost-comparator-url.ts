@@ -11,7 +11,7 @@
  * `app/(shell)/comparador/page.tsx` (SSR prefill, US-1.3) and `ComparadorTool`'s
  * "Copiar enlace" share button (US-2.2, client-side) both go through this ONE codec
  * — the promoter/consultant leave-behind link
- * (`app/(shell)/vende/promotor/sell-sheet/page.tsx`) points at `/comparador`
+ * (`app/(shell)/mx/vende/promotor/sell-sheet/page.tsx`) points at `/comparador`
  * generically (no per-visit data to prefill from a static printable page), but a
  * live session's "Copiar enlace" always round-trips through here.
  *

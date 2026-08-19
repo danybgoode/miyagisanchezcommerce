@@ -31,11 +31,11 @@ test.describe('Agent discovery surface', () => {
     expect(html).not.toContain('/api/mcp')
   })
 
-  test('/agent points the seller CTA at /vende — the promoted evaluation target (agent-discovery S1.2)', async ({ request }) => {
+  test('/agent points the seller CTA at /mx/vende — the promoted evaluation target (agent-discovery S1.2)', async ({ request }) => {
     const res = await request.get('/agent')
     expect(res.ok()).toBeTruthy()
     const html = await res.text()
-    expect(html).toContain('href="https://miyagisanchez.com/vende"')
+    expect(html).toContain('href="https://miyagisanchez.com/mx/vende"')
   })
 
   test('/agent renders es-MX body copy + a valid, key-English JSON-LD block (agent-discovery S1.1)', async ({ request }) => {
@@ -55,7 +55,7 @@ test.describe('Agent discovery surface', () => {
     expect(html).not.toContain('What is this marketplace?')
     expect(html).not.toContain('Supported product types')
     expect(html).not.toContain('Payment methods</h2>')
-    expect(html).not.toContain('For sellers — /vende')
+    expect(html).not.toContain('For sellers — /mx/vende')
 
     // The JSON-LD block still parses; schema.org keys stay English (API contract).
     const match = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)

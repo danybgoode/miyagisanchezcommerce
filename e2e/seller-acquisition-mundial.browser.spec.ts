@@ -5,7 +5,7 @@ test.describe('seller acquisition · Mundial wedge', () => {
   test('anonymous visitor sees the page and reaches service onboarding with attribution', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const res = await page.goto('/vende/mundial')
+    const res = await page.goto('/mx/vende/mundial')
     expect(res?.ok()).toBeTruthy()
 
     await expect(
@@ -20,7 +20,7 @@ test.describe('seller acquisition · Mundial wedge', () => {
     await expect(page.getByTestId('mundial-prompt-copy')).toBeVisible()
     await page.getByTestId('mundial-prompt-copy').click()
     const clipboard = await page.evaluate(() => navigator.clipboard.readText())
-    expect(clipboard).toContain('https://miyagisanchez.com/vende/mundial')
+    expect(clipboard).toContain('https://miyagisanchez.com/mx/vende/mundial')
     expect(clipboard).toContain('Mercado Libre')
     await expect(page.locator('.badge-promo')).toHaveCount(0)
 

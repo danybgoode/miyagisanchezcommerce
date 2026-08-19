@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { usSellerCtaHref } from '../lib/seller-acquisition'
-import { buildUsMarketPageConfig } from '../app/(shell)/vende/_components/page-config'
+import { sellerLandingPath, sellerLandingRedirectPath, usSellerCtaHref } from '../lib/seller-acquisition'
+import { buildUsMarketPageConfig } from '../app/(shell)/mx/vende/_components/page-config'
 import { resolveSellerSignupMarket } from '../lib/seller-signup-market'
 import { validatePlatformDictionaries } from '../lib/dictionary-contract'
 
@@ -68,32 +68,63 @@ test.describe('US seller recruiting · signed-out /sell', () => {
     }
   })
 
-  test('/sell renders the US landing signed-out and still renders the wizard signed-in', () => {
+  test('/sell sends a signed-out visitor to their market landing and still renders the wizard signed-in', () => {
     const page = source('app/(shell)/sell/page.tsx')
 
     // The wizard is load-bearing: ~25 `redirect('/sell')` call sites across the
-    // merchant hub and four payment-connect return routes land on this page. So
-    // the assertion is POSITIONAL, not "both strings appear" — the landing has to
-    // sit inside the signed-out branch, above the guard that resolves an existing
-    // shop, and the wizard has to stay below it. Rendering the landing after that
-    // guard would show a recruiting page to a merchant trying to publish.
+    // merchant hub and four payment-connect return routes land on this page. So the
+    // assertion is POSITIONAL, not "both strings appear" — the signed-out redirect
+    // has to sit inside the signed-out branch, ABOVE the guard that resolves an
+    // existing shop, and the wizard has to stay below it. A redirect after that
+    // guard would bounce a merchant who was trying to publish.
     const signedOutBranch = page.indexOf('if (!user) {')
     const signedInGuard = page.indexOf('const existingShop = await getMySeller()')
-    const landingRender = page.indexOf('buildUsMarketPageConfig(')
+    const landingRedirect = page.indexOf('redirect(sellerLandingRedirectPath(')
     const wizardRender = page.search(/<SellWizard\s/)
 
     expect(signedOutBranch).toBeGreaterThan(-1)
     expect(signedInGuard).toBeGreaterThan(-1)
-    expect(landingRender).toBeGreaterThan(-1)
+    expect(landingRedirect).toBeGreaterThan(-1)
     expect(wizardRender).toBeGreaterThan(-1)
 
-    expect(page).toContain('SellerAcquisitionPage')
-    expect(landingRender).toBeGreaterThan(signedOutBranch)
-    expect(landingRender).toBeLessThan(signedInGuard)
+    expect(landingRedirect).toBeGreaterThan(signedOutBranch)
+    expect(landingRedirect).toBeLessThan(signedInGuard)
     expect(wizardRender).toBeGreaterThan(signedInGuard)
+
+    // The landing no longer RENDERS here — it has its own route. `/sell` holding a
+    // second copy of it is the state this epic removed, and re-introducing one would
+    // recreate the page that nobody linked to and nobody noticed was wrong.
+    expect(page).not.toContain('buildUsMarketPageConfig(')
+    expect(page).not.toContain('SellerAcquisitionPage')
   })
 
-  test('one effective locale drives the page — the preference is never overridden by the market', () => {
+  test('the landing lives at /us/sell, under the US market chrome', () => {
+    // Where the page went. `(us-site)` is the English shell — `<html lang="en-US">`,
+    // English Clerk localization, the US market's own header and footer — so the
+    // landing's language now follows from its ROUTE rather than from a `?market=us`
+    // any link, ad or paste could drop.
+    const landing = source('app/(us-site)/us/sell/page.tsx')
+
+    expect(landing).toContain('buildUsMarketPageConfig(')
+    expect(landing).toContain('SellerAcquisitionPage')
+    expect(landing).toContain("alternates: { canonical: `${BASE_URL}${PAGE_PATH}` }")
+    expect(landing).toContain("const PAGE_PATH = '/us/sell'")
+    // The canonical is a real path, not the query string it used to be. Asserted on
+    // the EMITTED urls rather than on the file text — the header comment explains the
+    // old `?market=us` shape by name, and a whole-file negative would forbid saying so.
+    // Two legitimate shapes: the page's own URL, and the CTA target (which is
+    // `/sign-up?redirect_url=…` by design — account creation first).
+    for (const emitted of landing.match(/\$\{BASE_URL\}[^`'"]*/g) ?? []) {
+      expect(
+        ['${BASE_URL}${PAGE_PATH}', '${BASE_URL}${usSellerCtaHref(query)}'],
+        'every emitted absolute URL is the page path or the sign-up CTA',
+      ).toContain(emitted)
+    }
+    // And it is the market registry, not this page, that says where a US seller goes.
+    expect(sellerLandingPath('us')).toBe('/us/sell')
+  })
+
+  test('one effective locale drives the wizard — the preference is never overridden by the market', () => {
     const page = source('app/(shell)/sell/page.tsx')
 
     // Cross-family review (PR 389, Codex) caught this: the pre-seller US branch
@@ -108,11 +139,29 @@ test.describe('US seller recruiting · signed-out /sell', () => {
 
     // Spanish stays the identity case here too: no boundary, no dictionary.
     expect(page).toContain('if (existingShop || !sellerCopyBoundaryNeeded(locale)) return content')
+  })
 
-    // Market picks the PAGE, locale picks the LANGUAGE — the recruiting landing is
-    // still chosen by market alone, so a US visitor reading Spanish gets the US
-    // page in Spanish rather than the Mexican one.
-    expect(page).toContain("if (signupMarket !== 'us') return content")
-    expect(page).toContain('getOverriddenDictionary(locale)')
+  test('the signed-out hop keeps the campaign that paid for it', () => {
+    // A visitor who clicked an ad pointing at `/sell` is redirected to the landing.
+    // If the hop dropped attribution, every one of those visits would report as
+    // direct traffic on a page that has an A/B test running on it.
+    const target = new URL(
+      sellerLandingRedirectPath('us', 'from=us&v=b&utm_source=newsletter&utm_medium=email&market=us'),
+      'https://miyagisanchez.com',
+    )
+    expect(target.pathname).toBe('/us/sell')
+    expect(target.searchParams.get('from')).toBe('us')
+    expect(target.searchParams.get('v')).toBe('b')
+    expect(target.searchParams.get('utm_source')).toBe('newsletter')
+    expect(target.searchParams.get('utm_medium')).toBe('email')
+    // `market` is NOT carried: the path states it now, and two authorities for one
+    // fact is how they drift.
+    expect(target.searchParams.get('market')).toBeNull()
+
+    // No campaign, no empty query string dangling off the URL.
+    expect(sellerLandingRedirectPath('mx')).toBe('/mx/vende')
+    // An unknown/absent market falls back to the default market's landing rather
+    // than to a dead link.
+    expect(sellerLandingRedirectPath(undefined)).toBe('/mx/vende')
   })
 })

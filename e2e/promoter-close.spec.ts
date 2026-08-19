@@ -17,7 +17,7 @@ import {
  *     (404, flag off) OR when anonymous (401, flag on) — asserted in BOTH states so
  *     the gate isn't coupled to the current `promoter.enabled` value (launched ON
  *     2026-06-30; a single flag-coupled status would go red the moment ops toggles).
- *  3. MINI-SITE — /vende/promotor + its sell-sheet render es-MX (US-12).
+ *  3. MINI-SITE — /mx/vende/promotor + its sell-sheet render es-MX (US-12).
  *
  * NOT covered (owed to Daniel — sprint-4.md smoke): the live card charge on a
  * seller's behalf (US-10) and the real Clerk claim transfer (US-11).
@@ -107,26 +107,26 @@ test.describe('promoter close · authed routes respect the kill-switch (flag on 
 })
 
 test.describe('promoter close · resources mini-site renders es-MX (US-12)', () => {
-  test('GET /vende/promotor → 200 with the es-MX glossary', async ({ request }) => {
-    const res = await request.get('/vende/promotor', { headers: { Accept: 'text/html' } })
+  test('GET /mx/vende/promotor → 200 with the es-MX glossary', async ({ request }) => {
+    const res = await request.get('/mx/vende/promotor', { headers: { Accept: 'text/html' } })
     expect(res.status()).toBe(200)
     const html = await res.text()
     expect(html).toContain('Dominio propio')   // glossary term
     expect(html).toContain('Subdominio')
   })
 
-  test('GET /vende/promotor → the trust prompt resolves {url} to its own page (agent-discovery S1.2)', async ({ request }) => {
-    const res = await request.get('/vende/promotor', { headers: { Accept: 'text/html' } })
+  test('GET /mx/vende/promotor → the trust prompt resolves {url} to its own page (agent-discovery S1.2)', async ({ request }) => {
+    const res = await request.get('/mx/vende/promotor', { headers: { Accept: 'text/html' } })
     expect(res.status()).toBe(200)
     const html = await res.text()
     // Regression guard: the promoter mini-site isn't a registered SellerPersonaId, so its
     // trustPrompt used to render the raw, unresolved "{url}" template placeholder.
     expect(html).not.toContain('{url}')
-    expect(html).toContain('https://miyagisanchez.com/vende/promotor')
+    expect(html).toContain('https://miyagisanchez.com/mx/vende/promotor')
   })
 
-  test('GET /vende/promotor/sell-sheet → 200 printable sell-sheet', async ({ request }) => {
-    const res = await request.get('/vende/promotor/sell-sheet', { headers: { Accept: 'text/html' } })
+  test('GET /mx/vende/promotor/sell-sheet → 200 printable sell-sheet', async ({ request }) => {
+    const res = await request.get('/mx/vende/promotor/sell-sheet', { headers: { Accept: 'text/html' } })
     expect(res.status()).toBe(200)
     const html = await res.text()
     expect(html).toContain('Guardar como PDF') // the .no-print toolbar hint
@@ -213,13 +213,13 @@ test.describe('promoter close · the public CTA never links to a 404 (promoter-f
     expect([301, 302, 303, 307, 308, 404]).toContain(res.status())
   })
 
-  test('anonymous /vende/promotor never links the close-workspace CTA to a 404, and never links it at all (promoter-funnel-v2 US-1.3)', async ({ request }) => {
+  test('anonymous /mx/vende/promotor never links the close-workspace CTA to a 404, and never links it at all (promoter-funnel-v2 US-1.3)', async ({ request }) => {
     // Fire both requests concurrently (not sequentially) so a flag toggle landing
     // between them can't desync the two reads — and both routes read the same 60s
     // in-process cache (lib/flags.ts) regardless, so this is already a vanishingly
     // narrow window (codex cross-review should-fix on PR #157).
     const [page, close] = await Promise.all([
-      request.get('/vende/promotor', { headers: { Accept: 'text/html' } }),
+      request.get('/mx/vende/promotor', { headers: { Accept: 'text/html' } }),
       request.get('/promotor/cerrar', { maxRedirects: 0 }),
     ])
     expect(page.status()).toBe(200)

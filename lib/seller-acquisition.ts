@@ -1,5 +1,88 @@
+import { DEFAULT_MARKET, type MarketCode } from './markets'
+
 export type SellerPersonaId = 'vende' | 'creadores' | 'mundial' | 'negocios' | 'servicios' | 'autos'
 export type SellerAcquisitionVariant = 'a' | 'b'
+
+/**
+ * Where a merchant's pitch page lives, per market — the ONE place that knows.
+ *
+ * Before this table there was no such place: `/vende` was hardcoded in the shell
+ * header, the shell footer, the marketplace home CTA, the signed-in seller module
+ * and the root selector, while the US landing had no URL at all and rendered only
+ * as the signed-out branch of `/sell?market=us`. A US visitor who clicked "Post
+ * for free" in English chrome therefore landed on a Spanish page, and the US
+ * landing could not be linked, shared or indexed. Both are the same defect: the
+ * destination was a literal, not a function of the market the visitor is in.
+ *
+ * Each market's landing sits UNDER its own market prefix, so the URL states the
+ * market it is selling and the market chrome (`(mx-site)`/`(us-site)` layouts,
+ * `<html lang>`, Clerk localization) follows from the route rather than from a
+ * query parameter. `/vende` and `/sell?market=us` still resolve — as 308s in
+ * `next.config.ts`, so every printed flyer, ad and inbound link keeps working.
+ *
+ * NOT `marketBasePath(market) + suffix`: the suffix is a different WORD per market
+ * ("vende" in Spanish, "sell" in English) and that is deliberate, not an oversight
+ * to be normalized away — a Mexican seller should not be sent to an English URL.
+ */
+export const SELLER_LANDING_PATHS: Readonly<Record<MarketCode, string>> = Object.freeze({
+  mx: '/mx/vende',
+  us: '/us/sell',
+})
+
+/**
+ * The landing a visitor in this market belongs on.
+ *
+ * Total over `MarketCode` so a new market cannot be added without deciding where
+ * its sellers are recruited — an unknown value falls back to the default market
+ * rather than to a dead link.
+ */
+export function sellerLandingPath(market: MarketCode | null | undefined = DEFAULT_MARKET): string {
+  return SELLER_LANDING_PATHS[market ?? DEFAULT_MARKET] ?? SELLER_LANDING_PATHS[DEFAULT_MARKET]
+}
+
+/** The MX landing, the base every Spanish persona page hangs off. */
+const MX_LANDING = SELLER_LANDING_PATHS.mx
+
+/**
+ * Where a SIGNED-OUT visitor who asked for `/sell` should be sent.
+ *
+ * `/sell` is the publish wizard and it always needed an account, so its signed-out
+ * branch was a third seller pitch page — a Spanish hero competing with `/mx/vende`
+ * for the same visitor, reachable by typing the most obvious URL on the site, and
+ * maintained by nobody. It is gone; this is where that request goes instead.
+ *
+ * Attribution survives the hop. `from`, the A/B `v` and every sanitized UTM are
+ * carried onto the landing, because a visitor who arrived from a campaign pointing
+ * at `/sell` must still be counted as that campaign's. `market` is deliberately
+ * NOT carried: the destination path already states the market, and a stale
+ * `?market=` riding along would be a second, weaker authority for the one fact the
+ * URL is now responsible for.
+ */
+export function sellerLandingRedirectPath(
+  market: MarketCode | null | undefined,
+  input?: QueryInput,
+): string {
+  const params = new URLSearchParams()
+
+  const source = toSearchParams(input)
+  const from = source.get('from')?.trim()
+  if (from) params.set('from', from)
+
+  const explicitVariant = readSellerAcquisitionVariant(input)
+  if (explicitVariant?.explicit) {
+    params.set(SELLER_ACQUISITION_VARIANT_PARAM, explicitVariant.variant)
+  }
+
+  const utm = parseSellerAcquisitionUtm(input)
+  for (const key of UTM_KEYS) {
+    const value = utm[key]
+    if (value) params.set(key, value)
+  }
+
+  const qs = params.toString()
+  const path = sellerLandingPath(market)
+  return qs ? `${path}?${qs}` : path
+}
 
 const UTM_KEYS = [
   'utm_source',
@@ -34,39 +117,39 @@ const MAX_UTM_VALUE_LENGTH = 140
 export const SELLER_PERSONA_ROUTES: Record<SellerPersonaId, SellerPersonaRoute> = {
   vende: {
     id: 'vende',
-    pagePath: '/vende',
+    pagePath: MX_LANDING,
     from: 'vende',
     status: 'live',
   },
   creadores: {
     id: 'creadores',
-    pagePath: '/vende/creadores',
+    pagePath: `${MX_LANDING}/creadores`,
     from: 'creadores',
     status: 'live',
   },
   mundial: {
     id: 'mundial',
-    pagePath: '/vende/mundial',
+    pagePath: `${MX_LANDING}/mundial`,
     from: 'mundial',
     type: 'service',
     status: 'live',
   },
   negocios: {
     id: 'negocios',
-    pagePath: '/vende/negocios',
+    pagePath: `${MX_LANDING}/negocios`,
     from: 'negocios',
     status: 'live',
   },
   servicios: {
     id: 'servicios',
-    pagePath: '/vende/servicios',
+    pagePath: `${MX_LANDING}/servicios`,
     from: 'servicios',
     type: 'service',
     status: 'live',
   },
   autos: {
     id: 'autos',
-    pagePath: '/vende/autos',
+    pagePath: `${MX_LANDING}/autos`,
     from: 'autos',
     status: 'live',
   },
@@ -85,7 +168,7 @@ const SELLER_ACQUISITION_BASE_URL = 'https://miyagisanchez.com'
  */
 export function sellerTrustPrompt(id: SellerPersonaId, template: string): string {
   const route = resolveSellerPersonaRoute(id)
-  const url = `${SELLER_ACQUISITION_BASE_URL}${route.pagePath ?? '/vende'}`
+  const url = `${SELLER_ACQUISITION_BASE_URL}${route.pagePath ?? MX_LANDING}`
   return template.replaceAll('{url}', url)
 }
 

@@ -4,6 +4,7 @@ import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import Link from 'next/link'
 import { useHomePersonalization } from './HomePersonalizationProvider'
 import { sellerModule } from '@/lib/home-personalization'
+import { SELLER_LANDING_PATHS } from '@/lib/seller-acquisition'
 
 /**
  * Marketplace static-shell — Sprint 4. The bottom personalization slot: the signed-in
@@ -97,7 +98,10 @@ export default function HomeSellerModule() {
           <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>
             <BuyerCopyText copyKey="components.HomeSellerModule.4348dc4e" /></p>
         </div>
-        <Link href="/vende" className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
+        {/* MX only — `MarketHomePage` renders this island under `market === 'mx'`, so the
+            Mexican landing is the correct literal here rather than a market lookup this
+            client component has no market to perform. */}
+        <Link href={SELLER_LANDING_PATHS.mx} className="btn btn-primary btn-sm no-underline" style={{ flexShrink: 0 }}>
           <BuyerCopyText copyKey="components.HomeSellerModule.dc4b6d05" /></Link>
       </div>
     </section>

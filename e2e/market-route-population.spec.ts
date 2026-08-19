@@ -48,23 +48,50 @@ test.describe('market route population', () => {
       const relative = path.relative(ROOT, file).replace(/\\/g, '/')
       return relative.slice(relative.indexOf(`/${market}/`) + market.length + 2)
     }
+    // CATALOG routes — the families that carry a market prefix BECAUSE they are
+    // market-scoped inventory, read from `MARKET_PREFIXED_PATH_FAMILIES` rather than
+    // restated, so the two lists cannot drift apart.
+    //
+    // Not every page under `/mx` is one. `/mx/vende` — the Mexican seller landing and
+    // its persona pages — also lives there, and it has no US mirror by design: the US
+    // landing is `/us/sell`, a different word in a different language with different
+    // money claims, not a translated adapter over one shared implementation the way
+    // `/us/l` and `/us/s` are. Scanning it here would demand `app/(us-shell)/us/vende`,
+    // a Spanish URL on the US market.
+    const isCatalogRoute = (tail: string) =>
+      MARKET_PREFIXED_PATH_FAMILIES.some((family) => tail.startsWith(`${family.slice(1)}/`))
     const mx = filesBelow('app/(shell)/mx')
       .filter((file) => file.endsWith('/page.tsx'))
       .map((file) => routeTail(file, 'mx'))
+      .filter(isCatalogRoute)
       .sort()
     const us = filesBelow('app/(us-shell)/us')
       .filter((file) => file.endsWith('/page.tsx'))
       .map((file) => routeTail(file, 'us'))
+      .filter(isCatalogRoute)
       .sort()
     expect(mx.length, 'the MX adapter scan found nothing').toBeGreaterThan(5)
     expect(us).toEqual(mx)
+    // The filter must not be what makes this pass: the seller landing IS under
+    // `app/(shell)/mx` and IS excluded, and both facts are asserted rather than assumed.
+    expect(filesBelow('app/(shell)/mx').some((file) => file.includes('/mx/vende/'))).toBe(true)
+    expect(mx.some((tail) => tail.startsWith('vende/'))).toBe(false)
   })
 
   test('the root selector is a zero-catalog static surface', () => {
-    const source = readFileSync(path.join(ROOT, 'app/(site)/page.tsx'), 'utf8')
+    // The markup is shared by both selector documents (`/` in Spanish, `/en` in
+    // English), so the no-catalog proof is asserted on the component AND on both
+    // routes that mount it — a second root that imported listings would otherwise be
+    // invisible to this guard.
+    const source = readFileSync(path.join(ROOT, 'app/(site)/MarketSelector.tsx'), 'utf8')
     expect(source).toContain('data-testid="market-selector"')
-    expect(source).toContain("href: marketBasePath('mx')")
-    expect(source).toContain("href: marketBasePath('us')")
+    // One href expression, derived per market from the registry — not two literals.
+    expect(source).toContain('href={marketBasePath(code)}')
+    for (const route of ['app/(site)/page.tsx', 'app/(en-site)/en/page.tsx']) {
+      const page = readFileSync(path.join(ROOT, route), 'utf8')
+      expect(page, route).toContain('<MarketSelector language=')
+      expect(page, route).not.toMatch(/from ['"]@\/lib\/(?:listings|medusa|supabase)['"]/)
+    }
     // The honest no-catalog proof is the absence of a data import. This spec used
     // to ALSO assert `not.toMatch(/export const revalidate/)`, using "no
     // revalidate" as a proxy for "no data reads" — and that proxy pinned a live
@@ -96,16 +123,23 @@ test.describe('market route population', () => {
     // The three `*-site` groups are the whole static population; the language split
     // deliberately moved MX and US out of the shared selector group.
     // `app/(shell)/layout.tsx` reads `headers()`, so everything under `(shell)`
-    // renders per-request (verified live — `/vende`, `/terminos` and a 404 all return
+    // renders per-request (verified live — `/mx/vende`, `/terminos` and a 404 all return
     // `private, no-cache, no-store`). A future sibling route group with a static
     // layout WOULD escape this, so it must be added here when one appears.
-    const pages = ['app/(site)', 'app/(mx-site)', 'app/(us-site)']
+    // `(en-site)` is the sibling this comment predicted: the English selector at
+    // `/en` is a fourth static root, and a static root outside this list is a page
+    // that can ship the one-year `s-maxage` again with every gate green.
+    const pages = ['app/(site)', 'app/(mx-site)', 'app/(us-site)', 'app/(en-site)']
       .flatMap(filesBelow)
       .filter((file) => file.endsWith('/page.tsx'))
 
     // A scan that silently finds nothing must not read as a pass — AGENTS.md rule 5.
     // Matches the sibling assertion at the MX-shop-route test below.
-    expect(pages.length, 'the (site) page scan found nothing — the guard is inert').toBeGreaterThanOrEqual(3)
+    expect(pages.length, 'the (site) page scan found nothing — the guard is inert').toBeGreaterThanOrEqual(4)
+    // Named, so a group silently dropped from the list above fails here rather than
+    // shrinking the population unnoticed.
+    expect(pages.map((f) => path.relative(ROOT, f).replace(/\\/g, '/')))
+      .toContain('app/(en-site)/en/page.tsx')
 
     const offenders = pages.flatMap((file) => {
       const source = readFileSync(file, 'utf8')

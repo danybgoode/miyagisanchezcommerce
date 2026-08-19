@@ -4,7 +4,7 @@
       "label": "Change platform theme",
       "core": "Core",
       "seasonal": "DesignerN",
-      "coreTitle": "Use the core Miyagi theme",
+      "coreTitle": "Use the core Miyagi Sánchez theme",
       "seasonalTitle": "Use the seasonal collaboration",
       "activeCore": "Core theme active",
       "activeSeasonal": "Collaboration active"
@@ -558,12 +558,19 @@
     "s.slug.page.f62ef63c": "This shop has no listings yet.",
     "MarketRecommendation.95e68536": "Suggested by your browser",
     "page.5b78d70c": "Your shop is yours. Each market belongs to one country.",
-    "page.bf77921b": "With Miyagi, you open your own shop—your domain, your brand, your rules—and you do not need a marketplace’s permission to sell to your audience. The",
-    "page.881db298": "Miyagi Markets",
-    "page.ac4888c2": "are separate country markets, each with its own currency, payments, and shipping. Choose the one you want to enter.",
-    "page.7b6fe1dd": "Own shop or Miyagi Market?",
-    "page.3cc39e5f": "They are different, and you can have both. Your shop lives on your own domain or subdomain and does not depend on admission to a marketplace. Publishing in a Miyagi Market is a separate step that puts you in that country’s catalog, currency, and payment system.",
+    "page.bf77921b": "With Miyagi Sánchez you open your own shop—your domain, your brand, your rules—and you do not need a marketplace’s permission to sell to your audience. The",
+    "page.881db298": "Miyagi Sánchez markets",
+    "page.ac4888c2": "are something else: each one is a single country’s market, with its own currency, payments, and shipping. Choose the one you want to enter.",
+    "page.7b6fe1dd": "Your own shop, or a Miyagi Sánchez market?",
+    "page.3cc39e5f": "They are different, and you can have both. Your shop lives on your own domain or subdomain and does not depend on admission to a marketplace. Publishing in a Miyagi Sánchez market is a separate step that puts you in that country’s catalog, currency, and payment system.",
     "page.b5f692e9": "Open my shop",
+    "page.languageSwitch": "Español",
+    "page.marketCardMxName": "Mexico",
+    "page.marketCardMxLede": "The Miyagi Sánchez market in Mexico. Buy and sell in pesos, with protected payment, shipping, and local delivery.",
+    "page.marketCardMxCta": "Enter the Mexico market",
+    "page.marketCardUsName": "United States",
+    "page.marketCardUsLede": "An open market for exploring shops and products in dollars. Direct checkout is coming soon.",
+    "page.marketCardUsCta": "Enter the United States market",
     "components.AgentHandoff.a90b41fb": "Copied!",
     "components.AgentHandoff.7d387f68": "Copy prompt",
     "components.AgentHandoff.d7052502": "What can my agent do? · Marketplace listing →",
@@ -1168,7 +1175,7 @@
           "primaryCta": "I want to launch my shop"
         }
       },
-      "trustLine": "See for yourself: ask your AI to evaluate miyagisanchez.com/vende/fundadoras and tell you what it includes and what it doesn't.",
+      "trustLine": "See for yourself: ask your AI to evaluate miyagisanchez.com/mx/vende/fundadoras and tell you what it includes and what it doesn't.",
       "primaryCta": "Apply to the founding cohort",
       "secondaryCta": "See the general Sell page",
       "heroStats": [
@@ -1324,14 +1331,14 @@
     "aiChannel": {
       "eyebrow": "A channel others do not have",
       "title": "Let AI sell for you too",
-      "body": "More and more people ask their AI assistant to find and buy things for them. Your Miyagi shop speaks that language: it is built on UCP/MCP, the open commerce standard for agents (backed by Google, Stripe, Shopify, Visa, and more). That means Claude, Gemini, ChatGPT, and other agents can find your catalog, recommend it, and buy — a sales channel most platforms still do not have.",
+      "body": "More and more people ask their AI assistant to find and buy things for them. Your Miyagi Sánchez shop speaks that language: it is built on UCP/MCP, the open commerce standard for agents (backed by Google, Stripe, Shopify, Visa, and more). That means Claude, Gemini, ChatGPT, and other agents can find your catalog, recommend it, and buy — a sales channel most platforms still do not have.",
       "steps": [
         {
           "title": "You publish your normal catalog.",
           "body": "Just like any shop."
         },
         {
-          "title": "Miyagi exposes it to agents.",
+          "title": "Miyagi Sánchez exposes it to agents.",
           "body": "Your catalog ends up in the open format agents understand, with no extra work from you."
         },
         {
@@ -1385,7 +1392,7 @@
         }
       ],
       "proofTitle": "Everything we promise already exists in the platform",
-      "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi.",
+      "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi Sánchez.",
       "proofPoints": [
         {
           "icon": "iconoir-percentage",
@@ -1641,7 +1648,7 @@
       "eyebrow": "Creators and designers",
       "heroTitle": "Stop paying Shopify commissions and losing sales in DMs.",
       "heroLead": "Bring your Instagram catalog in minutes. Your own shop, your domain, 0% commission — and your money directly to your account.",
-      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/vende/creadores is and let it review the pitch for you.",
+      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/mx/vende/creadores is and let it review the pitch for you.",
       "primaryCta": "Bring my shop",
       "secondaryCta": "View general page",
       "heroStats": [
@@ -1659,7 +1666,7 @@
         }
       ],
       "proofTitle": "You do not have to choose between Instagram and a real shop",
-      "proofLead": "Use your current channels to sell better: DMs for conversation, Miyagi for catalog, payment, and links.",
+      "proofLead": "Use your current channels to sell better: DMs for conversation, Miyagi Sánchez for catalog, payment, and links.",
       "proofPoints": [
         {
           "icon": "iconoir-instagram",
@@ -1669,7 +1676,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% commission",
-          "body": "Stop losing margin on every sale. Miyagi does not take a percentage of your order."
+          "body": "Stop losing margin on every sale. Miyagi Sánchez does not take a percentage of your order."
         },
         {
           "icon": "iconoir-internet",
@@ -1732,8 +1739,8 @@
       },
       "eyebrow": "Local businesses",
       "heroTitle": "Your corner business, now online too — and in the magazine.",
-      "heroLead": "Upload your inventory in minutes, collect directly, and share your shop with a link, QR, subdomain, or custom domain. Miyagi can also connect you to the Mexico-86 print edition.",
-      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/vende/negocios is and let it check whether it fits your business.",
+      "heroLead": "Upload your inventory in minutes, collect directly, and share your shop with a link, QR, subdomain, or custom domain. Miyagi Sánchez can also connect you to the Mexico-86 print edition.",
+      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/mx/vende/negocios is and let it check whether it fits your business.",
       "primaryCta": "Bring my business online",
       "secondaryCta": "View general page",
       "heroStats": [
@@ -1751,7 +1758,7 @@
         }
       ],
       "proofTitle": "You do not need to change your business to sell online",
-      "proofLead": "Miyagi adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
+      "proofLead": "Miyagi Sánchez adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
       "proofPoints": [
         {
           "icon": "iconoir-fast-arrow-right",
@@ -1790,7 +1797,7 @@
         }
       ],
       "socialTitle": "For businesses already selling today",
-      "socialBody": "If you already have customers, inventory, and payment methods, Miyagi adds an online storefront and print bridge without eating your margin.",
+      "socialBody": "If you already have customers, inventory, and payment methods, Miyagi Sánchez adds an online storefront and print bridge without eating your margin.",
       "socialStats": [
         {
           "value": "QR",
@@ -1824,8 +1831,8 @@
       },
       "eyebrow": "Professional services",
       "heroTitle": "Get paid and scheduled without friction. No commissions.",
-      "heroLead": "Publish consultations, classes, beauty, trades, repairs, or appointment packages. Miyagi gives you a link, shop, scheduling, and direct payment without taking a percentage.",
-      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/vende/servicios is and have it check whether it works for your trade.",
+      "heroLead": "Publish consultations, classes, beauty, trades, repairs, or appointment packages. Miyagi Sánchez gives you a link, shop, scheduling, and direct payment without taking a percentage.",
+      "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/mx/vende/servicios is and have it check whether it works for your trade.",
       "primaryCta": "Publish my service",
       "secondaryCta": "View general page",
       "heroStats": [
@@ -1917,7 +1924,7 @@
       "eyebrow": "",
       "heroTitle": "Sell cars with the trust of a professional dealer lot.",
       "heroLead": "Publish your catalog with specs, an inspection report, and a warranty. Buyers filter by make, model, year, price, and mileage — like a specialized site, but inside the marketplace.",
-      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/vende/autos and tell you if it works for your car catalog.",
+      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/mx/vende/autos and tell you if it works for your car catalog.",
       "primaryCta": "Publish my car catalog",
       "secondaryCta": "See cars on the marketplace",
       "heroStats": [
@@ -2009,7 +2016,7 @@
       "eyebrow": "Migration",
       "heroTitle": "Switch to Miyagi Sánchez in minutes, not weeks.",
       "heroLead": "You already have your catalog built on another platform — don't re-type it by hand. Pick where you're coming from and follow the exact steps to bring it to Miyagi Sánchez.",
-      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/vende/migracion and tell you if your catalog can be brought over without re-typing it.",
+      "trustLine": "Do not take our word for it: ask your AI to evaluate miyagisanchez.com/mx/vende/migracion and tell you if your catalog can be brought over without re-typing it.",
       "primaryCta": "Upload my catalog",
       "secondaryCta": "I'd rather someone else did it",
       "heroStats": [
@@ -2121,7 +2128,7 @@
       "eyebrow": "Coming from Shopify",
       "heroTitle": "Your Shopify catalog, without re-typing it.",
       "heroLead": "Type in your Shopify shop's domain and Miyagi Sánchez brings your products — titles, variants, prices, stock, and photos — straight into a review before publishing anything.",
-      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/shopify and tell you if your Shopify shop can be brought over this way.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/mx/vende/migracion/shopify and tell you if your Shopify shop can be brought over this way.",
       "primaryCta": "Bring my Shopify catalog",
       "secondaryCta": "See the full migration guide",
       "heroStats": [
@@ -2210,7 +2217,7 @@
       "eyebrow": "Coming from Tiendanube",
       "heroTitle": "Your Tiendanube catalog, in a file and ready to upload.",
       "heroLead": "Tiendanube already has a built-in product exporter. Download your list as a CSV and upload it straight into Miyagi Sánchez's importer — without re-typing a single product.",
-      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/tiendanube and tell you if your Tiendanube export fits Miyagi Sánchez's importer.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/mx/vende/migracion/tiendanube and tell you if your Tiendanube export fits Miyagi Sánchez's importer.",
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
@@ -2294,7 +2301,7 @@
       "eyebrow": "Coming from WooCommerce",
       "heroTitle": "Your WooCommerce catalog, exported in one click.",
       "heroLead": "WordPress has had a built-in product exporter in WooCommerce for years. Download your CSV and upload it to Miyagi Sánchez's importer — no plugins, no extra steps.",
-      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/woocommerce and tell you if your WooCommerce export fits Miyagi Sánchez's importer.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/mx/vende/migracion/woocommerce and tell you if your WooCommerce export fits Miyagi Sánchez's importer.",
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
@@ -2378,7 +2385,7 @@
       "eyebrow": "Coming from Big Cartel",
       "heroTitle": "Your Big Cartel catalog, with no export button — but it can be done.",
       "heroLead": "Big Cartel doesn't have an \"export\" option in its dashboard. Here's the honest path: your public catalog CAN be downloaded, and your AI can organize it for you in Miyagi Sánchez's importer.",
-      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/vende/migracion/bigcartel and tell you if your public Big Cartel catalog can be brought over this way.",
+      "trustLine": "Do not take our word for it: ask your AI to review miyagisanchez.com/mx/vende/migracion/bigcartel and tell you if your public Big Cartel catalog can be brought over this way.",
       "primaryCta": "Go to Miyagi Sánchez's importer",
       "secondaryCta": "See other platforms",
       "heroStats": [
@@ -2689,7 +2696,7 @@
       "eyebrow": "World Cup 2026 · Mexico",
       "heroTitle": "Capture the World Cup's global audience.",
       "heroLead": "Publish your tours, food spots, and rentals instantly, with no platform commissions. Get ready before demand reaches Mexico City, Guadalajara, and Monterrey.",
-      "trustLine": "Do not take our word for it: ask Claude about miyagisanchez.com/vende/mundial and let it audit the page for you.",
+      "trustLine": "Do not take our word for it: ask Claude about miyagisanchez.com/mx/vende/mundial and let it audit the page for you.",
       "primaryCta": "Start selling",
       "secondaryCta": "View agent guide",
       "heroStats": [
@@ -2713,7 +2720,7 @@
         "Rentals, transfers, and day-rate services"
       ],
       "proofTitle": "Built for services and rentals, not only products",
-      "proofLead": "We reuse Miyagi's current infrastructure: publishing, payments, scheduling, and agent access. No new backend for this page.",
+      "proofLead": "We reuse Miyagi Sánchez's current infrastructure: publishing, payments, scheduling, and agent access. No new backend for this page.",
       "proofPoints": [
         {
           "icon": "iconoir-tools",
@@ -2723,7 +2730,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% commission",
-          "body": "Miyagi charges no platform commission. Your margin stays with you."
+          "body": "Miyagi Sánchez charges no platform commission. Your margin stays with you."
         },
         {
           "icon": "iconoir-wallet",
@@ -3155,7 +3162,7 @@
       "secondaryCta": "Take a walk through the neighborhood"
     },
     "sellerBlock": {
-      "eyebrow": "Sell on Miyagi",
+      "eyebrow": "Sell on Miyagi Sánchez",
       "heading": "Set up your spot in the neighborhood",
       "reassurances": [
         "Free, no commissions, always",
@@ -3621,7 +3628,6 @@
     "s_29658837a0926b95": "✓ Offer accepted — the buyer has received the payment link.",
     "s_2974868d8c6d2937": "Lower",
     "s_29872a8d36801889": "If you don't have a technical system,",
-    "s_298dfe180a7fba91": "Privacy Policy",
     "s_298e244603d3adfe": "Exclusive content — My shop",
     "s_29ba5727c91940f6": "Generating label…",
     "s_29fa864fd744397e": "Undo",
@@ -4067,7 +4073,6 @@
     "s_66a6bc8695aef704": "E.g., pre-owned Trek 29-inch mountain bike, $8,500, Guadalajara Home guitar lessons, $350 per hour, CDMX…",
     "s_66d20ec35d5f2a70": "30 days",
     "s_66f4d3531a602be6": "You can add verification later from your management panel.",
-    "s_66f9c13075fef371": "Terms of use",
     "s_6715627a557bd591": "Active own subdomain",
     "s_67a9ff291cd4f3fc": "income / month",
     "s_67cc6ff20179c72a": "🔔 Subscription",
@@ -4170,7 +4175,6 @@
     "s_725bcbff5c5d89f6": "X-UCP-Signature",
     "s_726aa3887a09fc6d": "image(s) could not be brought and were left with their original link.",
     "s_731419dec501da94": "Since it is a subdomain, use Name/Host",
-    "s_734db6fd03728c01": "Create your store in minutes. Your products, your rules, your complete profit.",
     "s_736c23b8d6db8a19": "Your name or company name",
     "s_736cb958dd2348c6": "Notes for buyer",
     "s_73819814e0bdbb65": "No Compra Protegida. The buyer pays the seller directly.",
@@ -4233,7 +4237,6 @@
     "s_79c6fa70e48bb567": "When buyers pay for your products, they will appear here.",
     "s_79de694b6cef2cd4": "Could not add the tag.",
     "s_79e0f856a11bc5bb": "Copy this prompt to your AI (Claude or another MCP client), along with your token below, and your agent will be able to polish, price, promote, restock, and maintain your store — in your language.",
-    "s_79fa3015414d4671": "0% commission",
     "s_7a37f9b594ac3e5d": "Saved.",
     "s_7a57d046b5b70317": "E.g. Hand-woven bag on a wooden table",
     "s_7a5c87486c223d61": "📦 Carrier shipping",
@@ -4318,7 +4321,6 @@
     "s_85e2adef7edee9e0": "Height",
     "s_866996b042aa5cf2": "Your domain, your brand. Without miyagisanchez.com in the URL. Active SSL, our infrastructure.",
     "s_8678b7516627b4e8": "SSL activated automatically. You will see here the links to your two channels.",
-    "s_868d233869625584": "By registering you accept the",
     "s_86ae5f4846468541": "Importing your listings…",
     "s_86b380e5f10e2da4": "applied",
     "s_86ee2f80b663beca": "No questions yet — the \"FAQ\" link will not appear in your store.",
@@ -4424,7 +4426,6 @@
     "s_939dbdae156d017a": "Confirm shipment",
     "s_93ab61830f6c1f08": "PDF · max. 15MB",
     "s_93b2a9ef782cacd6": "Date",
-    "s_93cfe03920f8e089": "Your listing appears immediately, with no approval wait.",
     "s_9415ac2416c5719d": "Sending…",
     "s_94200d3abd8d561a": "omitted",
     "s_944e08a0c5f2e381": "Select a neighborhood",
@@ -4498,7 +4499,6 @@
     "s_9ceadf9e7265c7c9": "Refunded",
     "s_9d51a8b87e7a98c5": "Serve your store as an independent site on",
     "s_9e3330b289114cd5": "The title is required.",
-    "s_9e6a39ba28d793ff": "Everything you charge is yours. The platform charges no commission.",
     "s_9e6ff9c1a1f107fd": "Help text (e.g. Up to 15 characters)",
     "s_9e7c982987e4eb5e": "What buyers will see:",
     "s_9e9ea5774a2dda55": "Order",
@@ -4696,7 +4696,6 @@
     "s_b5b420c59808b269": "Redirecting…",
     "s_b5bfb6d976306342": ", funds are released automatically. Powered by Stripe.",
     "s_b5c993c03647cd75": "Price (",
-    "s_b5f298524036a777": "Enable Compra Protegida so your customers can pay with confidence.",
     "s_b5fa51d564a9d880": "Ready",
     "s_b5fc500ecef88ae0": "ML Commissions",
     "s_b6108bebf3fc5eab": "Earnings — My shop",
@@ -4704,7 +4703,6 @@
     "s_b64d208e6cc2aab4": "Failed to update orders.",
     "s_b66292585132b8e9": "earring",
     "s_b6b49b735c9e32bd": "Tell your buyers what you offer, your specialty, years of experience...",
-    "s_b6ca6ff82099e813": "and the",
     "s_b6f416b2137a0c91": "Exclusive Weekly Recipes Monthly Live Classes Member Discounts",
     "s_b72099ee40bcbca7": "Initial visibility",
     "s_b79fd5f510f18c1f": "Could not resend.",
@@ -4772,7 +4770,6 @@
     "s_bfb3e36d906afcb2": "Bring your entire store in minutes. Paste your text and let AI put it together, or upload a file generated by your own wizard — without complicated formatting or manual mapping.",
     "s_bfbf44740f41554d": "day",
     "s_bfc2d16235868e7c": "Clear filters",
-    "s_bfc73eb850166663": "Create free account →",
     "s_bffdd9d3a5098594": "configured sections",
     "s_c01879ff9b53909c": "https://... (image, video, PDF...)",
     "s_c0293078a897bc90": "or paste a link:",
@@ -5040,7 +5037,6 @@
     "s_e0cc8d29e7916082": "Paste your API Token here",
     "s_e0cde72248589986": "Releasing…",
     "s_e0d3025190c5d931": "Don't have a domain?",
-    "s_e0d523cfb867289b": "I already have an account",
     "s_e0d8e5b42b0a2879": "Could not load collections.",
     "s_e11d05fe4d93d8c5": "Issue full refund",
     "s_e1233170e418c219": "Could not disconnect.",
@@ -5090,7 +5086,6 @@
     "s_e71f3b8e2bed0684": "https://cal.com/tu-usuario/consulta or https://calendly.com/tu-usuario",
     "s_e7221770edba57a3": "Featured",
     "s_e7333b5a9a20aa29": "Setup in 2 minutes",
-    "s_e7351b8e0fb84afb": "Sell on Miyagi Sánchez.",
     "s_e73a83c8f6bafdff": "Units",
     "s_e7948be99e9354c3": "Proxy (orange cloud): turn off → DNS only · Save",
     "s_e794f8312469b963": "Coupons — My shop",
@@ -5217,7 +5212,6 @@
     "s_f749e2c42c20df43": "Partner access",
     "s_f7aa761caa6b3ddb": "Link copied",
     "s_f8320d7048d87951": "Hello,",
-    "s_f834c4b341fb02fb": "Protected payments",
     "s_f88ba99c9b342767": "SKU",
     "s_f8f6241d9623751e": "Add this record {0} in your domain's DNS panel.",
     "s_f9191531404c4016": "Cloudflare",

@@ -5,6 +5,7 @@ import { RELAY_LANGUAGE_DIRECTIVE } from '@/lib/about-agent'
 import { getOverriddenAboutSections } from '@/lib/about-content-overrides'
 import { buildSetupPrompt, EXAMPLE_SETUP, SETUP_SPEC_VERSION, SETUP_LANGUAGE_DIRECTIVE } from '@/lib/setup-spec'
 import { getComparatorDataset } from '@/lib/cost-comparator-data'
+import { SELLER_LANDING_PATHS } from '@/lib/seller-acquisition'
 
 const BASE_URL = 'https://miyagisanchez.com'
 const PAGE_PATH = '/agent'
@@ -198,9 +199,17 @@ export default async function AgentPage() {
             <i className="iconoir-info-circle" style={{ fontSize: 14 }} />
             Acerca de — /acerca (es/en)
           </a>
-          <a href={`${ENDPOINT}/vende`} className="btn btn-secondary btn-sm">
+          {/*
+            * `/vende` moved under its market prefix — this surface is es-MX (see the
+            * sibling es-MX body-copy spec), so it recruits into the Mexican landing.
+            * Read from SELLER_LANDING_PATHS rather than repeating the literal: this
+            * link was left behind by the move precisely because it was a literal, and
+            * it is absolute (agents copy it out of the page), so a 308 would have been
+            * invisible here rather than merely a wasted hop.
+            */}
+          <a href={`${ENDPOINT}${SELLER_LANDING_PATHS.mx}`} className="btn btn-secondary btn-sm">
             <i className="iconoir-shop" style={{ fontSize: 14 }} />
-            Para vendedores — /vende
+            Para vendedores — {SELLER_LANDING_PATHS.mx}
           </a>
         </div>
       </section>

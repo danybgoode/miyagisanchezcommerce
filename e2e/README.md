@@ -34,7 +34,7 @@ JSON report + a screenshot to `test-results/live-smoke/` that the calling agent 
 than just an exit code.
 
 ```bash
-node scripts/live-smoke.mjs --env=prod  --flow=unauthed --path=/vende/migracion
+node scripts/live-smoke.mjs --env=prod  --flow=unauthed --path=/mx/vende/migracion
 node scripts/live-smoke.mjs --env=local --flow=admin    --path=/admin/promoter
 ```
 

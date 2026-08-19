@@ -5,7 +5,7 @@ import {
   buildCreatorPageConfig,
   buildLocalBusinessPageConfig,
   buildServicesPageConfig,
-} from '../app/(shell)/vende/_components/page-config'
+} from '../app/(shell)/mx/vende/_components/page-config'
 import { sellerTrustPrompt } from '../lib/seller-acquisition'
 
 // Sprint 2 (US-2) — the redesigned hero contract, asserted at the pure config seam (no server, runs in
@@ -67,7 +67,7 @@ test.describe('seller acquisition · redesigned hero config (US-2)', () => {
   test('the bespoke mundial hero feeds its PromptBlock the per-page directive prompt', () => {
     // mundial/page.tsx computes this and passes it to <PromptBlock>.
     const prompt = sellerTrustPrompt('mundial', copy.shared.trustPrompt)
-    expect(prompt).toContain('https://miyagisanchez.com/vende/mundial')
+    expect(prompt).toContain('https://miyagisanchez.com/mx/vende/mundial')
     expect(prompt).toContain('Mercado Libre')
     expect(prompt).toContain('Shopify')
   })
