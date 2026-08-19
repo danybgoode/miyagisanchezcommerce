@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { trustChips, hasShopStatus, type ShopStatus } from '@/lib/shop-presentation/chrome'
+import { trustChips, hasShopStatus, railPanels, type ShopStatus } from '@/lib/shop-presentation/chrome'
 import type { Dictionary } from '@/lib/dictionary'
 
 /**
@@ -57,10 +57,19 @@ export default function ShopRail({
   claimHref: string | null
   copy: Dictionary['buyerCopy']
 }) {
-  const showAbout = !!about || chips.length > 0 || contacts.length > 0 || !!claimHref
-  const showCollections = collections.length > 0
-  const showStatus = hasShopStatus(status)
-  if (!showAbout && !showCollections && !showStatus) return null
+  // The SAME function the page uses to decide whether the rail gets its own grid
+  // track. When these were two separate expressions they disagreed, and a shop
+  // rendered a panel the layout had already decided did not exist.
+  const panels = railPanels({
+    about,
+    chipCount: chips.length,
+    contactCount: contacts.length,
+    hasClaim: !!claimHref,
+    collectionCount: collections.length,
+    hasStatus: hasShopStatus(status),
+  })
+  if (panels.count === 0) return null
+  const { about: showAbout, collections: showCollections, status: showStatus } = panels
 
   const chipLabel = { verified: 'panels.verified', ships: 'panels.shipsNationwide', pickup: 'panels.localPickup' } as const
 

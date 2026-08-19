@@ -16,9 +16,11 @@ import type { Dictionary } from '@/lib/dictionary'
  * are the same ones, from the same derivation — `navEntries` — so a hidden or
  * empty section still cannot produce a dead link here.
  *
- * The cart is a link, not a live count: the buyer's bag is client state that the
- * marketplace shell already owns, and duplicating a counter here would be a
- * second source of truth for how many things you are buying.
+ * NO BAG HERE. The concept mockup has one, but the platform navbar already
+ * carries the buyer's cart on every page — a second bag two rows apart is a
+ * second thing to click for the same job, and the buyer cannot tell which one
+ * holds their items. The mockup renders a shop in isolation; this one lives
+ * inside the marketplace chrome.
  */
 
 const LABEL_KEY: Record<SectionKey, keyof Dictionary['buyerCopy']> = {
@@ -40,7 +42,6 @@ export default function ShopHeader({
   active,
   accent,
   accentTextColor,
-  cartHref,
   copy,
 }: {
   shopName: string
@@ -51,7 +52,6 @@ export default function ShopHeader({
   active: SectionKey | null
   accent: string
   accentTextColor: string
-  cartHref: string
   copy: Dictionary['buyerCopy']
 }) {
   const entries = navEntries(config, availability, basePath)
@@ -59,6 +59,9 @@ export default function ShopHeader({
   return (
     <header className="shop-header">
       <div className="shop-header-inner">
+        {/* No name means a caller that has no shop object to hand; links alone
+            are correct there rather than an empty avatar. */}
+        {shopName ? (
         <Link href={basePath || '/'} className="shop-identity" aria-label={shopName}>
           {logoUrl ? (
             <img src={logoUrl} alt="" className="shop-avatar" />
@@ -71,6 +74,7 @@ export default function ShopHeader({
               links onto a second row and shove the bag off screen. */}
           <span className="shop-name">{shopName}</span>
         </Link>
+        ) : null}
 
         <nav aria-label={copy['shopNav.label']} className="shop-navlinks">
           {entries.map((entry) => (
@@ -86,7 +90,6 @@ export default function ShopHeader({
           ))}
         </nav>
 
-        <Link href={cartHref} className="shop-bag">{copy['shopChrome.bag']}</Link>
       </div>
     </header>
   )

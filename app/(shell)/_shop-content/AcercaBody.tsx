@@ -35,6 +35,8 @@ export default async function AcercaBody({ shop, basePath }: { shop: Shop; baseP
     <ShopThemeShell theme={nav.theme} accent={nav.accent}>
     <div className="max-w-2xl mx-auto px-4 py-8">
       <ShopSectionNav
+        shopName={shop.name}
+        logoUrl={shop.logo_url ?? null}
         config={nav.sections}
         availability={nav.availability}
         basePath={basePath}

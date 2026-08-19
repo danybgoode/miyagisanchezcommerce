@@ -8,6 +8,7 @@ import {
   hasShopStatus,
   relativeDay,
   railOccupiesTrack,
+  railPanels,
 } from '../lib/shop-presentation/chrome'
 import { PRESET_RECIPES } from '../lib/shop-presentation/theme'
 
@@ -203,5 +204,89 @@ test.describe('chrome · no reactions, ever', () => {
     for (const banned of ['reaction', 'Compartir', '♡', 'onLike', 'Me gusta']) {
       expect(card.toLowerCase(), banned).not.toContain(banned.toLowerCase())
     }
+  })
+})
+
+test.describe('chrome · the count and the render agree (reported live)', () => {
+  test('an unclaimed shop with no About still COUNTS the panel it renders', () => {
+    // 🚨 THE REPORTED BUG. The page counted panels from
+    // [about||contacts, collections, dispatch] while ShopRail decided to render
+    // the About panel from [about||chips||contacts||claim]. `el-manchon` — no
+    // About, no contacts, unclaimed — rendered a panel the count said did not
+    // exist, so the track never opened and the Wall spanned the page above a
+    // lone floating panel. One function now answers for both.
+    const panels = railPanels({
+      about: null, chipCount: 0, contactCount: 0,
+      hasClaim: true, collectionCount: 0, hasStatus: false,
+    })
+    expect(panels.about).toBe(true)
+    expect(panels.count).toBe(1)
+  })
+
+  test('a shop with genuinely nothing has no rail at all', () => {
+    const panels = railPanels({
+      about: null, chipCount: 0, contactCount: 0,
+      hasClaim: false, collectionCount: 0, hasStatus: false,
+    })
+    expect(panels.count).toBe(0)
+    expect(railOccupiesTrack('feed-sidebar', panels.count)).toBe(false)
+  })
+
+  test('each input alone is enough for its own panel', () => {
+    const base = { about: null, chipCount: 0, contactCount: 0, hasClaim: false, collectionCount: 0, hasStatus: false }
+    expect(railPanels({ ...base, about: 'x' }).about).toBe(true)
+    expect(railPanels({ ...base, chipCount: 1 }).about).toBe(true)
+    expect(railPanels({ ...base, contactCount: 1 }).about).toBe(true)
+    expect(railPanels({ ...base, collectionCount: 1 }).collections).toBe(true)
+    expect(railPanels({ ...base, hasStatus: true }).status).toBe(true)
+  })
+
+  test('BOTH sides read railPanels — neither re-derives it', () => {
+    // The trap is two expressions, not one wrong expression.
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const rail = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopRail.tsx'), 'utf8')
+    expect(page).toContain('railPanels(')
+    expect(rail).toContain('railPanels(')
+    // And no hand-rolled `||` chain survives in either.
+    expect(rail).not.toMatch(/showAbout\s*=\s*!!about/)
+  })
+})
+
+test.describe('chrome · one header on every shop surface (reported live)', () => {
+  test('ShopSectionNav renders the full header, not a bare chip strip', () => {
+    // Reported: "going to /tienda changes the layout and the navbar moves to the
+    // top left." The homepage had the Sprint 8 header while every other surface
+    // kept the old strip — one shop, two chromes, depending on the link you
+    // followed. Converged by making the nav BE the header.
+    const nav = readFileSync(path.join(ROOT, 'app/(shell)/_shop-sections/ShopSectionNav.tsx'), 'utf8')
+    expect(nav).toContain('ShopHeader')
+    expect(nav).not.toContain('<nav')
+  })
+
+  test('every shop surface passes the shop identity through', () => {
+    for (const file of [
+      'app/(shell)/_shop-sections/ShopIndexBody.tsx',
+      'app/(shell)/_shop-sections/CollectionsIndexBody.tsx',
+      'app/(shell)/_shop-sections/EventsIndexBody.tsx',
+      'app/(shell)/_shop-content/AcercaBody.tsx',
+      'app/(shell)/_shop-content/FaqBody.tsx',
+      'app/(shell)/_shop-content/PoliticasBody.tsx',
+      'app/(shell)/_shop-collection/CollectionPage.tsx',
+    ]) {
+      const source = readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, file).toMatch(/shopName=\{/)
+    }
+  })
+})
+
+test.describe('chrome · exactly one cart, and it is the platform’s', () => {
+  test('the shop header carries no bag of its own', () => {
+    // The concept renders a shop in isolation; this one lives inside the
+    // marketplace chrome, which already carries the buyer's cart on every page.
+    // Two bags two rows apart is two things to click for one job.
+    const header = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopHeader.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(header).not.toContain('shop-bag')
+    expect(header).not.toContain('cartHref')
   })
 })
