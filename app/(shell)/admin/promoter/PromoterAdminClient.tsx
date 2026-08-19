@@ -14,6 +14,7 @@ import { PROMOTER_SKU_BASE_PRICE_MXN } from '@/lib/promoter-earnings'
 import { buildSkuPriceTable, computeBundleRow, type PromoterSkuPrices } from '@/lib/promoter-pricing'
 import { TRANSFER_SKU_LABEL, type TransferSku } from '@/lib/promoter-transfer'
 import type { PromoterTransfer } from '@/lib/promoter-transfers'
+import { SELLER_LANDING_PATHS } from '@/lib/seller-acquisition'
 
 /**
  * Promoter console — provision promoters + edit the seller discount + (S3) set the
@@ -229,7 +230,11 @@ export default function PromoterAdminClient({
   }
 
   function shareLink(code: string) {
-    return `${siteUrl}/vende?promo=${code}`
+    // The MX landing, read from the one place that knows where a market recruits.
+    // `/vende` still 308s here with the query intact, so the old form worked — but
+    // this link is MINTED fresh, then printed on cards and pasted into chats where it
+    // outlives any redirect rule. A share link should be the destination, not a hop.
+    return `${siteUrl}${SELLER_LANDING_PATHS.mx}?promo=${code}`
   }
 
   async function createPromoter() {

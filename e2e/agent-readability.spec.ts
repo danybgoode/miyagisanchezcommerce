@@ -43,8 +43,13 @@ test.describe('Agent-readability surface — substantive content', () => {
     const html = await res.text()
     expect(html.length).toBeGreaterThan(10_000)
     expect(html).toContain('Tu tienda es tuya. El mercado es por país.')
-    expect(html).toContain('Entrar a Miyagi México')
-    expect(html).toContain('Entrar a Miyagi Estados Unidos')
+    // Literals on purpose, not locale lookups: this asserts what a link-preview bot
+    // actually READS off the page. Keyed against `locales/es.json` it would only prove
+    // the page and the spec agree, and would stay green through any copy change.
+    // Updated by the one-landing-per-market brand sweep — the markets are markets OF
+    // Miyagi Sánchez, so "Entrar a Miyagi México" became "Entrar al mercado de México".
+    expect(html).toContain('Entrar al mercado de México')
+    expect(html).toContain('Entrar al mercado de Estados Unidos')
   })
 
   test('/mx returns the Mexico marketplace shell, not an empty page', async ({ request }) => {
