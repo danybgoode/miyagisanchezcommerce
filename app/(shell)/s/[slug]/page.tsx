@@ -255,7 +255,6 @@ export async function ShopPage({
   const pageContent = (
     <div
       style={{ '--shop-accent': accent, ...shopTheme.variables } as React.CSSProperties}
-      data-shop-theme={shopTheme.attribute}
       data-shop-surface={shopTheme.recipe.surface}
       data-shop-background={shopTheme.recipe.background}
       data-shop-wall={shopTheme.recipe.wall_layout}

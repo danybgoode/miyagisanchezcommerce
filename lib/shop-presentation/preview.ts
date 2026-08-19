@@ -21,11 +21,8 @@ import 'server-only'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { normalizeSections } from './sections'
-import { validateRecipe, THEME_MODES } from './theme'
 
 export interface PreviewOverlay {
-  theme_mode?: string
-  theme_recipe?: unknown
   sections?: unknown
 }
 
@@ -56,18 +53,6 @@ export async function applyPreviewOverlay(
   if (!data) return settings
 
   const overlay: Record<string, unknown> = { ...settings }
-
-  const mode = typeof params.theme_mode === 'string' ? params.theme_mode : null
-  if (mode && (THEME_MODES as readonly string[]).includes(mode)) overlay.theme_mode = mode
-
-  // Every draft value goes through the SAME validators the write path uses. A
-  // preview that accepted something the save would refuse is a preview that
-  // lies, which is worse than no preview at all.
-  const recipeRaw = typeof params.theme_recipe === 'string' ? safeJson(params.theme_recipe) : null
-  if (recipeRaw !== null) {
-    const result = validateRecipe(recipeRaw)
-    if (result.ok) overlay.theme_recipe = result.value
-  }
 
   const sectionsRaw = typeof params.sections === 'string' ? safeJson(params.sections) : null
   if (sectionsRaw !== null) overlay.sections = normalizeSections(sectionsRaw)

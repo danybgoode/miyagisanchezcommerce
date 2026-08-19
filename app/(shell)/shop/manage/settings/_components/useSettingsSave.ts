@@ -42,13 +42,28 @@ export function useSettingsSave() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-        const data = (await res.json().catch(() => ({}))) as { error?: string; field?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          field?: string
+          /** Whether the change actually reached the PUBLIC storefront. */
+          storefront_synced?: boolean
+        }
         if (!res.ok) {
           if (data.field) opts?.onFieldError?.(data.field, data.error ?? 'Error.')
           else showToast(data.error ?? 'Error al guardar.', 'error')
           return false
         }
         opts?.onSuccess?.(data as Record<string, unknown>)
+        // 🚨 `res.ok` only means the settings row was written. The PUBLIC shop
+        // reads its settings from the Medusa seller, and that sync can fail on
+        // its own — which is how a merchant once switched their theme, saw this
+        // very toast, and watched their storefront not change. Say which
+        // happened; never claim the shop was updated when it was not.
+        if (data.storefront_synced === false) {
+          showToast('Se guardó, pero tu tienda pública todavía no lo muestra. Intenta guardar otra vez.', 'error')
+          setIsDirty(false)
+          return true
+        }
         showToast('Cambios guardados correctamente.', 'success')
         setIsDirty(false)
         return true

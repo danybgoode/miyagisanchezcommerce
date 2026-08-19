@@ -3,215 +3,178 @@ import path from 'node:path'
 import { test, expect } from '@playwright/test'
 import {
   resolveTheme,
-  normalizeThemeMode,
-  normalizeRecipe,
-  validateRecipe,
-  isSafeColor,
-  THEME_MODES,
+  isKnownPreset,
   THEME_ENUMS,
   THEME_RECIPE_FIELDS,
   DEFAULT_RECIPE,
-  RETRO_RECIPE,
-  LEGACY_PRESET_RECIPES,
+  PRESET_RECIPES,
 } from '../lib/shop-presentation/theme'
+import { THEME_PRESETS, isValidThemePresetKey, DEFAULT_THEME_PRESET_KEY } from '../lib/shop-settings/theme-presets'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 
 /**
- * Living Shop · Sprint 4 — the theme engine (Stories 4.1–4.5).
+ * Living Shop · the theme, as ONE field (Sprint 4, reshaped 2026-08-19).
  *
- * The two properties this whole sprint rests on:
- *   1. Custom mode exposes NO arbitrary CSS/HTML/JS/font-URL escape hatch, and
- *      that absence is asserted over the SCHEMA rather than promised in a
- *      comment.
- *   2. A shop that never chose a mode does not change appearance.
+ * The epic first shipped a second selector (`theme_mode` + `theme_recipe`) in a
+ * new studio while the original preset picker stayed live in Diseño — two
+ * pickers, two tabs apart, both offering "Clásico" and writing different fields.
+ * These specs pin the shape that replaced it: `settings.theme_preset` is the
+ * only field that decides how a shop looks, and Retro Social is its sixth value.
  *
- * Observed red by: adding a `custom_css` field to the recipe (the escape-hatch
- * test failed), by letting `isSafeColor` accept any string (the injection cases
- * failed), and by dropping the legacy-preset branch from `resolveTheme` (the
- * no-visual-reset test failed).
+ * Observed red by: re-adding a `theme_mode` read to `resolveTheme` (the
+ * one-field test failed), by giving a recipe an `accent` field (the
+ * one-accent test failed), and by dropping `retro` from THEME_PRESETS (the
+ * picker-parity test failed).
  */
 
-test.describe('theme · Custom mode has NO escape hatch', () => {
-  test('every recipe field is a closed enum or a validated colour — nothing free-form', () => {
-    const colourFields = new Set(['accent', 'secondary_accent'])
-    for (const field of THEME_RECIPE_FIELDS) {
-      const isEnum = field in THEME_ENUMS
-      const isColour = colourFields.has(field)
-      expect(isEnum || isColour, `${field} is neither a closed enum nor a validated colour`).toBe(true)
+test.describe('theme · ONE field decides how a shop looks', () => {
+  test('resolveTheme reads theme_preset and nothing else', () => {
+    // The regression this prevents by name: a second field that can disagree
+    // with the picker a merchant actually used.
+    //
+    // Asserted on a READ (`settings.theme_mode`), not on the bare word — the
+    // header comment explains why the field is gone and legitimately mentions
+    // it. A substring match over prose is the mistake this suite has already
+    // made twice; see the epic retrospective.
+    const source = readFileSync(path.join(ROOT, 'lib/shop-presentation/theme.ts'), 'utf8')
+    expect(source).not.toMatch(/settings\.theme_mode|settings\.theme_recipe/)
+    expect(source).toMatch(/settings\.theme_preset/)
+
+    // And behaviourally: a stray legacy value must not steer the result.
+    const withStrays = resolveTheme({ theme_preset: 'papel', theme_mode: 'retro', theme_recipe: { corners: 'round' } })
+    expect(withStrays.preset).toBe('papel')
+    expect(withStrays.recipe).toEqual(PRESET_RECIPES.papel)
+  })
+
+  test('every picker option resolves, and every resolvable preset is in the picker', () => {
+    // Both directions. A picker offering a preset with no recipe renders nothing;
+    // a recipe with no picker entry is a look no merchant can reach.
+    for (const preset of THEME_PRESETS) {
+      if (preset.key === DEFAULT_THEME_PRESET_KEY) continue
+      expect(isKnownPreset(preset.key), `${preset.key} has no recipe`).toBe(true)
+      expect(isValidThemePresetKey(preset.key), `${preset.key} is not settable`).toBe(true)
+    }
+    const pickerKeys = new Set(THEME_PRESETS.map((p) => p.key))
+    for (const key of Object.keys(PRESET_RECIPES)) {
+      expect(pickerKeys.has(key), `${key} has a recipe but is not in the picker`).toBe(true)
     }
   })
 
-  test('the schema has no field whose NAME could carry code or a remote asset', () => {
-    const forbidden = /css|html|script|js$|javascript|font_url|url|href|src|style|template|embed|iframe/i
-    const offenders = THEME_RECIPE_FIELDS.filter((f) => forbidden.test(f))
-    expect(offenders).toEqual([])
+  test('Retro Social is one of the presets, not a parallel mode', () => {
+    expect(THEME_PRESETS.map((p) => p.key)).toContain('retro')
+    expect(resolveTheme({ theme_preset: 'retro' }).presetAttribute).toBe('retro')
   })
 
-  test('an unknown field is REFUSED at the write boundary, never silently ignored', () => {
-    // Silently dropping it is how an escape hatch creeps in unnoticed — and how a
-    // seller comes to believe they configured something they did not.
-    for (const hatch of ['custom_css', 'html', 'font_url', 'script']) {
-      const result = validateRecipe({ [hatch]: 'anything' })
-      expect(result.ok, `${hatch} was accepted`).toBe(false)
-      expect(result.issues.join(' ')).toContain(hatch)
+  test('no preset means today’s storefront — no attribute at all', () => {
+    for (const settings of [{}, { theme_preset: null }, { theme_preset: 'neon-dreams' }, { theme_preset: 42 }]) {
+      const theme = resolveTheme(settings as Record<string, unknown>)
+      expect(theme.preset).toBeNull()
+      expect(theme.presetAttribute).toBeNull()
+      expect(theme.recipe).toEqual(DEFAULT_RECIPE)
     }
   })
 
-  test('an unknown field is DISCARDED by the renderer rather than reaching output', () => {
-    const recipe = normalizeRecipe({ custom_css: 'body{display:none}', typography: 'editorial' })
-    expect(Object.keys(recipe).sort()).toEqual([...THEME_RECIPE_FIELDS].sort())
-    expect(JSON.stringify(recipe)).not.toContain('display:none')
+  test('an unrecognized stored value never becomes an attribute', () => {
+    // It would be a seller-controlled string in markup — the one thing the
+    // schema exists to prevent.
+    expect(resolveTheme({ theme_preset: '"><script>' }).presetAttribute).toBeNull()
+  })
+})
+
+test.describe('theme · a shop has exactly ONE accent', () => {
+  test('a recipe carries no colour field at all', () => {
+    // Two accent fields meant a merchant's brand colour changed when they
+    // switched looks. The accent is `theme.accent_color`, set in Diseño, and a
+    // preset never overrides it.
+    for (const recipe of [DEFAULT_RECIPE, ...Object.values(PRESET_RECIPES)]) {
+      expect(Object.keys(recipe).sort()).toEqual([...THEME_RECIPE_FIELDS].sort())
+      expect(JSON.stringify(recipe)).not.toMatch(/accent|colou?r|#[0-9a-f]{6}/i)
+    }
   })
 
-  test('no resolved variable value can carry a declaration or a URL', () => {
-    const theme = resolveTheme({
-      theme_mode: 'custom',
-      theme_recipe: {
-        accent: '#ff0000',
-        secondary_accent: '#00ff00',
-        typography: 'editorial',
-      },
-    })
-    for (const value of Object.values(theme.variables)) {
-      expect(value).not.toMatch(/url\(|expression\(|javascript:|<|>|;/)
+  test('the resolver emits no colour variable', () => {
+    for (const key of [null, ...Object.keys(PRESET_RECIPES)]) {
+      const vars = resolveTheme(key ? { theme_preset: key } : {}).variables
+      expect(Object.keys(vars).sort()).toEqual(
+        ['--shop-font-body', '--shop-font-heading', '--shop-radius', '--shop-space'],
+      )
+      for (const value of Object.values(vars)) {
+        expect(value).not.toMatch(/url\(|expression\(|javascript:|<|>|;/)
+      }
     }
   })
 })
 
-test.describe('theme · colours are validated, not trusted', () => {
-  test('accepts a plain six-digit hex', () => {
-    expect(isSafeColor('#1d6f42')).toBe(true)
-    expect(isSafeColor('#ABCDEF')).toBe(true)
-  })
-
-  // The negation of what we ban is asserted above, so this cannot pass by
-  // rejecting everything.
-  for (const bad of [
-    '#fff', 'red', 'rgb(1,2,3)', 'var(--x)', '#1d6f42; background: url(//evil)',
-    'url(javascript:alert(1))', 'expression(alert(1))', '', 42, null, undefined,
-  ]) {
-    test(`refuses ${JSON.stringify(bad)}`, () => {
-      expect(isSafeColor(bad)).toBe(false)
-    })
-  }
-
-  test('an invalid colour is refused at the write boundary and falls back at render', () => {
-    expect(validateRecipe({ accent: 'red' }).ok).toBe(false)
-    expect(normalizeRecipe({ accent: 'red' }).accent).toBeNull()
-    const theme = resolveTheme({ theme_mode: 'custom', theme_recipe: { accent: 'red' } })
-    expect(theme.variables['--shop-accent']).toBeUndefined()
-  })
-})
-
-test.describe('theme · absent or malformed resolves to Default, never an error', () => {
-  test('a shop with no theme settings at all', () => {
-    const theme = resolveTheme({})
-    expect(theme.mode).toBe('default')
-    expect(theme.recipe).toEqual(DEFAULT_RECIPE)
-    expect(theme.presetAttribute).toBeNull()
-  })
-
-  test('an unknown mode falls back rather than rendering an unknown attribute', () => {
-    expect(normalizeThemeMode({ theme_mode: 'neon' })).toBe('default')
-    expect(resolveTheme({ theme_mode: 'neon' }).attribute).toBe('default')
-  })
-
-  for (const junk of [42, 'nope', [], { theme_recipe: 'not-an-object' }, { theme_recipe: null }]) {
-    test(`survives ${JSON.stringify(junk)}`, () => {
-      const theme = resolveTheme((junk ?? {}) as Record<string, unknown>)
-      expect(THEME_MODES).toContain(theme.mode)
-      expect(Object.keys(theme.recipe).sort()).toEqual([...THEME_RECIPE_FIELDS].sort())
-    })
-  }
-})
-
-test.describe('theme · Retro Social is a FINISHED theme, not a preset of Custom', () => {
-  test('two shops choosing Retro get the same theme, whatever else they stored', () => {
-    const a = resolveTheme({ theme_mode: 'retro' })
-    const b = resolveTheme({ theme_mode: 'retro', theme_recipe: { corners: 'round', density: 'airy' } })
-    expect(a.recipe).toEqual(RETRO_RECIPE)
-    expect(b.recipe).toEqual(RETRO_RECIPE)
-  })
-
-  test('it differs from Default in framing, rhythm and typography — not only a colour', () => {
-    const differing = (Object.keys(RETRO_RECIPE) as Array<keyof typeof RETRO_RECIPE>)
-      .filter((k) => RETRO_RECIPE[k] !== DEFAULT_RECIPE[k])
-    expect(differing.length).toBeGreaterThanOrEqual(5)
-    expect(differing).toContain('surface')
-    expect(differing).toContain('typography')
-    expect(differing).toContain('wall_card')
-  })
-})
-
-test.describe('theme · legacy presets survive with NO backfill (epic D5)', () => {
-  test('a shop with a legacy preset and no mode keeps its preset attribute', () => {
-    // This is the no-visual-reset guarantee: the shipped `[data-shop-preset]`
-    // CSS still paints exactly what it painted yesterday.
-    for (const preset of ['papel', 'pizarra', 'lienzo', 'terracota']) {
-      const theme = resolveTheme({ theme_preset: preset })
-      expect(theme.presetAttribute, preset).toBe(preset)
-      expect(theme.mode).toBe('custom')
-    }
-  })
-
-  test('each legacy preset also maps to a recipe, so the NEW controls describe the shop it already is', () => {
-    for (const [preset, recipe] of Object.entries(LEGACY_PRESET_RECIPES)) {
-      expect(resolveTheme({ theme_preset: preset }).recipe).toEqual(recipe)
-    }
-  })
-
-  test('choosing a mode is the ONLY thing that drops the legacy preset', () => {
-    expect(resolveTheme({ theme_preset: 'papel', theme_mode: 'default' }).presetAttribute).toBeNull()
-    expect(resolveTheme({ theme_preset: 'papel', theme_mode: 'retro' }).presetAttribute).toBeNull()
-    // Still Custom → the preset CSS remains, layered under the recipe.
-    expect(resolveTheme({ theme_preset: 'papel', theme_mode: 'custom' }).presetAttribute).toBe('papel')
-  })
-
-  test('an unrecognized stored preset does not become an attribute', () => {
-    // A junk value must not reach `data-shop-preset`, where it would be a
-    // seller-controlled string in markup — the one thing this schema forbids.
-    expect(resolveTheme({ theme_preset: 'neon-dreams' }).presetAttribute).toBeNull()
-    expect(resolveTheme({ theme_preset: 'neon-dreams' }).mode).toBe('default')
-  })
-})
-
-test.describe('theme · the CSS matches the schema', () => {
-  const css = readFileSync(path.join(ROOT, 'app/globals.css'), 'utf8')
-
-  test('every mode has a selector that can style it', () => {
-    expect(css).toContain('[data-shop-theme]')
-    expect(css).toContain('[data-shop-theme="retro"]')
-  })
-
-  test('the shipped legacy preset blocks are still present and untouched', () => {
+test.describe('theme · the four shipped presets do not visually reset', () => {
+  test('each keeps its own CSS block, untouched', () => {
+    const css = readFileSync(path.join(ROOT, 'app/globals.css'), 'utf8')
     for (const preset of ['papel', 'pizarra', 'lienzo', 'terracota']) {
       expect(css, preset).toContain(`[data-shop-preset="${preset}"]`)
     }
   })
 
-  test('Retro introduces no inaccessible era-authentic behaviour', () => {
-    // Nostalgia is visual. These were the actual defects of that era's pages and
-    // reproducing them would trade a merchant's expression against a buyer's
-    // access, which Story 4.3 forbids.
-    const retroBlock = css.slice(css.indexOf('[data-shop-theme="retro"]'))
-    for (const banned of ['marquee', 'blink', 'animation: blink', 'text-decoration: blink']) {
-      expect(retroBlock.toLowerCase(), banned).not.toContain(banned)
+  test('each resolves to a recipe that matches the character it already had', () => {
+    expect(PRESET_RECIPES.papel.typography).toBe('editorial')
+    expect(PRESET_RECIPES.pizarra.typography).toBe('tecnica')
+    expect(PRESET_RECIPES.lienzo.typography).toBe('geometrica')
+    expect(PRESET_RECIPES.terracota.typography).toBe('editorial')
+  })
+
+  test('Retro differs structurally from Default — framing, rhythm, identity, not a colour', () => {
+    const differing = (Object.keys(PRESET_RECIPES.retro) as Array<keyof typeof DEFAULT_RECIPE>)
+      .filter((k) => PRESET_RECIPES.retro[k] !== DEFAULT_RECIPE[k])
+    expect(differing.length).toBeGreaterThanOrEqual(5)
+    for (const axis of ['surface', 'typography', 'wall_card', 'identity', 'wall_layout'] as const) {
+      expect(differing, axis).toContain(axis)
     }
   })
+})
 
-  test('reduced motion is respected inside merchant themes too', () => {
-    expect(css).toContain('prefers-reduced-motion')
-    const scoped = css.slice(css.indexOf('[data-shop-theme]'))
-    expect(scoped).toContain('prefers-reduced-motion')
-  })
+test.describe('theme · the CSS implements exactly what the recipes name', () => {
+  const css = readFileSync(path.join(ROOT, 'app/globals.css'), 'utf8')
 
-  test('every background treatment in the enum has a rule, and none fetches a remote asset', () => {
-    for (const bg of THEME_ENUMS.background) {
+  test('every background treatment a recipe uses has a rule, and none fetches a remote asset', () => {
+    const used = new Set(Object.values(PRESET_RECIPES).map((r) => r.background))
+    for (const bg of used) {
       if (bg === 'plain') continue // plain is the absence of a treatment, by design
       expect(css, bg).toContain(`[data-shop-background="${bg}"]`)
     }
-    const themeBlock = css.slice(css.indexOf('LIVING SHOP — theme engine v2'))
+    const themeBlock = css.slice(css.indexOf('LIVING SHOP — theme engine'))
     expect(themeBlock).not.toMatch(/url\((?!#)/)
+  })
+
+  test('every surface treatment a recipe uses has a rule', () => {
+    for (const surface of new Set(Object.values(PRESET_RECIPES).map((r) => r.surface))) {
+      expect(css, surface).toContain(`[data-shop-surface="${surface}"]`)
+    }
+  })
+
+  test('Retro has its own block and introduces no era-authentic accessibility defect', () => {
+    expect(css).toContain('[data-shop-preset="retro"]')
+    // Comments stripped first: the block above Retro EXPLAINS that there is no
+    // marquee and no blink, so scanning raw text finds the promise rather than a
+    // violation of it. Only declarations count.
+    const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const retro = declarations.slice(declarations.indexOf('[data-shop-preset="retro"]'))
+    for (const banned of ['marquee', 'blink', 'animation-iteration-count: infinite']) {
+      expect(retro.toLowerCase(), banned).not.toContain(banned)
+    }
+  })
+
+  test('reduced motion is respected inside merchant themes', () => {
+    const scoped = css.slice(css.indexOf('LIVING SHOP — theme engine'))
+    expect(scoped).toContain('prefers-reduced-motion')
+  })
+
+  test('the enum table stays honest: every declared value is spelled the same in CSS or unused', () => {
+    // Guards the direction that actually rots — a recipe naming a value the CSS
+    // never implements renders nothing and looks like a styling bug.
+    for (const bg of THEME_ENUMS.background) {
+      const usedByAPreset = Object.values(PRESET_RECIPES).some((r) => r.background === bg)
+      if (!usedByAPreset) continue
+      if (bg === 'plain') continue
+      expect(css, bg).toContain(`[data-shop-background="${bg}"]`)
+    }
   })
 })

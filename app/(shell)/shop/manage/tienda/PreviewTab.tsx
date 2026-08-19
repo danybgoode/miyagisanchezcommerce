@@ -9,17 +9,17 @@
  * by name — and it is also how a preview starts lying: the two drift, the
  * merchant trusts the wrong one, and the bug is invisible until a buyer sees it.
  *
- * UNSAVED STATE NEVER LEAKS. The pending recipe travels in the URL of THIS
- * request only; the public shop reads its persisted settings for everybody else.
- * The preview parameters are honoured only for a request that already proved it
- * owns the shop — see `app/(shell)/s/[slug]/page.tsx`'s preview branch.
+ * UNSAVED STATE NEVER LEAKS. The pending section order travels in the URL of
+ * THIS request only; the public shop reads its persisted settings for everybody
+ * else. The preview parameters are honoured only for a request that already
+ * proved it owns the shop — see `lib/shop-presentation/preview.ts`.
  *
  * The iframe is isolated on purpose: a render error inside the preview shows as
  * a broken frame, not as a lost editing session.
  */
 
 import { useState } from 'react'
-import type { SectionConfig, ThemeMode, ThemeRecipe } from '@/lib/shop-presentation/types'
+import type { SectionConfig } from '@/lib/shop-presentation/types'
 import type { StudioShop } from './types'
 
 const VIEWPORTS = [
@@ -29,22 +29,19 @@ const VIEWPORTS = [
 
 export default function PreviewTab({
   shop,
-  mode,
-  recipe,
   sections,
 }: {
   shop: StudioShop
-  mode: ThemeMode
-  recipe: ThemeRecipe
   sections: SectionConfig
 }) {
   const [viewport, setViewport] = useState<'mobile' | 'desktop'>('mobile')
   const active = VIEWPORTS.find((v) => v.key === viewport)!
 
+  // Only the SECTION draft travels. The shop's look is a saved preset, so the
+  // preview shows it exactly as a visitor would — there is no unsaved look to
+  // overlay, and nothing here that could disagree with Diseño y marca.
   const params = new URLSearchParams({
     preview: '1',
-    theme_mode: mode,
-    theme_recipe: JSON.stringify(recipe),
     sections: JSON.stringify(sections),
   })
   const src = `/mx/s/${shop.slug}?${params.toString()}`

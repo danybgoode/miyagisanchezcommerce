@@ -3,7 +3,6 @@ import path from 'node:path'
 import { test, expect } from '@playwright/test'
 import { MCP_SELLER_TOOLS, MCP_TOOL_NAMES } from '../lib/ucp/capabilities'
 import { CONFIG_BLOCKS, validateConfig } from '../lib/settings-import'
-import { DEFAULT_RECIPE } from '../lib/shop-presentation/theme'
 import { ALL_SECTIONS } from '../lib/shop-presentation/types'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
@@ -79,15 +78,11 @@ test.describe('agent parity · Storefront-as-Code round-trips presentation', () 
   test('a valid presentation manifest is accepted and NORMALIZED', () => {
     const result = validateConfig({
       presentation: {
-        theme_mode: 'custom',
-        theme_recipe: { ...DEFAULT_RECIPE, corners: 'square', accent: '#123456' },
         sections: { order: ['events', 'about'], hidden: ['faq'] },
       },
     })
     expect(result.blocks.find((b) => b.key === 'presentation')?.issues ?? []).toEqual([])
     const settings = (result.patch.settings ?? {}) as Record<string, unknown>
-    expect(settings.theme_mode).toBe('custom')
-    expect((settings.theme_recipe as Record<string, unknown>).corners).toBe('square')
     // Normalized: the anchors lead whatever the file asked for.
     expect((settings.sections as { order: string[] }).order.slice(0, 2)).toEqual(['wall', 'shop'])
     expect((settings.sections as { order: string[] }).order).toHaveLength(ALL_SECTIONS.length)
@@ -96,11 +91,9 @@ test.describe('agent parity · Storefront-as-Code round-trips presentation', () 
   test('a config file cannot express what the editor would refuse', () => {
     // The whole point of epic D12: same validators, both paths.
     for (const bad of [
-      { presentation: { theme_mode: 'neon' } },
-      { presentation: { theme_recipe: { custom_css: 'body{}' } } },
-      { presentation: { theme_recipe: { accent: 'red' } } },
       { presentation: { sections: { order: ['blog'] } } },
       { presentation: { sections: { hidden: ['wall'] } } },
+      { presentation: { sections: { order: ['faq', 'faq'] } } },
     ]) {
       const result = validateConfig(bad)
       const presentationBlock = result.blocks.find((b) => b.key === 'presentation')
@@ -108,9 +101,20 @@ test.describe('agent parity · Storefront-as-Code round-trips presentation', () 
     }
   })
 
-  test('the negation: a fully valid recipe raises no issues', () => {
-    const result = validateConfig({ presentation: { theme_recipe: DEFAULT_RECIPE } })
+  test('the negation: a fully valid section config raises no issues', () => {
+    const result = validateConfig({ presentation: { sections: { order: [...ALL_SECTIONS], hidden: [] } } })
     expect(result.blocks.find((b) => b.key === 'presentation')?.issues).toEqual([])
+  })
+
+  test('how a shop LOOKS travels as profile.theme_preset — one field, agents included', () => {
+    // Agent parity with the human picker, which is the point: an agent sets the
+    // same field a merchant does, and Retro Social is one of its values.
+    const result = validateConfig({ profile: { theme_preset: 'retro' } })
+    expect(result.blocks.find((b) => b.key === 'profile')?.issues ?? []).toEqual([])
+    expect((result.patch.settings as Record<string, unknown>).theme_preset).toBe('retro')
+    // And an invented look is refused rather than silently stored.
+    const bad = validateConfig({ profile: { theme_preset: 'neon' } })
+    expect(bad.blocks.find((b) => b.key === 'profile')?.issues.join(' ')).toContain('theme_preset')
   })
 })
 

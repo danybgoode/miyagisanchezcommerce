@@ -83,8 +83,14 @@ export default function SectionsTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: { sections: value } }),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({})) as { error?: string; storefront_synced?: boolean }
       if (!res.ok) { showToast(data.error ?? 'No se pudo guardar.', 'error'); return }
+      // Saved is not the same as live — see the note in the route. The public
+      // shop reads the Medusa seller, and that sync can fail by itself.
+      if (data.storefront_synced === false) {
+        showToast('Se guardó, pero tu tienda pública todavía no lo muestra. Intenta guardar otra vez.', 'error')
+        return
+      }
       showToast('Guardado.', 'success')
     } catch {
       showToast('Sin conexión. Intenta de nuevo.', 'error')

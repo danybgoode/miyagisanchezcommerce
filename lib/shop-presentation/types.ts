@@ -63,13 +63,12 @@ export interface SectionNavEntry {
   path: string
 }
 
-// ── Theme (Sprint 4) ─────────────────────────────────────────────────────────
-
-/**
- * Three modes, not five presets. `custom` is a schema-driven recipe — never
- * arbitrary CSS, HTML, JavaScript or a webfont URL (product decision 4).
- */
-export type ThemeMode = 'default' | 'retro' | 'custom'
+// ── Theme (Sprint 4; reshaped 2026-08-19) ────────────────────────────────────
+//
+// There is no `theme_mode`. A shop's look is `settings.theme_preset` — the field
+// the shipped Diseño picker has always written — and Retro Social is simply the
+// sixth preset. A parallel mode selector meant two pickers that could disagree;
+// see `lib/shop-presentation/theme.ts` for the full reasoning.
 
 export type ThemeTypography = 'sistema' | 'editorial' | 'tecnica' | 'manuscrita' | 'geometrica'
 export type ThemeDensity = 'compact' | 'balanced' | 'airy'
@@ -85,10 +84,15 @@ export type ThemeIdentity = 'compact' | 'standard' | 'prominent'
 /** Normalizers live in `./theme.ts`; re-exported nowhere so there is one import path. */
 
 /**
- * The complete Custom vocabulary. Every axis is a CLOSED enum or a validated
- * colour; there is deliberately no field that can carry a URL, a selector or a
- * declaration. That absence is asserted by a spec over the schema, not promised
- * by this comment.
+ * The structural axes a preset is written in — AUTHORED, not seller input.
+ *
+ * Every axis is a closed enum and there is deliberately no field that can carry
+ * a URL, a selector or a declaration. That absence is asserted by a spec over
+ * the schema, not promised by this comment: it is what lets the resolver emit
+ * CSS custom properties without an allow-list of HTML.
+ *
+ * Note there is no colour here. A shop has ONE accent — `theme.accent_color`,
+ * set in Diseño — and a preset never overrides it.
  */
 export interface ThemeRecipe {
   typography: ThemeTypography
@@ -96,9 +100,6 @@ export interface ThemeRecipe {
   corners: ThemeCorners
   surface: ThemeSurface
   background: ThemeBackground
-  /** `#rrggbb`, validated. Null means "inherit the shop's existing accent". */
-  accent: string | null
-  secondary_accent: string | null
   hero: ThemeHero
   wall_layout: ThemeWallLayout
   wall_card: ThemeWallCard
@@ -108,10 +109,9 @@ export interface ThemeRecipe {
 
 /** What the renderer actually consumes: an attribute plus a fixed set of variables. */
 export interface ResolvedTheme {
-  mode: ThemeMode
-  /** `data-shop-theme` — the selector the CSS keys off. */
-  attribute: ThemeMode
-  /** Legacy `data-shop-preset`, preserved so shipped preset CSS keeps applying (epic D5). */
+  /** The chosen preset key, or null for "no preset — today's storefront". */
+  preset: string | null
+  /** `data-shop-preset` — the selector the shipped per-preset CSS keys off. */
   presetAttribute: string | null
   recipe: ThemeRecipe
   /** `--shop-*` custom properties. Only ever generated values, never seller strings. */

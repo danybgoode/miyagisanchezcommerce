@@ -20,21 +20,15 @@
 import { useState } from 'react'
 import WallTab from './WallTab'
 import SectionsTab from './SectionsTab'
-import ThemeTab from './ThemeTab'
-import BrandTab from './BrandTab'
 import PreviewTab from './PreviewTab'
 import { normalizeSections } from '@/lib/shop-presentation/sections'
-import { normalizeRecipe, resolveTheme } from '@/lib/shop-presentation/theme'
-import type { SectionConfig, ThemeMode, ThemeRecipe } from '@/lib/shop-presentation/types'
+import type { SectionConfig } from '@/lib/shop-presentation/types'
 import type { StudioObjects, StudioShop, StudioTab } from './types'
 import type { WallEntry } from '@/lib/wall/types'
-import type { DisenoInitial } from '../settings/_sections/Diseno'
 
 const TABS: Array<{ key: StudioTab; label: string; icon: string }> = [
   { key: 'wall', label: 'Muro', icon: 'iconoir-post' },
   { key: 'sections', label: 'Secciones', icon: 'iconoir-list' },
-  { key: 'theme', label: 'Tema', icon: 'iconoir-palette' },
-  { key: 'brand', label: 'Marca', icon: 'iconoir-shop' },
   { key: 'preview', label: 'Vista previa', icon: 'iconoir-eye' },
 ]
 
@@ -44,33 +38,28 @@ export default function StudioClient({
   objects,
   settings,
   availability,
-  brand,
 }: {
   shop: StudioShop
   initialEntries: WallEntry[]
   objects: StudioObjects
   settings: Record<string, unknown>
   availability: Record<string, boolean>
-  brand: DisenoInitial
 }) {
   const [tab, setTab] = useState<StudioTab>('wall')
 
-  // Seeded from the SAME resolver the public renderer uses, so the editor opens
-  // showing what a visitor currently sees — not a default that would silently
-  // overwrite the shop on the first save.
-  const [mode, setMode] = useState<ThemeMode>(() => resolveTheme(settings).mode)
-  const [recipe, setRecipe] = useState<ThemeRecipe>(
-    () => normalizeRecipe(settings.theme_recipe, resolveTheme(settings).recipe),
-  )
+  // Only the SECTION draft lives here — it is the one thing Vista previa has to
+  // show before it is saved. How the shop LOOKS is a preset, chosen in Diseño y
+  // marca, so there is nothing about it to draft here and no second picker that
+  // could disagree with that one.
   const [sections, setSections] = useState<SectionConfig>(() => normalizeSections(settings.sections))
 
   return (
     <div className="max-w-5xl mx-auto px-4 pb-16">
       <header className="pt-2 pb-5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Apariencia y contenido</h1>
+          <h1 className="text-2xl font-bold">Muro y secciones</h1>
           <p className="text-sm text-[var(--fg-muted)] mt-1">
-            Publica en tu muro, elige qué secciones se ven y cómo se ve tu tienda.
+            Publica en tu muro y elige qué secciones ve la gente. El look de tu tienda se elige en Diseño y marca.
           </p>
         </div>
         {/* A direct way out to the real thing. The studio shows a merchant what
@@ -110,13 +99,7 @@ export default function StudioClient({
 
       {tab === 'wall' && <WallTab objects={objects} initialEntries={initialEntries} />}
       {tab === 'sections' && <SectionsTab value={sections} available={availability} onChange={setSections} />}
-      {tab === 'theme' && (
-        <ThemeTab mode={mode} recipe={recipe} onModeChange={setMode} onRecipeChange={setRecipe} />
-      )}
-      {tab === 'brand' && <BrandTab initial={brand} />}
-      {tab === 'preview' && (
-        <PreviewTab shop={shop} mode={mode} recipe={recipe} sections={sections} />
-      )}
+      {tab === 'preview' && <PreviewTab shop={shop} sections={sections} />}
     </div>
   )
 }
