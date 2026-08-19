@@ -4,7 +4,7 @@
       "label": "Change platform theme",
       "core": "Core",
       "seasonal": "DesignerN",
-      "coreTitle": "Use the core Miyagi theme",
+      "coreTitle": "Use the core Miyagi Sánchez theme",
       "seasonalTitle": "Use the seasonal collaboration",
       "activeCore": "Core theme active",
       "activeSeasonal": "Collaboration active"
@@ -558,12 +558,19 @@
     "s.slug.page.f62ef63c": "This shop has no listings yet.",
     "MarketRecommendation.95e68536": "Suggested by your browser",
     "page.5b78d70c": "Your shop is yours. Each market belongs to one country.",
-    "page.bf77921b": "With Miyagi, you open your own shop—your domain, your brand, your rules—and you do not need a marketplace’s permission to sell to your audience. The",
-    "page.881db298": "Miyagi Markets",
-    "page.ac4888c2": "are separate country markets, each with its own currency, payments, and shipping. Choose the one you want to enter.",
-    "page.7b6fe1dd": "Own shop or Miyagi Market?",
-    "page.3cc39e5f": "They are different, and you can have both. Your shop lives on your own domain or subdomain and does not depend on admission to a marketplace. Publishing in a Miyagi Market is a separate step that puts you in that country’s catalog, currency, and payment system.",
+    "page.bf77921b": "With Miyagi Sánchez you open your own shop—your domain, your brand, your rules—and you do not need a marketplace’s permission to sell to your audience. The",
+    "page.881db298": "Miyagi Sánchez markets",
+    "page.ac4888c2": "are something else: each one is a single country’s market, with its own currency, payments, and shipping. Choose the one you want to enter.",
+    "page.7b6fe1dd": "Your own shop, or a Miyagi Sánchez market?",
+    "page.3cc39e5f": "They are different, and you can have both. Your shop lives on your own domain or subdomain and does not depend on admission to a marketplace. Publishing in a Miyagi Sánchez market is a separate step that puts you in that country’s catalog, currency, and payment system.",
     "page.b5f692e9": "Open my shop",
+    "page.languageSwitch": "Español",
+    "page.marketCardMxName": "Mexico",
+    "page.marketCardMxLede": "The Miyagi Sánchez market in Mexico. Buy and sell in pesos, with protected payment, shipping, and local delivery.",
+    "page.marketCardMxCta": "Enter the Mexico market",
+    "page.marketCardUsName": "United States",
+    "page.marketCardUsLede": "An open market for exploring shops and products in dollars. Direct checkout is coming soon.",
+    "page.marketCardUsCta": "Enter the United States market",
     "components.AgentHandoff.a90b41fb": "Copied!",
     "components.AgentHandoff.7d387f68": "Copy prompt",
     "components.AgentHandoff.d7052502": "What can my agent do? · Marketplace listing →",
@@ -1324,14 +1331,14 @@
     "aiChannel": {
       "eyebrow": "A channel others do not have",
       "title": "Let AI sell for you too",
-      "body": "More and more people ask their AI assistant to find and buy things for them. Your Miyagi shop speaks that language: it is built on UCP/MCP, the open commerce standard for agents (backed by Google, Stripe, Shopify, Visa, and more). That means Claude, Gemini, ChatGPT, and other agents can find your catalog, recommend it, and buy — a sales channel most platforms still do not have.",
+      "body": "More and more people ask their AI assistant to find and buy things for them. Your Miyagi Sánchez shop speaks that language: it is built on UCP/MCP, the open commerce standard for agents (backed by Google, Stripe, Shopify, Visa, and more). That means Claude, Gemini, ChatGPT, and other agents can find your catalog, recommend it, and buy — a sales channel most platforms still do not have.",
       "steps": [
         {
           "title": "You publish your normal catalog.",
           "body": "Just like any shop."
         },
         {
-          "title": "Miyagi exposes it to agents.",
+          "title": "Miyagi Sánchez exposes it to agents.",
           "body": "Your catalog ends up in the open format agents understand, with no extra work from you."
         },
         {
@@ -1385,7 +1392,7 @@
         }
       ],
       "proofTitle": "Everything we promise already exists in the platform",
-      "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi.",
+      "proofLead": "No vaporware: publishing, direct payments, owned storefronts, and agents are already part of Miyagi Sánchez.",
       "proofPoints": [
         {
           "icon": "iconoir-percentage",
@@ -1659,7 +1666,7 @@
         }
       ],
       "proofTitle": "You do not have to choose between Instagram and a real shop",
-      "proofLead": "Use your current channels to sell better: DMs for conversation, Miyagi for catalog, payment, and links.",
+      "proofLead": "Use your current channels to sell better: DMs for conversation, Miyagi Sánchez for catalog, payment, and links.",
       "proofPoints": [
         {
           "icon": "iconoir-instagram",
@@ -1669,7 +1676,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% commission",
-          "body": "Stop losing margin on every sale. Miyagi does not take a percentage of your order."
+          "body": "Stop losing margin on every sale. Miyagi Sánchez does not take a percentage of your order."
         },
         {
           "icon": "iconoir-internet",
@@ -1732,7 +1739,7 @@
       },
       "eyebrow": "Local businesses",
       "heroTitle": "Your corner business, now online too — and in the magazine.",
-      "heroLead": "Upload your inventory in minutes, collect directly, and share your shop with a link, QR, subdomain, or custom domain. Miyagi can also connect you to the Mexico-86 print edition.",
+      "heroLead": "Upload your inventory in minutes, collect directly, and share your shop with a link, QR, subdomain, or custom domain. Miyagi Sánchez can also connect you to the Mexico-86 print edition.",
       "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/mx/vende/negocios is and let it check whether it fits your business.",
       "primaryCta": "Bring my business online",
       "secondaryCta": "View general page",
@@ -1751,7 +1758,7 @@
         }
       ],
       "proofTitle": "You do not need to change your business to sell online",
-      "proofLead": "Miyagi adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
+      "proofLead": "Miyagi Sánchez adapts to how you already work: inventory, direct payments, catalog by QR, and print presence when useful.",
       "proofPoints": [
         {
           "icon": "iconoir-fast-arrow-right",
@@ -1790,7 +1797,7 @@
         }
       ],
       "socialTitle": "For businesses already selling today",
-      "socialBody": "If you already have customers, inventory, and payment methods, Miyagi adds an online storefront and print bridge without eating your margin.",
+      "socialBody": "If you already have customers, inventory, and payment methods, Miyagi Sánchez adds an online storefront and print bridge without eating your margin.",
       "socialStats": [
         {
           "value": "QR",
@@ -1824,7 +1831,7 @@
       },
       "eyebrow": "Professional services",
       "heroTitle": "Get paid and scheduled without friction. No commissions.",
-      "heroLead": "Publish consultations, classes, beauty, trades, repairs, or appointment packages. Miyagi gives you a link, shop, scheduling, and direct payment without taking a percentage.",
+      "heroLead": "Publish consultations, classes, beauty, trades, repairs, or appointment packages. Miyagi Sánchez gives you a link, shop, scheduling, and direct payment without taking a percentage.",
       "trustLine": "Do not take our word for it: ask Claude what miyagisanchez.com/mx/vende/servicios is and have it check whether it works for your trade.",
       "primaryCta": "Publish my service",
       "secondaryCta": "View general page",
@@ -2713,7 +2720,7 @@
         "Rentals, transfers, and day-rate services"
       ],
       "proofTitle": "Built for services and rentals, not only products",
-      "proofLead": "We reuse Miyagi's current infrastructure: publishing, payments, scheduling, and agent access. No new backend for this page.",
+      "proofLead": "We reuse Miyagi Sánchez's current infrastructure: publishing, payments, scheduling, and agent access. No new backend for this page.",
       "proofPoints": [
         {
           "icon": "iconoir-tools",
@@ -2723,7 +2730,7 @@
         {
           "icon": "iconoir-percentage",
           "title": "0% commission",
-          "body": "Miyagi charges no platform commission. Your margin stays with you."
+          "body": "Miyagi Sánchez charges no platform commission. Your margin stays with you."
         },
         {
           "icon": "iconoir-wallet",
@@ -3155,7 +3162,7 @@
       "secondaryCta": "Take a walk through the neighborhood"
     },
     "sellerBlock": {
-      "eyebrow": "Sell on Miyagi",
+      "eyebrow": "Sell on Miyagi Sánchez",
       "heading": "Set up your spot in the neighborhood",
       "reassurances": [
         "Free, no commissions, always",

@@ -19,8 +19,25 @@ test.describe('US marketplace Sprint 3 contract', () => {
     expect(shared).toContain('getRecentListings(RECIEN_LLEGADO_FETCH_LIMIT, market)')
     expect(shared).toContain('getFeaturedListing(now, market)')
     expect(shared).toContain('getCuratedListings(now, market)')
-    expect(selector).toContain('Mercado abierto para explorar tiendas y productos en dólares')
-    expect(selector).not.toMatch(/Piloto privado|Conocer el piloto/)
+    // The selector's US card says the market is OPEN, and it no longer says it in a
+    // source literal: the card copy moved into the dictionary when `/` gained an
+    // English twin at `/en`, because a literal cannot be translated. Asserted against
+    // the copy that actually renders, in BOTH languages — a claim that is only true in
+    // Spanish is the failure this page's US card was built to avoid.
+    const es = JSON.parse(source('locales/es.json'))
+    const en = JSON.parse(source('locales/en.json'))
+    expect(es.buyerCopy['page.marketCardUsLede'])
+      .toContain('Mercado abierto para explorar tiendas y productos en dólares')
+    expect(en.buyerCopy['page.marketCardUsLede'])
+      .toContain('An open market for exploring shops and products in dollars')
+    for (const dictionary of [es, en]) {
+      for (const value of Object.values(dictionary.buyerCopy) as string[]) {
+        expect(value).not.toMatch(/Piloto privado|Conocer el piloto|Private pilot/)
+      }
+    }
+    // And the selector still renders that copy rather than having quietly kept a literal.
+    expect(source('app/(site)/MarketSelector.tsx')).toContain('page.marketCardUsLede')
+    expect(selector).toContain('<MarketSelector language="es" />')
   })
 
   test('US has its own en-US shell and browse adapter while partner recruiting remains intact', () => {
