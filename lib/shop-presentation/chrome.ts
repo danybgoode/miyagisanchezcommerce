@@ -16,6 +16,39 @@
 
 import type { Shop } from '@/lib/types'
 
+/**
+ * 🚨 A SHOP HAS TWO BASES, AND CONFUSING THEM 404s.
+ *
+ * `shopBase` is where the shop's OWN routes live — `/tienda`, `/colecciones`,
+ * `/c/[handle]`, `/acerca`. On the marketplace that is `/mx/s/<slug>`; on an
+ * owned host it is `''`.
+ *
+ * `listingBase` is where a PRODUCT lives, and a product is NOT shop-scoped on
+ * the marketplace: the PDP is `/mx/l/<id>`, never `/mx/s/<slug>/l/<id>` — no
+ * such route exists. On an owned host the two coincide (`''`), which is exactly
+ * why the mistake was invisible until someone opened a marketplace shop.
+ *
+ * Reported live: every product on `/mx/s/el-manchon/tienda` 404'd, while the
+ * same product from the homepage grid worked, because the homepage happened to
+ * build its own links from the market base and everything I added built them
+ * from the shop base.
+ *
+ * Returning them as one object with two names is deliberate: a single
+ * `basePath` string invites exactly this bug, and a call site that has to pick
+ * between two named fields has to think about which one it means.
+ */
+export interface ShopBases {
+  /** `/mx/s/<slug>` on the marketplace, `''` on an owned host. */
+  shopBase: string
+  /** `/mx` on the marketplace, `''` on an owned host. Products live here. */
+  listingBase: string
+}
+
+/** The PDP href for a listing. The ONE place that knows a product is not shop-scoped. */
+export function listingHref(bases: Pick<ShopBases, 'listingBase'>, listingId: string): string {
+  return `${bases.listingBase}/l/${listingId}`
+}
+
 /** Initials for a shop with no logo. Two letters, from the first two words. */
 export function shopInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)

@@ -39,8 +39,15 @@ export interface ShopPresentationContext {
   collections: Array<{ id: string; handle: string; name: string; sort_order: number }>
   /** The merchant's resolved look — one derivation, shared by every shop surface. */
   theme: ResolvedTheme
-  /** `''` on an owned host, `/mx/s/<slug>` on the marketplace. */
+  /** Where the SHOP's own routes live: `''` on an owned host, `/mx/s/<slug>` otherwise. */
   basePath: string
+  /**
+   * Where a PRODUCT lives: `''` on an owned host, `/mx` on the marketplace.
+   *
+   * Deliberately NOT the same as `basePath` — a PDP is not shop-scoped on the
+   * marketplace, and using the shop base for one 404s. See `ShopBases`.
+   */
+  listingBase: string
   accent: string
   accentTextColor: string
   htmlLang: string
@@ -152,6 +159,7 @@ export async function resolveShopPresentation(
     collections,
     theme: resolveTheme(settings),
     basePath: onOwnedHost ? '' : `${marketBasePath}/s/${shop.slug}`,
+    listingBase: onOwnedHost ? '' : marketBasePath,
     accent,
     accentTextColor: readableTextOn(theme.accent_color ?? undefined),
     htmlLang: resolveMarketPresentation(presentationMarket).htmlLang,

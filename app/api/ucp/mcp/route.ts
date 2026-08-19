@@ -1972,6 +1972,9 @@ async function handleGetShop(args: Record<string, unknown>, baseUrl: string) {
         shopId: wallShop.id,
         shopSlug: wallShop.slug,
         basePath: `/${marketDecision.market.code}/s/${wallShop.slug}`,
+        // An agent following a product link must reach the real PDP, which is
+        // not shop-scoped on the marketplace. See `ShopBases`.
+        listingBase: `/${marketDecision.market.code}`,
         locale: marketDecision.market.default_locale,
         pageSize: AGENT_WALL_LIMIT,
       })

@@ -149,9 +149,8 @@ export async function ShopPage({
   // custom domain — both already serve `/c/...` at the domain root), the
   // full `/s/[slug]/c/...` prefix only on the marketplace host.
   const channelValue = reqHeaders.get('x-miyagi-channel')
-  const navBasePath = (channelValue === 'custom' || channelValue === 'subdomain')
-    ? ''
-    : `${marketBasePath}/s/${shop.slug}`
+  const onChannelHost = channelValue === 'custom' || channelValue === 'subdomain'
+  const navBasePath = onChannelHost ? '' : `${marketBasePath}/s/${shop.slug}`
 
   // The Wall's shop is the SUPABASE mirror row, not the Medusa seller `shop`
   // above — their ids live in different systems and only the slug is shared.
@@ -172,6 +171,9 @@ export async function ShopPage({
         shopId: wallShop.id,
         shopSlug: wallShop.slug,
         basePath: navBasePath,
+        // The PDP is not shop-scoped on the marketplace — `/mx/l/<id>`, never
+        // `/mx/s/<slug>/l/<id>`. On an owned host both are ''.
+        listingBase: onChannelHost ? '' : marketBasePath,
         locale: resolveMarketPresentation(presentationMarket).htmlLang,
       })
     : { entries: [], hasMore: false, total: 0 }

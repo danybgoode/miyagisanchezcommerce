@@ -38,8 +38,10 @@ export { toProductView, toCollectionView, toEventView, COLLECTION_SAMPLE_SIZE } 
 export interface WallResolutionContext {
   shopId: string
   shopSlug: string
-  /** `''` on an owned host, `/mx/s/<slug>` on the marketplace. */
+  /** Where the SHOP's routes live: `''` on an owned host, `/mx/s/<slug>` otherwise. */
   basePath: string
+  /** Where a PRODUCT lives: `''` on an owned host, `/mx` on the marketplace. */
+  listingBase: string
   locale: string
   now: Date
 }
@@ -98,7 +100,7 @@ function resolveOne(
     // a listing present here is published. Re-checking keeps the rule visible at
     // the point it matters rather than relying on a distant function's behaviour.
     if (listing.status && listing.status !== 'active') return { state: 'unavailable', reason: 'unpublished' }
-    return { state: 'product', product: toProductView(listing, ctx.basePath, ctx.locale) }
+    return { state: 'product', product: toProductView(listing, { shopBase: ctx.basePath, listingBase: ctx.listingBase }, ctx.locale) }
   }
 
   if (entry.kind === 'collection') {
@@ -108,7 +110,7 @@ function resolveOne(
     // A collection whose products are all gone is an empty shelf — nothing to
     // shop, so the card goes rather than linking to a blank page.
     if (members.length === 0) return { state: 'unavailable', reason: 'unpublished' }
-    return { state: 'collection', collection: toCollectionView(collection, members, ctx.basePath) }
+    return { state: 'collection', collection: toCollectionView(collection, members, { shopBase: ctx.basePath, listingBase: ctx.listingBase }) }
   }
 
   const event = index.byEventSlug.get(entry.reference_id)

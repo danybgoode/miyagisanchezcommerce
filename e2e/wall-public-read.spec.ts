@@ -60,28 +60,46 @@ test.describe('wall public · an unavailable reference disappears', () => {
 })
 
 test.describe('wall public · card views reflect the canonical object', () => {
+  test('a collection stays SHOP-scoped while its products do not', () => {
+    // The two halves of the same distinction, in one card: the collection lives
+    // under the shop, its products do not.
+    const members = [listing({ id: 'p1' })]
+    const view = toCollectionView({ handle: 'verano', name: 'Verano' }, members, {
+      shopBase: '/mx/s/mi-tienda', listingBase: '/mx',
+    })
+    expect(view.href).toBe('/mx/s/mi-tienda/c/verano')
+    expect(view.sample[0].href).toBe('/mx/l/p1')
+  })
+
   test('a product card carries the CURRENT price and links to the existing PDP', () => {
-    const view = toProductView(listing({}), '/mx/s/mi-tienda', 'es-MX')
-    expect(view.href).toBe('/mx/s/mi-tienda/l/prod_1')
+    // 🚨 THIS ASSERTION USED TO ENCODE THE BUG. It read
+    // `toBe('/mx/s/mi-tienda/l/prod_1')` — a route that does not exist — so the
+    // spec that was supposed to prove the link worked was instead pinning the
+    // 404 in place. Reported live: every product on /mx/s/el-manchon/tienda.
+    // A product is NOT shop-scoped on the marketplace; the PDP is /mx/l/<id>.
+    const view = toProductView(listing({}), { shopBase: '/mx/s/mi-tienda', listingBase: '/mx' }, 'es-MX')
+    expect(view.href).toBe('/mx/l/prod_1')
     expect(view.formattedPrice).toContain('450')
     expect(view.available).toBe(true)
   })
 
   test('an out-of-stock product is marked unavailable rather than hidden', () => {
-    expect(toProductView(listing({ in_stock: false }), '', 'es-MX').available).toBe(false)
+    expect(toProductView(listing({ in_stock: false }), { shopBase: '', listingBase: '' }, 'es-MX').available).toBe(false)
   })
 
   test('a product with no price renders no price at all, never a zero', () => {
-    expect(toProductView(listing({ price_cents: null } as Partial<Listing>), '', 'es-MX').formattedPrice).toBeNull()
+    expect(toProductView(listing({ price_cents: null } as Partial<Listing>), { shopBase: '', listingBase: '' }, 'es-MX').formattedPrice).toBeNull()
   })
 
   test('on an owned host the product href is relative — no marketplace prefix leaks', () => {
-    expect(toProductView(listing({}), '', 'es-MX').href).toBe('/l/prod_1')
+    // Both bases are '' here, which is exactly why the marketplace bug hid: the
+    // owned-host case looks identical whichever base you (wrongly) use.
+    expect(toProductView(listing({}), { shopBase: '', listingBase: '' }, 'es-MX').href).toBe('/l/prod_1')
   })
 
   test('a collection card samples a BOUNDED number of its current products', () => {
     const members = Array.from({ length: 9 }, (_, i) => listing({ id: `p${i}`, title: `Producto ${i}` }))
-    const view = toCollectionView({ handle: 'verano', name: 'Verano' }, members, '')
+    const view = toCollectionView({ handle: 'verano', name: 'Verano' }, members, { shopBase: '', listingBase: '' })
     expect(view.sample).toHaveLength(COLLECTION_SAMPLE_SIZE)
     expect(view.productCount).toBe(9)
     expect(view.href).toBe('/c/verano')

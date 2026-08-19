@@ -12,6 +12,7 @@
 
 import type { Listing } from '@/lib/types'
 import type { MarketplaceEvent } from '@/lib/events-types'
+import { listingHref, type ShopBases } from '@/lib/shop-presentation/chrome'
 import type { WallProductView, WallCollectionView, WallEventView } from './types'
 
 /** A bounded sample is a design decision, not a query limit — 4 tiles fit one row. */
@@ -33,11 +34,12 @@ export function wallPrice(listing: Pick<Listing, 'price_cents' | 'currency'>, lo
   }).format(listing.price_cents / 100)
 }
 
-export function toProductView(listing: Listing, basePath: string, locale: string): WallProductView {
+export function toProductView(listing: Listing, bases: ShopBases, locale: string): WallProductView {
   return {
     id: listing.id,
     title: listing.title,
-    href: `${basePath}/l/${listing.id}`,
+    // A product is NOT shop-scoped on the marketplace — see `ShopBases`.
+    href: listingHref(bases, listing.id),
     imageUrl: listing.images?.[0]?.url ?? null,
     formattedPrice: wallPrice(listing, locale),
     // `in_stock` is false only when Medusa is actually managing inventory and it
@@ -49,18 +51,20 @@ export function toProductView(listing: Listing, basePath: string, locale: string
 export function toCollectionView(
   collection: { handle: string; name: string },
   members: Listing[],
-  basePath: string,
+  bases: ShopBases,
 ): WallCollectionView {
   return {
     handle: collection.handle,
     name: collection.name,
-    href: `${basePath}/c/${collection.handle}`,
+    // A COLLECTION is shop-scoped, so it takes the shop base — the distinction
+    // this pair of arguments exists to make visible.
+    href: `${bases.shopBase}/c/${collection.handle}`,
     productCount: members.length,
     sample: members.slice(0, COLLECTION_SAMPLE_SIZE).map((l) => ({
       id: l.id,
       title: l.title,
       imageUrl: l.images?.[0]?.url ?? null,
-      href: `${basePath}/l/${l.id}`,
+      href: listingHref(bases, l.id),
     })),
   }
 }

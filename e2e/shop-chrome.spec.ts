@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { test, expect } from '@playwright/test'
 import {
+  listingHref,
   shopInitials,
   heroContent,
   trustChips,
@@ -341,5 +342,55 @@ test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', (
     expect(page).toContain('signals={railSignals}')
     // The old loose chip row is gone.
     expect(page).not.toMatch(/sellerHasMp && <span className="text-xs/)
+  })
+})
+
+test.describe('chrome · a product is NOT shop-scoped (reported live: 404)', () => {
+  test('on the marketplace a PDP href is /mx/l/<id>, never /mx/s/<slug>/l/<id>', () => {
+    // 🚨 THE REPORTED BUG. Every product on /mx/s/el-manchon/tienda 404'd while
+    // the same product from the homepage grid worked, because the homepage built
+    // its links from the MARKET base and everything added later built them from
+    // the SHOP base. `/mx/s/<slug>/l/<id>` is not a route and never was.
+    expect(listingHref({ listingBase: '/mx' }, 'prod_1')).toBe('/mx/l/prod_1')
+    expect(listingHref({ listingBase: '/mx' }, 'prod_1')).not.toContain('/s/')
+  })
+
+  test('on an owned host the two bases coincide, which is why this hid', () => {
+    // Subdomain and custom domain serve the PDP at /l/<id>, so the shop base and
+    // the listing base are both '' and the mistake is invisible there.
+    expect(listingHref({ listingBase: '' }, 'prod_1')).toBe('/l/prod_1')
+  })
+
+  test('no surface builds a PDP href from the SHOP base, whatever it is called', () => {
+    // The POPULATION, not the one spelling that was reported.
+    //
+    // The first version of this test matched only `${basePath}/l/` — the exact
+    // form the reported bug happened to use — and stayed green through a
+    // mutation that rebuilt the same defect as `${bases.shopBase}/l/`. A guard
+    // pinned to one spelling of a name guards one spelling of a name.
+    //
+    // Every identifier below IS the shop base under some name; none of them may
+    // be followed by `/l/`. `marketBasePath` and `listingBase` are absent from
+    // the list on purpose — those are the correct bases for a PDP.
+    const SHOP_BASE_NAMES = ['basePath', 'ctx.basePath', 'shopBase', 'bases.shopBase', 'navBasePath']
+    const pattern = new RegExp(
+      `\\$\\{\\s*(?:${SHOP_BASE_NAMES.map((n) => n.replace('.', '\\.')).join('|')})\\s*\\}/l/`,
+    )
+    for (const file of [
+      'lib/wall/views.ts',
+      'app/(shell)/_shop-sections/ShopIndexBody.tsx',
+      'app/(shell)/s/[slug]/page.tsx',
+      'app/(shell)/_wall/WallEntryCard.tsx',
+    ]) {
+      const source = readFileSync(path.join(ROOT, file), 'utf8')
+      expect(source, `${file} builds a PDP href from the shop base`).not.toMatch(pattern)
+    }
+  })
+
+  test('a COLLECTION is shop-scoped, and still uses the shop base', () => {
+    // The negation: this fix must not push collections onto the market base,
+    // where /mx/c/<handle> is not a route either.
+    const views = readFileSync(path.join(ROOT, 'lib/wall/views.ts'), 'utf8')
+    expect(views).toMatch(/\$\{bases\.shopBase\}\/c\//)
   })
 })
