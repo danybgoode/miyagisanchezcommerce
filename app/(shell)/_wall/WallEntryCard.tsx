@@ -5,7 +5,8 @@
 import Link from 'next/link'
 import { formatWallDate, collectionCountLabel, type WallCardContext } from './WallCopy'
 import WallPostBody from './WallPostBody'
-import type { PublicWallEntry } from '@/lib/wall/types'
+import { shopInitials, relativeDay } from '@/lib/shop-presentation/chrome'
+import type { PublicWallEntry, WallKind } from '@/lib/wall/types'
 
 /**
  * Living Shop — one Wall card (epic 07, Stories 2.2–2.4).
@@ -28,19 +29,45 @@ import type { PublicWallEntry } from '@/lib/wall/types'
  * disappears rather than becoming broken chrome or a stale buyable price.
  */
 
+const KIND_LABEL: Record<WallKind, 'wall.kindPost' | 'wall.kindProduct' | 'wall.kindCollection' | 'wall.kindEvent'> = {
+  post: 'wall.kindPost',
+  product: 'wall.kindProduct',
+  collection: 'wall.kindCollection',
+  event: 'wall.kindEvent',
+}
+
 export default function WallEntryCard({ entry, ctx }: { entry: PublicWallEntry; ctx: WallCardContext }) {
   const { copy, htmlLang } = ctx
-  const date = formatWallDate(entry.effective_at, htmlLang)
+
+  /**
+   * "Hoy · Nota de la tienda" rather than a bare date (Story 8.3). The relative
+   * part is derived from calendar days, and the STRING comes from the
+   * dictionary — assembling "Hace 3 días" here would hardcode Spanish into a
+   * surface that renders in two languages.
+   */
+  const rel = relativeDay(entry.effective_at, ctx.now)
+  const when = rel.kind === 'today' ? copy['wall.today']
+    : rel.kind === 'yesterday' ? copy['wall.yesterday']
+    : rel.kind === 'days' ? copy['wall.daysAgo'].replace('{0}', String(rel.days))
+    : formatWallDate(entry.effective_at, htmlLang)
 
   return (
-    <article className="wall-card border border-[var(--color-border)] rounded-xl overflow-hidden bg-[var(--shop-surface,var(--color-surface))]">
-      <header className="flex items-center gap-2 px-4 pt-3.5 text-xs text-[var(--color-muted)]">
+    <article className="wall-card" data-label={copy[KIND_LABEL[entry.kind]]}>
+      <header className="wall-posthead">
+        {ctx.shopLogoUrl ? (
+          <img src={ctx.shopLogoUrl} alt="" className="wall-miniavatar" />
+        ) : (
+          <span className="wall-miniavatar wall-miniavatar-fallback" aria-hidden>{shopInitials(ctx.shopName)}</span>
+        )}
+        <span className="wall-postmeta">
+          <strong>{ctx.shopName}</strong>
+          <time dateTime={entry.effective_at}>{when} · {copy[KIND_LABEL[entry.kind]]}</time>
+        </span>
         {entry.pinned && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--shop-accent-soft,var(--color-surface-alt))]">
+          <span className="wall-pin">
             <i className="iconoir-pin" aria-hidden /> {copy['wall.pinned']}
           </span>
         )}
-        <time dateTime={entry.effective_at}>{date}</time>
       </header>
 
       {entry.body && (

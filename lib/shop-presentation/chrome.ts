@@ -1,0 +1,133 @@
+/**
+ * Living Shop — what the shop's chrome shows (epic 07, Sprint 8).
+ *
+ * Pure and next-free: these functions decide WHAT a header, hero, rail panel or
+ * post head displays, given data the page already fetched. The components render
+ * the result and hold no derivation of their own, which is what makes every
+ * "…and what is withheld when the data is absent" rule testable without a
+ * browser.
+ *
+ * The governing rule, stated once: **a panel with nothing real behind it does
+ * not render.** The concept mockup is full of plausible copy — "Usually ships in
+ * 2–4 days", "Next market: Roma Norte" — and inventing that for a shop that
+ * never configured it would be the confident falsehood this codebase keeps
+ * paying for. Every derivation below returns null rather than a placeholder.
+ */
+
+import type { Shop } from '@/lib/types'
+
+/** Initials for a shop with no logo. Two letters, from the first two words. */
+export function shopInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
+}
+
+export interface HeroContent {
+  /** Category · location, or just one of them. Null when the shop has neither. */
+  eyebrow: string | null
+  /** The display headline — the tagline if authored, else the shop's name. */
+  headline: string
+  /** The lead paragraph. Null when the shop has no description. */
+  lead: string | null
+  /** Whether there is enough here to be worth a hero at all. */
+  substantial: boolean
+}
+
+/**
+ * The hero's words.
+ *
+ * `substantial` is the honest half: a shop with no tagline AND no description
+ * has nothing to say yet, so the page renders identity only rather than a
+ * headline-sized restatement of the shop's own name over an empty frame.
+ */
+export function heroContent(shop: Pick<Shop, 'name' | 'description' | 'location'>, tagline: string | null): HeroContent {
+  const trimmedTagline = tagline?.trim() || null
+  const description = shop.description?.trim() || null
+  const location = shop.location?.trim() || null
+  return {
+    eyebrow: location,
+    headline: trimmedTagline || shop.name,
+    lead: description,
+    substantial: !!(trimmedTagline || description),
+  }
+}
+
+export interface TrustChip {
+  key: 'verified' | 'ships' | 'pickup'
+}
+
+/**
+ * The About panel's chips — only facts the shop actually carries.
+ *
+ * The mockup shows three; a real shop may warrant none, and three chips that
+ * are true of every shop would say nothing about this one.
+ */
+export function trustChips(input: {
+  verified: boolean
+  shipsNationwide: boolean
+  localPickup: boolean
+}): TrustChip[] {
+  const chips: TrustChip[] = []
+  if (input.verified) chips.push({ key: 'verified' })
+  if (input.shipsNationwide) chips.push({ key: 'ships' })
+  if (input.localPickup) chips.push({ key: 'pickup' })
+  return chips
+}
+
+export interface ShopStatus {
+  /** e.g. "2–4 días" — the seller's own configured processing time. */
+  dispatch: string | null
+  /** The next upcoming event's title + date, already formatted by the caller. */
+  nextEvent: string | null
+}
+
+/** True when the Shop-status panel has at least one real fact to show. */
+export function hasShopStatus(status: ShopStatus): boolean {
+  return !!(status.dispatch || status.nextEvent)
+}
+
+/**
+ * A relative day label for a Wall post: today, yesterday, N days ago, or an
+ * absolute date beyond the cutoff.
+ *
+ * Returns a KEY plus its value rather than a sentence, so the caller supplies
+ * the localized string — building "Hace 3 días" here would hardcode Spanish
+ * into a surface that renders in two languages.
+ */
+export type RelativeDay =
+  | { kind: 'today' }
+  | { kind: 'yesterday' }
+  | { kind: 'days'; days: number }
+  | { kind: 'absolute' }
+
+export function relativeDay(iso: string, now: Date, cutoffDays = 7): RelativeDay {
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return { kind: 'absolute' }
+  // Compare CALENDAR days, not elapsed hours: something posted at 23:00 is
+  // "yesterday" at 01:00, not "today", and a merchant reads it that way.
+  const startOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  const days = Math.round((startOf(now) - startOf(new Date(then))) / 86_400_000)
+  if (days <= 0) return { kind: 'today' }
+  if (days === 1) return { kind: 'yesterday' }
+  if (days < cutoffDays) return { kind: 'days', days }
+  return { kind: 'absolute' }
+}
+
+/**
+ * Whether the supporting rail should occupy its own grid track.
+ *
+ * 🚨 THIS CLOSES A REAL DEFECT. Sprint 4's `feed-sidebar` recipe turned the Wall
+ * container into a two-column grid whose only children were the post cards — so
+ * at desktop width the cards tiled into two columns and nothing filled the
+ * second track, because the rail it promised was never built. The rail is now a
+ * real sibling, and this predicate is what the layout keys off.
+ *
+ * It needs BOTH: a recipe that asks for the rail, and at least one panel with
+ * real content to put in it. A rail of empty panels is the same empty column
+ * wearing a border.
+ */
+export function railOccupiesTrack(wallLayout: string, panelCount: number): boolean {
+  return wallLayout === 'feed-sidebar' && panelCount > 0
+}

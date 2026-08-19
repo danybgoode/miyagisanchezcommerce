@@ -102,6 +102,10 @@
   "closure": [
     "app/(mx-site)/layout.tsx",
     "app/(mx-site)/mx/page.tsx",
+    "app/(shell)/_shop-chrome/ShopFooter.tsx",
+    "app/(shell)/_shop-chrome/ShopHeader.tsx",
+    "app/(shell)/_shop-chrome/ShopHero.tsx",
+    "app/(shell)/_shop-chrome/ShopRail.tsx",
     "app/(shell)/_shop-collection/CollectionPage.tsx",
     "app/(shell)/_shop-content/AcercaBody.tsx",
     "app/(shell)/_shop-content/FaqBody.tsx",
@@ -266,6 +270,10 @@
   "copyClassification": {
     "dictionaryConsuming": [
       "app/(mx-site)/mx/page.tsx",
+      "app/(shell)/_shop-chrome/ShopFooter.tsx",
+      "app/(shell)/_shop-chrome/ShopHeader.tsx",
+      "app/(shell)/_shop-chrome/ShopHero.tsx",
+      "app/(shell)/_shop-chrome/ShopRail.tsx",
       "app/(shell)/_shop-collection/CollectionPage.tsx",
       "app/(shell)/_shop-content/AcercaBody.tsx",
       "app/(shell)/_shop-content/FaqBody.tsx",
