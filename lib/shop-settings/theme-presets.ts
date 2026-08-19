@@ -29,6 +29,13 @@ export const THEME_PRESETS: ThemePreset[] = [
   { key: 'pizarra', label: 'Pizarra', description: 'Superficie fría en gris pizarra, tipografía técnica.' },
   { key: 'lienzo', label: 'Lienzo', description: 'Blanco de galería, tipografía elegante para producto.' },
   { key: 'terracota', label: 'Terracota', description: 'Superficie cálida terracota, tipografía artesanal.' },
+  // Living Shop (epic 07). Retro Social joins the LIST rather than becoming a
+  // second, competing picker somewhere else. The epic originally shipped a
+  // parallel `theme_mode` selector in the seller studio; with the shipped preset
+  // picker still live in Diseño, a merchant faced two "Clásico" options on two
+  // tabs writing two different fields, and choosing one silently changed what the
+  // other reported. One field, one picker, in the place merchants already use.
+  { key: 'retro', label: 'Retro Social', description: 'Marcos, bordes y perfil — como las páginas de antes.' },
 ]
 
 const THEME_PRESET_KEYS = new Set(THEME_PRESETS.map(p => p.key))

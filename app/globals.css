@@ -447,69 +447,74 @@
   --shop-font-body:    ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
+[data-shop-preset="retro"] {
+  --shop-surface:      #eceaf6;
+  --shop-surface-alt:  #dedaf0;
+  --shop-fg:           #17141f;
+  --shop-fg-muted:     #514a66;
+  --shop-font-heading: ui-monospace, 'SF Mono', 'JetBrains Mono', monospace;
+  --shop-font-body:    ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
 /* ============================================================================
-   LIVING SHOP — theme engine v2 (epic 07 · living-shop-social-storefront, S4)
+   LIVING SHOP — theme engine (epic 07 · living-shop-social-storefront, S4;
+   reshaped 2026-08-19)
 
-   Three modes on `[data-shop-theme]`, driven by the pure resolver in
-   `lib/shop-presentation/theme.ts`. The resolver emits a fixed set of `--shop-*`
-   custom properties inline; these blocks turn those values into a look.
+   Structural treatments driven by the pure resolver in
+   `lib/shop-presentation/theme.ts`, which reads ONE field — `theme_preset`, the
+   field the shipped Diseño picker has always written. Retro Social is simply its
+   sixth value. There is no `theme_mode`: a second selector meant two pickers that
+   could disagree about the same shop.
 
-   NO SELLER STRING REACHES THIS FILE. Colours arrive only as validated
-   `#rrggbb` values of a variable; every other axis is a closed enum that selects
-   one of the attribute blocks below. There is no field that can inject a
-   declaration, a selector, a font URL or a script — asserted by
-   `e2e/shop-theme.spec.ts` over the schema, not promised by this comment.
+   NO SELLER STRING REACHES THIS FILE. A recipe is authored in TypeScript from
+   closed enums; the only seller value in play is `--shop-accent`, which is the
+   merchant's own brand colour from Diseño and is used exclusively as a variable
+   VALUE — never interpolated into a selector or a declaration.
 
-   The shipped `[data-shop-preset]` blocks above are UNTOUCHED and still apply
-   (epic D5): a shop that had one keeps it, with no backfill and no visual reset,
-   until its merchant chooses a mode.
+   The per-preset colour/font blocks above are UNTOUCHED and still apply: a shop
+   that had one keeps exactly the look it had, which is what "no visual reset"
+   means.
 ============================================================================ */
 
-[data-shop-theme] {
-  font-family: var(--shop-font-body, var(--font-sans));
+[data-shop-preset] {
   --shop-gap: var(--shop-space, 1rem);
-}
-[data-shop-theme] h1,
-[data-shop-theme] h2,
-[data-shop-theme] h3 {
-  font-family: var(--shop-font-heading, var(--font-display));
 }
 
 /* Surface treatments — applied to the Wall cards and product tiles that opt in
    via `.wall-card` / `.shop-tile`, never to arbitrary descendants. */
-[data-shop-theme] .wall-card {
+[data-shop-preset] .wall-card {
   border-radius: var(--shop-radius, 0.75rem);
 }
-[data-shop-theme][data-shop-surface="flat"] .wall-card {
+[data-shop-preset][data-shop-surface="flat"] .wall-card {
   border-color: transparent;
   background: var(--shop-surface, var(--bg-elevated));
 }
-[data-shop-theme][data-shop-surface="bordered"] .wall-card {
+[data-shop-preset][data-shop-surface="bordered"] .wall-card {
   border-width: 2px;
   border-color: var(--shop-accent, var(--border-strong));
 }
-[data-shop-theme][data-shop-surface="elevated"] .wall-card {
+[data-shop-preset][data-shop-surface="elevated"] .wall-card {
   border-color: transparent;
   box-shadow: var(--shadow-2);
 }
 
 /* Background treatments. Every pattern is a generated gradient — no image
    request, no third-party asset, nothing a seller supplies. */
-[data-shop-theme][data-shop-background="tinted"] {
+[data-shop-preset][data-shop-background="tinted"] {
   background: color-mix(in srgb, var(--shop-accent, var(--accent)) 6%, var(--bg));
 }
-[data-shop-theme][data-shop-background="paper"] {
+[data-shop-preset][data-shop-background="paper"] {
   background:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.02) 0 1px, transparent 1px 4px),
     var(--bg);
 }
-[data-shop-theme][data-shop-background="grid"] {
+[data-shop-preset][data-shop-background="grid"] {
   background:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 24px),
     repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 24px),
     var(--bg);
 }
-[data-shop-theme][data-shop-background="dots"] {
+[data-shop-preset][data-shop-background="dots"] {
   background:
     radial-gradient(circle, rgba(0, 0, 0, 0.07) 1px, transparent 1.5px) 0 0 / 18px 18px,
     var(--bg);
@@ -518,12 +523,12 @@
 /* Wall rhythm. `feed-sidebar` is a DESKTOP-ONLY affordance: below the breakpoint
    every mode collapses to one column, which is what keeps 375px identical
    across the three themes instead of each one needing its own mobile fix. */
-[data-shop-theme][data-shop-wall="feed-sidebar"] .wall-feed {
+[data-shop-preset][data-shop-wall="feed-sidebar"] .wall-feed {
   display: grid;
   gap: var(--shop-gap);
 }
 @media (min-width: 900px) {
-  [data-shop-theme][data-shop-wall="feed-sidebar"] .wall-feed {
+  [data-shop-preset][data-shop-wall="feed-sidebar"] .wall-feed {
     grid-template-columns: minmax(0, 1fr) 18rem;
     align-items: start;
   }
@@ -538,27 +543,27 @@
    fails contrast — those were the actual defects of that era's pages, and
    reproducing them would trade a merchant's expressiveness against a buyer's
    access, which Story 4.3 forbids. */
-[data-shop-theme="retro"] .wall-card {
+[data-shop-preset="retro"] .wall-card {
   border-width: 2px;
   border-style: solid;
   border-color: var(--shop-accent, var(--accent));
   border-radius: 0;
 }
-[data-shop-theme="retro"] h1,
-[data-shop-theme="retro"] h2 {
+[data-shop-preset="retro"] h1,
+[data-shop-preset="retro"] h2 {
   letter-spacing: 0.02em;
   text-transform: none;
 }
-[data-shop-theme="retro"] .shop-identity {
+[data-shop-preset="retro"] .shop-identity {
   border: 2px solid var(--shop-accent, var(--accent));
   padding: var(--shop-gap);
 }
 
 /* Motion is opt-out everywhere, including inside a merchant theme. */
 @media (prefers-reduced-motion: reduce) {
-  [data-shop-theme] *,
-  [data-shop-theme] *::before,
-  [data-shop-theme] *::after {
+  [data-shop-preset] *,
+  [data-shop-preset] *::before,
+  [data-shop-preset] *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

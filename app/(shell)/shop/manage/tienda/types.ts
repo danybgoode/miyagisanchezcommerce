@@ -37,7 +37,7 @@ export interface StudioShop {
   name: string
 }
 
-export type StudioTab = 'wall' | 'sections' | 'theme' | 'brand' | 'preview'
+export type StudioTab = 'wall' | 'sections' | 'preview'
 
 export interface WallTabProps {
   objects: StudioObjects

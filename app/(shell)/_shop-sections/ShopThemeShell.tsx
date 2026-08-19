@@ -31,7 +31,6 @@ export default function ShopThemeShell({
   return (
     <div
       style={{ '--shop-accent': accent, ...theme.variables } as React.CSSProperties}
-      data-shop-theme={theme.attribute}
       data-shop-surface={theme.recipe.surface}
       data-shop-background={theme.recipe.background}
       data-shop-wall={theme.recipe.wall_layout}
