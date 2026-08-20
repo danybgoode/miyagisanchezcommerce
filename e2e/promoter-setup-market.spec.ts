@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { readPromoterSetupMarket } from '../lib/promoter-setup-market'
+import {
+  MAX_PROMOTER_SHOP_DESCRIPTION_LENGTH,
+  readPromoterSetupDescription,
+  readPromoterSetupMarket,
+} from '../lib/promoter-setup-market'
 
 test.describe('promoter shop setup operating market', () => {
   test('preserves the established default only when the market is omitted', () => {
@@ -15,5 +19,15 @@ test.describe('promoter shop setup operating market', () => {
     expect(readPromoterSetupMarket('ca')).toBe('invalid')
     expect(readPromoterSetupMarket('en-US')).toBe('invalid')
     expect(readPromoterSetupMarket(null)).toBe('invalid')
+  })
+
+  test('accepts a trimmed description within the bounded Medusa contract', () => {
+    expect(readPromoterSetupDescription('  Small-batch accessories.  ')).toEqual({ ok: true, value: 'Small-batch accessories.' })
+    expect(readPromoterSetupDescription(undefined)).toEqual({ ok: true, value: null })
+  })
+
+  test('refuses malformed or oversized descriptions before they reach Medusa', () => {
+    expect(readPromoterSetupDescription(42)).toEqual({ ok: false })
+    expect(readPromoterSetupDescription('x'.repeat(MAX_PROMOTER_SHOP_DESCRIPTION_LENGTH + 1))).toEqual({ ok: false })
   })
 })

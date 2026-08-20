@@ -205,6 +205,8 @@ function BindStep({ onBound }: { onBound: (b: Bound) => void }) {
 
 function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: (s: Shop) => void }) {
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [operatingMarket, setOperatingMarket] = useState<'mx' | 'us'>('mx')
   const [cp, setCp] = useState('')
   const [cpBusy, setCpBusy] = useState(false)
   const [cpError, setCpError] = useState<string | null>(null)
@@ -245,6 +247,8 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          description: description.trim() || undefined,
+          operating_market: operatingMarket,
           cp: cp.trim() || undefined,
           estado: estado.trim() || undefined,
           municipio: municipio.trim() || undefined,
@@ -269,6 +273,16 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
         <div className="space-y-3">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del negocio"
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del negocio (opcional)"
+            rows={3} maxLength={2000} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+
+          <select value={operatingMarket} onChange={(e) => setOperatingMarket(e.target.value as 'mx' | 'us')}
+            aria-label="Mercado operativo"
+            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2">
+            <option value="mx">México · MXN</option>
+            <option value="us">Estados Unidos · USD</option>
+          </select>
 
           {!manual ? (
             <div className="space-y-2">
