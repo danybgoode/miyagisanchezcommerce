@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import { readPromoterSetupMarket } from '../lib/promoter-setup-market'
 
 test.describe('promoter shop setup operating market', () => {
@@ -15,5 +16,12 @@ test.describe('promoter shop setup operating market', () => {
     expect(readPromoterSetupMarket('ca')).toBe('invalid')
     expect(readPromoterSetupMarket('en-US')).toBe('invalid')
     expect(readPromoterSetupMarket(null)).toBe('invalid')
+  })
+
+  test('the promoter close form forwards the selected market and shop description', async () => {
+    const source = await readFile('app/(shell)/promotor/cerrar/PromoterCloseClient.tsx', 'utf8')
+    expect(source).toContain('operating_market: operatingMarket')
+    expect(source).toContain('description: description.trim() || undefined')
+    expect(source).toContain('aria-label="Mercado operativo"')
   })
 })
