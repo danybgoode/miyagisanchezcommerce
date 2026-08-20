@@ -73,6 +73,29 @@ export default defineConfig({
       testMatch: '**/*.browser.spec.ts',
       use: {
         ...devices['Desktop Chrome'],
+        // es-MX is the DEFAULT BROWSER LANGUAGE for the whole browser suite, because
+        // it is the platform's canonical locale (AGENTS.md rule 5) — and because since
+        // `one-landing-per-market` (#399) the browser's language is load-bearing on
+        // every surface that can reach `/`.
+        //
+        // `RootLanguageSwitch` hops a visitor whose `navigator.languages` prefers
+        // English from `/` to `/en` after hydration. Playwright's default locale is
+        // `en-US`, so every spec that lands on the root — directly, or by being
+        // redirected there from an auth-gated page — silently began testing the
+        // English document. It broke two specs whose subject is not language at all:
+        // `market-selector` (asserts `/` stays `/`) and `admin-seleccion` (asserts an
+        // anonymous visitor is turned away from `/admin/...`, which lands them on the
+        // root and then hopped them to `/en`). Five more specs `goto('/')` and were
+        // one assertion away from the same fate.
+        //
+        // Setting it here rather than per-spec is the point: this is a property of the
+        // MARKET the suite is testing, not of any one spec, and fixing it one file at a
+        // time is how four `/vende` call sites got found by hand one at a time. Any
+        // spec that genuinely tests English opts in with `test.use({ locale: 'en-US' })`
+        // — `root-language-hop.browser.spec.ts` does exactly that, so the hop stays
+        // covered and this default cannot hide a regression in it.
+        locale: 'es-MX',
+
         // Real browser reaching an SSO-gated preview — send the bypass token as a
         // header (Playwright also persists it so the protection cookie is set).
         extraHTTPHeaders: bypass ? { 'x-vercel-protection-bypass': bypass } : {},
