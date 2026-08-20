@@ -46,6 +46,7 @@ export function decideSellerShopFixture(input: {
   reachable?: boolean
   rowCount?: number
 }): { ok: boolean; detail: string }
+export function normalizeProbeResult(result: unknown): { ok: boolean; detail: string }
 export function unmetRequirements(
   entry: { requires?: string[] } & Record<string, unknown>,
   availability: Map<string, boolean>,

@@ -59,7 +59,12 @@ function loadDotEnvLocal() {
     if (trimmed.startsWith('export ')) trimmed = trimmed.slice('export '.length).trim()
     const eq = trimmed.indexOf('=')
     if (eq === -1) continue
-    out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+    // Balanced pair only. `/^["']|["']$/g` strips the ends INDEPENDENTLY, so a value
+    // that legitimately ends in a quote loses it. Same logic as live-smoke.mjs's
+    // `unquote`; duplicated rather than imported because live-smoke.mjs calls `main()`
+    // unguarded at module scope, so importing it would run a whole smoke.
+    const rawValue = trimmed.slice(eq + 1).trim()
+    out[trimmed.slice(0, eq).trim()] = rawValue.replace(/^(['"])([\s\S]*)\1$/, '$2')
   }
   return out
 }
@@ -96,7 +101,10 @@ const PROBES = {
     hint: "see e2e/README.md → 'The seller fixture owns a shop' for the INSERT",
     async check() {
       const env = { ...loadDotEnvLocal(), ...process.env }
-      const url = env.SUPABASE_URL
+      // Trailing slashes stripped: `${url}/rest/...` on a URL ending in `/` builds a
+      // double slash, which PostgREST 404s — and this probe would then report Supabase
+      // UNREACHABLE when it is online and the real answer was one keystroke away.
+      const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '')
       const key = env.SUPABASE_SERVICE_ROLE_KEY
       if (!url || !key) return decideSellerShopFixture({ configured: false })
       try {
@@ -127,6 +135,22 @@ const PROBES = {
   },
 }
 
+/**
+ * Accepts a probe that returns a bare boolean as well as `{ ok, detail }`.
+ *
+ * Without this, a probe written the old way (which is how `medusa-local` was written
+ * until this file grew details) yields `result.ok === undefined` — falsy, so the
+ * requirement silently reports UNAVAILABLE, with the reason printed as the literal
+ * string "undefined". A normaliser is three lines; that failure mode costs an hour.
+ */
+export function normalizeProbeResult(result) {
+  if (typeof result === 'boolean') return { ok: result, detail: result ? 'available' : 'unavailable' }
+  if (!result || typeof result !== 'object' || typeof result.ok !== 'boolean') {
+    return { ok: false, detail: `probe returned ${JSON.stringify(result)} — treated as unavailable, never as a pass` }
+  }
+  return { ok: result.ok, detail: result.detail ?? (result.ok ? 'available' : 'unavailable') }
+}
+
 /** Probes every requirement the filtered entries name. Unknown names are fatal. */
 async function resolveRequirements(entries) {
   const names = [...new Set(entries.flatMap((e) => e.requires ?? []))]
@@ -142,7 +166,7 @@ async function resolveRequirements(entries) {
     // reach the database to ask" — which is the same two-states-for-three-facts
     // collapse this whole mechanism exists to prevent, one level down. Caught by
     // mutating the probe and watching both mutations print an identical line.
-    const result = await probe.check()
+    const result = normalizeProbeResult(await probe.check())
     const ok = result.ok
     console.log(
       `smoke-sweep: requirement "${name}" — ${ok ? 'available' : 'UNAVAILABLE'}: ${result.detail} (${probe.describe})`,

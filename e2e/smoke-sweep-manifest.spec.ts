@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { loadManifest, filterEntries, buildArgs, unmetRequirements, decideSellerShopFixture } from '../scripts/smoke-sweep.mjs'
+import { loadManifest, filterEntries, buildArgs, unmetRequirements, decideSellerShopFixture, normalizeProbeResult } from '../scripts/smoke-sweep.mjs'
 
 /**
  * smoke-sweep manifest guard — keeps `scripts/smoke-sweep.manifest.json` honest.
@@ -117,6 +117,23 @@ test.describe('smoke-sweep manifest', () => {
     expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 1 }).ok).toBe(true)
     expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 0 }).ok).toBe(false)
     expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 0 }).detail).toMatch(/owns no/)
+  })
+
+  test('a probe returning a bare boolean still reports a real reason', () => {
+    // A probe written the old way yields `result.ok === undefined` — falsy, so the
+    // requirement reports UNAVAILABLE with the reason printed as literally "undefined".
+    expect(normalizeProbeResult(true)).toEqual({ ok: true, detail: 'available' })
+    expect(normalizeProbeResult(false)).toEqual({ ok: false, detail: 'unavailable' })
+    expect(normalizeProbeResult({ ok: true, detail: 'present' })).toEqual({ ok: true, detail: 'present' })
+  })
+
+  test('a probe returning garbage is unavailable, never a pass', () => {
+    // The direction that matters: an unreadable probe result must never resolve to ok.
+    for (const bad of [undefined, null, {}, 'yes', { ok: 'true' }]) {
+      const out = normalizeProbeResult(bad)
+      expect(out.ok, `probe returned ${JSON.stringify(bad)}`).toBe(false)
+      expect(out.detail).toBeTruthy()
+    }
   })
 
   test('filters select a subset, never silently nothing', () => {
