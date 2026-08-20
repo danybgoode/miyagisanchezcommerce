@@ -41,6 +41,11 @@ export function buildArgs(entry: SmokeSweepEntry): string[]
  * Reads only `requires`, so it accepts anything carrying one — the guard spec passes
  * partial fixtures rather than constructing a whole entry to answer a one-field question.
  */
+export function decideSellerShopFixture(input: {
+  configured?: boolean
+  reachable?: boolean
+  rowCount?: number
+}): { ok: boolean; detail: string }
 export function unmetRequirements(
   entry: { requires?: string[] } & Record<string, unknown>,
   availability: Map<string, boolean>,

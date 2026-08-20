@@ -173,6 +173,36 @@ the shop lookup and then fails on `getMySeller()`, which calls Medusa — so the
 category-B seller entries stay `unavailable` until a local Medusa runs on `:9000`. The
 sweep reports that as its own state rather than as a failure.
 
+### Recreating it
+
+The sweep probes for this row by slug (`seller-shop-fixture` in
+`scripts/smoke-sweep.manifest.json`), so if it goes missing the seller entries report
+UNAVAILABLE with this file named — they do not silently fail. To restore it:
+
+```sql
+insert into marketplace_shops (slug, name, description, location, clerk_user_id, verified, source, metadata)
+values (
+  'qa-playwright-fixture',
+  '[QA] Playwright Test Shop — automated tests only',
+  'Automated-test fixture. Not a real merchant. See e2e/README.md.',
+  'QA',
+  'user_3EjPSw1XwZyyAVpoUoZoC1kTlra',  -- playwright-seller in the DEV Clerk instance (honest-eel-39)
+  false,
+  'qa-fixture',
+  jsonb_build_object('is_test_fixture', true, 'safe_to_delete', true)
+);
+```
+
+The `clerk_user_id` is the one field that matters and the one to re-derive rather than
+copy blindly — it must be the **dev**-instance id of whatever `MS_TEST_SELLER_EMAIL`
+points at, which is what makes the row unreachable from production auth:
+
+```bash
+curl -s -H "Authorization: Bearer $CLERK_SECRET_KEY" \
+  "https://api.clerk.com/v1/users?email_address=playwright-seller@miyagisanchez.com" \
+  | jq -r '.[0].id'
+```
+
 Safe to delete; nothing references it:
 
 ```sql
