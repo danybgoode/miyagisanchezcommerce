@@ -51,6 +51,7 @@
   ],
   "requirements": {
     "_": "Names a manifest entry may list in \"requires\". Each is probed once per run by scripts/smoke-sweep.mjs (PROBES) BEFORE anything executes; an entry whose requirement is unavailable is reported UNAVAILABLE and not run, and the sweep exits 2. Adding a name here means adding a probe there — an unknown name is fatal, never assumed satisfied.",
+    "_seller_shop_fixture": "The seller-portal entries below ALSO need their dev Clerk seller to own a marketplace_shops row. That is `qa-playwright-fixture`, created 2026-08-20 and documented in e2e/README.md. Without it the settings pages 404 before rendering and report as missing selectors; with it they get as far as getMySeller(), which is what `medusa-local` covers.",
     "medusa-local": "A local Medusa on :9000. Every /shop/manage/* surface calls getMySeller() against MEDUSA_STORE_URL; with nothing listening the whole seller portal fetch-fails and its specs report missing selectors that read exactly like regressions."
   },
   "excluded": {

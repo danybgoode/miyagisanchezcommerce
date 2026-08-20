@@ -104,7 +104,7 @@ the production nightly. A missing fixture is a visible skip, not a failure.
 | --- | --- | --- |
 | `MS_TEST_BROWSER_AUTH` | all auth-gated browser specs | Literal `1`; set only in the preview CI job or a local dev-Clerk run. |
 | `MS_TEST_BUYER_EMAIL` | `smoke`, `home-hero-auth`, `home-personalization`, `buyer-notification-prefs-compras`, `checkout-cp-first`, `unread-poll` browser specs | Existing buyer in the same dev Clerk instance as the target. |
-| `MS_TEST_SELLER_EMAIL` | `onboarding-success-card`, shop-settings, `seller-unclaimed-s3` browser specs | Existing seller in that dev Clerk instance. |
+| `MS_TEST_SELLER_EMAIL` | `onboarding-success-card`, shop-settings, `seller-unclaimed-s3` browser specs | Existing seller in that dev Clerk instance. **Must also OWN A SHOP** — see below. |
 | `MS_TEST_ADMIN_EMAIL` | `admin-seleccion.browser.spec.ts` | Dev Clerk user recognized as an admin by the app. This spec requires its explicit email. |
 | `MS_TEST_PDP_LISTING_ID` | `agent-prompt`, `trust-signals` browser; `ucp-cutover-api` | Public listing; seller exposes a payment or fulfillment method for trust-signals. |
 | `MS_TEST_PERSONALIZED_LISTING_ID` | `personalization`, PDP gallery fallback; `agent-prompt`, `trust-signals`, `ucp-cutover-api` fallbacks | Public listing with a required custom field. |
@@ -143,6 +143,41 @@ to read skips as green — which is the failure mode this whole file exists to p
 **Bring it back when a public zero-photo listing exists** as a durable fixture. Discovery still supports
 the `'zero'` photo count in `_helpers/gallery-fixture.ts`, so reviving it means re-adding the describe
 block (see the retirement comment in `pdp-gallery.browser.spec.ts`), not rebuilding machinery.
+
+## The seller fixture owns a shop — `qa-playwright-fixture` (created 2026-08-20)
+
+Every `/shop/manage/*` spec needs its signed-in seller to own a row in
+`marketplace_shops`. `playwright-seller@miyagisanchez.com` owned none, so those specs
+did not fail on their subject — the settings page 404'd before rendering anything, and
+sixteen "missing selector" failures read exactly like a broken seller portal. They were
+one absent row.
+
+There is no non-production Supabase, so the row lives in the live database. It is scoped
+to be inert there, deliberately:
+
+| property | value | why |
+|---|---|---|
+| `slug` | `qa-playwright-fixture` | greppable; obviously not a merchant |
+| `name` | `[QA] Playwright Test Shop — automated tests only` | unmistakable anywhere it is listed |
+| `clerk_user_id` | the **dev**-instance id of `playwright-seller` | that id cannot exist in the production Clerk instance, so **no real person can ever sign in as this shop** |
+| `source` | `qa-fixture` | filterable |
+| `metadata.is_test_fixture` | `true` | filterable |
+
+**It is not publicly reachable.** The public shop page reads the MEDUSA seller, not this
+table (see `LEARNINGS.md` → *shop settings live in two stores*), and this fixture has no
+Medusa seller and no listings — so `/mx/s/qa-playwright-fixture` 404s and it cannot appear
+in the catalog. Verified before and after creation.
+
+**It is necessary but not sufficient.** With the row in place the settings page gets past
+the shop lookup and then fails on `getMySeller()`, which calls Medusa — so the seven
+category-B seller entries stay `unavailable` until a local Medusa runs on `:9000`. The
+sweep reports that as its own state rather than as a failure.
+
+Safe to delete; nothing references it:
+
+```sql
+delete from marketplace_shops where slug = 'qa-playwright-fixture';
+```
 
 ## Conventions
 - `_helpers/` is not a test dir (no `*.spec.ts`) — shared helpers only.
