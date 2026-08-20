@@ -5,23 +5,42 @@ import { CATEGORIES } from '@/lib/types'
 import { shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 
-type Shop = { shopId: string; slug: string; name: string }
+type Shop = { shopId: string; slug: string; name: string; currency?: 'MXN' | 'USD' }
 
-/**
- * Promoter Funnel v2 · Sprint 5 (US-5.1) — add a real, published listing (title,
- * price, category, photos) to the merchant's shop during the close, so it looks
- * real at /s/[slug] and in search from the moment the promoter walks out.
- * Thin screen over POST /api/promoter/close/listing.
- */
+/** Authenticated promoter listing close, with source-image URLs for prepared claim-shop waves. */
 export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
   const [title, setTitle] = useState('')
-  const [priceMxn, setPriceMxn] = useState('')
+  const [description, setDescription] = useState('')
+  const [price, setPrice] = useState('')
+  const [quantity, setQuantity] = useState('1')
   const [category, setCategory] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourcePlatform, setSourcePlatform] = useState('shopify')
   const [photos, setPhotos] = useState<string[]>([])
+  const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const currency = shop.currency ?? 'MXN'
+
+  function resetForAnother() {
+    setTitle(''); setDescription(''); setPrice(''); setQuantity('1'); setCategory('')
+    setSourceUrl(''); setSourcePlatform('shopify'); setPhotos([]); setPhotoUrl('')
+    setError(null); setDone(false)
+  }
+
+  function addPhotoUrl() {
+    const candidate = photoUrl.trim()
+    try {
+      const url = new URL(candidate)
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocol')
+      if (!photos.includes(url.href)) setPhotos((current) => [...current, url.href].slice(0, 6))
+      setPhotoUrl('')
+    } catch {
+      setError('Pega una URL de imagen válida (https).')
+    }
+  }
 
   async function uploadPhoto(file: File): Promise<string | null> {
     const fd = new FormData()
@@ -43,9 +62,7 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
         if (url) uploaded.push(url); else failed++
       }
       setPhotos((prev) => [...prev, ...uploaded].slice(0, 6))
-      if (failed > 0) {
-        setError(failed === 1 ? 'Una foto no se pudo subir. Intenta de nuevo.' : `${failed} fotos no se pudieron subir. Intenta de nuevo.`)
-      }
+      if (failed > 0) setError('Una o más fotos no se pudieron subir. Intenta de nuevo.')
     } finally {
       setUploading(false)
     }
@@ -59,8 +76,13 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
         body: JSON.stringify({
           shopId: shop.shopId,
           title,
+          description: description.trim() || undefined,
           category,
-          price_mxn: priceMxn ? Number(priceMxn) : undefined,
+          price: price ? Number(price) : undefined,
+          currency,
+          quantity: quantity ? Number(quantity) : undefined,
+          source_url: sourceUrl.trim() || undefined,
+          source_platform: sourcePlatform.trim() || undefined,
           images: photos.map((url) => ({ url })),
         }),
       })
@@ -73,45 +95,44 @@ export default function ListingStep({ shop, n }: { shop: Shop; n: number }) {
 
   return (
     <section className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
-      <h2 className="font-semibold">
-        <span className="text-[var(--color-muted)] mr-2">{n}.</span>Agregar un anuncio
-      </h2>
+      <h2 className="font-semibold"><span className="text-[var(--color-muted)] mr-2">{n}.</span>Agregar anuncios</h2>
       {done ? (
-        <p className="text-sm text-[color:var(--success)]">
-          <i className="iconoir-check-circle" aria-hidden /> Anuncio publicado — ya se ve en <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shopUrlFor(SITE_ORIGIN, shop.slug)}</a>.
-        </p>
+        <div className="space-y-3 text-sm text-[color:var(--success)]">
+          <p><i className="iconoir-check-circle" aria-hidden /> Anuncio guardado en la vista previa de <a className="underline" href={shopUrlFor(SITE_ORIGIN, shop.slug)} target="_blank" rel="noreferrer">{shop.name}</a>.</p>
+          <button type="button" onClick={resetForAnother} className="rounded-lg border border-[var(--color-border)] px-4 py-2 font-medium text-[var(--fg)]">Agregar otro anuncio</button>
+        </div>
       ) : (
         <div className="space-y-3">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título del anuncio"
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título del anuncio" className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del producto (opcional)" rows={3} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
           <div className="flex gap-2">
-            <input value={priceMxn} onChange={(e) => setPriceMxn(e.target.value.replace(/[^\d.]/g, ''))}
-              placeholder="Precio (MXN, opcional)" inputMode="decimal"
-              className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2" />
-            <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Categoría"
-              className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2">
+            <input value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} placeholder={`Precio (${currency})`} inputMode="decimal" className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2" />
+            <input value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))} placeholder="Existencias" inputMode="numeric" className="w-32 rounded-lg border border-[var(--color-border)] px-3 py-2" />
+            <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Categoría" className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2">
               <option value="">Categoría…</option>
               {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
           </div>
+          <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="URL de origen (opcional)" inputMode="url" className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+          <input value={sourcePlatform} onChange={(e) => setSourcePlatform(e.target.value)} placeholder="Plataforma de origen (opcional)" className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
           <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-muted)]">
-              Fotos ({photos.length}/6)
-              <input type="file" accept="image/*" multiple disabled={uploading || photos.length >= 6}
-                onChange={(e) => onPhotos(e.target.files)}
-                className="mt-1 block w-full text-sm" />
+            <div className="flex gap-2">
+              <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="URL de imagen" inputMode="url" disabled={photos.length >= 6} className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2" />
+              <button type="button" onClick={addPhotoUrl} disabled={photos.length >= 6 || !photoUrl.trim()} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm font-medium disabled:opacity-50">Agregar URL</button>
+            </div>
+            <label className="block text-sm text-[var(--color-muted)]">O sube fotos ({photos.length}/6)
+              <input type="file" accept="image/*" multiple disabled={uploading || photos.length >= 6} onChange={(e) => onPhotos(e.target.files)} className="mt-1 block w-full text-sm" />
             </label>
-            {photos.length > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                {/* eslint-disable-next-line @next/next/no-img-element -- remote R2/Supabase URLs, no next/image domain config here */}
-                {photos.map((url) => <img key={url} src={url} alt="" className="h-16 w-16 rounded object-cover" />)}
-              </div>
-            )}
+            {photos.length > 0 && <div className="flex gap-2 flex-wrap">
+              {photos.map((url) => <button type="button" key={url} onClick={() => setPhotos((current) => current.filter((item) => item !== url))} title="Quitar imagen">
+                {/* eslint-disable-next-line @next/next/no-img-element -- verified remote image URLs are previewed before the authenticated listing write */}
+                <img src={url} alt="" className="h-16 w-16 rounded object-cover" />
+              </button>)}
+            </div>}
           </div>
           {error && <p className="text-sm text-[color:var(--danger)]">{error}</p>}
-          <button onClick={addListing} disabled={busy || uploading || title.trim().length < 3 || !category}
-            className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
-            {busy ? 'Publicando…' : 'Publicar anuncio'}
+          <button onClick={addListing} disabled={busy || uploading || title.trim().length < 3 || !category} className="rounded-lg bg-[var(--color-accent)] text-[var(--fg-inverse)] px-4 py-2 font-medium disabled:opacity-50">
+            {busy ? 'Guardando…' : 'Guardar anuncio privado'}
           </button>
         </div>
       )}
