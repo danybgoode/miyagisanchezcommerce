@@ -10,7 +10,7 @@ import PreviewStep from './PreviewStep'
 import RelationshipStep from './RelationshipStep'
 
 type Bound = { code: string; name: string | null } | null
-type Shop = { shopId: string; slug: string; name: string; estado?: string | null; municipio?: string | null }
+type Shop = { shopId: string; slug: string; name: string; currency?: 'MXN' | 'USD'; estado?: string | null; municipio?: string | null }
 
 /** Promoter Funnel v2 · Sprint 4 (US-4.1) — a net-remittance transfer request. */
 type Transfer = {
@@ -258,7 +258,7 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
       })
       const data = await res.json()
       if (!res.ok || !data.ok) { setError(data.error ?? 'No se pudo crear.'); return }
-      onShop({ shopId: data.shopId, slug: data.slug, name: data.name, estado: data.estado ?? null, municipio: data.municipio ?? null })
+      onShop({ shopId: data.shopId, slug: data.slug, name: data.name, currency: operatingMarket === 'us' ? 'USD' : 'MXN', estado: data.estado ?? null, municipio: data.municipio ?? null })
     } catch { setError('Error de red. Intenta de nuevo.') }
     finally { setBusy(false) }
   }
