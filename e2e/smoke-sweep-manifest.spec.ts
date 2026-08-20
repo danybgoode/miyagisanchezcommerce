@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { loadManifest, filterEntries, buildArgs } from '../scripts/smoke-sweep.mjs'
+import { loadManifest, filterEntries, buildArgs, unmetRequirements } from '../scripts/smoke-sweep.mjs'
 
 /**
  * smoke-sweep manifest guard — keeps `scripts/smoke-sweep.manifest.json` honest.
@@ -77,6 +77,23 @@ test.describe('smoke-sweep manifest', () => {
       // not a restatement of it.
       expect(buildArgs(entry)).toEqual([`--env=${entry.env}`, `--flow=${entry.flow}`, expect.stringMatching(/^--(path|spec|file)=/)])
     }
+  })
+
+  test('every declared requirement is documented and probeable', () => {
+    const manifest = loadManifest()
+    const documented = new Set(Object.keys(manifest.requirements ?? {}).filter((k) => k !== '_'))
+    const used = new Set(manifest.entries.flatMap((e) => e.requires ?? []))
+    // The runner treats an unknown requirement as fatal rather than satisfied; this
+    // catches the typo at gate time instead of mid-sweep.
+    expect([...used].filter((name) => !documented.has(name)), 'undocumented requirement').toEqual([])
+  })
+
+  test('an unmet requirement is reported, and a met one is not', () => {
+    const entry = { id: 'x', requires: ['medusa-local'] }
+    expect(unmetRequirements(entry, new Map([['medusa-local', false]]))).toEqual(['medusa-local'])
+    expect(unmetRequirements(entry, new Map([['medusa-local', true]]))).toEqual([])
+    // The negation has to stay available: an entry declaring nothing is never blocked.
+    expect(unmetRequirements({ id: 'y' }, new Map([['medusa-local', false]]))).toEqual([])
   })
 
   test('filters select a subset, never silently nothing', () => {

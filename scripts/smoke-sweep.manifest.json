@@ -37,18 +37,22 @@
     { "id": "admin-flags", "category": "B", "env": "local", "flow": "admin", "path": "/admin/flags", "note": "epic: admin-flags-cleanup; no committed spec, ad-hoc render check" },
     { "id": "admin-promoter", "category": "B", "env": "local", "flow": "admin", "path": "/admin/promoter", "note": "epic: platform-migrations S3 admin-pricing fix; already proven working manually this session" },
     { "id": "buyer-notification-prefs-compras", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/buyer-notification-prefs-compras.browser.spec.ts", "note": "epic: buyer-notifications-money-path" },
-    { "id": "checkout-cp-first", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/checkout-cp-first.browser.spec.ts", "note": "epic: delivery-money-polish; needs a local Medusa backend + MS_TEST_SHIPPABLE_LISTING_ID" },
+    { "id": "checkout-cp-first", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "buyer", "file": "e2e/checkout-cp-first.browser.spec.ts", "note": "epic: delivery-money-polish; needs a local Medusa backend + MS_TEST_SHIPPABLE_LISTING_ID" },
     { "id": "home-hero-auth", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/home-hero-auth.browser.spec.ts", "note": "epic: home-dynamic-rows-restore; anonymous half also passes on prod, the signed-in half is why this is B" },
     { "id": "home-personalization", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/home-personalization.browser.spec.ts", "note": "epic: homepage-seleccion-curation" },
-    { "id": "onboarding-success-card", "category": "B", "env": "local", "flow": "seller", "file": "e2e/onboarding-success-card.browser.spec.ts", "note": "epic: seller-portal-onboarding-three-doors" },
-    { "id": "orders-bulk-preview", "category": "B", "env": "local", "flow": "seller", "file": "e2e/orders-bulk-preview.browser.spec.ts", "note": "epic: order-comms-chain; needs MS_TEST_SELLER_EMAIL to own at least two visible orders or the mixed-row test skips itself" },
-    { "id": "seller-unclaimed-s3", "category": "B", "env": "local", "flow": "seller", "file": "e2e/seller-unclaimed-s3.browser.spec.ts", "note": "epic: seller-unclaimed-bug-sweep" },
-    { "id": "shop-settings-money-sections", "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-money-sections.browser.spec.ts", "note": "epic: shop-settings-refactor" },
-    { "id": "shop-settings-returns", "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-returns.browser.spec.ts", "note": "epic: shop-settings-refactor" },
-    { "id": "shop-settings-sections", "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-sections.browser.spec.ts", "note": "epic: shop-settings-refactor" },
+    { "id": "onboarding-success-card", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/onboarding-success-card.browser.spec.ts", "note": "epic: seller-portal-onboarding-three-doors" },
+    { "id": "orders-bulk-preview", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/orders-bulk-preview.browser.spec.ts", "note": "epic: order-comms-chain; needs MS_TEST_SELLER_EMAIL to own at least two visible orders or the mixed-row test skips itself" },
+    { "id": "seller-unclaimed-s3", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/seller-unclaimed-s3.browser.spec.ts", "note": "epic: seller-unclaimed-bug-sweep" },
+    { "id": "shop-settings-money-sections", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-money-sections.browser.spec.ts", "note": "epic: shop-settings-refactor" },
+    { "id": "shop-settings-returns", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-returns.browser.spec.ts", "note": "epic: shop-settings-refactor" },
+    { "id": "shop-settings-sections", "requires": ["medusa-local"], "category": "B", "env": "local", "flow": "seller", "file": "e2e/shop-settings-sections.browser.spec.ts", "note": "epic: shop-settings-refactor" },
     { "id": "smoke-authed-buyer", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/smoke.browser.spec.ts", "note": "baseline harness smoke, epic: agent-connection" },
     { "id": "unread-poll", "category": "B", "env": "local", "flow": "buyer", "file": "e2e/unread-poll.browser.spec.ts", "note": "epic: trust-messaging-polish" }
   ],
+  "requirements": {
+    "_": "Names a manifest entry may list in \"requires\". Each is probed once per run by scripts/smoke-sweep.mjs (PROBES) BEFORE anything executes; an entry whose requirement is unavailable is reported UNAVAILABLE and not run, and the sweep exits 2. Adding a name here means adding a probe there — an unknown name is fatal, never assumed satisfied.",
+    "medusa-local": "A local Medusa on :9000. Every /shop/manage/* surface calls getMySeller() against MEDUSA_STORE_URL; with nothing listening the whole seller portal fetch-fails and its specs report missing selectors that read exactly like regressions."
+  },
   "excluded": {
     "_": "spec file (e2e/<name>.browser.spec.ts) -> why it is deliberately NOT swept. The coverage guard bans an unlisted spec; this is the negation, so recording a real reason is always available and the guard never has to be bypassed. Empty today — every browser spec is swept."
   }
