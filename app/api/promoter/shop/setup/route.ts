@@ -18,6 +18,7 @@ import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/pro
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
 import { ensureShopPreviewReportingCreation, canAnchorPreview } from '@/lib/preview-access'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
+import { readPromoterSetupMarket } from '@/lib/promoter-setup-market'
 import { db } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -54,11 +55,17 @@ export async function POST(req: NextRequest) {
     municipio?: string
     colonia?: string
     merchant_email?: string
+    operating_market?: unknown
   } = {}
   try { body = await req.json() } catch { /* validated below */ }
   const name = (body.name ?? '').trim()
   if (name.length < 2) {
     return NextResponse.json({ ok: false, error: 'Escribe el nombre del negocio.' }, { status: 400 })
+  }
+
+  const operatingMarket = readPromoterSetupMarket(body.operating_market)
+  if (operatingMarket === 'invalid') {
+    return NextResponse.json({ ok: false, error: 'El mercado operativo debe ser México o Estados Unidos.' }, { status: 400 })
   }
 
   // Sprint 5 (US-5.2) — structured estado/municipio/colonia (CP-first, from
@@ -102,6 +109,10 @@ export async function POST(req: NextRequest) {
         source: 'promoter',
         source_url: promoterSourceUrl(promoter.code, name),
         metadata,
+        // Omit when unspecified so legacy promoter closes retain the explicit
+        // backend MX default. A supplied market was normalized and validated
+        // above; it must reach Medusa rather than being inferred from locale.
+        ...(operatingMarket ? { operating_market: operatingMarket } : {}),
       }),
     })
     const data = (await res.json().catch(() => ({}))) as { seller?: MintedSeller; message?: string }
