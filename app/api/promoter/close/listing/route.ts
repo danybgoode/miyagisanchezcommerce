@@ -49,6 +49,7 @@ import {
 } from '@/lib/preview-access'
 import { invalidateIfMaterialChange } from '@/lib/preview-consent'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
+import { normalizePromoterListingContract } from '@/lib/promoter-listing-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +57,14 @@ interface Body {
   shopId?: string
   slug?: string
   title?: string
+  /** Backwards-compatible Mexico field. Prefer price + currency for new callers. */
   price_mxn?: number
+  price?: number
+  currency?: 'MXN' | 'USD'
+  description?: string
+  quantity?: number
+  source_url?: string
+  source_platform?: string
   category?: string
   condition?: string
   images?: Array<{ url: string; alt?: string }>
@@ -162,9 +170,7 @@ export async function POST(req: NextRequest) {
   const listingStatus: 'published' | 'draft' = privatePreview ? 'draft' : 'published'
   const mirrorStatus = privatePreview ? 'draft' : 'active'
 
-  const priceCents = typeof body.price_mxn === 'number' && body.price_mxn > 0
-    ? Math.round(body.price_mxn * 100)
-    : null
+  const { currency, priceCents, quantity } = normalizePromoterListingContract(body)
   const images = Array.isArray(body.images) ? body.images.slice(0, 6) : []
   const locationDetail = (shop.metadata.location_detail ?? null) as
     | { estado?: string | null; municipio?: string | null }
@@ -172,14 +178,20 @@ export async function POST(req: NextRequest) {
 
   const result = await createSellerProductViaInternal(shop.slug, {
     title,
+    description: body.description?.trim() || null,
     category,
     price_cents: priceCents,
-    currency: 'MXN',
+    currency,
     condition: body.condition?.trim() || null,
     listing_type: 'product',
     state: locationDetail?.estado ?? null,
     municipio: locationDetail?.municipio ?? null,
-    quantity: 1,
+    quantity,
+    metadata: {
+      ...(body.source_url ? { original_source_url: body.source_url, source_url: body.source_url } : {}),
+      ...(body.source_platform ? { source_platform: body.source_platform } : {}),
+      acquisition: { motion: 'claim_shop_preview' },
+    },
     // Force-published (flag OFF) or private draft (flag ON) — see file header.
     // Never gated by listingActivationBlock either way.
     status: listingStatus,
@@ -192,9 +204,10 @@ export async function POST(req: NextRequest) {
   await syncSupabaseListingMirror(shop.id, {
     id: result.product_id,
     title,
+    description: body.description?.trim() || null,
     category,
     price_cents: priceCents,
-    currency: 'MXN',
+    currency,
     condition: body.condition?.trim() || null,
     listing_type: 'product',
     state: locationDetail?.estado ?? null,
