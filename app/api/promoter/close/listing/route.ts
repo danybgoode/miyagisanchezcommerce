@@ -49,7 +49,7 @@ import {
 } from '@/lib/preview-access'
 import { invalidateIfMaterialChange } from '@/lib/preview-consent'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
-import { normalizePromoterListingContract } from '@/lib/promoter-listing-contract'
+import { normalizePromoterListingContract, optionalTrimmedText } from '@/lib/promoter-listing-contract'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,7 +92,10 @@ export async function POST(req: NextRequest) {
   }
 
   let body: Body = {}
-  try { body = await req.json() } catch { /* validated below */ }
+  try {
+    const parsed: unknown = await req.json()
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Body
+  } catch { /* validated below */ }
 
   const title = (body.title ?? '').trim()
   if (title.length < 3) {
@@ -171,6 +174,9 @@ export async function POST(req: NextRequest) {
   const mirrorStatus = privatePreview ? 'draft' : 'active'
 
   const { currency, priceCents, quantity } = normalizePromoterListingContract(body)
+  const description = optionalTrimmedText(body.description)
+  const sourceUrl = optionalTrimmedText(body.source_url)
+  const sourcePlatform = optionalTrimmedText(body.source_platform)
   const images = Array.isArray(body.images) ? body.images.slice(0, 6) : []
   const locationDetail = (shop.metadata.location_detail ?? null) as
     | { estado?: string | null; municipio?: string | null }
@@ -178,7 +184,7 @@ export async function POST(req: NextRequest) {
 
   const result = await createSellerProductViaInternal(shop.slug, {
     title,
-    description: body.description?.trim() || null,
+    description,
     category,
     price_cents: priceCents,
     currency,
@@ -188,8 +194,8 @@ export async function POST(req: NextRequest) {
     municipio: locationDetail?.municipio ?? null,
     quantity,
     metadata: {
-      ...(body.source_url ? { original_source_url: body.source_url, source_url: body.source_url } : {}),
-      ...(body.source_platform ? { source_platform: body.source_platform } : {}),
+      ...(sourceUrl ? { original_source_url: sourceUrl, source_url: sourceUrl } : {}),
+      ...(sourcePlatform ? { source_platform: sourcePlatform } : {}),
       acquisition: { motion: 'claim_shop_preview' },
     },
     // Force-published (flag OFF) or private draft (flag ON) — see file header.
@@ -204,7 +210,7 @@ export async function POST(req: NextRequest) {
   await syncSupabaseListingMirror(shop.id, {
     id: result.product_id,
     title,
-    description: body.description?.trim() || null,
+    description,
     category,
     price_cents: priceCents,
     currency,
@@ -214,6 +220,8 @@ export async function POST(req: NextRequest) {
     municipio: locationDetail?.municipio ?? null,
     images,
     status: mirrorStatus,
+    ...(sourceUrl ? { source_url: sourceUrl } : {}),
+    ...(sourcePlatform ? { source_platform: sourcePlatform } : {}),
   })
 
   // Consent-safe previews (S2.2) — adding a product is a MATERIAL change: the set

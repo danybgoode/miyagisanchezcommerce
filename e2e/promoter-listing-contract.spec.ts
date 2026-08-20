@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { normalizePromoterListingContract } from '../lib/promoter-listing-contract'
+import { normalizePromoterListingContract, optionalTrimmedText } from '../lib/promoter-listing-contract'
 
 test.describe('promoter close listing contract', () => {
   test('preserves the historic MXN-only caller', () => {
@@ -19,5 +19,12 @@ test.describe('promoter close listing contract', () => {
       currency: 'USD', priceCents: null, quantity: 1,
     })
     expect(normalizePromoterListingContract({ quantity: 0 })).toMatchObject({ quantity: 0 })
+    expect(normalizePromoterListingContract(null)).toEqual({ currency: 'MXN', priceCents: null, quantity: 1 })
+  })
+
+  test('drops non-string or blank catalog decoration', () => {
+    expect(optionalTrimmedText('  source value  ')).toBe('source value')
+    expect(optionalTrimmedText('   ')).toBeNull()
+    expect(optionalTrimmedText(123)).toBeNull()
   })
 })
