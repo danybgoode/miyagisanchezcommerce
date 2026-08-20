@@ -57,3 +57,11 @@ next-env.d.ts
 
 # codex CLI local config (cross-agent review tool, machine-local)
 /.codex/
+
+# Supabase CLI update-check cache. Rewritten whenever the CLI checks for a new
+# release, so a tracked copy shows up as a dirty tree in every worktree forever —
+# it was flagged as an anomaly in three consecutive session-resume runs. The rest
+# of supabase/.temp/ stays TRACKED on purpose: project-ref and linked-project.json
+# are what tell the CLI which project this repo is linked to, and the CLI is the
+# migration mechanism here (AGENTS.md §6).
+supabase/.temp/cli-latest
