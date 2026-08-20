@@ -45,19 +45,110 @@ const SUMMARY_DIR = join(APP_ROOT, 'test-results/smoke-sweep')
  * rows for all three user ids). Read as a pass/fail table that is sixteen regressions.
  * It was zero.
  */
+/**
+ * Reads `.env.local` the way `live-smoke.mjs` does. Values are NEVER printed — only
+ * the presence/absence of a key ever reaches the output.
+ */
+function loadDotEnvLocal() {
+  const path = join(APP_ROOT, '.env.local')
+  if (!existsSync(path)) return {}
+  const out = {}
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    let trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    if (trimmed.startsWith('export ')) trimmed = trimmed.slice('export '.length).trim()
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) continue
+    // Balanced pair only. `/^["']|["']$/g` strips the ends INDEPENDENTLY, so a value
+    // that legitimately ends in a quote loses it. Same logic as live-smoke.mjs's
+    // `unquote`; duplicated rather than imported because live-smoke.mjs calls `main()`
+    // unguarded at module scope, so importing it would run a whole smoke.
+    const rawValue = trimmed.slice(eq + 1).trim()
+    out[trimmed.slice(0, eq).trim()] = rawValue.replace(/^(['"])([\s\S]*)\1$/, '$2')
+  }
+  return out
+}
+
+/**
+ * Decides the seller-shop-fixture probe from an already-fetched result. Pure, so the
+ * three states are testable without a network or a database.
+ *
+ * `reachable: false` must NOT report the fixture as missing — an unreachable Supabase
+ * is an outage, and saying "the seller owns no shop" because we could not ask is the
+ * confident falsehood this whole mechanism exists to prevent.
+ */
+export function decideSellerShopFixture({ reachable, rowCount, configured }) {
+  if (!configured) return { ok: false, detail: 'MS_TEST_SELLER_EMAIL / Supabase credentials not resolvable — cannot check' }
+  if (!reachable) return { ok: false, detail: 'Supabase unreachable — the fixture may or may not exist, this is not a verdict' }
+  return { ok: rowCount > 0, detail: rowCount > 0 ? 'present' : 'the seller owns no marketplace_shops row' }
+}
+
 const PROBES = {
+  /**
+   * The seller must OWN A SHOP, and until 2026-08-20 nothing checked it.
+   *
+   * `playwright-seller@miyagisanchez.com` owned no `marketplace_shops` row, so every
+   * `/shop/manage/*` spec 404'd before rendering and reported sixteen missing
+   * selectors that read exactly like a broken seller portal. The fix was one row
+   * (`qa-playwright-fixture`); this is what stops its absence being silent again —
+   * a documented dependency nothing verifies is not a dependency, it is a comment.
+   *
+   * Queried by the fixture's own stable slug rather than by joining on the Clerk id,
+   * because the id lives in a dev instance this script has no business resolving.
+   */
+  'seller-shop-fixture': {
+    describe: 'the dev seller owns a marketplace_shops row (qa-playwright-fixture)',
+    hint: "see e2e/README.md → 'The seller fixture owns a shop' for the INSERT",
+    async check() {
+      const env = { ...loadDotEnvLocal(), ...process.env }
+      // Trailing slashes stripped: `${url}/rest/...` on a URL ending in `/` builds a
+      // double slash, which PostgREST 404s — and this probe would then report Supabase
+      // UNREACHABLE when it is online and the real answer was one keystroke away.
+      const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '')
+      const key = env.SUPABASE_SERVICE_ROLE_KEY
+      if (!url || !key) return decideSellerShopFixture({ configured: false })
+      try {
+        const res = await fetch(
+          `${url}/rest/v1/marketplace_shops?slug=eq.qa-playwright-fixture&select=slug`,
+          { headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) },
+        )
+        if (!res.ok) return decideSellerShopFixture({ configured: true, reachable: false })
+        const rows = await res.json()
+        return decideSellerShopFixture({ configured: true, reachable: true, rowCount: Array.isArray(rows) ? rows.length : 0 })
+      } catch {
+        return decideSellerShopFixture({ configured: true, reachable: false })
+      }
+    },
+  },
+
   'medusa-local': {
     describe: 'a local Medusa on :9000 (MEDUSA_STORE_URL for --env=local)',
     hint: 'cd apps/backend && npx medusa dev',
     async check() {
       try {
         await fetch('http://localhost:9000/health', { signal: AbortSignal.timeout(3000) })
-        return true
+        return { ok: true, detail: 'responding' }
       } catch {
-        return false
+        return { ok: false, detail: 'nothing listening on :9000' }
       }
     },
   },
+}
+
+/**
+ * Accepts a probe that returns a bare boolean as well as `{ ok, detail }`.
+ *
+ * Without this, a probe written the old way (which is how `medusa-local` was written
+ * until this file grew details) yields `result.ok === undefined` — falsy, so the
+ * requirement silently reports UNAVAILABLE, with the reason printed as the literal
+ * string "undefined". A normaliser is three lines; that failure mode costs an hour.
+ */
+export function normalizeProbeResult(result) {
+  if (typeof result === 'boolean') return { ok: result, detail: result ? 'available' : 'unavailable' }
+  if (!result || typeof result !== 'object' || typeof result.ok !== 'boolean') {
+    return { ok: false, detail: `probe returned ${JSON.stringify(result)} — treated as unavailable, never as a pass` }
+  }
+  return { ok: result.ok, detail: result.detail ?? (result.ok ? 'available' : 'unavailable') }
 }
 
 /** Probes every requirement the filtered entries name. Unknown names are fatal. */
@@ -70,8 +161,16 @@ async function resolveRequirements(entries) {
     // satisfied would restore exactly the false confidence this whole mechanism exists
     // to remove.
     if (!probe) throw new Error(`smoke-sweep: manifest requires "${name}", which has no probe in PROBES`)
-    const ok = await probe.check()
-    console.log(`smoke-sweep: requirement "${name}" — ${ok ? 'available' : 'UNAVAILABLE'} (${probe.describe})`)
+    // The DETAIL is printed, not just the verdict. A probe that says only
+    // "UNAVAILABLE" cannot distinguish "the fixture is missing" from "I could not
+    // reach the database to ask" — which is the same two-states-for-three-facts
+    // collapse this whole mechanism exists to prevent, one level down. Caught by
+    // mutating the probe and watching both mutations print an identical line.
+    const result = normalizeProbeResult(await probe.check())
+    const ok = result.ok
+    console.log(
+      `smoke-sweep: requirement "${name}" — ${ok ? 'available' : 'UNAVAILABLE'}: ${result.detail} (${probe.describe})`,
+    )
     availability.set(name, ok)
   }
   return availability

@@ -218,3 +218,26 @@ jobs:
           path: test-results/browser-smoke-fixture-skips.json
           if-no-files-found: warn
           retention-days: 7
+
+      # `if: always()`, and this job HAS to be the one that says so out loud.
+      #
+      # This job is `continue-on-error: true`, so it reports success no matter what
+      # happens inside it — which means an `if: failure()` upload (the shape the
+      # nightly workflow uses, correctly, because the nightly can fail) would NEVER
+      # fire here. The result: every browser failure on a preview for as long as this
+      # job has existed produced a red ✘ in a log and no trace, no screenshot, no
+      # report. Nine specs failed on 2026-08-19 and the only artifact on the run was
+      # a 2.3 KB fixture-skip summary.
+      #
+      # That is why nobody diagnosed them. A layer that can fail but cannot be
+      # investigated is not a layer, and the fix is one condition and one path.
+      - name: Upload the Playwright browser report + traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-browser-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 7

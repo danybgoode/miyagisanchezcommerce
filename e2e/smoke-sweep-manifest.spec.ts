@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { loadManifest, filterEntries, buildArgs, unmetRequirements } from '../scripts/smoke-sweep.mjs'
+import { loadManifest, filterEntries, buildArgs, unmetRequirements, decideSellerShopFixture, normalizeProbeResult } from '../scripts/smoke-sweep.mjs'
 
 /**
  * smoke-sweep manifest guard — keeps `scripts/smoke-sweep.manifest.json` honest.
@@ -94,6 +94,46 @@ test.describe('smoke-sweep manifest', () => {
     expect(unmetRequirements(entry, new Map([['medusa-local', true]]))).toEqual([])
     // The negation has to stay available: an entry declaring nothing is never blocked.
     expect(unmetRequirements({ id: 'y' }, new Map([['medusa-local', false]]))).toEqual([])
+  })
+
+  test('every seller-flow entry declares the shop fixture it needs', () => {
+    // The dependency that was documented-but-unchecked: a seller with no
+    // marketplace_shops row makes every /shop/manage/* page 404 before rendering, and
+    // the specs report missing selectors that read as a broken portal. Declaring it is
+    // what turns that into an UNAVAILABLE with a reason.
+    const missing = loadManifest()
+      .entries.filter((e) => e.flow === 'seller' && !(e.requires ?? []).includes('seller-shop-fixture'))
+      .map((e) => e.id)
+    expect(missing, 'a seller-flow entry that does not declare seller-shop-fixture').toEqual([])
+  })
+
+  test('an unreachable Supabase is UNAVAILABLE, never "the fixture is missing"', () => {
+    // The distinction the whole probe exists for. Reporting "the seller owns no shop"
+    // because we could not ask is a confident falsehood.
+    expect(decideSellerShopFixture({ configured: true, reachable: false }).ok).toBe(false)
+    expect(decideSellerShopFixture({ configured: true, reachable: false }).detail).toMatch(/not a verdict/)
+    expect(decideSellerShopFixture({ configured: false }).detail).toMatch(/cannot check/)
+    // And a real answer in both directions.
+    expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 1 }).ok).toBe(true)
+    expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 0 }).ok).toBe(false)
+    expect(decideSellerShopFixture({ configured: true, reachable: true, rowCount: 0 }).detail).toMatch(/owns no/)
+  })
+
+  test('a probe returning a bare boolean still reports a real reason', () => {
+    // A probe written the old way yields `result.ok === undefined` — falsy, so the
+    // requirement reports UNAVAILABLE with the reason printed as literally "undefined".
+    expect(normalizeProbeResult(true)).toEqual({ ok: true, detail: 'available' })
+    expect(normalizeProbeResult(false)).toEqual({ ok: false, detail: 'unavailable' })
+    expect(normalizeProbeResult({ ok: true, detail: 'present' })).toEqual({ ok: true, detail: 'present' })
+  })
+
+  test('a probe returning garbage is unavailable, never a pass', () => {
+    // The direction that matters: an unreadable probe result must never resolve to ok.
+    for (const bad of [undefined, null, {}, 'yes', { ok: 'true' }]) {
+      const out = normalizeProbeResult(bad)
+      expect(out.ok, `probe returned ${JSON.stringify(bad)}`).toBe(false)
+      expect(out.detail).toBeTruthy()
+    }
   })
 
   test('filters select a subset, never silently nothing', () => {
