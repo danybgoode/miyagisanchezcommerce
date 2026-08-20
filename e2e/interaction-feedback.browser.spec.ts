@@ -53,20 +53,38 @@ test.describe('press feedback', () => {
 
 test.describe('pending feedback', () => {
   test('a slow navigation marks the clicked link and shows the progress bar', async ({ page }) => {
-    await page.goto('/mx')
-
     // Make the navigation observably slow. Without this the assertion is a race:
     // a prefetched route can resolve in under 100ms, and a spec that passes only
     // when the network happens to be slow is a spec that will flake into
     // uselessness and then be deleted.
+    //
+    // Two things about this setup are load-bearing, and the first version had
+    // neither. It registered the handler AFTER `goto('/mx')` and merely DELAYED
+    // prefetch requests, so against production it measured nothing: the grid's
+    // links are prefetched while the page settles, the destination lands in the
+    // router cache, and a cache hit issues NO NETWORK REQUEST AT ALL. Delaying a
+    // request that never happens does not slow anything down. The click resolved
+    // in ~150ms, RouteProgress correctly declined to paint for a navigation that
+    // fast (NAV_PROGRESS_DELAY_MS is 140ms and exists precisely for this), and the
+    // spec failed while the feature worked. It survived review and the nightly
+    // because both hit a cold edge where the prefetch was still in flight —
+    // green for the wrong reason, which is the same failure as being red.
+    //
+    // So: registered BEFORE the first navigation, and the prefetch is REFUSED
+    // rather than delayed, which is what forces the click onto the network where
+    // the delay can reach it. Verified against production: the bar runs
+    // 16% -> 74% across the delay and clears on arrival.
     await page.route('**/*', async (route) => {
+      const request = route.request()
+      const headers = request.headers()
+      if (headers['next-router-prefetch'] !== undefined) return route.abort()
       const isNavigationFetch =
-        route.request().resourceType() === 'document' ||
-        route.request().headers()['rsc'] !== undefined ||
-        route.request().headers()['next-router-prefetch'] !== undefined
+        request.resourceType() === 'document' || headers['rsc'] !== undefined
       if (isNavigationFetch) await new Promise((r) => setTimeout(r, 1200))
       await route.continue()
     })
+
+    await page.goto('/mx')
 
     const tile = page.locator('a.card-tile[href*="/l/"]').first()
     await expect(tile).toBeVisible()
