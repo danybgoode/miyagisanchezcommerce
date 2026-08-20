@@ -157,11 +157,34 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      # Anonymous browser smokes against the preview — NON-BLOCKING (continue-on-error)
-      # so the gate stays the api suite above. Authed smokes are NOT run here: Clerk's
-      # testing token needs a dev instance + an allowed origin, which an SSO-gated
-      # ephemeral preview isn't — they run locally against a dev server (see
-      # e2e/README.md → "authed browser smokes").
+      # ANONYMOUS browser smokes against the preview — NON-BLOCKING (continue-on-error)
+      # so the gate stays the api suite above.
+      #
+      # ── This step used to exist TWICE, and used to claim credentials it never had ──
+      #
+      # Until 2026-08-19 this job ran `npm run test:e2e:browser` twice: once with the
+      # env block below, then again immediately with no env at all, each followed by its
+      # own summary step. The second summary OVERWROTE the first's artifact, so the
+      # uploaded fixture-skip report described the run that had none of the fixtures.
+      # Two chromium installs and two full browser suites per PR, and the report that
+      # survived was the wrong one.
+      #
+      # The env block also set `MS_TEST_BROWSER_AUTH: "1"` and mapped
+      # `secrets.MS_TEST_CLERK_PUBLISHABLE_KEY` / `secrets.MS_TEST_CLERK_SECRET_KEY`.
+      # NEITHER SECRET EXISTS — the repo's are named `CLERK_PUBLISHABLE_KEY` and
+      # `CLERK_SECRET_KEY` — and GitHub resolves a missing secret to an empty string,
+      # so `authEnabled()` (e2e/_helpers/auth.ts) has been false on every run this job
+      # has ever made. 29 authed tests across 15 spec files skipped while the workflow
+      # looked like it was running them.
+      #
+      # Renaming the secrets would NOT fix it, which is why they are gone rather than
+      # corrected. Clerk's testing token is dev-instance only and a dev instance allows
+      # localhost origins only, so clerk-js never readies on an SSO-gated ephemeral
+      # preview (Roadmap/LEARNINGS.md → "authed browser smokes"). The comment that used
+      # to sit here said exactly that while the env below contradicted it.
+      #
+      # The authed layer therefore runs LOCALLY, against `npm run dev`, as category B of
+      # `node scripts/smoke-sweep.mjs`. That is where it is real; here it was decoration.
       - name: Browser smokes vs preview (non-blocking)
         continue-on-error: true
         # Fixtures are scoped to THIS STEP, not the job.
@@ -174,27 +197,11 @@ jobs:
         # fixtures are supplied — a real provisioning gap, tracked separately.
         env:
           MS_TEST_UNCLAIMED_LISTING_ID: ${{ secrets.MS_TEST_UNCLAIMED_LISTING_ID }}
-          MS_TEST_BROWSER_AUTH: "1"
-          CLERK_PUBLISHABLE_KEY: ${{ secrets.MS_TEST_CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.MS_TEST_CLERK_SECRET_KEY }}
-          MS_TEST_BUYER_EMAIL: ${{ secrets.MS_TEST_BUYER_EMAIL }}
-          MS_TEST_SELLER_EMAIL: ${{ secrets.MS_TEST_SELLER_EMAIL }}
-          MS_TEST_ADMIN_EMAIL: ${{ secrets.MS_TEST_ADMIN_EMAIL }}
-          MS_TEST_PERSONALIZED_LISTING_ID: ${{ secrets.MS_TEST_PERSONALIZED_LISTING_ID }}
+          MS_TEST_CLAIMED_SLUG: ${{ secrets.MS_TEST_CLAIMED_SLUG }}
           MS_TEST_PDP_LISTING_ID: ${{ secrets.MS_TEST_PDP_LISTING_ID }}
           MS_TEST_GALLERY_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_LISTING_ID }}
           MS_TEST_GALLERY_SINGLE_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_SINGLE_LISTING_ID }}
           MS_TEST_GALLERY_ZERO_LISTING_ID: ${{ secrets.MS_TEST_GALLERY_ZERO_LISTING_ID }}
-          MS_TEST_SHIPPABLE_LISTING_ID: ${{ secrets.MS_TEST_SHIPPABLE_LISTING_ID }}
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:e2e:browser
-
-      - name: Summarize credentialed browser-smoke skips
-        if: always()
-        run: node scripts/browser-smoke-summary.mjs
-      - name: Browser smokes vs preview (non-blocking)
-        continue-on-error: true
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e:browser
