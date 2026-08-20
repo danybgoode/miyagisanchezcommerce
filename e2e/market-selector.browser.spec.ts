@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://miyagisanchez.com'
+
 test.describe.configure({ mode: 'serial' })
 
 /**
@@ -63,10 +65,33 @@ for (const viewport of [
     //    with nothing underneath — as the original #344 draft proposed — would have
     //    blinded this spec to the very outage it was reporting.
     const RESOURCE_LOAD_FAILURE = /^Failed to load resource: the server responded with a status of \d+/
+
+    // 3b. THE PREVIEW'S OWN BYPASS HEADER — and only on a preview.
+    //
+    // Reaching an SSO-gated Vercel preview means sending `x-vercel-protection-bypass`
+    // on every request, and that turns same-origin-ish fetches into CORS preflights
+    // that Clerk's CDN and fonts.gstatic.com then refuse ("Redirect is not allowed for
+    // a preflight request", "x-vercel-protection-bypass is not allowed by
+    // Access-Control-Allow-Headers"). Eighteen console errors, none of them about this
+    // page's code, all of them caused by the act of observing it. This spec has failed
+    // on every preview run for as long as the bypass has existed, which is precisely
+    // how a console-error assertion earns a reputation for noise and gets deleted —
+    // and this one is load-bearing (it is what caught the seven-day stale-CDN outage).
+    //
+    // Filtered ONLY when the target actually is a preview host, so production keeps
+    // the full, unfiltered assertion. The negation stays available: the same CORS text
+    // against production is still a failure, because that would be real.
+    // Read from the CONFIGURED target, not `page.url()` — the listener is registered
+    // before the first navigation, when the page is still `about:blank`.
+    const onVercelPreview = /\.vercel\.app$/.test(new URL(BASE_URL).hostname)
+    const PREVIEW_BYPASS_CORS = /blocked by CORS policy|net::ERR_FAILED/
+
     page.on('console', (message) => {
-      if (message.type() === 'error' && !RESOURCE_LOAD_FAILURE.test(message.text())) {
-        jsErrors.push(message.text())
-      }
+      const text = message.text()
+      if (message.type() !== 'error') return
+      if (RESOURCE_LOAD_FAILURE.test(text)) return
+      if (onVercelPreview && PREVIEW_BYPASS_CORS.test(text)) return
+      jsErrors.push(text)
     })
 
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
