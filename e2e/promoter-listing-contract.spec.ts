@@ -6,6 +6,11 @@ test.describe('promoter close listing contract', () => {
     expect(normalizePromoterListingContract({ price_mxn: 65 })).toEqual({
       currency: 'MXN', priceCents: 6500, quantity: 1,
     })
+    // `price_mxn` names a currency contract, even when a new client property
+    // accidentally accompanies an older request.
+    expect(normalizePromoterListingContract({ price_mxn: 65, currency: 'USD' })).toEqual({
+      currency: 'MXN', priceCents: 6500, quantity: 1,
+    })
   })
 
   test('uses an explicit USD price and hydrated stock for a private preview', () => {

@@ -10,8 +10,12 @@ export function normalizePromoterListingContract(input?: {
   quantity?: number
 } | null) {
   const safeInput = input ?? {}
-  const currency: 'MXN' | 'USD' = safeInput.currency === 'USD' ? 'USD' : 'MXN'
-  const rawPrice = typeof safeInput.price === 'number' ? safeInput.price : safeInput.price_mxn
+  const hasGenericPrice = typeof safeInput.price === 'number'
+  // `price_mxn` is a legacy field whose name is its currency contract. Only the
+  // new generic price field may opt into USD, so an old caller can never be
+  // silently re-priced by an incidental new `currency` property.
+  const currency: 'MXN' | 'USD' = hasGenericPrice && safeInput.currency === 'USD' ? 'USD' : 'MXN'
+  const rawPrice = hasGenericPrice ? safeInput.price : safeInput.price_mxn
   const priceCents = typeof rawPrice === 'number' && Number.isFinite(rawPrice) && rawPrice > 0
     ? Math.round(rawPrice * 100)
     : null

@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     municipio: locationDetail?.municipio ?? null,
     quantity,
     metadata: {
-      ...(sourceUrl ? { original_source_url: sourceUrl, source_url: sourceUrl } : {}),
+      ...(sourceUrl ? { source_url: sourceUrl } : {}),
       ...(sourcePlatform ? { source_platform: sourcePlatform } : {}),
       acquisition: { motion: 'claim_shop_preview' },
     },
