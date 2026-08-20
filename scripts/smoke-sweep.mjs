@@ -20,7 +20,7 @@ import { parseArgs } from 'node:util'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const APP_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const MANIFEST_PATH = join(APP_ROOT, 'scripts/smoke-sweep.manifest.json')
@@ -41,12 +41,11 @@ function parseCliArgs() {
   }
 }
 
-function loadManifest() {
-  const raw = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'))
-  return raw.entries
+export function loadManifest() {
+  return JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'))
 }
 
-function filterEntries(entries, filters) {
+export function filterEntries(entries, filters) {
   return entries.filter((e) => {
     if (filters.id && e.id !== filters.id) return false
     if (filters.categories && !filters.categories.includes(e.category)) return false
@@ -55,7 +54,7 @@ function filterEntries(entries, filters) {
   })
 }
 
-function buildArgs(entry, outDir) {
+export function buildArgs(entry) {
   const args = [`--env=${entry.env}`, `--flow=${entry.flow}`]
   if (entry.path) args.push(`--path=${entry.path}`)
   else if (entry.spec) args.push(`--spec=${entry.spec}`)
@@ -65,7 +64,7 @@ function buildArgs(entry, outDir) {
 
 function main() {
   const filters = parseCliArgs()
-  const entries = filterEntries(loadManifest(), filters)
+  const entries = filterEntries(loadManifest().entries, filters)
   if (entries.length === 0) {
     console.error('smoke-sweep: no manifest entries matched the given filters')
     process.exit(2)
@@ -77,7 +76,7 @@ function main() {
   for (const entry of entries) {
     const entryOutDir = `test-results/smoke-sweep/${entry.id}`
     mkdirSync(join(APP_ROOT, entryOutDir), { recursive: true })
-    const args = buildArgs(entry, entryOutDir)
+    const args = buildArgs(entry)
     console.log(`\n=== ${entry.id} (${entry.category}) — live-smoke ${args.join(' ')} ===`)
 
     const result = spawnSync('node', ['scripts/live-smoke.mjs', ...args], {
@@ -107,4 +106,11 @@ function main() {
   process.exit(failed.length ? 1 : 0)
 }
 
-main()
+/**
+ * Only run when this file IS the entry point. e2e/smoke-sweep-manifest.spec.ts
+ * imports the pure half (loadManifest/filterEntries/buildArgs) to guard the
+ * manifest; without this check that import would spawn the whole live sweep.
+ */
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main()
+}
