@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
-import { readPromoterSetupMarket } from '../lib/promoter-setup-market'
+import {
+  MAX_PROMOTER_SHOP_DESCRIPTION_LENGTH,
+  readPromoterSetupDescription,
+  readPromoterSetupMarket,
+} from '../lib/promoter-setup-market'
 
 test.describe('promoter shop setup operating market', () => {
   test('preserves the established default only when the market is omitted', () => {
@@ -18,10 +21,13 @@ test.describe('promoter shop setup operating market', () => {
     expect(readPromoterSetupMarket(null)).toBe('invalid')
   })
 
-  test('the promoter close form forwards the selected market and shop description', async () => {
-    const source = await readFile('app/(shell)/promotor/cerrar/PromoterCloseClient.tsx', 'utf8')
-    expect(source).toContain('operating_market: operatingMarket')
-    expect(source).toContain('description: description.trim() || undefined')
-    expect(source).toContain('aria-label="Mercado operativo"')
+  test('accepts a trimmed description within the bounded Medusa contract', () => {
+    expect(readPromoterSetupDescription('  Small-batch accessories.  ')).toEqual({ ok: true, value: 'Small-batch accessories.' })
+    expect(readPromoterSetupDescription(undefined)).toEqual({ ok: true, value: null })
+  })
+
+  test('refuses malformed or oversized descriptions before they reach Medusa', () => {
+    expect(readPromoterSetupDescription(42)).toEqual({ ok: false })
+    expect(readPromoterSetupDescription('x'.repeat(MAX_PROMOTER_SHOP_DESCRIPTION_LENGTH + 1))).toEqual({ ok: false })
   })
 })

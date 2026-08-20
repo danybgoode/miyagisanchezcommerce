@@ -275,7 +275,7 @@ function SetupStep({ n, shop, onShop }: { n: number; shop: Shop | null; onShop: 
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
 
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del negocio (opcional)"
-            rows={3} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
+            rows={3} maxLength={2000} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2" />
 
           <select value={operatingMarket} onChange={(e) => setOperatingMarket(e.target.value as 'mx' | 'us')}
             aria-label="Mercado operativo"

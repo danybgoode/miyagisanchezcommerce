@@ -18,7 +18,7 @@ import { ensureUnclaimedShopMirror, type MedusaSellerForMirror } from '@/lib/pro
 import { autoGrantPartnerOnClose } from '@/lib/partner-grant-server'
 import { ensureShopPreviewReportingCreation, canAnchorPreview } from '@/lib/preview-access'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
-import { readPromoterSetupMarket } from '@/lib/promoter-setup-market'
+import { readPromoterSetupDescription, readPromoterSetupMarket } from '@/lib/promoter-setup-market'
 import { db } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     name?: string
-    description?: string
+    description?: unknown
     cp?: string
     estado?: string
     municipio?: string
@@ -66,6 +66,10 @@ export async function POST(req: NextRequest) {
   const operatingMarket = readPromoterSetupMarket(body.operating_market)
   if (operatingMarket === 'invalid') {
     return NextResponse.json({ ok: false, error: 'El mercado operativo debe ser México o Estados Unidos.' }, { status: 400 })
+  }
+  const description = readPromoterSetupDescription(body.description)
+  if (!description.ok) {
+    return NextResponse.json({ ok: false, error: 'La descripción debe ser texto de hasta 2,000 caracteres.' }, { status: 400 })
   }
 
   // Sprint 5 (US-5.2) — structured estado/municipio/colonia (CP-first, from
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         name,
         location,
-        description: body.description?.trim() || null,
+        description: description.value,
         source: 'promoter',
         source_url: promoterSourceUrl(promoter.code, name),
         metadata,
