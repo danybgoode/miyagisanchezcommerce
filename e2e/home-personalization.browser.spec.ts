@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { buyerEmail, authEnabled, requireEnv, signIn } from './_helpers/auth'
+import { onVercelPreview, CLIENT_JS_UNAVAILABLE_ON_PREVIEW } from './_helpers/target'
 
 /**
  * Marketplace static-shell — Sprint 4 (Story 4.2). The personalization islands are a
@@ -27,6 +28,10 @@ const MODULE_IDS = [
 
 test.describe('home-personalization · islands (browser)', () => {
   test('anonymous: no personalization module renders on the static homepage', async ({ page }) => {
+    // The settle below is `Clerk.loaded`, which a preview cannot reach — its own
+    // bypass header CORS-blocks clerk-js. Skipping is the honest report; the spec
+    // runs in full against production. See e2e/_helpers/target.ts.
+    test.skip(onVercelPreview(), CLIENT_JS_UNAVAILABLE_ON_PREVIEW)
     await page.goto('/mx')
     // Wait for the REAL precondition, not a proxy for it.
     //

@@ -17,7 +17,26 @@ function adminEmail(): string | null {
 test.describe('admin · /admin/seleccion', () => {
   test('anonymous visitor is redirected away (requireAdmin)', async ({ page }) => {
     await page.goto('/admin/seleccion')
-    await expect(page).toHaveURL(/\/(sign-in)?$/)
+
+    // Anywhere-but-admin, stated as such. The subject here is the REFUSAL, and every
+    // landing spot that is not the admin screen satisfies it equally: `/`, `/en` (an
+    // English browser is hopped to the English root after hydration — #399), or
+    // `/sign-in`. The previous pattern named only two of those and went red the day
+    // `/en` shipped, on a spec about authorization, in a suite whose default locale
+    // was `en-US`. Pinning the suite to es-MX (playwright.config.ts) fixes the cause;
+    // this makes the assertion honest about what it is actually checking, so it holds
+    // whatever locale a future reader runs it under.
+    // The `(\?.*)?` is not defensive padding — without it the pattern accepts `/sign-in`
+    // while rejecting the only form `/sign-in` ever takes. Clerk appends the return
+    // path: `/sign-in?redirect_url=…%2Fadmin%2Fseleccion` (observed live on this
+    // codebase's own auth-gated routes). A pattern that names a landing spot and then
+    // fails on it is a guard rejecting correct output, which is how guards get deleted.
+    // Caught by the agy cross-family pass — the same review round where the other
+    // family's two findings did not hold up.
+    await expect(page).toHaveURL(/\/(en|sign-in)?(\?.*)?$/)
+
+    // This is the assertion that carries the security meaning — the one that must
+    // never be relaxed. It is why widening the URL pattern above costs nothing.
     await expect(page.locator('h1', { hasText: 'Selección de la semana' })).toHaveCount(0)
   })
 

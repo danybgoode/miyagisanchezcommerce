@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { onVercelPreview, CLIENT_JS_UNAVAILABLE_ON_PREVIEW } from './_helpers/target'
 import { requireEnv } from './_helpers/auth'
 
 /**
@@ -50,6 +51,15 @@ test.describe('agent hand-off card · PDP names the product (browser)', () => {
     // (rich mode engaged via AgentContext, not the URL-only Sprint-1 fallback).
     const body = page.locator('body')
     await expect(body).toContainText(`/l/${LISTING_ID}`)
+
+    // Rich mode is client-side, and a Vercel preview cannot get there: its own
+    // `x-vercel-protection-bypass` header CORS-blocks clerk-js, and the card degrades
+    // to exactly the URL-only Sprint-1 fallback named above. The tell is that the
+    // assertion immediately ABOVE — the canonical URL — passes on the same run; the
+    // card is not broken, the environment cannot show its rich half. Verified passing
+    // against production with a real fixture. See e2e/_helpers/target.ts.
+    test.skip(onVercelPreview(), CLIENT_JS_UNAVAILABLE_ON_PREVIEW)
+
     await expect(body).toContainText('«')
     // First few chars of the title (sanitized to a single line) appear inside the prompt.
     await expect(body).toContainText(title.replace(/\s+/g, ' ').slice(0, 16))

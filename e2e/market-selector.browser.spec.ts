@@ -5,20 +5,25 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://miyagisanchez.com'
 test.describe.configure({ mode: 'serial' })
 
 /**
- * Pinned to a Spanish browser, because `/` now has an English twin.
+ * Runs on a Spanish browser — from the suite default (`playwright.config.ts`, the
+ * `browser` project), NOT a pin here.
  *
  * `one-landing-per-market` (#399) gave the market selector two documents — `/` in
- * Spanish, `/en` in English — and `RootLanguageSwitch` hops between them once, on
- * the client, from `navigator.languages`. Playwright's default locale is `en-US`,
- * so from 2026-08-19 this spec landed on `/en` and failed its very first assertion
- * against a feature that was working exactly as designed.
+ * Spanish, `/en` in English — and `RootLanguageSwitch` hops between them once, on the
+ * client, from `navigator.languages`. Playwright's default locale is `en-US`, so from
+ * 2026-08-19 this spec landed on `/en` and failed its very first assertion against a
+ * feature working exactly as designed. `admin-seleccion` broke the same way.
  *
- * The subject here is the MARKET contract — a browser signal may recommend a market
- * but must never choose one — and language is a different axis that would otherwise
- * be silently mixed into every assertion below. The hop itself is guarded on its own
- * terms, in a real browser, by e2e/root-language-hop.browser.spec.ts.
+ * The first fix pinned the locale here. That was wrong in the same way the four stale
+ * `/vende` links were wrong: it fixes the instance you found and leaves the class. The
+ * locale is a property of the market this whole suite tests, so it belongs to the
+ * project — and once it is there, a second pin in this file is a second derivation of
+ * one question that can silently disagree with the first.
+ *
+ * The subject here is the MARKET contract — a browser signal may recommend a market but
+ * must never choose one. The hop itself is guarded on its own terms, in a real browser,
+ * by e2e/root-language-hop.browser.spec.ts, which opts INTO `en-US` explicitly.
  */
-test.use({ locale: 'es-MX' })
 
 for (const viewport of [
   { name: 'mobile', width: 390, height: 844 },
