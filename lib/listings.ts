@@ -36,6 +36,7 @@ import {
   unionById,
   type CategoryCount,
 } from './home-curation'
+import { loadSeleccionCandidatePool } from './seleccion-candidates'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -749,25 +750,6 @@ export async function getRecentListings(limit = 8, market?: unknown): Promise<Li
   return listings
 }
 
-/**
- * Candidate listings for the `/admin/seleccion` curation screen — the freshest
- * pool the admin can pin from. Tagged `listings` so a pin write (`revalidateTag`)
- * refreshes it. v1 surfaces the freshest `limit`; pinning a product older than
- * that needs the search follow-up noted in sprint-2.md.
- */
-export async function getSeleccionCandidates(limit = 50, market?: unknown): Promise<Listing[]> {
-  const decision = planMarketCatalogRead(market)
-  if (isMarketUnavailable(decision)) return []
-  const res = await marketCatalogFetch(decision.query, `/store/listings?sort=reciente&limit=${limit}`, {
-    next: { revalidate: CACHE.LISTING, tags: ['listings'] },
-  } as RequestInit)
-  if (!res.ok) return []
-  const data = await res.json()
-  const { value: listings, unavailable } = takeMarketScopedField<Listing[]>(decision.market, data, 'listings', [])
-  if (unavailable) return []
-  return listings
-}
-
 // ── Homepage Polish — Dirección B · Sprint 2: curated Selección + Categorías ──
 // The curation/count *logic* lives in the next-free `lib/home-curation.ts` seam
 // (unit-tested by `e2e/home-curation.spec.ts`); these are the thin Medusa-reading
@@ -806,6 +788,26 @@ async function fetchListings(market: MarketRecord, marketQuery: string, path: st
   const { value: rows, unavailable } = takeMarketScopedField<Listing[]>(market, data, 'listings', [])
   if (unavailable) throw new MarketFilterUnconfirmedError(unavailable)
   return rows
+}
+
+/**
+ * Candidate listings for `/admin/seleccion`: newest products to discover UNIONed
+ * with every explicit pin so bulk imports can never hide older pinned products
+ * from the one screen that must be able to remove and reorder them.
+ */
+export async function getSeleccionCandidates(limit = 50, market?: unknown): Promise<Listing[]> {
+  const decision = planMarketCatalogRead(market)
+  if (isMarketUnavailable(decision)) return []
+  try {
+    return await loadSeleccionCandidatePool(
+      (query) => fetchListings(decision.market, decision.query, `/store/listings${query}`),
+      limit,
+    )
+  } catch (error) {
+    const state = unavailableStateOrRethrow(error)
+    console.error('[listings] seleccion candidate pool market filter unconfirmed', state.reason)
+    return []
+  }
 }
 
 const getCuratedPoolCached = unstable_cache(
