@@ -443,7 +443,7 @@
         "app/api/promoter/preview/activate/route.ts:57",
         "app/api/promoter/preview/route.ts:38",
         "app/api/promoter/rate-card/route.ts:22",
-        "app/api/promoter/shop/setup/route.ts:31",
+        "app/api/promoter/shop/setup/route.ts:32",
         "app/api/promoter/validate-code/route.ts:24",
         "lib/domain-subscription-checkout.ts:90",
         "lib/ml-sync-subscription-checkout.ts:69",
@@ -491,7 +491,7 @@
         "app/api/promoter/close/listing/route.ts:134",
         "app/api/promoter/preview/activate/route.ts:60",
         "app/api/promoter/preview/route.ts:41",
-        "app/api/promoter/shop/setup/route.ts:154"
+        "app/api/promoter/shop/setup/route.ts:169"
       ]
     },
     {
