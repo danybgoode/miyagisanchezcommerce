@@ -19,16 +19,21 @@ import { db } from '@/lib/supabase'
 import { supplyItemToProductBody, type SupplyItem } from '@/lib/supply'
 import { syncSupabaseListingMirror } from '@/lib/provisioning'
 import { ingestImageUrls } from '@/lib/image-ingest'
+import { describeMedusaNetworkFailure, getMedusaInternalBaseUrl } from './medusa-internal'
 
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_BASE = getMedusaInternalBaseUrl()
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
-function internalFetch(path: string, body: unknown) {
-  return fetch(`${MEDUSA_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
-    body: JSON.stringify(body),
-  })
+async function internalFetch(path: string, body: unknown) {
+  try {
+    return await fetch(`${MEDUSA_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify(body),
+    })
+  } catch (error) {
+    throw new Error(describeMedusaNetworkFailure(`Listing create (${path})`, MEDUSA_BASE, error))
+  }
 }
 
 /** Where a staged row's listing should be created. */

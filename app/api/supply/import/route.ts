@@ -4,12 +4,13 @@ import { db } from '@/lib/supabase'
 import { withSupplyAdmin } from '@/lib/admin/guard'
 import { refreshBatchCounts, supplyItemToSellerBody, type SupplyItem } from '@/lib/supply'
 import { importApprovedItems, type ResolvedImportSeller } from '@/lib/supply-import'
+import { describeMedusaNetworkFailure, getMedusaInternalBaseUrl } from '@/lib/medusa-internal'
 import {
   ensureUnclaimedShopMirror,
   type MedusaSellerForMirror,
 } from '@/lib/provisioning'
 
-const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
+const MEDUSA_BASE = getMedusaInternalBaseUrl()
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 type MedusaSeller = MedusaSellerForMirror & {
@@ -25,11 +26,16 @@ type MedusaSeller = MedusaSellerForMirror & {
  * offers / short links read the mirror; non-fatal when it fails).
  */
 async function resolveUnclaimedSeller(item: SupplyItem): Promise<ResolvedImportSeller> {
-  const res = await fetch(`${MEDUSA_BASE}/internal/sellers`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
-    body: JSON.stringify(supplyItemToSellerBody(item)),
-  })
+  let res: Response
+  try {
+    res = await fetch(`${MEDUSA_BASE}/internal/sellers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+      body: JSON.stringify(supplyItemToSellerBody(item)),
+    })
+  } catch (error) {
+    throw new Error(describeMedusaNetworkFailure('Seller create', MEDUSA_BASE, error))
+  }
   const data = await res.json().catch(() => ({})) as { seller?: MedusaSeller; message?: string }
   if (!res.ok || !data.seller) {
     throw new Error(`Seller create failed (${res.status}): ${data.message ?? 'no data'}`)
