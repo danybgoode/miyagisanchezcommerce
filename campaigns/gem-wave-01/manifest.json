@@ -1,0 +1,80 @@
+{
+  "campaign": "gem-wave-01",
+  "prepared_at": "2026-08-20",
+  "mode": "public_unclaimed_gem",
+  "target_status": "active",
+  "shops": [
+    {
+      "lead_id": "MX-A1-LIBRELIEBRE-KOKONE",
+      "operating_market": "mx",
+      "name": "Kokone",
+      "description": "Joyería y accesorios de diseño mexicano, con piezas ligeras pintadas a mano.",
+      "currency": "MXN",
+      "source_ecosystem": "Libre Liebre",
+      "source_shop_url": "https://libreliebre.com/collections/kokone",
+      "location": "México",
+      "state": "",
+      "municipio": "",
+      "category": "moda",
+      "products": [
+        {"source_url":"https://libreliebre.com/collections/kokone/products/aretes-papel-picado-mini","title":"Broquel papel picado mini","price":65,"condition":"new"},
+        {"source_url":"https://libreliebre.com/collections/kokone/products/aretes-t-rex","title":"Aretes T-Rex","price":65,"condition":"new"},
+        {"source_url":"https://libreliebre.com/collections/kokone/products/aretes-ajolotes","title":"Broquel Ajolotes","price":115,"condition":"new"}
+      ]
+    },
+    {
+      "lead_id": "MX-A1-LIBRELIEBRE-KAAB",
+      "operating_market": "mx",
+      "name": "Kaab",
+      "description": "Cuidado personal artesanal con bálsamos, champús sólidos y productos de uso cotidiano.",
+      "currency": "MXN",
+      "source_ecosystem": "Libre Liebre",
+      "source_shop_url": "https://libreliebre.com/collections/kaab",
+      "location": "México",
+      "state": "",
+      "municipio": "",
+      "category": "otros",
+      "products": [
+        {"source_url":"https://libreliebre.com/collections/kaab/products/balsamo-labial-con-color-granada","title":"Bálsamo labial con color, granada","price":120,"condition":"new"},
+        {"source_url":"https://libreliebre.com/collections/kaab/products/champu-solido-cabellos-maduros","title":"Champú sólido cabellos maduros","price":190,"condition":"new"},
+        {"source_url":"https://libreliebre.com/collections/kaab/products/perfume-solido-lichi","title":"Perfume sólido lichi","price":120,"condition":"new"}
+      ]
+    },
+    {
+      "lead_id": "US-A1-ARTISTS-FLEAS-CURATED-BASICS",
+      "operating_market": "us",
+      "name": "Curated Basics",
+      "description": "New York independent accessories brand designing small-batch leather goods, bags, everyday objects and jewelry.",
+      "currency": "USD",
+      "source_ecosystem": "Artists & Fleas",
+      "source_shop_url": "https://www.curatedbasics.com/",
+      "location": "New York, NY",
+      "state": "New York",
+      "municipio": "New York",
+      "category": "moda",
+      "products": [
+        {"source_url":"https://www.curatedbasics.com/products/washed-cotton-new-york-hat","title":"Washed Cotton New York Hat","price":35,"condition":"new"},
+        {"source_url":"https://www.curatedbasics.com/products/moonphase-watch","title":"Moonphase Watch","price":150,"condition":"new"},
+        {"source_url":"https://www.curatedbasics.com/products/tulip-embroidery-socks","title":"Tulip Embroidery Socks","price":12,"condition":"new"}
+      ]
+    },
+    {
+      "lead_id": "US-A1-ARTISTS-FLEAS-CONCRETE-GARDEN",
+      "operating_market": "us",
+      "name": "Concrete Garden Candles",
+      "description": "Brooklyn-based candle and home décor studio making hand-poured candles, concrete décor and scent-centered goods.",
+      "currency": "USD",
+      "source_ecosystem": "Artists & Fleas",
+      "source_shop_url": "https://concretegardencandles.com/",
+      "location": "Brooklyn, NY",
+      "state": "New York",
+      "municipio": "Brooklyn",
+      "category": "hogar",
+      "products": [
+        {"source_url":"https://concretegardencandles.com/products/custom-reed-diffuser-choose-your-scent-decorative-reeds","title":"Custom Reed Diffuser – Choose Your Scent & Decorative Reeds","price":29.99,"condition":"new"},
+        {"source_url":"https://concretegardencandles.com/products/handmade-concrete-bowl","title":"Customizable Handmade Concrete Candle Bowl – 12 oz Soy Wax Candle with Dried Pressed Flowers","price":40,"condition":"new"},
+        {"source_url":"https://concretegardencandles.com/products/her-concrete-vessel-candle","title":"Concrete Candle Decor - Gray Vessel / Tea Blossom","price":24.99,"condition":"new"}
+      ]
+    }
+  ]
+}

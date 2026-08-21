@@ -111,6 +111,8 @@ export interface IncomingSupplyItem {
   shop_description?: string
   shop_location?: string
   shop_logo_url?: string
+  /** Explicit seller operating market for imported supply. Defaults to MX when omitted. */
+  operating_market?: 'mx' | 'us' | string
   image_url?: string
   images?: Array<{ url: string; alt?: string }> | string
   tags?: string[] | string
@@ -234,6 +236,7 @@ export function normalizeSupplyItem(input: IncomingSupplyItem, defaults: BatchDe
   const category = String(input.category ?? defaults.category ?? '').trim() || null
   const state = String(input.state ?? defaults.state ?? '').trim() || null
   const municipio = String(input.municipio ?? defaults.municipio ?? '').trim() || null
+  const operatingMarket = String(input.operating_market ?? '').trim().toLowerCase() || null
   const duplicateSource = sourceUrl ?? [
     defaults.source_platform,
     shopName,
@@ -253,7 +256,9 @@ export function normalizeSupplyItem(input: IncomingSupplyItem, defaults: BatchDe
     shop_description: String(input.shop_description ?? '').trim() || null,
     shop_location: String(input.shop_location ?? location ?? '').trim() || null,
     shop_logo_url: String(input.shop_logo_url ?? '').trim() || null,
-    shop_metadata: {},
+    shop_metadata: {
+      ...(operatingMarket ? { operating_market: operatingMarket } : {}),
+    },
     listing_title: listingTitle,
     listing_description: String(input.listing_description ?? input.description ?? '').trim() || null,
     price_cents: priceCents,
@@ -325,6 +330,7 @@ export interface UnclaimedSellerBody {
   source: string
   source_url?: string | null
   metadata: Record<string, unknown>
+  operating_market?: string
 }
 
 export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
@@ -337,6 +343,9 @@ export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
     logo_url: item.shop_logo_url,
     source: 'scraped',
     source_url: shopSourceUrl,
+    ...(typeof item.shop_metadata?.operating_market === 'string' && item.shop_metadata.operating_market.trim()
+      ? { operating_market: item.shop_metadata.operating_market.trim().toLowerCase() }
+      : {}),
     metadata: {
       ...(item.shop_metadata ?? {}),
       supply: {

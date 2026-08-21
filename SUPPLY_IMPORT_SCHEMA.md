@@ -15,7 +15,7 @@ Imported shops are unclaimed, unverified, and marked as scraped supply. A real s
 Use this header row:
 
 ```csv
-source_url,title,description,price,shop_name,location,state,municipio,image_url,category,listing_type,condition
+source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,image_url,category,listing_type,condition,operating_market
 ```
 
 ## Required Fields
@@ -35,7 +35,11 @@ These fields must be present before a row can be imported successfully:
 | CSV column | Meaning | Notes |
 | --- | --- | --- |
 | `description` | Listing description | Optional, but improves quality score and SEO. |
-| `price` | Price in MXN pesos | Optional. Use normal pesos, e.g. `18500`, not centavos. |
+| `price` | Price in the row currency | Optional. Use normal currency units, e.g. `18500` MXN or `35` USD, not cents. |
+| `currency` | Listing currency | Optional. `MXN` or `USD`; defaults to `MXN`. |
+| `shop_source_url` | Canonical source/homepage for the merchant | Recommended when several products belong to one shop. This is the seller-level idempotency key. |
+| `shop_description` | Short factual merchant description | Optional. |
+| `operating_market` | Seller operating market | Optional. `mx` or `us`; defaults to `mx` for backwards compatibility. Use explicitly for US imports. |
 | `location` | Human display location | Optional but recommended. |
 | `state` | Mexican state | Optional if batch-level state is set. |
 | `municipio` | City/municipio/alcaldia | Optional. |
@@ -99,8 +103,8 @@ For those, run the external collector first and export rows into this CSV shape.
 ## Example Row
 
 ```csv
-source_url,title,description,price,shop_name,location,state,municipio,image_url,category,listing_type,condition
-https://auto.mercadolibre.com.mx/MLM-5229578222-nissan-kicks-2024-_JM,Nissan Kicks 2024,Auto publicado originalmente en MercadoLibre,,Vendedor MercadoLibre,Ciudad de México,Ciudad de México,,https://http2.mlstatic.com/D_NQ_NP_2X_000000-MLM00000000000_0000-F.webp,autos,product,good
+source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,image_url,category,listing_type,condition,operating_market
+https://auto.mercadolibre.com.mx/MLM-5229578222-nissan-kicks-2024-_JM,Nissan Kicks 2024,Auto publicado originalmente en MercadoLibre,,MXN,Vendedor MercadoLibre,https://vehiculos.mercadolibre.com.mx/_CustId_example,,Ciudad de México,Ciudad de México,,https://http2.mlstatic.com/D_NQ_NP_2X_000000-MLM00000000000_0000-F.webp,autos,product,good,mx
 ```
 
 ## Direct Import Behavior
