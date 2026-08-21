@@ -111,8 +111,8 @@ export interface IncomingSupplyItem {
   shop_description?: string
   shop_location?: string
   shop_logo_url?: string
-  /** Explicit seller operating market for imported supply. Defaults to MX when omitted. */
-  operating_market?: 'mx' | 'us' | string
+  /** Untrusted CSV market; Medusa is the strict validator and applies its MX default when absent. */
+  operating_market?: string
   image_url?: string
   images?: Array<{ url: string; alt?: string }> | string
   tags?: string[] | string
@@ -330,11 +330,15 @@ export interface UnclaimedSellerBody {
   source: string
   source_url?: string | null
   metadata: Record<string, unknown>
+  /** Preserved for Medusa's strict market validation; never silently coerced here. */
   operating_market?: string
 }
 
 export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
   const shopSourceUrl = item.shop_source_url ?? item.source_url
+  const operatingMarket = typeof item.shop_metadata?.operating_market === 'string'
+    ? item.shop_metadata.operating_market.trim().toLowerCase()
+    : ''
   return {
     name: (item.shop_name?.trim() || 'Vendedor sin reclamar').slice(0, 80),
     ...(item.shop_slug ? { slug: item.shop_slug } : {}),
@@ -343,8 +347,8 @@ export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
     logo_url: item.shop_logo_url,
     source: 'scraped',
     source_url: shopSourceUrl,
-    ...(typeof item.shop_metadata?.operating_market === 'string' && item.shop_metadata.operating_market.trim()
-      ? { operating_market: item.shop_metadata.operating_market.trim().toLowerCase() }
+    ...(operatingMarket
+      ? { operating_market: operatingMarket }
       : {}),
     metadata: {
       ...(item.shop_metadata ?? {}),

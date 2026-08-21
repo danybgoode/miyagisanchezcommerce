@@ -15,12 +15,16 @@ const outputDir = process.argv[3] ?? '.tmp/gem-wave-01-prepared'
 if (!manifestPath) throw new Error('Pass a campaign manifest path')
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
 
+function operatingMarket(shop) {
+  return String(shop?.operating_market ?? '').trim().toLowerCase()
+}
+
 function validateManifest(input) {
   if (!input || !Array.isArray(input.shops) || input.shops.length === 0) {
     throw new Error('Campaign manifest must contain a non-empty shops array')
   }
   for (const shop of input.shops) {
-    if (!shop?.name || !['mx', 'us'].includes(shop.operating_market)) {
+    if (!shop?.name || !['mx', 'us'].includes(operatingMarket(shop))) {
       throw new Error(`Shop ${shop?.name ?? '(unnamed)'} needs operating_market mx or us`)
     }
     if (!Array.isArray(shop.products) || shop.products.length === 0) {
@@ -89,7 +93,7 @@ for (const shop of manifest.shops) {
   const products = []
   for (const seed of shop.products) products.push(await hydrate(seed))
   report.shops.push({ ...shop, products })
-  const market = shop.operating_market
+  const market = operatingMarket(shop)
   if (!byMarket.has(market)) byMarket.set(market, [])
   for (const product of products) {
     byMarket.get(market).push([

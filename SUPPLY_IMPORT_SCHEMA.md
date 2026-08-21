@@ -39,7 +39,7 @@ These fields must be present before a row can be imported successfully:
 | `currency` | Listing currency | Optional. `MXN` or `USD`; defaults to `MXN`. |
 | `shop_source_url` | Canonical source/homepage for the merchant | Recommended when several products belong to one shop. This is the seller-level idempotency key. |
 | `shop_description` | Short factual merchant description | Optional. |
-| `operating_market` | Seller operating market | Optional. `mx` or `us`; defaults to `mx` for backwards compatibility. Use explicitly for US imports. |
+| `operating_market` | Seller operating market | Optional. `mx` or `us`; Medusa defaults an omitted value to `mx` for backwards compatibility. Use explicitly for US imports. |
 | `location` | Human display location | Optional but recommended. |
 | `state` | Mexican state | Optional if batch-level state is set. |
 | `municipio` | City/municipio/alcaldia | Optional. |
@@ -101,6 +101,8 @@ Not expanded yet:
 For those, run the external collector first and export rows into this CSV shape.
 
 ## Example Row
+
+Empty optional values are represented by empty CSV cells (consecutive commas).
 
 ```csv
 source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,images,category,listing_type,condition,operating_market
