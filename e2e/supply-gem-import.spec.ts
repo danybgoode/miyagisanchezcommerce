@@ -128,6 +128,7 @@ test.describe('supplyItemToProductBody — Medusa product payload', () => {
   test('maps listing fields, status and provenance metadata', () => {
     const body = supplyItemToProductBody(gemItem(), 'pulqueria-las-duelistas', 'active')
     expect(body.seller_slug).toBe('pulqueria-las-duelistas')
+    expect(body.handle).toBe('pulqueria-las-duelistas-pulque-curado-artesanal-item-1')
     expect(body.title).toBe('Pulque curado artesanal')
     expect(body.price_cents).toBe(9000)
     expect(body.category).toBe('servicios')
@@ -156,6 +157,8 @@ test.describe('supplyItemToProductBody — Medusa product payload', () => {
   test('title is trimmed and capped at 100 chars', () => {
     const body = supplyItemToProductBody(gemItem({ listing_title: `  ${'x'.repeat(140)}  ` }), 's', 'active')
     expect(body.title).toHaveLength(100)
+    expect(body.handle).toMatch(/^s-x+-item-1$/)
+    expect(body.handle.length).toBeLessThanOrEqual(100)
   })
 })
 
