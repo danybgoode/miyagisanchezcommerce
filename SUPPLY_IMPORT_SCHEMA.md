@@ -15,7 +15,7 @@ Imported shops are unclaimed, unverified, and marked as scraped supply. A real s
 Use this header row:
 
 ```csv
-source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,image_url,category,listing_type,condition,operating_market
+source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,images,category,listing_type,condition,operating_market
 ```
 
 ## Required Fields
@@ -43,7 +43,7 @@ These fields must be present before a row can be imported successfully:
 | `location` | Human display location | Optional but recommended. |
 | `state` | Mexican state | Optional if batch-level state is set. |
 | `municipio` | City/municipio/alcaldia | Optional. |
-| `image_url` | Primary image URL | Optional. |
+| `images` | Comma-separated hosted image URLs | Optional. `image_url` remains accepted for single-image CSVs. |
 | `condition` | Product condition | Optional. Only used for `product` listings. |
 
 ## Allowed Categories
@@ -103,7 +103,7 @@ For those, run the external collector first and export rows into this CSV shape.
 ## Example Row
 
 ```csv
-source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,image_url,category,listing_type,condition,operating_market
+source_url,title,description,price,currency,shop_name,shop_source_url,shop_description,location,state,municipio,images,category,listing_type,condition,operating_market
 https://auto.mercadolibre.com.mx/MLM-5229578222-nissan-kicks-2024-_JM,Nissan Kicks 2024,Auto publicado originalmente en MercadoLibre,,MXN,Vendedor MercadoLibre,https://vehiculos.mercadolibre.com.mx/_CustId_example,,Ciudad de México,Ciudad de México,,https://http2.mlstatic.com/D_NQ_NP_2X_000000-MLM00000000000_0000-F.webp,autos,product,good,mx
 ```
 

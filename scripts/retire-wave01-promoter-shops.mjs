@@ -15,57 +15,13 @@
  *   node --env-file=.env.local scripts/retire-wave01-promoter-shops.mjs --apply
  */
 import { createClient } from '@supabase/supabase-js'
+import {
+  planWave01Retirement,
+  selectRetirementTargets,
+  WAVE01_NAMES,
+} from './lib/wave01-promoter-retirement.mjs'
 
 const APPLY = process.argv.includes('--apply')
-const NAMES = ['Kokone', 'Kaab', 'Curated Basics', 'Concrete Garden Candles']
-const RETIRED_SUFFIX = '-preview-retired-20260820'
-const MAX_SELLER_SLUG_LENGTH = 40
-
-/**
- * Refuse ambiguity rather than silently retiring a subset. The old previews are
- * audit history; their precise provenance is the only safe discriminator.
- */
-export function selectRetirementTargets(rows) {
-  const failures = []
-  const targets = []
-
-  for (const name of NAMES) {
-    const matches = rows.filter((row) => row?.name === name)
-    if (matches.length !== 1) {
-      failures.push(`${name}: expected exactly one mirror row, found ${matches.length}`)
-      continue
-    }
-
-    const row = matches[0]
-    if (row.clerk_user_id != null) {
-      failures.push(`${name}: REFUSE claimed shop`)
-      continue
-    }
-    if (typeof row.source_url !== 'string' || !row.source_url.toLowerCase().startsWith('promoter://')) {
-      failures.push(`${name}: REFUSE non-promoter provenance (${String(row.source_url)})`)
-      continue
-    }
-    if (typeof row.slug !== 'string' || !row.slug.trim()) {
-      failures.push(`${name}: REFUSE missing mirror slug`)
-      continue
-    }
-    const sellerId = row.metadata?.medusa_seller_id
-    if (typeof sellerId !== 'string' || !sellerId.startsWith('sel_')) {
-      failures.push(`${name}: REFUSE mirror has no canonical Medusa seller id`)
-      continue
-    }
-    const retiredSlug = row.slug.endsWith(RETIRED_SUFFIX)
-      ? row.slug
-      : `${row.slug.slice(0, Math.max(1, MAX_SELLER_SLUG_LENGTH - RETIRED_SUFFIX.length))}${RETIRED_SUFFIX}`
-    targets.push({ row, sellerId, retiredSlug })
-  }
-
-  if (failures.length) {
-    throw new Error(`Wave 01 retirement refused:\n${failures.map((failure) => `- ${failure}`).join('\n')}`)
-  }
-  return targets
-}
-
 async function fetchJson(url, options) {
   const res = await fetch(url, options)
   const body = await res.json().catch(() => ({}))
@@ -85,35 +41,52 @@ async function readLiveStatuses(targets, medusa, secret) {
   return statuses
 }
 
-async function retireTarget({ row, sellerId, retiredSlug }, status, medusa, secret, db) {
-  if (status === 'deleted' && row.slug !== retiredSlug) {
-    throw new Error(`${row.name}: REFUSE deleted seller whose mirror still has the public slug`)
-  }
-  if (status === 'deleted') return
-
-  if (row.slug !== retiredSlug) {
-    const { res: slugRes, body: slugBody } = await fetchJson(`${medusa}/internal/sellers/slug`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', 'x-internal-secret': secret },
-      body: JSON.stringify({ seller_slug: row.slug, new_slug: retiredSlug }),
-    })
-    if (!slugRes.ok) throw new Error(`${row.name}: slug retire failed ${slugRes.status}: ${slugBody.message ?? ''}`)
-    if (slugBody.seller_slug !== retiredSlug) throw new Error(`${row.name}: slug retire returned an unexpected slug`)
-  }
-
-  const { res: statusRes, body: statusBody } = await fetchJson(`${medusa}/internal/sellers/${encodeURIComponent(sellerId)}/status`, {
-    method: 'POST',
+async function ensureRetiredSellerSlug({ row, retiredSlug }, medusa, secret) {
+  if (row.slug === retiredSlug) return
+  const { res: slugRes, body: slugBody } = await fetchJson(`${medusa}/internal/sellers/slug`, {
+    method: 'PATCH',
     headers: { 'content-type': 'application/json', 'x-internal-secret': secret },
-    body: JSON.stringify({
-      status: 'deleted',
-      reason: 'Wave 01 correction: replaced promoter/private preview with public Gem import',
-    }),
+    body: JSON.stringify({ seller_slug: row.slug, new_slug: retiredSlug }),
   })
-  if (!statusRes.ok) throw new Error(`${row.name}: retire status failed ${statusRes.status}: ${statusBody.message ?? ''}`)
-  if (statusBody.complete === false || statusBody.status_changed === false) {
-    throw new Error(`${row.name}: retire was partial; inspect backend response before importing replacement`)
+  if (slugRes.ok) {
+    if (slugBody.seller_slug !== retiredSlug) throw new Error(`${row.name}: slug retire returned an unexpected slug`)
+    return
+  }
+  if (slugRes.status !== 404) throw new Error(`${row.name}: slug retire failed ${slugRes.status}: ${slugBody.message ?? ''}`)
+
+  // A prior run may have renamed the Medusa seller before failing to update its
+  // mirror. Prove that exact deterministic slug via the backend's no-op path;
+  // never trust the mirror to answer a Medusa-ownership question.
+  const { res: probeRes, body: probeBody } = await fetchJson(`${medusa}/internal/sellers/slug`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', 'x-internal-secret': secret },
+    body: JSON.stringify({ seller_slug: retiredSlug, new_slug: retiredSlug }),
+  })
+  if (!probeRes.ok || probeBody.seller_slug !== retiredSlug) {
+    throw new Error(`${row.name}: cannot prove the seller already holds the retired slug after ${slugRes.status}`)
+  }
+}
+
+async function retireTarget({ row, sellerId, retiredSlug }, status, medusa, secret, db) {
+  const plan = planWave01Retirement({ mirrorSlug: row.slug, retiredSlug, sellerStatus: status })
+  if (plan.ensureSellerSlug) await ensureRetiredSellerSlug({ row, retiredSlug }, medusa, secret)
+
+  if (plan.retireSeller) {
+    const { res: statusRes, body: statusBody } = await fetchJson(`${medusa}/internal/sellers/${encodeURIComponent(sellerId)}/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-secret': secret },
+      body: JSON.stringify({
+        status: 'deleted',
+        reason: 'Wave 01 correction: replaced promoter/private preview with public Gem import',
+      }),
+    })
+    if (!statusRes.ok) throw new Error(`${row.name}: retire status failed ${statusRes.status}: ${statusBody.message ?? ''}`)
+    if (statusBody.complete === false || statusBody.status_changed === false) {
+      throw new Error(`${row.name}: retire was partial; inspect backend response before importing replacement`)
+    }
   }
 
+  if (!plan.updateMirrorSlug) return
   const { error: mirrorError, count } = await db
     .from('marketplace_shops')
     .update({ slug: retiredSlug, updated_at: new Date().toISOString() }, { count: 'exact' })
@@ -134,7 +107,7 @@ async function main() {
   const { data: rows, error } = await db
     .from('marketplace_shops')
     .select('id,slug,name,source_url,clerk_user_id,metadata')
-    .in('name', NAMES)
+    .in('name', WAVE01_NAMES)
   if (error) throw error
 
   const targets = selectRetirementTargets(rows ?? [])

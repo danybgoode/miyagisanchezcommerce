@@ -5,13 +5,13 @@
  * Miyagi Sánchez.
  *
  * Usage:
- *   node scripts/prepare-gem-wave.mjs campaigns/gem-wave-01/manifest.json ./prepared
+ *   node scripts/prepare-gem-wave.mjs campaigns/gem-wave-01/manifest.json .tmp/gem-wave-01-prepared
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const manifestPath = process.argv[2]
-const outputDir = process.argv[3] ?? './prepared'
+const outputDir = process.argv[3] ?? '.tmp/gem-wave-01-prepared'
 if (!manifestPath) throw new Error('Pass a campaign manifest path')
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
 await fs.mkdir(outputDir, { recursive: true })
