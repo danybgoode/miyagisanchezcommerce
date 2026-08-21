@@ -364,6 +364,9 @@ export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
 
 export interface MedusaProductImportBody {
   seller_slug: string
+  /** A globally unique, stable product handle. Supply titles are not unique across
+   * retired shops, so the item identity is part of the canonical handle. */
+  handle: string
   title: string
   description: string | null
   price_cents: number | null
@@ -385,8 +388,18 @@ export function supplyItemToProductBody(
   sellerSlug: string,
   targetStatus: string,
 ): MedusaProductImportBody {
+  // Medusa product handles are globally unique, while a curated product title
+  // is not (and old retired-shop products can retain their handle). Keep the
+  // human-readable shop + title prefix, then append the immutable staging id
+  // so a retry is deterministic and a new claimable shop cannot be blocked by
+  // an unrelated historical listing.
+  const prefix = slugify(`${sellerSlug}-${item.listing_title ?? 'listing'}`, 80) || 'listing'
+  const identity = slugify(item.id, 32) || 'item'
+  const handle = `${prefix.slice(0, Math.max(1, 99 - identity.length))}-${identity}`
+
   return {
     seller_slug: sellerSlug,
+    handle,
     title: (item.listing_title ?? '').trim().slice(0, 100),
     description: item.listing_description,
     price_cents: item.price_cents,
