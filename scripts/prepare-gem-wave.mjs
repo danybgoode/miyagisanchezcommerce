@@ -14,6 +14,22 @@ const manifestPath = process.argv[2]
 const outputDir = process.argv[3] ?? '.tmp/gem-wave-01-prepared'
 if (!manifestPath) throw new Error('Pass a campaign manifest path')
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+
+function validateManifest(input) {
+  if (!input || !Array.isArray(input.shops) || input.shops.length === 0) {
+    throw new Error('Campaign manifest must contain a non-empty shops array')
+  }
+  for (const shop of input.shops) {
+    if (!shop?.name || !['mx', 'us'].includes(shop.operating_market)) {
+      throw new Error(`Shop ${shop?.name ?? '(unnamed)'} needs operating_market mx or us`)
+    }
+    if (!Array.isArray(shop.products) || shop.products.length === 0) {
+      throw new Error(`Shop ${shop.name} must contain at least one product seed`)
+    }
+  }
+}
+
+validateManifest(manifest)
 await fs.mkdir(outputDir, { recursive: true })
 
 const stripHtml = (s = '') => String(s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
@@ -26,7 +42,7 @@ const csvCell = (value) => {
 async function hydrate(seed) {
   try {
     const res = await fetch(productJsonUrl(seed.source_url), {
-      headers: { 'user-agent': 'Miyagi-Sanchez-Supply-Research/1.0' },
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; Miyagi-Sanchez-Supply-Research/1.0)' },
       redirect: 'follow',
       signal: AbortSignal.timeout(20000),
     })
@@ -34,7 +50,7 @@ async function hydrate(seed) {
     const product = await res.json()
     const variants = Array.isArray(product.variants) ? product.variants : []
     const variant = variants.find((v) => v?.available) ?? variants[0] ?? null
-    const cents = typeof variant?.price === 'number' ? variant.price : null
+    const cents = Number(variant?.price)
     const images = (product.images ?? [])
       .map((image) => typeof image === 'string' ? image : image?.src)
       .filter(Boolean)
@@ -43,7 +59,9 @@ async function hydrate(seed) {
       ...seed,
       title: String(product.title || seed.title).trim().slice(0, 100),
       description: stripHtml(product.description || product.body_html || ''),
-      price: cents != null ? cents / 100 : seed.price,
+      // Shopify product JSON reports prices in minor units. Manifest seed
+      // prices use the canonical CSV's normal currency units as fallbacks.
+      price: Number.isFinite(cents) && cents >= 0 ? cents / 100 : seed.price,
       images,
       source_verified_at: new Date().toISOString(),
       source_fetch: 'shopify-product-json',
