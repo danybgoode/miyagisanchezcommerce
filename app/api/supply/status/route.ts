@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { withSupplyAdmin } from '@/lib/admin/guard'
+import { probeMedusaInternal } from '@/lib/medusa-internal'
 
 export const GET = withSupplyAdmin(async () => {
   const providers: Record<string, unknown> = {
@@ -21,6 +22,10 @@ export const GET = withSupplyAdmin(async () => {
       note: 'Official MLM search/detail APIs remain blocked unless the app has ML catalog access.',
     },
   }
+
+  const medusa = process.env.MEDUSA_INTERNAL_SECRET
+    ? await probeMedusaInternal(process.env.MEDUSA_INTERNAL_SECRET)
+    : { reachable: false, authorized: false, status: null, endpoint: null, error: 'MEDUSA_INTERNAL_SECRET is not configured' }
 
   if (process.env.SERPAPI_KEY) {
     try {
@@ -56,5 +61,5 @@ export const GET = withSupplyAdmin(async () => {
     }
   }
 
-  return NextResponse.json({ providers })
+  return NextResponse.json({ providers, medusa })
 })

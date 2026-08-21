@@ -5,6 +5,7 @@ import {
   supplyItemToProductBody,
   type SupplyItem,
 } from '../lib/supply'
+import { describeMedusaNetworkFailure, getMedusaInternalBaseUrl, probeMedusaInternal } from '../lib/medusa-internal'
 
 /**
  * Gem → Claimable Shop Loop · Sprint 1+2.
@@ -94,6 +95,32 @@ test.describe('supplyItemToSellerBody — unclaimed Medusa seller payload', () =
     expect(body.name).toBe('Vendedor sin reclamar')
     expect(body.slug).toBeUndefined()
     expect(body.source_url).toBe('https://maps.google.com/?cid=123')
+  })
+})
+
+test.describe('internal Medusa import diagnostics', () => {
+  test('uses the server-only endpoint and records a safe network cause', () => {
+    expect(getMedusaInternalBaseUrl({ MEDUSA_STORE_URL: 'https://api.example.com///' })).toBe('https://api.example.com')
+    expect(getMedusaInternalBaseUrl({})).toBe('http://localhost:9000')
+
+    const error = Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } })
+    expect(describeMedusaNetworkFailure('Seller create', 'https://api.example.com', error))
+      .toBe('Seller create network failure to api.example.com: fetch failed (ECONNREFUSED)')
+  })
+
+  test('treats a reserved-slug 404 as an authenticated, non-mutating readiness success', async () => {
+    const result = await probeMedusaInternal('internal-secret', {
+      baseUrl: 'https://api.example.com',
+      fetchImpl: async () => new Response(null, { status: 404 }),
+    })
+
+    expect(result).toEqual({
+      reachable: true,
+      authorized: true,
+      status: 404,
+      endpoint: 'api.example.com',
+      error: null,
+    })
   })
 })
 
