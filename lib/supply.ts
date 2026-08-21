@@ -111,6 +111,8 @@ export interface IncomingSupplyItem {
   shop_description?: string
   shop_location?: string
   shop_logo_url?: string
+  /** Untrusted CSV market; Medusa is the strict validator and applies its MX default when absent. */
+  operating_market?: string
   image_url?: string
   images?: Array<{ url: string; alt?: string }> | string
   tags?: string[] | string
@@ -234,6 +236,7 @@ export function normalizeSupplyItem(input: IncomingSupplyItem, defaults: BatchDe
   const category = String(input.category ?? defaults.category ?? '').trim() || null
   const state = String(input.state ?? defaults.state ?? '').trim() || null
   const municipio = String(input.municipio ?? defaults.municipio ?? '').trim() || null
+  const operatingMarket = String(input.operating_market ?? '').trim().toLowerCase() || null
   const duplicateSource = sourceUrl ?? [
     defaults.source_platform,
     shopName,
@@ -253,7 +256,9 @@ export function normalizeSupplyItem(input: IncomingSupplyItem, defaults: BatchDe
     shop_description: String(input.shop_description ?? '').trim() || null,
     shop_location: String(input.shop_location ?? location ?? '').trim() || null,
     shop_logo_url: String(input.shop_logo_url ?? '').trim() || null,
-    shop_metadata: {},
+    shop_metadata: {
+      ...(operatingMarket ? { operating_market: operatingMarket } : {}),
+    },
     listing_title: listingTitle,
     listing_description: String(input.listing_description ?? input.description ?? '').trim() || null,
     price_cents: priceCents,
@@ -325,10 +330,15 @@ export interface UnclaimedSellerBody {
   source: string
   source_url?: string | null
   metadata: Record<string, unknown>
+  /** Preserved for Medusa's strict market validation; never silently coerced here. */
+  operating_market?: string
 }
 
 export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
   const shopSourceUrl = item.shop_source_url ?? item.source_url
+  const operatingMarket = typeof item.shop_metadata?.operating_market === 'string'
+    ? item.shop_metadata.operating_market.trim().toLowerCase()
+    : ''
   return {
     name: (item.shop_name?.trim() || 'Vendedor sin reclamar').slice(0, 80),
     ...(item.shop_slug ? { slug: item.shop_slug } : {}),
@@ -337,6 +347,9 @@ export function supplyItemToSellerBody(item: SupplyItem): UnclaimedSellerBody {
     logo_url: item.shop_logo_url,
     source: 'scraped',
     source_url: shopSourceUrl,
+    ...(operatingMarket
+      ? { operating_market: operatingMarket }
+      : {}),
     metadata: {
       ...(item.shop_metadata ?? {}),
       supply: {

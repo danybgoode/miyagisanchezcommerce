@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { supplyItemToSellerBody, supplyItemToProductBody, type SupplyItem } from '../lib/supply'
+import {
+  normalizeSupplyItem,
+  supplyItemToSellerBody,
+  supplyItemToProductBody,
+  type SupplyItem,
+} from '../lib/supply'
 
 /**
  * Gem → Claimable Shop Loop · Sprint 1+2.
@@ -61,6 +66,27 @@ test.describe('supplyItemToSellerBody — unclaimed Medusa seller payload', () =
     expect(body.source_url).toBe('https://instagram.com/lasduelistas')
     expect(body.location).toBe('Roma Norte, CDMX')
     expect((body.metadata.supply as Record<string, unknown>).unclaimed).toBe(true)
+  })
+
+  test('preserves an explicit operating market from CSV staging through the Medusa seller seam', () => {
+    const staged = normalizeSupplyItem({
+      source_url: 'https://example.com/products/hat',
+      title: 'Hat',
+      shop_name: 'US Shop',
+      operating_market: ' US ',
+    }, { source_platform: 'shopify' })
+    const body = supplyItemToSellerBody(gemItem({ shop_metadata: staged.shop_metadata }))
+
+    expect(staged.shop_metadata).toEqual({ operating_market: 'us' })
+    expect(body.operating_market).toBe('us')
+  })
+
+  test('omits operating market when the CSV does, preserving the backend MX default', () => {
+    const body = supplyItemToSellerBody(gemItem())
+    expect(body.operating_market).toBeUndefined()
+
+    const staged = normalizeSupplyItem({ operating_market: '   ' }, { source_platform: 'csv' })
+    expect(staged.shop_metadata).toEqual({})
   })
 
   test('falls back to listing source_url and a default name', () => {
