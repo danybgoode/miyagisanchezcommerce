@@ -38,6 +38,13 @@ await fs.mkdir(outputDir, { recursive: true })
 
 const stripHtml = (s = '') => String(s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 const productJsonUrl = (u) => `${u.replace(/\/$/, '')}.js`
+// Shopify's public Ajax Product API returns minor-unit integers from .js.
+// A decimal here is a different contract, not a value we can safely guess at.
+const minorUnitPrice = (value) => {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return value
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value)
+  return null
+}
 const csvCell = (value) => {
   const s = value == null ? '' : String(value)
   return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
@@ -54,7 +61,10 @@ async function hydrate(seed) {
     const product = await res.json()
     const variants = Array.isArray(product.variants) ? product.variants : []
     const variant = variants.find((v) => v?.available) ?? variants[0] ?? null
-    const cents = Number(variant?.price)
+    const cents = minorUnitPrice(variant?.price)
+    if (variant?.price != null && cents == null) {
+      throw new Error('Shopify .js returned a non-minor-unit variant price')
+    }
     const images = (product.images ?? [])
       .map((image) => typeof image === 'string' ? image : image?.src)
       .filter(Boolean)
@@ -65,7 +75,7 @@ async function hydrate(seed) {
       description: stripHtml(product.description || product.body_html || ''),
       // Shopify product JSON reports prices in minor units. Manifest seed
       // prices use the canonical CSV's normal currency units as fallbacks.
-      price: Number.isFinite(cents) && cents >= 0 ? cents / 100 : seed.price,
+      price: cents != null ? cents / 100 : seed.price,
       images,
       source_verified_at: new Date().toISOString(),
       source_fetch: 'shopify-product-json',
