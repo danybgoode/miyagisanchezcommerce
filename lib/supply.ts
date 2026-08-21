@@ -395,7 +395,11 @@ export function supplyItemToProductBody(
   // an unrelated historical listing.
   const prefix = slugify(`${sellerSlug}-${item.listing_title ?? 'listing'}`, 80) || 'listing'
   const identity = slugify(item.id, 32) || 'item'
-  const handle = `${prefix.slice(0, Math.max(1, 99 - identity.length))}-${identity}`
+  // `slice()` can stop just after a slug separator for a long title. Remove it
+  // before joining the identity: Medusa accepts URL-safe handles but rejects
+  // an accidental double dash.
+  const handlePrefix = prefix.slice(0, Math.max(1, 99 - identity.length)).replace(/-+$/, '') || 'listing'
+  const handle = `${handlePrefix}-${identity}`
 
   return {
     seller_slug: sellerSlug,

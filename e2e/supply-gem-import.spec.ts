@@ -160,6 +160,16 @@ test.describe('supplyItemToProductBody — Medusa product payload', () => {
     expect(body.handle).toMatch(/^s-x+-item-1$/)
     expect(body.handle.length).toBeLessThanOrEqual(100)
   })
+
+  test('keeps a truncated Unicode title handle URL-safe', () => {
+    const body = supplyItemToProductBody(gemItem({
+      id: '79746779-77ae-4aa7-85a6-5944d325e817',
+      listing_title: 'Customizable Handmade Concrete Candle Bowl – 12 oz Soy Wax Candle with Dried Pressed Flowers',
+    }), 'concrete-garden-candles', 'active')
+
+    expect(body.handle).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    expect(body.handle).toMatch(/-79746779-77ae-4aa7-85a6-5944d325$/)
+  })
 })
 
 test.describe('new supply/claim endpoints are secret-gated', () => {
