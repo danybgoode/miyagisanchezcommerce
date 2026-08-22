@@ -14,11 +14,12 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 test.describe('buyer locale population · generated, never hand-counted', () => {
   test('the direct buyer population is re-derived and remains non-empty', () => {
     const population = deriveBuyerLocalePopulation(ROOT)
-    // 76 → 93. Living Shop (epic 07) added the Wall components and nine section
+    // 76 → 93 → 95. Living Shop (epic 07) added the Wall components and nine section
     // routes (/tienda, /colecciones, /eventos × three channel forms), AND widened
     // DIRECT_BUYER_DIRS to the owned-host root routes — which had never been
-    // scanned at all, and were hiding a real bilingual leak on /acerca.
-    expect(population.direct.length).toBe(93)
+    // scanned at all, and were hiding a real bilingual leak on /acerca. The public-read
+    // extraction added the two rich renderer files without changing the surfaces.
+    expect(population.direct.length).toBe(95)
     expect(population.direct).toContain('app/(shell)/mx/l/page.tsx')
     expect(population.direct).toContain('app/(shell)/checkout/CheckoutExperience.tsx')
     expect(population.direct).toContain('app/(shell)/s/[slug]/tienda/page.tsx')

@@ -9,10 +9,10 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export function generateMetadata({ params }: Props) {
+export async function generateMetadata({ params }: Props) {
   return generateShopMetadata({ params, market: 'mx', marketBasePath: '/mx' })
 }
 
-export default function PublicOwnerPreviewPage({ params, searchParams }: Props) {
+export default async function PublicOwnerPreviewPage({ params, searchParams }: Props) {
   return ShopPage({ params, searchParams, market: 'mx', marketBasePath: '/mx' })
 }

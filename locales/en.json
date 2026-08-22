@@ -66,6 +66,8 @@
     "account.fallbackName": "your account",
     "listing.buyNowWithPrice": "Buy now — {0}",
     "listing.signInToBuy": "Sign in to buy",
+    "l.id.page.publicPdpSettling": "Preparing actions…",
+    "l.id.page.publicPdpUnavailable": "Personalized actions are unavailable.",
     "listing.returnWindow7": "7 days",
     "listing.returnWindow14": "14 days",
     "listing.returnWindow30": "30 days",

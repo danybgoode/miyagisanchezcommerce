@@ -38,6 +38,9 @@ import InmuebleHero from './InmuebleHero'
 import EventHero from './EventHero'
 import EventBuyBox from './EventBuyBox'
 import { eventHeroModel } from '@/lib/event-hero'
+import { serviceHeroModel } from '@/lib/service-hero'
+import { autoHeroModel } from '@/lib/auto-hero'
+import { inmuebleHeroModel } from '@/lib/inmueble-hero'
 import { ticketQuantityCap } from '@/lib/ticket-quantity'
 import UnclaimedNotice from './UnclaimedNotice'
 import RentalBooking from './RentalBooking'
@@ -521,7 +524,15 @@ export async function ListingPage({
     })),
   ] : []
 
-  const publicAction: PublicPdpAction = isPrintPlacement || serviceLed ? { kind: 'contact' }
+  const publicAction: PublicPdpAction = isPrintPlacement ? {
+        kind: 'print',
+        href: printEditionId ? `/sell/print/${printEditionId}` : '/shop/manage',
+      }
+    : serviceLed ? {
+        kind: 'schedule',
+        bookingUrl,
+        label: serviceHeroModel({ bookingUrl, bookingText }).primaryLabel,
+      }
     : rentalLed ? {
         kind: 'rental',
         dailyRateCents: listing.price_cents!,
@@ -571,6 +582,11 @@ export async function ListingPage({
         kind: 'generic',
         canBuy: showBuyButtons && hasAnyPayment,
         canOffer: hasBuyablePrice && !hasConfigurator && listing.listing_type === 'product',
+        schedule: autoLed
+          ? { bookingUrl, label: autoHeroModel({ bookingUrl }).primaryLabel }
+          : inmuebleLed
+            ? { bookingUrl, label: inmuebleHeroModel({ bookingUrl }).primaryLabel }
+            : undefined,
       }
 
   const publicViewerIsland = isPublicViewer && listing.shop ? (
@@ -1044,6 +1060,7 @@ export async function ListingPage({
             inclusions={listingSpecs(listing)}
             description={listing.description}
             marketBasePath={marketBasePath}
+            showActions={!isPublicViewer}
           />
         )}
 
@@ -1117,6 +1134,7 @@ export async function ListingPage({
             priceCents={listing.price_cents}
             attrs={listing.attrs ?? (listing.metadata?.attrs as Record<string, unknown> | undefined) ?? {}}
             marketBasePath={marketBasePath}
+            showActions={!isPublicViewer}
           />
         )}
 
@@ -1131,6 +1149,7 @@ export async function ListingPage({
             attrs={(listing.attrs ?? listing.metadata?.attrs) as Record<string, unknown> | undefined}
             location={listing.location}
             marketBasePath={marketBasePath}
+            showActions={!isPublicViewer}
           />
         )}
 

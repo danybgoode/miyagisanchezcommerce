@@ -25,8 +25,14 @@ test.describe('public renderer parity · D7/D8/D19', () => {
     expect(route).toContain("from '@/app/(shell)/l/[id]/ListingRenderer'")
     expect(route).not.toContain("from '@/lib/listings'")
     expect(renderer.match(/<PublicPdpViewerIsland\b/g)).toHaveLength(1)
-    for (const kind of ['configurator', 'personalization', 'event', 'rental', 'subscription', 'digital']) {
+    for (const kind of ['print', 'schedule', 'configurator', 'personalization', 'event', 'rental', 'subscription', 'digital']) {
       expect(island).toContain(`action.kind === '${kind}'`)
+    }
+    expect(renderer).toContain("kind: 'print'")
+    expect(renderer).toContain("kind: 'schedule'")
+    expect(renderer).toContain('schedule: autoLed')
+    for (const hero of ['ServiceHero', 'AutoHero', 'InmuebleHero']) {
+      expect(renderer).toMatch(new RegExp(`<${hero}\\b[\\s\\S]*?showActions=\\{!isPublicViewer\\}`))
     }
   })
 
@@ -46,5 +52,15 @@ test.describe('public renderer parity · D7/D8/D19', () => {
     expect(listingRenderer).not.toContain("from '@clerk/nextjs/server'")
     expect(context).not.toContain("from 'next/headers'")
     expect(requestContext).toContain("from 'next/headers'")
+  })
+
+  test('the single viewer read is listing-keyed, fail-closed, and does not render numeric zero', () => {
+    const island = read('app/components/PublicPdpViewerIsland.tsx')
+    expect(island).toContain('started.current === requestKey')
+    expect(island).toContain('result?.key === requestKey')
+    expect(island).toContain('controller.abort()')
+    expect(island).toContain('listing.priceCents > 0')
+    expect(island).toContain('skipActiveOfferRead')
+    expect(island.indexOf("deal?.status === 'accepted_unpaid'")).toBeLessThan(island.indexOf('{actionContent}'))
   })
 })

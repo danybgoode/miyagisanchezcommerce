@@ -22,6 +22,7 @@ export default function InmuebleHero({
   attrs,
   location,
   marketBasePath = '',
+  showActions = true,
 }: {
   listingId: string
   isSignedIn: boolean
@@ -29,6 +30,7 @@ export default function InmuebleHero({
   attrs: Record<string, unknown> | null | undefined
   location: string | null
   marketBasePath?: string
+  showActions?: boolean
 }) {
   const model = inmuebleHeroModel({ bookingUrl })
   const iconSpecs: InmuebleIconSpec[] = inmuebleIconSpecs(attrs)
@@ -75,7 +77,7 @@ export default function InmuebleHero({
       )}
 
       {/* ── Primary action: schedule a visit ─────────────────────────────────── */}
-      {model.hasSchedule ? (
+      {showActions && (model.hasSchedule ? (
         <a
           href={bookingUrl!}
           target="_blank"
@@ -89,7 +91,7 @@ export default function InmuebleHero({
         </a>
       ) : (
         <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
-      )}
+      ))}
     </div>
   )
 }

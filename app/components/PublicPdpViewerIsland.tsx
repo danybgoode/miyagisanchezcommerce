@@ -3,6 +3,7 @@
 import { useAuth } from '@clerk/nextjs'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import AskSellerButton from '@/app/components/AskSellerButton'
 import FavoriteButton from '@/app/components/FavoriteButton'
 import MakeOfferButton from '@/app/components/MakeOfferButton'
@@ -21,7 +22,9 @@ import type { RatePeriod } from '@/lib/rental-pricing'
 
 export type PublicPdpAction =
   | { kind: 'contact' }
-  | { kind: 'generic'; canBuy: boolean; canOffer: boolean }
+  | { kind: 'print'; href: string }
+  | { kind: 'schedule'; bookingUrl: string | null; label: string }
+  | { kind: 'generic'; canBuy: boolean; canOffer: boolean; schedule?: { bookingUrl: string | null; label: string } }
   | { kind: 'configurator'; priceGrid: PriceGrid; currency: string; customFields: CustomFieldDef[] }
   | { kind: 'personalization'; defs: CustomFieldDef[]; priceLabel: string; buyNowLabel?: string; signInBuyLabel?: string }
   | { kind: 'event'; unitCents: number; currency: string; cap: number; buyLabelPrefix: string; signInLabel: string }
@@ -57,25 +60,34 @@ export default function PublicPdpViewerIsland({
   action,
 }: Props) {
   const { isLoaded } = useAuth()
-  const started = useRef(false)
-  const [state, setState] = useState<PdpViewerState | null>(null)
-  const [failed, setFailed] = useState(false)
+  const requestKey = `${listing.id}:${shopSlug}`
+  const started = useRef<string | null>(null)
+  const [result, setResult] = useState<{ key: string; state: PdpViewerState } | null>(null)
+  const [failedKey, setFailedKey] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isLoaded || started.current) return
-    started.current = true
+    if (!isLoaded || started.current === requestKey) return
+    started.current = requestKey
+    const controller = new AbortController()
     const query = new URLSearchParams({ listingId: listing.id, shopSlug })
     void fetch(`/api/public/pdp-viewer-state?${query.toString()}`, {
       cache: 'no-store',
       credentials: 'same-origin',
+      signal: controller.signal,
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(`viewer state ${response.status}`)
         return response.json() as Promise<PdpViewerState>
       })
-      .then(setState)
-      .catch(() => setFailed(true))
-  }, [isLoaded, listing.id, shopSlug])
+      .then((state) => setResult({ key: requestKey, state }))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setFailedKey(requestKey)
+      })
+    return () => controller.abort()
+  }, [isLoaded, listing.id, requestKey, shopSlug])
+
+  const state = result?.key === requestKey ? result.state : null
+  const failed = failedKey === requestKey
 
   const frameStyle: React.CSSProperties = {
     height: 260,
@@ -92,7 +104,7 @@ export default function PublicPdpViewerIsland({
         <div className="h-10 rounded-lg bg-[var(--bg-sunk)] opacity-70" />
         <div className="h-10 rounded-lg bg-[var(--bg-sunk)] opacity-50 mt-2" />
         <p className="text-xs text-[var(--fg-muted)] mt-3">
-          {failed ? 'Las acciones personalizadas no están disponibles.' : 'Preparando acciones…'}
+          <BuyerCopyText copyKey={failed ? 'l.id.page.publicPdpUnavailable' : 'l.id.page.publicPdpSettling'} />
         </p>
       </section>
     )
@@ -102,7 +114,7 @@ export default function PublicPdpViewerIsland({
     return (
       <section data-testid="pdp-viewer-state" data-state="owner" style={frameStyle}>
         <Link href={`/sell/edit/${listing.id}`} className="btn btn-dark btn-lg no-underline w-full justify-center">
-          Editar este anuncio
+          <BuyerCopyText copyKey="l.id.page.ba97b5b0" />
         </Link>
       </section>
     )
@@ -112,7 +124,38 @@ export default function PublicPdpViewerIsland({
   const checkoutHref = checkoutHopHref(`/checkout?listingId=${listing.id}&market=mx`, customDomain)
   const signInHref = signInHopHref(`/checkout?listingId=${listing.id}&market=mx`, customDomain)
 
-  const actionContent = action.kind === 'configurator' ? (
+  const schedule = action.kind === 'schedule'
+    ? action
+    : action.kind === 'generic'
+      ? action.schedule
+      : undefined
+  const scheduleContent = schedule ? (
+    schedule.bookingUrl ? (
+      <a
+        href={schedule.bookingUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
+        style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
+      >
+        <i className="iconoir-calendar" style={{ fontSize: 16 }} />
+        {schedule.label}
+      </a>
+    ) : (
+      <AskSellerButton listingId={listing.id} isSignedIn={state.signedIn} label={schedule.label} marketBasePath={marketBasePath} />
+    )
+  ) : null
+
+  const actionContent = action.kind === 'print' ? (
+    <Link
+      href={action.href}
+      className="flex items-center justify-center gap-2 w-full font-semibold py-3 rounded-[var(--r-md)] text-sm no-underline transition-colors"
+      style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
+    >
+      <i className="iconoir-journal" aria-hidden />
+      <BuyerCopyText copyKey="l.id.page.4b20055a" />
+    </Link>
+  ) : action.kind === 'schedule' ? scheduleContent : action.kind === 'configurator' ? (
     <ConfiguratorBuyBox
       listingId={listing.id}
       priceGrid={action.priceGrid}
@@ -185,10 +228,11 @@ export default function PublicPdpViewerIsland({
           className="flex items-center justify-center w-full font-semibold py-3 rounded-lg no-underline"
           style={{ background: 'var(--fg)', color: 'var(--fg-inverse)' }}
         >
-          {state.signedIn ? `Comprar ahora — ${listing.priceLabel}` : 'Inicia sesión para comprar'}
+          {state.signedIn ? <BuyerCopyText copyKey="listing.buyNowWithPrice" values={[listing.priceLabel]} /> : <BuyerCopyText copyKey="listing.signInToBuy" />}
         </Link>
       )}
-      {action.canOffer && listing.priceCents && (
+      {scheduleContent}
+      {action.canOffer && listing.priceCents !== null && listing.priceCents > 0 && (
         <MakeOfferButton
           listing={{
             id: listing.id,
@@ -218,7 +262,7 @@ export default function PublicPdpViewerIsland({
 
       {deal?.status === 'accepted_unpaid' && deal.dealPriceCents ? (
         <div className="flex flex-col gap-2">
-          <div className="rounded-lg p-3 bg-[var(--success-soft)] text-sm font-semibold">Tu oferta fue aceptada.</div>
+          <div className="rounded-lg p-3 bg-[var(--success-soft)] text-sm font-semibold"><BuyerCopyText copyKey="l.id.page.6252ff7c" /></div>
           <OfferCheckoutButton
             listingId={listing.id}
             offerId={deal.offerId}
@@ -231,9 +275,9 @@ export default function PublicPdpViewerIsland({
       ) : deal?.status === 'pending' || deal?.status === 'countered' ? (
         <div className="flex flex-col gap-2">
           <div className="rounded-lg p-3 bg-[var(--warning-soft)] text-sm font-semibold">
-            {deal.status === 'pending' ? 'Tu oferta está pendiente.' : 'El vendedor respondió con una contraoferta.'}
+            {deal.status === 'pending' ? <BuyerCopyText copyKey="l.id.page.db5f23a5" /> : <BuyerCopyText copyKey="l.id.page.7ee28bbf" />}
           </div>
-          {deal.conversationId && <Link href={`/messages/${deal.conversationId}`}>Ver conversación</Link>}
+          {deal.conversationId && <Link href={`/messages/${deal.conversationId}`}><BuyerCopyText copyKey="l.id.page.fb1415fb" /></Link>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">

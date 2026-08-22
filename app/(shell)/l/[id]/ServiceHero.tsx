@@ -24,6 +24,7 @@ export default function ServiceHero({
   inclusions,
   description,
   marketBasePath = '',
+  showActions = true,
 }: {
   listingId: string
   isSignedIn: boolean
@@ -32,6 +33,7 @@ export default function ServiceHero({
   inclusions: Spec[]
   description: string | null
   marketBasePath?: string
+  showActions?: boolean
 }) {
   const model = serviceHeroModel({ bookingUrl, bookingText })
 
@@ -46,7 +48,7 @@ export default function ServiceHero({
             <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{model.scheduleNote}</p>
           </div>
         </div>
-        {model.hasSchedule ? (
+        {showActions && (model.hasSchedule ? (
           <a
             href={bookingUrl!}
             target="_blank"
@@ -60,10 +62,10 @@ export default function ServiceHero({
           </a>
         ) : (
           <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
-        )}
-        <div style={{ marginTop: 8, textAlign: 'center' }}>
+        ))}
+        {showActions && <div style={{ marginTop: 8, textAlign: 'center' }}>
           <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label="Preguntar" variant="link" marketBasePath={marketBasePath} />
-        </div>
+        </div>}
       </div>
 
       {/* ── "Qué incluye" — service attrs + description ───────────────────────── */}

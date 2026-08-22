@@ -6,6 +6,7 @@ import TrustSignals from '@/app/components/TrustSignals'
 import { getShop } from '@/lib/listings'
 import { deriveShopTrustInputs } from '@/lib/trust-inputs'
 import { isPublicReadChannel } from '@/lib/public-read'
+import { CORE_ACCENT } from '@/lib/platform-theme'
 
 type Props = {
   children: React.ReactNode
@@ -37,7 +38,7 @@ export default async function PublicReadChrome({ children, params, surface }: Pr
   return (
     <ChannelLayout
       shopName={shop.name}
-      accentColor={theme.accent_color ?? '#1d6f42'}
+      accentColor={theme.accent_color ?? CORE_ACCENT}
       logoUrl={shop.logo_url ?? null}
       domain={identity}
       trust={<TrustSignals variant="slim" channel="subdomain" {...trust} paymentProtected={false} />}

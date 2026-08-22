@@ -275,13 +275,14 @@ export async function ShopPage({
     : returnsPolicy?.window === '30d' ? buyerCopy['listing.returnWindow30']
     : null
   const visibleWhatsapp = checkout.whatsapp_cta ? (theme.social?.whatsapp ?? checkout.phone ?? null) : null
+  const visibleWhatsappDigits = visibleWhatsapp?.replace(/\D/g, '') || null
   const visiblePhone = checkout.show_phone ? checkout.phone ?? null : null
 
   // The contact affordances the old identity header carried. They move into the
   // rail rather than disappearing with it — for an unclaimed shop the WhatsApp
   // link may be the only way to reach the merchant at all.
   const railContacts = [
-    visibleWhatsapp && { href: `https://wa.me/${visibleWhatsapp}`, label: 'WhatsApp' },
+    visibleWhatsappDigits && { href: `https://wa.me/${visibleWhatsappDigits}`, label: 'WhatsApp' },
     visiblePhone && { href: `tel:${visiblePhone}`, label: visiblePhone },
     checkout.show_email && checkout.contact_email && { href: `mailto:${checkout.contact_email}`, label: checkout.contact_email },
     theme.social?.instagram && { href: `https://instagram.com/${theme.social.instagram}`, label: `@${theme.social.instagram}` },
