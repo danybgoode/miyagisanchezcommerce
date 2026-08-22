@@ -27,8 +27,11 @@
  * Rule on this path (the one shared-edge-infra ask from this sprint) gets
  * real hit rates instead of one entry per pixel.
  *
- * Format negotiation follows the Accept header (avif > webp > jpeg passthrough),
- * mirroring next.config.ts's `images.formats` intent.
+ * Format negotiation follows the Accept header (webp > avif > jpeg
+ * passthrough). WebP is deliberately preferred when a modern browser offers
+ * both it and AVIF: this small origin route is cold on a cache miss, and the
+ * S1 production baseline is the comparison for this decision. AVIF remains a
+ * compatibility branch for an AVIF-only client; JPEG is the universal fallback.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
@@ -45,6 +48,11 @@ const WIDTH_LADDER = [64, 96, 128, 160, 256, 320, 384, 480, 640, 750, 828, 960, 
 // (sprint-1.md) — the aggregate defense against repeated-request abuse, this
 // ladder is the per-request defense against combinatorial blow-up.
 const QUALITY_LADDER = [60, 75, 90]
+type OutputFormat = 'avif' | 'webp' | 'jpeg'
+// D5: Cloudflare's current rule ignores Vary: Accept, so every new loader URL
+// must carry its chosen output format in the cache key. Keep the route's
+// legacy no-format negotiation only for already-issued URLs.
+const FIXED_FORMATS = new Set<OutputFormat>(['webp', 'avif', 'jpeg'])
 const DEFAULT_Q = 75
 const FETCH_TIMEOUT_MS = 10_000
 // Guard against a runaway origin response inflating memory before sharp gets to shrink it.
@@ -94,6 +102,13 @@ export async function GET(req: NextRequest) {
   const width = snapWidth(Number.isFinite(requestedW) && requestedW > 0 ? requestedW : 640)
   const requestedQ = parseInt(searchParams.get('q') ?? '', 10)
   const quality = snapQuality(Number.isFinite(requestedQ) && requestedQ > 0 ? requestedQ : DEFAULT_Q)
+  const requestedFormat = searchParams.get('f')
+  if (requestedFormat !== null && !FIXED_FORMATS.has(requestedFormat as OutputFormat)) {
+    return NextResponse.json({ error: 'formato de imagen no permitido.' }, { status: 400 })
+  }
+  // The guard above narrows this cast: non-null values are one of the
+  // allow-listed formats, while null deliberately selects the legacy branch.
+  const fixedFormat = requestedFormat as OutputFormat | null
 
   let upstream: Response
   try {
@@ -146,11 +161,12 @@ export async function GET(req: NextRequest) {
   const srcBuf = Buffer.concat(chunks)
 
   const accept = req.headers.get('accept') ?? ''
-  const format: 'avif' | 'webp' | 'jpeg' = accept.includes('image/avif')
-    ? 'avif'
-    : accept.includes('image/webp')
-      ? 'webp'
+  const negotiatedFormat: OutputFormat = accept.includes('image/webp')
+    ? 'webp'
+    : accept.includes('image/avif')
+      ? 'avif'
       : 'jpeg'
+  const format = fixedFormat ?? negotiatedFormat
 
   let outBuf: Buffer
   let outType: string
@@ -181,7 +197,10 @@ export async function GET(req: NextRequest) {
       // so a different image is a different URL. Matches the bucket-level
       // Cache-Control this sprint also sets on new R2 uploads (lib/r2.ts).
       'Cache-Control': 'public, max-age=31536000, immutable',
-      'Vary': 'Accept',
+      // A fixed `f` is part of the URL cache key, so Cloudflare cannot replay
+      // a cached AVIF to a WebP client even though its current rule ignores
+      // Vary. Existing no-`f` URLs keep Vary and their old Accept negotiation.
+      ...(fixedFormat ? {} : { 'Vary': 'Accept' }),
     },
   })
 }

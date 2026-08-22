@@ -30,12 +30,25 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(loader).toMatch(/\/api\/img\?/)
     expect(loader).toMatch(/url:\s*src/)
     expect(loader).toMatch(/w:\s*String\(width\)/)
+    expect(loader).toMatch(/f:\s*'webp'/)
+  })
+
+  test('the custom loader emits one quality-75 variant, avoiding extra cold origin encodes', () => {
+    const loader = read('lib/image-loader.ts')
+    expect(loader).toMatch(/q:\s*'75'/)
+    expect(loader).not.toMatch(/quality\s*\?\?/)
   })
 
   test('next.config.ts registers the custom loader (bypasses the broken /_next/image route)', () => {
     const cfg = read('next.config.ts')
     expect(cfg).toMatch(/loader:\s*'custom'/)
     expect(cfg).toMatch(/loaderFile:\s*'.\/lib\/image-loader\.ts'/)
+  })
+
+  test('next/image emits the D5 reduced width set for its actual optimized call sites', () => {
+    const cfg = read('next.config.ts')
+    expect(cfg).toMatch(/deviceSizes:\s*\[384,\s*640,\s*828,\s*1200,\s*1920\]/)
+    expect(cfg).toMatch(/imageSizes:\s*\[64,\s*96\]/)
   })
 
   test('/api/img validates the source host against an allow-list (no open SSRF proxy)', () => {
@@ -64,6 +77,24 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     const route = read('app/api/img/route.ts')
     expect(route).toMatch(/QUALITY_LADDER\s*=\s*\[60,\s*75,\s*90\]/)
     expect(route).toMatch(/const quality = snapQuality\(/)
+  })
+
+  test('/api/img prefers WebP when a modern browser advertises both WebP and AVIF, retaining compatibility fallbacks', () => {
+    const route = read('app/api/img/route.ts')
+    const negotiation = route.match(/const negotiatedFormat:[\s\S]*?:\s*'jpeg'/)?.[0]
+    expect(negotiation, 'expected the /api/img format negotiation').toBeTruthy()
+    expect(negotiation).toMatch(/accept\.includes\('image\/webp'\)/)
+    expect(negotiation).toMatch(/accept\.includes\('image\/avif'\)/)
+    expect(negotiation!.indexOf("image/webp")).toBeLessThan(negotiation!.indexOf("image/avif"))
+  })
+
+  test('/api/img fixes allow-listed output formats in the cache key while legacy URLs keep Accept negotiation', () => {
+    const route = read('app/api/img/route.ts')
+    expect(route).toMatch(/FIXED_FORMATS\s*=\s*new Set<OutputFormat>\(\['webp',\s*'avif',\s*'jpeg'\]\)/)
+    expect(route).toMatch(/requestedFormat !== null && !FIXED_FORMATS\.has\(requestedFormat as OutputFormat\)/)
+    expect(route).toMatch(/formato de imagen no permitido[\s\S]*status:\s*400/)
+    expect(route).toMatch(/const format = fixedFormat \?\? negotiatedFormat/)
+    expect(route).toMatch(/fixedFormat \? \{\} : \{ 'Vary': 'Accept' \}/)
   })
 
   test('new R2 uploads get a long-lived Cache-Control at the object level', () => {
