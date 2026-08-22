@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { imageVaryHeader, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
+import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
 
 /**
  * hyper-performant-website S1 — the seed for the Sprint-1 acceptance checks
@@ -49,8 +49,10 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
 
   test('next/image emits the D5 reduced width set for its actual optimized call sites', () => {
     const cfg = read('next.config.ts')
-    expect(cfg).toMatch(/deviceSizes:\s*\[384,\s*640,\s*828,\s*1200,\s*1920\]/)
-    expect(cfg).toMatch(/imageSizes:\s*\[64,\s*96\]/)
+    expect(LOADER_DEVICE_WIDTHS).toEqual([384, 640, 828, 1200, 1920])
+    expect(LOADER_IMAGE_WIDTHS).toEqual([64, 96])
+    expect(cfg).toMatch(/deviceSizes:\s*\[\.\.\.LOADER_DEVICE_WIDTHS\]/)
+    expect(cfg).toMatch(/imageSizes:\s*\[\.\.\.LOADER_IMAGE_WIDTHS\]/)
   })
 
   test('/api/img validates the source host against an allow-list (no open SSRF proxy)', () => {
@@ -88,6 +90,9 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     const fixed = new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2' })
     expect(resolveImageVariant(legacy)).toMatchObject({ ok: true, variant: { width: 160, quality: 90, fixedFormat: null } })
     expect(resolveImageVariant(fixed)).toMatchObject({ ok: true, variant: { width: 640, quality: 75, fixedFormat: 'webp' } })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '48', q: '75' }))).toMatchObject({ ok: true, variant: { width: 64 } })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '2048', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '3840', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
 
     for (const query of [
       new URLSearchParams({ url: src, w: '641', q: '75', f: 'webp', v: '2' }),
@@ -96,6 +101,14 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
       new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp' }),
       new URLSearchParams({ w: '640', url: src, q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2', extra: '1' }),
+      new URLSearchParams({ url: src, w: '064', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '64.0', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '6.4e1', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '0x40', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '64', q: '075', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://IMAGES.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example:443/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/a/../item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
     ]) expect(resolveImageVariant(query).ok).toBe(false)
   })
 

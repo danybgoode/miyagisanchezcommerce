@@ -28,7 +28,7 @@ export default function r2ImageLoader({ src, width }: ImageLoaderProps): string 
     url: src,
     w: String(width),
     // D5 emits exactly one quality from next/image. The route still accepts
-    // and snaps its [60, 75, 90] compatibility ladder for old/direct URLs;
+    // canonical members of its [60, 75, 90] compatibility ladder for old URLs;
     // letting callers vary loader quality would needlessly multiply cold
     // origin encodes and Cloudflare cache keys.
     q: '75',
