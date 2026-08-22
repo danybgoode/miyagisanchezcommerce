@@ -10,8 +10,6 @@ import AcercaBody from '../../../_shop-content/AcercaBody'
 import type { MarketCode } from '@/lib/markets'
 import type { Metadata } from 'next'
 
-export const revalidate = 120
-
 export async function generateShopAcercaMetadata({
   params,
   market,

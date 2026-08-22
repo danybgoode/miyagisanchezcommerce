@@ -6,8 +6,6 @@ import {
   type ShopRequestContext,
 } from './ShopRenderer'
 
-export const revalidate = 120
-
 type MetadataArgs = Parameters<typeof renderShopMetadata>[0]
 type PageArgs = Parameters<typeof renderShopPage>[0]
 

@@ -74,6 +74,27 @@ function literalRevalidate(source: string): number | null {
   return match ? Number(match[1]) : null
 }
 
+function pageFilesBelow(directory: string): string[] {
+  const files: string[] = []
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...pageFilesBelow(absolute))
+    else if (entry.isFile() && entry.name === 'page.tsx') files.push(absolute)
+  }
+  return files
+}
+
+/** Discover the population the invariant governs; a hand-maintained route list can only shrink silently. */
+export function discoverRevalidatedRoutes(root: string): RouteTruthInput[] {
+  const appRoot = path.join(root, 'app')
+  if (!fs.existsSync(appRoot)) throw new Error(`app directory missing: ${appRoot}`)
+  return pageFilesBelow(appRoot)
+    .flatMap((file) => literalRevalidate(fs.readFileSync(file, 'utf8')) === null
+      ? []
+      : [{ entry: path.relative(root, file).replaceAll(path.sep, '/') }])
+    .sort((a, b) => a.entry.localeCompare(b.entry))
+}
+
 /** Story 2.3: resolve the page/layout/import chain rather than grepping one file. */
 export function revalidateTruthFindings(routes: RouteTruthInput[], root: string): RouteTruthFinding[] {
   const findings: RouteTruthFinding[] = []

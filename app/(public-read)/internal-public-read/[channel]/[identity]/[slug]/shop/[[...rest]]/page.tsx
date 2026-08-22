@@ -17,6 +17,12 @@ import { isPublicReadChannel, type PublicReadChannel } from '@/lib/public-read'
 // D19: Next requires a literal. Story 2.3 proves this equals CACHE.SHOP.
 export const revalidate = 120
 
+// Next 16 only creates runtime ISR entries for an unbounded dynamic route when
+// generateStaticParams returns an empty population (or force-static is set).
+export function generateStaticParams() {
+  return []
+}
+
 type Props = {
   params: Promise<{
     channel: string

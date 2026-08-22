@@ -27,8 +27,6 @@ import { listingUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 import type { Metadata } from 'next'
 
-export const revalidate = 120
-
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const shop = await getShop(slug)

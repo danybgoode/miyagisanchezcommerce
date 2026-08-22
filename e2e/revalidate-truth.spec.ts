@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CACHE } from '../lib/cache-policy'
-import { revalidateTruthFindings } from '../lib/revalidate-truth'
+import { discoverRevalidatedRoutes, revalidateTruthFindings } from '../lib/revalidate-truth'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PUBLIC_SHOP = 'app/(public-read)/internal-public-read/[channel]/[identity]/[slug]/shop/[[...rest]]/page.tsx'
@@ -15,9 +16,20 @@ test.describe('revalidate truth · D7/D9/D12/D19', () => {
       { entry: PUBLIC_SHOP, expectedRevalidate: CACHE.SHOP },
       { entry: PUBLIC_LISTING, expectedRevalidate: CACHE.LISTING },
     ], ROOT)).toEqual([])
+    for (const entry of [PUBLIC_SHOP, PUBLIC_LISTING]) {
+      expect(revalidateTruthFindings([{ entry }], ROOT)).toEqual([])
+      const source = readFileSync(path.join(ROOT, entry), 'utf8')
+      expect(source).toMatch(/export function generateStaticParams\(\)\s*\{\s*return \[\]\s*\}/)
+    }
   })
 
   test('a deliberately dynamic route without revalidate is allowed', () => {
     expect(revalidateTruthFindings([{ entry: DYNAMIC_PREVIEW }], ROOT)).toEqual([])
+  })
+
+  test('every route that declares revalidate can honour it', () => {
+    const routes = discoverRevalidatedRoutes(ROOT)
+    expect(routes.length, 'the revalidate declaration scan found nothing').toBeGreaterThan(0)
+    expect(revalidateTruthFindings(routes, ROOT)).toEqual([])
   })
 })

@@ -4,8 +4,6 @@ import { db } from '@/lib/supabase'
 import AnalyticsClient from './AnalyticsClient'
 
 export const metadata = { title: 'Analíticas — Mi tienda' }
-export const revalidate = 300 // revalidate every 5 minutes
-
 export default async function AnalyticsPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')

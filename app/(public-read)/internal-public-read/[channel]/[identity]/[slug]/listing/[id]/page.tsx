@@ -10,6 +10,11 @@ import { isPublicReadChannel, type PublicReadChannel } from '@/lib/public-read'
 // D19: Next requires a literal. Story 2.3 proves this equals CACHE.LISTING.
 export const revalidate = 60
 
+// No live catalog is snapshotted at build time; the first eligible request seeds ISR.
+export function generateStaticParams() {
+  return []
+}
+
 type Props = {
   params: Promise<{
     channel: string

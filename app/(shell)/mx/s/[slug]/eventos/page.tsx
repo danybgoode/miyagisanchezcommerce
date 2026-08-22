@@ -6,8 +6,6 @@ import type { Metadata } from 'next'
 
 /** Living Shop — the "eventos" section under the `/mx` market prefix (epic 07, Sprint 3). */
 
-export const revalidate = 120
-
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const ctx = await resolveShopPresentation(slug, { marketBasePath: '/mx', market: 'mx' })

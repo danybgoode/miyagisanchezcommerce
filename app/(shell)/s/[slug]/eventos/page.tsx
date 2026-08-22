@@ -12,8 +12,6 @@ import type { Metadata } from 'next'
  * rather than branched per route.
  */
 
-export const revalidate = 120
-
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const ctx = await resolveShopPresentation(slug)

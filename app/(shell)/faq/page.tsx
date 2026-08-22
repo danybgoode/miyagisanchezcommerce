@@ -5,8 +5,6 @@ import { assertShopNotPreviewPrivate, isShopPreviewPrivateBySlug } from '@/lib/p
 import FaqBody from '../_shop-content/FaqBody'
 import type { Metadata } from 'next'
 
-export const revalidate = 120
-
 async function resolveChannelShop() {
   const channelSlug = (await headers()).get('x-miyagi-shop-slug')
   // No channel header ⇒ we're on the platform host, where a bare `/faq` has

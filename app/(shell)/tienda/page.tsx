@@ -17,8 +17,6 @@ import type { Metadata } from 'next'
  * and 404s without a Medusa call — the marketplace form is `/s/[slug]/tienda`.
  */
 
-export const revalidate = 120
-
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await resolveShopPresentation(null)
   if (!ctx) return { title: 'Página no encontrada' }
