@@ -25,6 +25,8 @@ interface MakeOfferButtonProps {
   }
   buyerInfo?: { name: string; email: string }
   isSignedIn: boolean
+  /** D8: viewer-state island already performed the single active-deal read. */
+  skipActiveOfferRead?: boolean
 }
 
 // ── Quality bar ───────────────────────────────────────────────────────────────
@@ -185,7 +187,7 @@ function ActiveOfferCard({
 
 type ModalStep = 'idle' | 'form' | 'submitting' | 'success' | 'error'
 
-export default function MakeOfferButton({ listing, isSignedIn }: MakeOfferButtonProps) {
+export default function MakeOfferButton({ listing, isSignedIn, skipActiveOfferRead = false }: MakeOfferButtonProps) {
   const copy = useBuyerCopy()
   const pathname = usePathname()
   const router = useRouter()
@@ -203,7 +205,7 @@ export default function MakeOfferButton({ listing, isSignedIn }: MakeOfferButton
 
   // Load active offer on mount (only if signed in)
   useEffect(() => {
-    if (!isSignedIn) return
+    if (!isSignedIn || skipActiveOfferRead) return
     async function load() {
       try {
         const res = await fetch(`/api/offers?listingId=${listing.id}`)
@@ -215,7 +217,7 @@ export default function MakeOfferButton({ listing, isSignedIn }: MakeOfferButton
       }
     }
     load()
-  }, [listing.id, isSignedIn])
+  }, [listing.id, isSignedIn, skipActiveOfferRead])
 
   useEffect(() => {
     if (step !== 'form') return
