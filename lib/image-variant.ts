@@ -40,7 +40,10 @@ export function resolveImageVariant(searchParams: URLSearchParams): ImageVariant
   if (!src || !rawWidth || !rawQuality) return { ok: false, error: 'Parámetros de imagen incompletos.' }
 
   try {
-    if (new URL(src).toString() !== src) return { ok: false, error: 'URL de imagen no canónica.' }
+    const parsedSrc = new URL(src)
+    // Fragments are not sent upstream. Accepting them would create unlimited
+    // distinct Cloudflare keys for the same fetch and Sharp transform.
+    if (parsedSrc.hash || parsedSrc.toString() !== src) return { ok: false, error: 'URL de imagen no canónica.' }
   } catch {
     return { ok: false, error: 'URL de imagen inválida.' }
   }

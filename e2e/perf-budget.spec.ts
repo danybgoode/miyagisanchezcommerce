@@ -109,6 +109,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
       new URLSearchParams({ url: 'https://IMAGES.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example:443/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/a/../item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg#one', w: '64', q: '75', f: 'webp', v: '2' }),
     ]) expect(resolveImageVariant(query).ok).toBe(false)
   })
 
