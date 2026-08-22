@@ -55,8 +55,10 @@ export function resolveImageVariant(
     // contract has no source query. Accepting either would create unlimited
     // distinct Cloudflare keys for the same fetch and Sharp transform.
     if (
-      parsedSrc.hash ||
-      parsedSrc.search ||
+      // WHATWG exposes trailing empty `?` / `#` components as empty strings,
+      // so inspect the source spelling too or those aliases survive.
+      src.includes('?') ||
+      src.includes('#') ||
       parsedSrc.username ||
       parsedSrc.password ||
       canonicalizePercentEncoding(parsedSrc.toString()) !== src
