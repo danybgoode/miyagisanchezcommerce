@@ -17,6 +17,17 @@ import {
   retiredShopMarketRedirectPath,
   stripMarketPrefix,
 } from '@/lib/market-url'
+import {
+  PUBLIC_PREVIEW_PREFIX,
+  isInternalPublicPath,
+  publicReadEligibility,
+  publicReadPath,
+} from '@/lib/public-read'
+import {
+  embedPublicReadCandidate,
+  marketplacePublicReadCandidate,
+  subdomainPublicReadCandidate,
+} from '@/lib/public-read-routing'
 
 // Routes that require a signed-in user
 const isProtected = createRouteMatcher([
@@ -65,6 +76,15 @@ function setFundadorasSubjectCookie(response: NextResponse, subjectId: string | 
 }
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
+  // Internal render paths carry middleware-decided channel identity. They are
+  // never a public API and a direct request must not be able to forge one.
+  if (isInternalPublicPath(req.nextUrl.pathname)) {
+    return new NextResponse('Not found.', {
+      status: 404,
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    })
+  }
+
   const hostname = req.headers.get('host') ?? ''
 
   // ── Subdomain channel: <slug>.miyagisanchez.com ──────────────────────────
@@ -78,17 +98,19 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     let slug: string | null = null
     let shopMetadata: unknown = null
     let shopClerkId: string | null = null
+    let shopId: string | null = null
     let redirectTo: string | null = null
     try {
       const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
       const { data: shop } = await supabase
         .from('marketplace_shops')
-        .select('slug, metadata, clerk_user_id')
+        .select('id, slug, metadata, clerk_user_id')
         .eq('slug', subSlug)
         .maybeSingle()
       slug = shop?.slug ?? null
       shopMetadata = shop?.metadata ?? null
       shopClerkId = (shop?.clerk_user_id as string | null) ?? null
+      shopId = (shop?.id as string | null) ?? null
       if (!slug) {
         // Maybe a retired slug — look it up in the alias history (same store as
         // the /s/[slug] redirect). Inline (no unstable_cache — invalid here).
@@ -142,6 +164,37 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         url.pathname = `/mx/s/${slug}`
         url.search = ''
         return NextResponse.redirect(url, 301)
+      }
+
+      const publicCandidate = subdomainPublicReadCandidate(req.nextUrl.pathname, req.nextUrl.search)
+      if (publicCandidate && (await publicReadEligibility({ slug, clerk_user_id: shopClerkId })).eligible) {
+        let resolved = publicCandidate.kind === 'shop'
+        if (publicCandidate.kind === 'listing' && shopId) {
+          try {
+            const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+            const { data, error } = await supabase
+              .from('marketplace_listings')
+              .select('id')
+              .eq('medusa_product_id', publicCandidate.listingId)
+              .eq('shop_id', shopId)
+              .eq('status', 'active')
+              .maybeSingle()
+            resolved = !error && !!data
+          } catch {
+            resolved = false
+          }
+        }
+        if (resolved) {
+          const url = req.nextUrl.clone()
+          url.pathname = publicReadPath({
+            channel: 'subdomain',
+            identity: hostname.split(':')[0].toLowerCase(),
+            shopSlug: slug,
+            surface: publicCandidate.kind,
+            tail: publicCandidate.kind === 'listing' ? publicCandidate.listingId : undefined,
+          })
+          return NextResponse.rewrite(url)
+        }
       }
 
       // Boundary isolation (same as custom domains): a subdomain serves ONLY its
@@ -366,6 +419,29 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // can frame it; buy actions break out to a top-level tab on our own origin.
   if (req.nextUrl.pathname.startsWith('/embed/')) {
     headers.set('x-miyagi-embed', '1')
+    const publicCandidate = embedPublicReadCandidate(req.nextUrl.pathname, req.nextUrl.search)
+    if (publicCandidate) {
+      try {
+        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+        const { data: shop, error } = await supabase
+          .from('marketplace_shops')
+          .select('slug, clerk_user_id')
+          .eq('slug', publicCandidate.shopSlug)
+          .maybeSingle()
+        if (!error && shop && (await publicReadEligibility(shop)).eligible) {
+          const url = req.nextUrl.clone()
+          url.pathname = publicReadPath({
+            channel: 'embed',
+            identity: hostname.split(':')[0].toLowerCase(),
+            shopSlug: shop.slug,
+            surface: 'shop',
+          })
+          return NextResponse.rewrite(url)
+        }
+      } catch {
+        // Unavailable eligibility is a dynamic bypass, never a cached guess.
+      }
+    }
     return NextResponse.next({ request: { headers } })
   }
 
@@ -399,6 +475,62 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         },
       },
     )
+  }
+
+  // D7–D10/D19: resolve cache eligibility before rewriting the original public
+  // URL into the request-neutral renderer. Unknown/unclaimed/private/error cases
+  // stay on the shipped dynamic route and therefore do not acquire public cache
+  // headers. The only query admitted is the exact owner preview escape hatch.
+  const publicCandidate = marketplacePublicReadCandidate(req.nextUrl.pathname, req.nextUrl.search)
+  if (publicCandidate?.kind === 'preview') {
+    const url = req.nextUrl.clone()
+    url.pathname = `${PUBLIC_PREVIEW_PREFIX}/mx/s/${encodeURIComponent(publicCandidate.shopSlug)}`
+    return NextResponse.rewrite(url, { request: { headers } })
+  }
+  if (publicCandidate) {
+    try {
+      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      if (publicCandidate.kind === 'shop') {
+        const { data: shop, error } = await supabase
+          .from('marketplace_shops')
+          .select('slug, clerk_user_id')
+          .eq('slug', publicCandidate.shopSlug)
+          .maybeSingle()
+        if (!error && shop && (await publicReadEligibility(shop)).eligible) {
+          const url = req.nextUrl.clone()
+          url.pathname = publicReadPath({
+            channel: 'marketplace',
+            identity: hostname.split(':')[0].toLowerCase(),
+            shopSlug: shop.slug,
+            surface: 'shop',
+            tail: publicCandidate.tail,
+          })
+          return NextResponse.rewrite(url)
+        }
+      } else {
+        const { data: mirror, error } = await supabase
+          .from('marketplace_listings')
+          .select('marketplace_shops!inner(slug, clerk_user_id)')
+          .eq('medusa_product_id', publicCandidate.listingId)
+          .eq('status', 'active')
+          .maybeSingle()
+        const relation = mirror?.marketplace_shops
+        const shop = Array.isArray(relation) ? relation[0] : relation
+        if (!error && shop && (await publicReadEligibility(shop)).eligible) {
+          const url = req.nextUrl.clone()
+          url.pathname = publicReadPath({
+            channel: 'marketplace',
+            identity: hostname.split(':')[0].toLowerCase(),
+            shopSlug: shop.slug,
+            surface: 'listing',
+            tail: publicCandidate.listingId,
+          })
+          return NextResponse.rewrite(url)
+        }
+      }
+    } catch {
+      // Unavailable eligibility is a dynamic bypass, never a cached guess.
+    }
   }
 
   // ── Legacy marketplace paths → canonical Mexico market (LAST route rule) ─

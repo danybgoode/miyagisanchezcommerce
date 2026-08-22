@@ -1,0 +1,50 @@
+import { expect, test } from '@playwright/test'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const read = (relative: string) => fs.readFileSync(path.join(ROOT, relative), 'utf8')
+
+test.describe('public renderer parity · D7/D8/D19', () => {
+  test('public shop dispatches into every shipped rich surface, including embed', () => {
+    const route = read('app/(public-read)/internal-public-read/[channel]/[identity]/[slug]/shop/[[...rest]]/page.tsx')
+    expect(route).toContain("from '@/app/(shell)/s/[slug]/ShopRenderer'")
+    expect(route).toContain("from '@/app/(shell)/embed/s/[slug]/page'")
+    for (const surface of ['acerca', 'colecciones', 'eventos', 'faq', 'politicas', 'tienda']) {
+      expect(route).toContain(`case '${surface}'`)
+    }
+    expect(route).not.toContain('getMarketplaceShopListings')
+    expect(route).not.toContain('formatPrice')
+  })
+
+  test('public PDP is the shipped renderer with one island and all specialized actions', () => {
+    const route = read('app/(public-read)/internal-public-read/[channel]/[identity]/[slug]/listing/[id]/page.tsx')
+    const renderer = read('app/(shell)/l/[id]/ListingRenderer.tsx')
+    const island = read('app/components/PublicPdpViewerIsland.tsx')
+    expect(route).toContain("from '@/app/(shell)/l/[id]/ListingRenderer'")
+    expect(route).not.toContain("from '@/lib/listings'")
+    expect(renderer.match(/<PublicPdpViewerIsland\b/g)).toHaveLength(1)
+    for (const kind of ['configurator', 'personalization', 'event', 'rental', 'subscription', 'digital']) {
+      expect(island).toContain(`action.kind === '${kind}'`)
+    }
+  })
+
+  test('only dynamic adapters own request state and preview overlay imports', () => {
+    const shopAdapter = read('app/(shell)/s/[slug]/page.tsx')
+    const shopRenderer = read('app/(shell)/s/[slug]/ShopRenderer.tsx')
+    const listingAdapter = read('app/(shell)/l/[id]/page.tsx')
+    const listingRenderer = read('app/(shell)/l/[id]/ListingRenderer.tsx')
+    const context = read('lib/shop-presentation/context.ts')
+    const requestContext = read('lib/shop-presentation/request-context.ts')
+
+    expect(shopAdapter).toContain("from 'next/headers'")
+    expect(shopAdapter).toContain('shop-presentation/preview')
+    expect(shopRenderer).not.toContain("from 'next/headers'")
+    expect(shopRenderer).not.toContain('shop-presentation/preview')
+    expect(listingAdapter).toContain("from '@clerk/nextjs/server'")
+    expect(listingRenderer).not.toContain("from '@clerk/nextjs/server'")
+    expect(context).not.toContain("from 'next/headers'")
+    expect(requestContext).toContain("from 'next/headers'")
+  })
+})

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { resolveShopPresentation } from '@/lib/shop-presentation/context'
+import { resolveRequestShopPresentation as resolveShopPresentation } from '@/lib/shop-presentation/request-context'
 import { navSections } from '@/lib/shop-presentation/sections'
 import ShopIndexBody from '../_shop-sections/ShopIndexBody'
 import type { Metadata } from 'next'
