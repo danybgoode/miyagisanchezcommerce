@@ -51,10 +51,12 @@ export function resolveImageVariant(
 
   try {
     const parsedSrc = new URL(src)
-    // Fragments are not sent upstream. Accepting them would create unlimited
+    // Fragments are not sent upstream and the live R2/Supabase public-image
+    // contract has no source query. Accepting either would create unlimited
     // distinct Cloudflare keys for the same fetch and Sharp transform.
     if (
       parsedSrc.hash ||
+      parsedSrc.search ||
       parsedSrc.username ||
       parsedSrc.password ||
       canonicalizePercentEncoding(parsedSrc.toString()) !== src
