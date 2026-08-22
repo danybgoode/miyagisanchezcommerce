@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { imageVaryHeader, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
 
 /**
  * hyper-performant-website S1 — the seed for the Sprint-1 acceptance checks
@@ -31,6 +32,7 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(loader).toMatch(/url:\s*src/)
     expect(loader).toMatch(/w:\s*String\(width\)/)
     expect(loader).toMatch(/f:\s*'webp'/)
+    expect(loader).toMatch(/v:\s*'2'/)
   })
 
   test('the custom loader emits one quality-75 variant, avoiding extra cold origin encodes', () => {
@@ -73,28 +75,28 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(fetchCall).toMatch(/redirect:\s*'error'/)
   })
 
-  test('/api/img snaps quality to a small fixed ladder, not a free 40-90 range (DoS-amplification guard)', () => {
-    const route = read('app/api/img/route.ts')
-    expect(route).toMatch(/QUALITY_LADDER\s*=\s*\[60,\s*75,\s*90\]/)
-    expect(route).toMatch(/const quality = snapQuality\(/)
+  test('/api/img preserves legacy negotiation and makes fixed WebP independent of Accept', () => {
+    expect(selectImageFormat(null, 'image/avif,image/webp')).toBe('avif')
+    expect(imageVaryHeader(null)).toEqual({ Vary: 'Accept' })
+    expect(selectImageFormat('webp', 'image/avif')).toBe('webp')
+    expect(imageVaryHeader('webp')).toEqual({})
   })
 
-  test('/api/img prefers WebP when a modern browser advertises both WebP and AVIF, retaining compatibility fallbacks', () => {
-    const route = read('app/api/img/route.ts')
-    const negotiation = route.match(/const negotiatedFormat:[\s\S]*?:\s*'jpeg'/)?.[0]
-    expect(negotiation, 'expected the /api/img format negotiation').toBeTruthy()
-    expect(negotiation).toMatch(/accept\.includes\('image\/webp'\)/)
-    expect(negotiation).toMatch(/accept\.includes\('image\/avif'\)/)
-    expect(negotiation!.indexOf("image/webp")).toBeLessThan(negotiation!.indexOf("image/avif"))
-  })
+  test('/api/img accepts only canonical bounded cache keys before any origin encode', () => {
+    const src = 'https://images.example/item.jpg'
+    const legacy = new URLSearchParams({ url: src, w: '160', q: '90' })
+    const fixed = new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2' })
+    expect(resolveImageVariant(legacy)).toMatchObject({ ok: true, variant: { width: 160, quality: 90, fixedFormat: null } })
+    expect(resolveImageVariant(fixed)).toMatchObject({ ok: true, variant: { width: 640, quality: 75, fixedFormat: 'webp' } })
 
-  test('/api/img fixes allow-listed output formats in the cache key while legacy URLs keep Accept negotiation', () => {
-    const route = read('app/api/img/route.ts')
-    expect(route).toMatch(/FIXED_FORMATS\s*=\s*new Set<OutputFormat>\(\['webp',\s*'avif',\s*'jpeg'\]\)/)
-    expect(route).toMatch(/requestedFormat !== null && !FIXED_FORMATS\.has\(requestedFormat as OutputFormat\)/)
-    expect(route).toMatch(/formato de imagen no permitido[\s\S]*status:\s*400/)
-    expect(route).toMatch(/const format = fixedFormat \?\? negotiatedFormat/)
-    expect(route).toMatch(/fixedFormat \? \{\} : \{ 'Vary': 'Accept' \}/)
+    for (const query of [
+      new URLSearchParams({ url: src, w: '641', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '90', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'avif', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp' }),
+      new URLSearchParams({ w: '640', url: src, q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2', extra: '1' }),
+    ]) expect(resolveImageVariant(query).ok).toBe(false)
   })
 
   test('new R2 uploads get a long-lived Cache-Control at the object level', () => {
