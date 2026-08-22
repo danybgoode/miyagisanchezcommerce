@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { shopSlugFromHost, ROOT_DOMAIN } from '@/lib/subdomain'
 import { pickAliasTarget, type PreviousSlug } from '@/lib/slug'
 import {
@@ -86,6 +86,11 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
 
   const hostname = req.headers.get('host') ?? ''
+  let requestDb: SupabaseClient | undefined
+  const getRequestDb = () => {
+    requestDb ??= createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    return requestDb
+  }
 
   // ── Subdomain channel: <slug>.miyagisanchez.com ──────────────────────────
   // A shop's slug doubles as a free subdomain. Resolve it and serve the WHOLE
@@ -101,7 +106,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     let shopId: string | null = null
     let redirectTo: string | null = null
     try {
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const supabase = getRequestDb()
       const { data: shop } = await supabase
         .from('marketplace_shops')
         .select('id, slug, metadata, clerk_user_id')
@@ -171,7 +176,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         let resolved = publicCandidate.kind === 'shop'
         if (publicCandidate.kind === 'listing' && shopId) {
           try {
-            const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+            const supabase = getRequestDb()
             const { data, error } = await supabase
               .from('marketplace_listings')
               .select('id')
@@ -270,7 +275,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
     let target: string | null = null
     try {
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const supabase = getRequestDb()
       // 1) Live shop slug.
       const { data: shop } = await supabase
         .from('marketplace_shops').select('slug').eq('slug', seg).maybeSingle()
@@ -322,10 +327,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
     let slug: string | null = null
     try {
-      const supabase = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
+      const supabase = getRequestDb()
       const { data: shop } = await supabase
         .from('marketplace_shops')
         .select('slug')
@@ -422,7 +424,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     const publicCandidate = embedPublicReadCandidate(req.nextUrl.pathname, req.nextUrl.search)
     if (publicCandidate) {
       try {
-        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+        const supabase = getRequestDb()
         const { data: shop, error } = await supabase
           .from('marketplace_shops')
           .select('slug, clerk_user_id')
@@ -489,7 +491,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   }
   if (publicCandidate) {
     try {
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const supabase = getRequestDb()
       if (publicCandidate.kind === 'shop') {
         const { data: shop, error } = await supabase
           .from('marketplace_shops')
@@ -549,7 +551,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (legacyShopMatch && isLikelyShopSlug(legacyShopMatch[1])) {
     try {
       const requestedSlug = legacyShopMatch[1].toLowerCase()
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const supabase = getRequestDb()
       const { data: aliasShop, error: aliasError } = await supabase
         .from('marketplace_shops')
         .select('slug, metadata')

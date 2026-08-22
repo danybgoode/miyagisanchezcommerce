@@ -29,4 +29,9 @@ test.describe('public read middleware boundary · D7/D9/D10/D11', () => {
     expect(custom).toBeGreaterThan(0)
     expect(custom).toBeLessThan(marketplace)
   })
+
+  test('one middleware invocation reuses one lazy Supabase client', () => {
+    expect(middleware.match(/createClient\(process\.env\.SUPABASE_URL!/g)?.length).toBe(1)
+    expect(middleware.match(/const supabase = getRequestDb\(\)/g)?.length).toBe(7)
+  })
 })
