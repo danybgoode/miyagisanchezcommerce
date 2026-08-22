@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
 
 /**
  * hyper-performant-website S1 — the seed for the Sprint-1 acceptance checks
@@ -30,12 +31,28 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(loader).toMatch(/\/api\/img\?/)
     expect(loader).toMatch(/url:\s*src/)
     expect(loader).toMatch(/w:\s*String\(width\)/)
+    expect(loader).toMatch(/f:\s*'webp'/)
+    expect(loader).toMatch(/v:\s*'2'/)
+  })
+
+  test('the custom loader emits one quality-75 variant, avoiding extra cold origin encodes', () => {
+    const loader = read('lib/image-loader.ts')
+    expect(loader).toMatch(/q:\s*'75'/)
+    expect(loader).not.toMatch(/quality\s*\?\?/)
   })
 
   test('next.config.ts registers the custom loader (bypasses the broken /_next/image route)', () => {
     const cfg = read('next.config.ts')
     expect(cfg).toMatch(/loader:\s*'custom'/)
     expect(cfg).toMatch(/loaderFile:\s*'.\/lib\/image-loader\.ts'/)
+  })
+
+  test('next/image emits the D5 reduced width set for its actual optimized call sites', () => {
+    const cfg = read('next.config.ts')
+    expect(LOADER_DEVICE_WIDTHS).toEqual([384, 640, 828, 1200, 1920])
+    expect(LOADER_IMAGE_WIDTHS).toEqual([64, 96])
+    expect(cfg).toMatch(/deviceSizes:\s*\[\.\.\.LOADER_DEVICE_WIDTHS\]/)
+    expect(cfg).toMatch(/imageSizes:\s*\[\.\.\.LOADER_IMAGE_WIDTHS\]/)
   })
 
   test('/api/img validates the source host against an allow-list (no open SSRF proxy)', () => {
@@ -60,10 +77,57 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     expect(fetchCall).toMatch(/redirect:\s*'error'/)
   })
 
-  test('/api/img snaps quality to a small fixed ladder, not a free 40-90 range (DoS-amplification guard)', () => {
-    const route = read('app/api/img/route.ts')
-    expect(route).toMatch(/QUALITY_LADDER\s*=\s*\[60,\s*75,\s*90\]/)
-    expect(route).toMatch(/const quality = snapQuality\(/)
+  test('/api/img preserves legacy negotiation and makes fixed WebP independent of Accept', () => {
+    expect(selectImageFormat(null, 'image/avif,image/webp')).toBe('avif')
+    expect(imageVaryHeader(null)).toEqual({ Vary: 'Accept' })
+    expect(selectImageFormat('webp', 'image/avif')).toBe('webp')
+    expect(imageVaryHeader('webp')).toEqual({})
+  })
+
+  test('/api/img accepts only canonical bounded cache keys before any origin encode', () => {
+    const src = 'https://images.example/item.jpg'
+    const decideRaw = (raw: string) => resolveImageVariant(new URLSearchParams(raw), raw)
+    const legacy = new URLSearchParams({ url: src, w: '160', q: '90' })
+    const fixed = new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2' })
+    expect(resolveImageVariant(legacy)).toMatchObject({ ok: true, variant: { width: 160, quality: 90, fixedFormat: null } })
+    expect(resolveImageVariant(fixed)).toMatchObject({ ok: true, variant: { width: 640, quality: 75, fixedFormat: 'webp' } })
+    const canonicalRaw = fixed.toString()
+    expect(decideRaw(canonicalRaw)).toMatchObject({ ok: true })
+    expect(decideRaw(canonicalRaw.replace('%3A', '%3a'))).toMatchObject({ ok: false })
+    expect(decideRaw(canonicalRaw.replace('w=640', 'w=%36%34%30'))).toMatchObject({ ok: false })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '48', q: '75' }))).toMatchObject({ ok: true, variant: { width: 64 } })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '2048', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
+    expect(resolveImageVariant(new URLSearchParams({ url: src, w: '3840', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
+
+    for (const query of [
+      new URLSearchParams({ url: src, w: '641', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '90', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'avif', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp' }),
+      new URLSearchParams({ w: '640', url: src, q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2', extra: '1' }),
+      new URLSearchParams({ url: src, w: '064', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '64.0', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '6.4e1', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '0x40', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: src, w: '64', q: '075', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://IMAGES.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example:443/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/a/../item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg#one', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%7E.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%7e.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%2Fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%2fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%20part.jpg', w: '160', q: '75' }),
+      new URLSearchParams({ url: 'https://images.example/item%25part.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://user@images.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg?cache_alias=1', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg?cache_alias=1', w: '160', q: '75' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg?', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg#', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item.jpg?#', w: '160', q: '75' }),
+    ]) expect(resolveImageVariant(query).ok).toBe(false)
   })
 
   test('new R2 uploads get a long-lived Cache-Control at the object level', () => {

@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
+import { LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS } from './lib/image-variant'
 
 const nextConfig: NextConfig = {
   // Self-contained server bundle for the Cloud Run container (09-platform-infra
@@ -18,7 +19,16 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
     ],
-    formats: ['image/avif', 'image/webp'],
+    // D5 — only these candidates are emitted by the custom loader. The set is
+    // based on every current optimized call site: 25vw cards, a 100vw/1120px
+    // feature image, and the 40px catalogue thumbnail (the preview is
+    // explicitly unoptimized). Keeping it small bounds cold origin encodes
+    // without changing the /api/img route's compatibility width ladder.
+    deviceSizes: [...LOADER_DEVICE_WIDTHS],
+    imageSizes: [...LOADER_IMAGE_WIDTHS],
+    // `images.formats` is a Next type limited to WebP/AVIF. JPEG fallback is
+    // negotiated inside /api/img for clients that do not advertise WebP.
+    formats: ['image/webp'],
     loader: 'custom',
     loaderFile: './lib/image-loader.ts',
   },
