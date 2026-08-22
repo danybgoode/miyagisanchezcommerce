@@ -33,13 +33,6 @@ function legacyTransformWidth(requested: number): number {
  * every URL the old custom loader actually emitted. The fixed branch accepts
  * only the one versioned shape emitted by the new loader.
  */
-function canonicalizePercentEncoding(value: string): string {
-  return value.replace(/%([0-9a-fA-F]{2})/g, (_match, hex: string) => {
-    const character = String.fromCharCode(Number.parseInt(hex, 16))
-    return /^[A-Za-z0-9\-._~]$/.test(character) ? character : `%${hex.toUpperCase()}`
-  })
-}
-
 export function resolveImageVariant(
   searchParams: URLSearchParams,
   rawQuery = searchParams.toString(),
@@ -51,17 +44,19 @@ export function resolveImageVariant(
 
   try {
     const parsedSrc = new URL(src)
-    // Fragments are not sent upstream and the live R2/Supabase public-image
-    // contract has no source query. Accepting either would create unlimited
-    // distinct Cloudflare keys for the same fetch and Sharp transform.
+    // The live R2/Supabase public-image contract has no queries, fragments or
+    // percent escapes. R2 serves an encoded path separator (%2F) as the same
+    // object as '/', so accepting any percent spelling would reopen duplicate
+    // edge keys for the same fetch and Sharp transform.
     if (
       // WHATWG exposes trailing empty `?` / `#` components as empty strings,
       // so inspect the source spelling too or those aliases survive.
       src.includes('?') ||
       src.includes('#') ||
+      src.includes('%') ||
       parsedSrc.username ||
       parsedSrc.password ||
-      canonicalizePercentEncoding(parsedSrc.toString()) !== src
+      parsedSrc.toString() !== src
     ) return { ok: false, error: 'URL de imagen no canónica.' }
   } catch {
     return { ok: false, error: 'URL de imagen inválida.' }

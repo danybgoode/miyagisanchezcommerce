@@ -91,7 +91,6 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
     const fixed = new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2' })
     expect(resolveImageVariant(legacy)).toMatchObject({ ok: true, variant: { width: 160, quality: 90, fixedFormat: null } })
     expect(resolveImageVariant(fixed)).toMatchObject({ ok: true, variant: { width: 640, quality: 75, fixedFormat: 'webp' } })
-    expect(resolveImageVariant(new URLSearchParams({ url: 'https://images.example/item%2Fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }))).toMatchObject({ ok: true })
     const canonicalRaw = fixed.toString()
     expect(decideRaw(canonicalRaw)).toMatchObject({ ok: true })
     expect(decideRaw(canonicalRaw.replace('%3A', '%3a'))).toMatchObject({ ok: false })
@@ -118,7 +117,10 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
       new URLSearchParams({ url: 'https://images.example/item.jpg#one', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item%7E.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item%7e.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%2Fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item%2fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%20part.jpg', w: '160', q: '75' }),
+      new URLSearchParams({ url: 'https://images.example/item%25part.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://user@images.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item.jpg?cache_alias=1', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item.jpg?cache_alias=1', w: '160', q: '75' }),
