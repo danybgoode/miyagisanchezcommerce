@@ -346,8 +346,8 @@ test.describe('every public shop-shell + PDP surface consults the preview anchor
     // (file, why it's public). Every one of these renders a merchant's shop or
     // product identity to an anonymous visitor.
     const surfaces: Array<[string, string]> = [
-      ['app/(shell)/l/[id]/page.tsx', 'the PDP — the last public product surface'],
-      ['app/(shell)/s/[slug]/page.tsx', 'the shop home'],
+      ['app/(shell)/l/[id]/ListingRenderer.tsx', 'the shared PDP renderer — the last public product surface'],
+      ['app/(shell)/s/[slug]/ShopRenderer.tsx', 'the shared shop-home renderer'],
       ['app/(shell)/s/[slug]/acerca/page.tsx', 'shop about'],
       ['app/(shell)/s/[slug]/faq/page.tsx', 'shop faq'],
       ['app/(shell)/s/[slug]/politicas/page.tsx', 'shop policies'],

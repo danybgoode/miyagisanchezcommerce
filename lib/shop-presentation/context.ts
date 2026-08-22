@@ -14,7 +14,6 @@ import 'server-only'
  * public. Both answer `null`, and the caller `notFound()`s.
  */
 
-import { headers } from 'next/headers'
 import { getShop, getShopCollections } from '@/lib/listings'
 import { isShopPreviewPrivateBySlug } from '@/lib/preview-access'
 import { isLikelyShopSlug } from '@/lib/route-shape'
@@ -110,15 +109,15 @@ export interface ShopPresentationOptions {
    * inferable from a URL prefix is exactly what it exists to catch.
    */
   market?: MarketCode
+  /** Explicit tenant identity supplied only by a dynamic owned-host adapter. */
+  ownedShopSlug?: string | null
 }
 
 export async function resolveShopPresentation(
   slug: string | null,
   options: ShopPresentationOptions = {},
 ): Promise<ShopPresentationContext | null> {
-  const { marketBasePath = '', market } = options
-  const requestHeaders = await headers()
-  const channelSlug = requestHeaders.get('x-miyagi-shop-slug')
+  const { marketBasePath = '', market, ownedShopSlug: channelSlug = null } = options
   const onOwnedHost = !!channelSlug
   const resolvedSlug = channelSlug ?? slug
 
