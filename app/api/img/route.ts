@@ -52,7 +52,9 @@ function allowedHosts(): Set<string> {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
-  const decision = resolveImageVariant(searchParams)
+  // Pass the raw query spelling too: URLSearchParams normalizes percent
+  // escapes, while Cloudflare keys the bytes it received before this route.
+  const decision = resolveImageVariant(searchParams, req.nextUrl.search.slice(1))
   if (!decision.ok) return NextResponse.json({ error: decision.error }, { status: 400 })
   const { src, width, quality, fixedFormat } = decision.variant
 

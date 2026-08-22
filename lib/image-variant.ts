@@ -33,7 +33,17 @@ function legacyTransformWidth(requested: number): number {
  * every URL the old custom loader actually emitted. The fixed branch accepts
  * only the one versioned shape emitted by the new loader.
  */
-export function resolveImageVariant(searchParams: URLSearchParams): ImageVariantDecision {
+function canonicalizePercentEncoding(value: string): string {
+  return value.replace(/%([0-9a-fA-F]{2})/g, (_match, hex: string) => {
+    const character = String.fromCharCode(Number.parseInt(hex, 16))
+    return /^[A-Za-z0-9\-._~]$/.test(character) ? character : `%${hex.toUpperCase()}`
+  })
+}
+
+export function resolveImageVariant(
+  searchParams: URLSearchParams,
+  rawQuery = searchParams.toString(),
+): ImageVariantDecision {
   const src = searchParams.get('url')
   const rawWidth = searchParams.get('w')
   const rawQuality = searchParams.get('q')
@@ -43,7 +53,12 @@ export function resolveImageVariant(searchParams: URLSearchParams): ImageVariant
     const parsedSrc = new URL(src)
     // Fragments are not sent upstream. Accepting them would create unlimited
     // distinct Cloudflare keys for the same fetch and Sharp transform.
-    if (parsedSrc.hash || parsedSrc.toString() !== src) return { ok: false, error: 'URL de imagen no canónica.' }
+    if (
+      parsedSrc.hash ||
+      parsedSrc.username ||
+      parsedSrc.password ||
+      canonicalizePercentEncoding(parsedSrc.toString()) !== src
+    ) return { ok: false, error: 'URL de imagen no canónica.' }
   } catch {
     return { ok: false, error: 'URL de imagen inválida.' }
   }
@@ -70,7 +85,7 @@ export function resolveImageVariant(searchParams: URLSearchParams): ImageVariant
     canonical.set('f', 'webp')
     canonical.set('v', '2')
   }
-  if (searchParams.toString() !== canonical.toString()) {
+  if (rawQuery !== canonical.toString()) {
     return { ok: false, error: 'Parámetros de imagen no canónicos.' }
   }
 

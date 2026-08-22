@@ -86,10 +86,16 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
 
   test('/api/img accepts only canonical bounded cache keys before any origin encode', () => {
     const src = 'https://images.example/item.jpg'
+    const decideRaw = (raw: string) => resolveImageVariant(new URLSearchParams(raw), raw)
     const legacy = new URLSearchParams({ url: src, w: '160', q: '90' })
     const fixed = new URLSearchParams({ url: src, w: '640', q: '75', f: 'webp', v: '2' })
     expect(resolveImageVariant(legacy)).toMatchObject({ ok: true, variant: { width: 160, quality: 90, fixedFormat: null } })
     expect(resolveImageVariant(fixed)).toMatchObject({ ok: true, variant: { width: 640, quality: 75, fixedFormat: 'webp' } })
+    expect(resolveImageVariant(new URLSearchParams({ url: 'https://images.example/item%2Fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }))).toMatchObject({ ok: true })
+    const canonicalRaw = fixed.toString()
+    expect(decideRaw(canonicalRaw)).toMatchObject({ ok: true })
+    expect(decideRaw(canonicalRaw.replace('%3A', '%3a'))).toMatchObject({ ok: false })
+    expect(decideRaw(canonicalRaw.replace('w=640', 'w=%36%34%30'))).toMatchObject({ ok: false })
     expect(resolveImageVariant(new URLSearchParams({ url: src, w: '48', q: '75' }))).toMatchObject({ ok: true, variant: { width: 64 } })
     expect(resolveImageVariant(new URLSearchParams({ url: src, w: '2048', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
     expect(resolveImageVariant(new URLSearchParams({ url: src, w: '3840', q: '75' }))).toMatchObject({ ok: true, variant: { width: 1920 } })
@@ -110,6 +116,10 @@ test.describe('perf-budget · source-code checks (deterministic, no network)', (
       new URLSearchParams({ url: 'https://images.example:443/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/a/../item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
       new URLSearchParams({ url: 'https://images.example/item.jpg#one', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%7E.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%7e.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://images.example/item%2fpart.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
+      new URLSearchParams({ url: 'https://user@images.example/item.jpg', w: '64', q: '75', f: 'webp', v: '2' }),
     ]) expect(resolveImageVariant(query).ok).toBe(false)
   })
 
