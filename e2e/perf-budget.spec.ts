@@ -4,13 +4,13 @@ import { join } from 'path'
 import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
 import { readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
 
-// D16 — calibrated after the S3 diet against this built output with the same
-// deterministic Brotli encoder the gate uses. Keep the measured value beside
-// its ceiling so a future failure is distinguishable from a stale budget.
+// D16 — calibrated at release head 0faec5d against this built output with the
+// same deterministic Brotli encoder the gate uses. Keep the measured value
+// beside its ceiling so a future failure is distinguishable from a stale budget.
 const BUYER_ROUTE_BUDGETS = {
-  '/mx': { measured: 90_731, ceiling: 100_000 },
-  '/mx/l/[id]': { measured: 101_515, ceiling: 112_000 },
-  '/mx/s/[slug]': { measured: 83_479, ceiling: 92_000 },
+  '/mx': { measured: 90_861, ceiling: 100_000 },
+  '/mx/l/[id]': { measured: 101_601, ceiling: 112_000 },
+  '/mx/s/[slug]': { measured: 83_565, ceiling: 92_000 },
 } as const
 
 /**
