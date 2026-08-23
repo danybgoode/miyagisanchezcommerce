@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 function walk(dir: string): string[] {
@@ -18,6 +18,13 @@ test('S3.1 · D13 — built client chunks exclude Sentry Replay while the client
   expect(sentry).not.toContain('replaysOnErrorSampleRate')
 
   const chunksDir = path.join('.next', 'static', 'chunks')
+  test.skip(
+    process.env.REMOTE_PREVIEW_ONLY === 'true' && !existsSync(chunksDir),
+    'built-artifact guard runs in the typecheck-build job; this job verifies the remote preview',
+  )
+  if (!existsSync(chunksDir)) {
+    throw new Error(`UNAVAILABLE — built client chunk directory missing: ${chunksDir}`)
+  }
   const chunks = walk(chunksDir).filter((file) => file.endsWith('.js'))
   expect(chunks.length, 'UNAVAILABLE — no built client chunks').toBeGreaterThan(0)
   const replayChunks = chunks.filter((file) => /replayIntegration|replaysSessionSampleRate/.test(readFileSync(file, 'utf8')))

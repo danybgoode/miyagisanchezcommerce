@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
 import { readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
@@ -357,6 +357,11 @@ test.describe('perf-budget · S2.3 mechanism fixture (no network — determinist
 
 test.describe('perf-budget · S3.4 built buyer-route Brotli transfer (D16)', () => {
   test('each route stays below its post-diet Brotli client-JS ceiling', () => {
+    const manifestsDir = '.next/server/app'
+    test.skip(
+      process.env.REMOTE_PREVIEW_ONLY === 'true' && !existsSync(manifestsDir),
+      'built-artifact guard runs in the typecheck-build job; this job verifies the remote preview',
+    )
     const reports = readBuyerRouteReports()
     for (const [route, budget] of Object.entries(BUYER_ROUTE_BUDGETS)) {
       expect(reports[route], `UNAVAILABLE — no built manifest report for ${route}`).toBeDefined()

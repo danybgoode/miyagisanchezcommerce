@@ -79,6 +79,10 @@ jobs:
         run: npx tsc --noEmit
       - name: Build
         run: npm run build
+      - name: Verify built client artifacts
+        # These guards inspect .next itself, so this is their authoritative CI
+        # home. The preview shards below intentionally have no local build.
+        run: npx playwright test e2e/sentry-replay-build.spec.ts e2e/buyer-route-vendor-manifest.spec.ts e2e/perf-budget.spec.ts --project=api --grep 'S3\.[124]'
 
   prep:
     name: Resolve Vercel preview
@@ -131,6 +135,9 @@ jobs:
         shard: [1, 2, 3, 4]
     env:
       PLAYWRIGHT_BASE_URL: ${{ needs.prep.outputs.playwright_base_url }}
+      # Artifact guards run against the local .next in typecheck-build. This
+      # job checks the deployed preview and deliberately has no local build.
+      REMOTE_PREVIEW_ONLY: "true"
       # The bypass token (wired into playwright.config.ts) reaches the SSO-gated preview.
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
