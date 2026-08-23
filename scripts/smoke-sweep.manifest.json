@@ -55,6 +55,7 @@
     "medusa-local": "A local Medusa on :9000. Every /shop/manage/* surface calls getMySeller() against MEDUSA_STORE_URL; with nothing listening the whole seller portal fetch-fails and its specs report missing selectors that read exactly like regressions."
   },
   "excluded": {
-    "_": "spec file (e2e/<name>.browser.spec.ts) -> why it is deliberately NOT swept. The coverage guard bans an unlisted spec; this is the negation, so recording a real reason is always available and the guard never has to be bypassed. Empty today — every browser spec is swept."
+    "_": "spec file (e2e/<name>.browser.spec.ts) -> why it is deliberately NOT swept. The coverage guard bans an unlisted spec; this is the negation, so recording a real reason is always available and the guard never has to be bypassed.",
+    "e2e/cuenta-menu-popover.browser.spec.ts": "DOM-isolated native Popover regression fixture: it verifies browser platform semantics, not a routable product surface for the URL smoke sweep."
   }
 }
