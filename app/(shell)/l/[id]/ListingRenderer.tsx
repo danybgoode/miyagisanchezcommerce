@@ -603,6 +603,7 @@ export async function ListingPage({
       marketBasePath="/mx"
       customDomain={customDomain}
       action={publicAction}
+      commerceReadiness={commerceReadiness}
     />
   ) : null
 

@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
         .eq('clerk_user_id', user.id)
         .eq('marketplace_listings.medusa_product_id', listingId)
         .maybeSingle(),
-      getActiveDealForBuyer(listingId, user.id),
+      getActiveDealForBuyer(listingId, user.id, { failOnError: true }),
     ])
     if (favorite.error) throw favorite.error
 

@@ -21,12 +21,24 @@ test.describe('public PDP viewer state · D8', () => {
 
   test('the endpoint supplies all four viewer-owned facts under no-store', () => {
     const endpoint = read('app/api/public/pdp-viewer-state/route.ts')
+    const activeDeal = read('lib/active-deal.ts')
     expect(endpoint).toContain("'Cache-Control': 'private, no-store, max-age=0'")
     expect(endpoint).toContain('currentUser()')
     expect(endpoint).toContain('ownsListing:')
     expect(endpoint).toContain('favorited:')
-    expect(endpoint).toContain('getActiveDealForBuyer')
+    expect(endpoint).toContain("getActiveDealForBuyer(listingId, user.id, { failOnError: true })")
+    expect(activeDeal).toContain('if (failOnError && byMedusaError) throw byMedusaError')
+    expect(activeDeal).toContain('if (failOnError && offerError) throw offerError')
+    expect(activeDeal).toContain('if (failOnError && conversationError) throw conversationError')
     expect(endpoint).toContain('buyerPrefill:')
+  })
+
+  test('accepted-offer checkout imports the shipped commerce-readiness result', () => {
+    const renderer = read('app/(shell)/l/[id]/ListingRenderer.tsx')
+    const island = read('app/components/PublicPdpViewerIsland.tsx')
+    expect(renderer).toContain('commerceReadiness={commerceReadiness}')
+    expect(island).toContain('commerceReadiness.ready ? (')
+    expect(island).toContain("commerceReadiness.reason === 'checkout_not_available'")
   })
 
   test('MakeOfferButton disables its historical second offer read in the island flow', () => {

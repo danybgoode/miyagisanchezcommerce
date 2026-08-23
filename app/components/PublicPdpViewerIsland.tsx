@@ -19,6 +19,7 @@ import type { PdpViewerState } from '@/lib/pdp-viewer-state'
 import type { PriceGrid } from '@/lib/price-grid'
 import type { CustomFieldDef } from '@/lib/personalization'
 import type { RatePeriod } from '@/lib/rental-pricing'
+import type { CommerceReadiness } from '@/lib/commerce-readiness'
 
 export type PublicPdpAction =
   | { kind: 'contact' }
@@ -45,6 +46,7 @@ type Props = {
   marketBasePath: '/mx'
   customDomain: string | null
   action: PublicPdpAction
+  commerceReadiness: CommerceReadiness
 }
 
 /**
@@ -58,6 +60,7 @@ export default function PublicPdpViewerIsland({
   marketBasePath,
   customDomain,
   action,
+  commerceReadiness,
 }: Props) {
   const { isLoaded } = useAuth()
   const requestKey = `${listing.id}:${shopSlug}`
@@ -263,14 +266,21 @@ export default function PublicPdpViewerIsland({
       {deal?.status === 'accepted_unpaid' && deal.dealPriceCents ? (
         <div className="flex flex-col gap-2">
           <div className="rounded-lg p-3 bg-[var(--success-soft)] text-sm font-semibold"><BuyerCopyText copyKey="l.id.page.6252ff7c" /></div>
-          <OfferCheckoutButton
-            listingId={listing.id}
-            offerId={deal.offerId}
-            amountCents={deal.dealPriceCents}
-            currency={deal.currency}
-            isSignedIn={state.signedIn}
-            customDomain={customDomain}
-          />
+          {commerceReadiness.ready ? (
+            <OfferCheckoutButton
+              listingId={listing.id}
+              offerId={deal.offerId}
+              amountCents={deal.dealPriceCents}
+              currency={deal.currency}
+              isSignedIn={state.signedIn}
+              customDomain={customDomain}
+            />
+          ) : (
+            <div data-testid="commerce-readiness" data-reason={commerceReadiness.reason} className="text-xs text-center text-[var(--fg-muted)] px-2">
+              <BuyerCopyText copyKey={commerceReadiness.reason === 'checkout_not_available' ? 'market.checkoutComingSoon' : 'l.id.page.e0984f2d'} />
+            </div>
+          )}
+          {deal.conversationId && <Link href={`/messages/${deal.conversationId}`}><BuyerCopyText copyKey="l.id.page.fb1415fb" /></Link>}
         </div>
       ) : deal?.status === 'pending' || deal?.status === 'countered' ? (
         <div className="flex flex-col gap-2">
