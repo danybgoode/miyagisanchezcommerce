@@ -8,9 +8,9 @@ import { readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
 // deterministic Brotli encoder the gate uses. Keep the measured value beside
 // its ceiling so a future failure is distinguishable from a stale budget.
 const BUYER_ROUTE_BUDGETS = {
-  '/mx': { measured: 90_636, ceiling: 100_000 },
-  '/mx/l/[id]': { measured: 101_439, ceiling: 112_000 },
-  '/mx/s/[slug]': { measured: 83_403, ceiling: 92_000 },
+  '/mx': { measured: 90_731, ceiling: 100_000 },
+  '/mx/l/[id]': { measured: 101_515, ceiling: 112_000 },
+  '/mx/s/[slug]': { measured: 83_479, ceiling: 92_000 },
 } as const
 
 /**
