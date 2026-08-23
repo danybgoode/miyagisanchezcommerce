@@ -1651,10 +1651,10 @@ html[data-platform-theme] .platform-theme-spot {
 
 /* D15: the native popover is usable everywhere; anchors only improve its placement
    where the browser supports them. The absolute fallback keeps the historic position. */
-.cuenta-menu-trigger { anchor-name: --cuenta-menu-trigger; }
-@supports (position-anchor: --cuenta-menu-trigger) {
-  #cuenta-menu {
-    position-anchor: --cuenta-menu-trigger !important;
+.cuenta-menu-trigger { anchor-name: var(--cuenta-menu-anchor); }
+@supports (position-anchor: --cuenta-menu-anchor) {
+  .cuenta-menu-popover {
+    position-anchor: var(--cuenta-menu-anchor) !important;
     top: anchor(bottom) !important;
     right: anchor(right) !important;
     margin-top: 8px;

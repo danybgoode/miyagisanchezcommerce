@@ -12,6 +12,20 @@ export const BUYER_ROUTE_MANIFESTS = {
 
 export const FORBIDDEN_BUYER_VENDORS = ['xlsx', 'jszip', 'mercadopago', '@dnd-kit']
 
+// Turbopack's client-reference manifest names application modules and chunk
+// files, not every transitive package in those chunks. These exported symbols
+// survive minification and identify the actual vendor payload, so checking the
+// resolved chunk graph catches a transitive import the manifest text cannot.
+const FORBIDDEN_BUYER_VENDOR_MARKERS = {
+  xlsx: [/\bsheet_to_json\b/, /\bbook_new\b/],
+  jszip: [/\bJSZip\b/],
+  // Product copy and colour-token names mention Mercado Pago on public
+  // pages. Its server SDK is identified by these exported constructor names,
+  // not by a human-readable payment label.
+  mercadopago: [/\bMercadoPagoConfig\b/, /\bPreApprovalPlan\b/],
+  '@dnd-kit': [/\bDndContext\b/, /\buseDndMonitor\b/],
+}
+
 export function parseClientReferenceManifest(source) {
   const match = source.match(/=\s*(\{[\s\S]*\});\s*$/)
   if (!match) throw new Error('UNAVAILABLE — client-reference manifest has an unrecognised shape')
@@ -33,12 +47,26 @@ export function reportRouteManifest({ manifestSource, readChunk }) {
   const manifest = parseClientReferenceManifest(manifestSource)
   const chunks = collectManifestChunks(manifest)
   if (!chunks.length) throw new Error('UNAVAILABLE — route manifest contains no client JS chunks')
-  const chunkBytes = chunks.map((chunk) => ({ chunk, bytes: brotliCompressSync(readChunk(chunk)).byteLength }))
+  const chunkBytes = chunks.map((chunk) => {
+    const content = Buffer.from(readChunk(chunk))
+    return {
+      chunk,
+      bytes: brotliCompressSync(content).byteLength,
+      source: content.toString('utf8'),
+    }
+  })
   return {
     chunks: chunkBytes,
     brotliBytes: chunkBytes.reduce((total, entry) => total + entry.bytes, 0),
     manifestSource,
   }
+}
+
+export function findForbiddenBuyerVendors(report) {
+  const source = report.chunks.map((chunk) => chunk.source).join('\n')
+  return FORBIDDEN_BUYER_VENDORS.filter((vendor) =>
+    FORBIDDEN_BUYER_VENDOR_MARKERS[vendor].some((marker) => marker.test(source)),
+  )
 }
 
 function walk(dir) {

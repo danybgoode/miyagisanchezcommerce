@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { existsSync } from 'node:fs'
-import { FORBIDDEN_BUYER_VENDORS, readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
+import { findForbiddenBuyerVendors, readBuyerRouteReports, reportRouteManifest } from '../scripts/route-client-budget.mjs'
 
 test('S3.2 · D14 — buyer route manifests exclude vendors that already belong elsewhere', () => {
   const manifestsDir = '.next/server/app'
@@ -10,9 +10,15 @@ test('S3.2 · D14 — buyer route manifests exclude vendors that already belong 
   )
   const reports = readBuyerRouteReports()
   for (const [route, report] of Object.entries(reports)) {
-    const joined = report.manifestSource.toLowerCase()
-    for (const vendor of FORBIDDEN_BUYER_VENDORS) {
-      expect(joined, `${route} manifest unexpectedly includes ${vendor}`).not.toContain(vendor)
-    }
+    expect(findForbiddenBuyerVendors(report), `${route} resolved chunk graph contains a forbidden vendor`).toEqual([])
   }
+})
+
+test('S3.2 mechanism — a transitive dnd-kit chunk is caught even when the manifest never names the package', () => {
+  const report = reportRouteManifest({
+    manifestSource: 'globalThis.__fixture={"clientModules":{"app.tsx":{"chunks":["static/chunks/vendor.js"]}}};',
+    readChunk: () => 'function DndContext(){ return "dragging" }',
+  })
+  expect(report.manifestSource).not.toContain('@dnd-kit')
+  expect(findForbiddenBuyerVendors(report)).toEqual(['@dnd-kit'])
 })
