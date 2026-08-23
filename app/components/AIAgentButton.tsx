@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { buildAgentPrompt, resolveAgentContext, withDetails } from '@/lib/agent-prompt'
@@ -22,6 +22,7 @@ const subscribeToClient = () => () => {}
 export default function AIAgentButton({ variant = 'icon', copy: ui }: { variant?: Variant; copy: AgentCopy }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const mounted = useSyncExternalStore(subscribeToClient, () => true, () => false)
 
   // es-MX hand-off prompt, contextual to the current page. The page TYPE + URL come from
@@ -46,15 +47,22 @@ export default function AIAgentButton({ variant = 'icon', copy: ui }: { variant?
 
   const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(prompt)}`
 
-  const sheet = open && mounted ? createPortal(
-    <>
-      {/* Backdrop — rendered directly in <body>, escapes backdrop-filter stacking context */}
-      <div
-        className="sheet-backdrop"
-        onClick={() => setOpen(false)}
-      />
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) dialog.showModal()
+    if (!open && dialog.open) dialog.close()
+  }, [open])
 
-      <div className="sheet-panel">
+  const sheet = mounted ? createPortal(
+      <dialog
+        ref={dialogRef}
+        className="sheet-panel"
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setOpen(false)
+        }}
+      >
         {/* Handle bar */}
         <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto 20px' }} />
 
@@ -138,8 +146,7 @@ export default function AIAgentButton({ variant = 'icon', copy: ui }: { variant?
             ucp.dev
           </a>
         </div>
-      </div>
-    </>,
+      </dialog>,
     document.body
   ) : null
 

@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useId, useRef, useState, useSyncExternalStore } from 'react'
 import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
+
+const subscribeToBrowser = () => () => {}
 
 /**
  * Cuenta hub — one dropdown holding every account action that used to be
@@ -41,35 +43,43 @@ export default function CuentaMenu({
   hideFavoritesInPwa?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // Close on outside-click and Escape.
-  useEffect(() => {
-    if (!open) return
-    function onPointer(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onPointer)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onPointer)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  const reactId = useId()
+  // Both responsive header layouts remain mounted. A per-instance id and
+  // anchor prevent the desktop trigger from controlling the hidden mobile menu.
+  const menuId = `cuenta-menu-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+  const anchorName = `--${menuId}`
+  const menuRef = useRef<HTMLDivElement>(null)
+  const supportsPopover = useSyncExternalStore(
+    subscribeToBrowser,
+    () => 'showPopover' in HTMLElement.prototype,
+    () => false,
+  )
+  const closeMenu = () => {
+    if (supportsPopover) menuRef.current?.hidePopover()
+    else setOpen(false)
+  }
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
+    <div
+      style={{ position: 'relative', '--cuenta-menu-anchor': anchorName } as React.CSSProperties}
+      onKeyDown={(event) => {
+        if (supportsPopover === false && event.key === 'Escape') setOpen(false)
+      }}
+      onBlur={(event) => {
+        if (supportsPopover === false && (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget))) setOpen(false)
+      }}
+    >
       <button
         type="button"
-        className="icon-btn"
+        popoverTarget={supportsPopover ? menuId : undefined}
+        className="icon-btn cuenta-menu-trigger"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={accountLabel}
         title={accountLabel}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          if (supportsPopover === false) setOpen(value => !value)
+        }}
         style={{ gap: 2 }}
       >
         <i className="iconoir-user" style={{ fontSize: 22 }} />
@@ -84,25 +94,32 @@ export default function CuentaMenu({
         />
       </button>
 
-      {open && (
-        <div
-          role="menu"
-          aria-label={accountLabel}
-          className="glass"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
-            minWidth: 232,
-            borderRadius: 'var(--r-lg)',
-            padding: 6,
-            zIndex: 60,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          {ACCOUNT_MENU_ITEMS.map(item => {
+      <div
+        ref={menuRef}
+        id={menuId}
+        popover={supportsPopover ? 'auto' : undefined}
+        onToggle={(event) => setOpen(event.newState === 'open')}
+        role="menu"
+        aria-label={accountLabel}
+        className="glass cuenta-menu-popover"
+        style={{
+          // D15: this fallback remains valid without CSS anchor support;
+          // supported browsers progressively position it from the trigger.
+          position: 'fixed',
+          top: 56, // header height
+          right: 12, // viewport edge margin
+          minWidth: 232,
+          borderRadius: 'var(--r-lg)',
+          padding: 6,
+          zIndex: 60,
+          // A native popover is hidden by the UA while closed. Do not override
+          // that with inline display, or both responsive menu instances show.
+          display: supportsPopover ? undefined : open ? 'flex' : 'none',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        {ACCOUNT_MENU_ITEMS.map(item => {
             if (item.kind === 'theme') {
               // Skip the row entirely where the toggle can't apply (it would
               // render null → an orphan "Tema" label with no control).
@@ -136,7 +153,7 @@ export default function CuentaMenu({
                 key={item.key}
                 href={item.href}
                 role="menuitem"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
                 className={pwaHidden ? 'cuenta-menu-item pwa-hidden' : 'cuenta-menu-item'}
                 style={{
                   display: 'flex',
@@ -154,8 +171,7 @@ export default function CuentaMenu({
               </Link>
             )
           })}
-        </div>
-      )}
+      </div>
     </div>
   )
 }

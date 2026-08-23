@@ -1649,6 +1649,28 @@ html[data-platform-theme] .platform-theme-spot {
 /* Cuenta hub menu — row hover */
 .cuenta-menu-item:hover { background: var(--bg-sunk); }
 
+/* D15: the native popover is usable everywhere; anchors only improve its placement
+   where the browser supports them. The absolute fallback keeps the historic position. */
+.cuenta-menu-trigger { anchor-name: var(--cuenta-menu-anchor); }
+.cuenta-menu-popover:popover-open { display: flex; }
+@supports (position-anchor: --cuenta-menu-anchor) {
+  .cuenta-menu-popover {
+    position-anchor: var(--cuenta-menu-anchor) !important;
+    top: anchor(bottom) !important;
+    right: anchor(right) !important;
+    margin-top: 8px;
+  }
+}
+
+.collapsible-description-less { display: none; }
+.collapsible-description > summary { display: block; list-style: none; }
+.collapsible-description > summary::-webkit-details-marker { display: none; }
+.collapsible-description[open] .collapsible-description-teaser,
+.collapsible-description[open] .collapsible-description-more { display: none !important; }
+.collapsible-description[open] .collapsible-description-less { display: inline; }
+.excerpt-panel-arrow { transition: transform var(--dur-fast) var(--ease-standard); }
+details[open] > summary .excerpt-panel-arrow { transform: rotate(180deg); }
+
 /* Push main content above the tab bar — only needed in PWA standalone on mobile */
 @media (display-mode: standalone) and (max-width: 767px) {
   main { padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)); }
@@ -1676,6 +1698,17 @@ html[data-platform-theme] .platform-theme-spot {
   padding-bottom: max(28px, env(safe-area-inset-bottom));
   box-shadow: var(--shadow-4);
   animation: slide-up 300ms var(--ease-spring-soft) forwards;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+}
+.sheet-panel::backdrop {
+  background: rgba(26, 26, 24, 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: fade-in 180ms var(--ease-standard) forwards;
 }
 @keyframes fade-in {
   from { opacity: 0; }

@@ -1,7 +1,17 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImageVariant, selectImageFormat } from '@/lib/image-variant'
+import { readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
+
+// D16 — calibrated at release head 0faec5d against this built output with the
+// same deterministic Brotli encoder the gate uses. Keep the measured value
+// beside its ceiling so a future failure is distinguishable from a stale budget.
+const BUYER_ROUTE_BUDGETS = {
+  '/mx': { measured: 90_861, ceiling: 100_000 },
+  '/mx/l/[id]': { measured: 101_601, ceiling: 112_000 },
+  '/mx/s/[slug]': { measured: 83_565, ceiling: 92_000 },
+} as const
 
 /**
  * hyper-performant-website S1 — the seed for the Sprint-1 acceptance checks
@@ -342,6 +352,27 @@ test.describe('perf-budget · S2.3 mechanism fixture (no network — determinist
     expect(overBudget).toBeGreaterThan(RENDER_BLOCKING_BUDGET_BYTES)
     expect(() => expect(overBudget).toBeLessThanOrEqual(RENDER_BLOCKING_BUDGET_BYTES)).toThrow()
     expect(underBudget).toBeLessThanOrEqual(RENDER_BLOCKING_BUDGET_BYTES)
+  })
+})
+
+test.describe('perf-budget · S3.4 built buyer-route Brotli transfer (D16)', () => {
+  test('each route stays below its post-diet Brotli client-JS ceiling', () => {
+    const manifestsDir = '.next/server/app'
+    test.skip(
+      process.env.REMOTE_PREVIEW_ONLY === 'true' && !existsSync(manifestsDir),
+      'built-artifact guard runs in the typecheck-build job; this job verifies the remote preview',
+    )
+    const reports = readBuyerRouteReports()
+    for (const [route, budget] of Object.entries(BUYER_ROUTE_BUDGETS)) {
+      expect(reports[route], `UNAVAILABLE — no built manifest report for ${route}`).toBeDefined()
+      expect(reports[route].brotliBytes, `${route} client JS transfer regressed above ${budget.ceiling} bytes`).toBeLessThanOrEqual(budget.ceiling)
+    }
+  })
+
+  test('mechanism fixture allows an under-budget route and rejects an over-budget route', () => {
+    const ceiling = 100
+    expect(99).toBeLessThanOrEqual(ceiling)
+    expect(() => expect(101).toBeLessThanOrEqual(ceiling)).toThrow()
   })
 })
 

@@ -1,61 +1,73 @@
-'use client'
-
 import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
-import { useState } from 'react'
 
 /**
  * CollapsibleDescription — PDP redesign (epic 01) Sprint 1, S1.2.
  *
  * In the reordered PDP the description moves *above* the payment/seller blocks on
  * mobile (so the buyer understands the item before being asked to act). To keep the
- * payment box from being pushed far down by a long description, a long one clamps to
- * a few lines with a "Ver más" / "Ver menos" toggle. Short descriptions render in
- * full with no toggle.
- *
- * The clamp uses an inline `display: -webkit-box` on the inner `<p>` only — never on
- * an element toggled by `md:hidden`/`hidden md:block` (the duplicate-render
- * inline-style trap in LEARNINGS); the mobile/desktop visibility is owned by the
- * wrapper's class in the page.
+ * payment box from being pushed far down by a long description, the summary keeps a
+ * clamped preview and native `<details>` owns expansion. The body stays in the DOM,
+ * so browser find-in-page can reveal it without a client-state toggle (D15).
  */
 const CLAMP_THRESHOLD = 280
 
 export default function CollapsibleDescription({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false)
   const isLong = text.length > CLAMP_THRESHOLD
 
+  if (!isLong) {
+    return <p style={{ fontSize: 'var(--t-sm)', color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{text}</p>
+  }
+
+  const clipped = text.slice(0, CLAMP_THRESHOLD).trimEnd()
+  // End on a word boundary. The CSS line clamp supplies its own ellipsis when
+  // needed, so a manual one here would render twice on narrow screens.
+  const wordBreak = Math.max(clipped.lastIndexOf(' '), clipped.lastIndexOf('\n'), clipped.lastIndexOf('\t'))
+  const teaser = wordBreak > 0 ? clipped.slice(0, wordBreak).trimEnd() : clipped
+
   return (
-    <div>
+    <details className="collapsible-description">
+      <summary
+        style={{
+          cursor: 'pointer',
+          color: 'var(--accent)',
+          fontSize: 13,
+          fontWeight: 600,
+          marginBottom: 6,
+        }}
+      >
+        <span
+          className="collapsible-description-teaser"
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 6,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            color: 'var(--fg)',
+            fontSize: 'var(--t-sm)',
+            fontWeight: 400,
+            lineHeight: 1.6,
+            whiteSpace: 'pre-line',
+          }}
+        >
+          {teaser}
+        </span>
+        <span className="collapsible-description-more">
+          <BuyerCopyText copyKey="l.id.CollapsibleDescription.32e540cb" />
+        </span>
+        <span className="collapsible-description-less">
+          <BuyerCopyText copyKey="l.id.CollapsibleDescription.d587022f" />
+        </span>
+      </summary>
       <p
         style={{
           fontSize: 'var(--t-sm)',
           color: 'var(--fg)',
           lineHeight: 1.6,
           whiteSpace: 'pre-line',
-          ...(isLong && !expanded
-            ? { display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-            : {}),
         }}
       >
         {text}
       </p>
-      {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded(e => !e)}
-          style={{
-            marginTop: 6,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--accent)',
-          }}
-        >
-          {expanded ? <BuyerCopyText copyKey="l.id.CollapsibleDescription.d587022f" /> : <BuyerCopyText copyKey="l.id.CollapsibleDescription.32e540cb" />}
-        </button>
-      )}
-    </div>
+    </details>
   )
 }
