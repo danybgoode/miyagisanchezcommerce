@@ -1,5 +1,3 @@
-'use client'
-
 import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 /**
  * ExcerptPanel — the inline "Lee un adelanto" reader (bookshop launchpad S2.1).
@@ -13,17 +11,10 @@ import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
  * is only the sample the seller pasted into the listing.
  */
 
-import { useState } from 'react'
-
 export default function ExcerptPanel({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-
   return (
-    <div data-testid="pdp-excerpt" style={{ marginBottom: 20 }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open}
+    <details data-testid="pdp-excerpt" style={{ marginBottom: 20 }}>
+      <summary
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -44,14 +35,10 @@ export default function ExcerptPanel({ text }: { text: string }) {
           <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
             <BuyerCopyText copyKey="l.id.ExcerptPanel.a0be0648" /></span>
         </span>
-        <i
-          className={open ? 'iconoir-nav-arrow-up' : 'iconoir-nav-arrow-down'}
-          style={{ fontSize: 20, color: 'var(--fg-muted)', flexShrink: 0 }}
-        />
-      </button>
+        <i className="excerpt-panel-arrow iconoir-nav-arrow-down" style={{ fontSize: 20, color: 'var(--fg-muted)', flexShrink: 0 }} />
+      </summary>
 
-      {open && (
-        <div
+      <div
           style={{
             background: 'var(--bg-sunk)',
             borderRadius: 'var(--r-lg)',
@@ -65,8 +52,7 @@ export default function ExcerptPanel({ text }: { text: string }) {
           }}
         >
           {text}
-        </div>
-      )}
-    </div>
+      </div>
+    </details>
   )
 }

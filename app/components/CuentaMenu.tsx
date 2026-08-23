@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
 
 /**
@@ -41,30 +41,13 @@ export default function CuentaMenu({
   hideFavoritesInPwa?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // Close on outside-click and Escape.
-  useEffect(() => {
-    if (!open) return
-    function onPointer(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onPointer)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onPointer)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
       <button
         type="button"
-        className="icon-btn"
+        popoverTarget="cuenta-menu"
+        className="icon-btn cuenta-menu-trigger"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={accountLabel}
@@ -84,15 +67,19 @@ export default function CuentaMenu({
         />
       </button>
 
-      {open && (
-        <div
+      <div
+          id="cuenta-menu"
+          popover="auto"
+          onToggle={(event) => setOpen(event.newState === 'open')}
           role="menu"
           aria-label={accountLabel}
           className="glass"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
+            // D15: this fallback remains valid without CSS anchor support;
+            // supported browsers progressively position it from the trigger.
+            position: 'fixed',
+            top: 56,
+            right: 12,
             minWidth: 232,
             borderRadius: 'var(--r-lg)',
             padding: 6,
@@ -154,8 +141,7 @@ export default function CuentaMenu({
               </Link>
             )
           })}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
