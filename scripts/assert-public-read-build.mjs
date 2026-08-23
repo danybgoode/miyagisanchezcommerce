@@ -14,9 +14,16 @@ export function publicReadBuildFindings(manifest) {
   if (!dynamicRoutes || typeof dynamicRoutes !== 'object') {
     return ['prerender manifest has no dynamicRoutes object']
   }
-  return PUBLIC_READ_ISR_ROUTES.flatMap((route) => (
-    Object.hasOwn(dynamicRoutes, route) ? [] : [`${route}: absent from dynamicRoutes`]
-  ))
+  return PUBLIC_READ_ISR_ROUTES.flatMap((route) => {
+    if (!Object.hasOwn(dynamicRoutes, route)) return [`${route}: absent from dynamicRoutes`]
+    const entry = dynamicRoutes[route]
+    if (!entry || typeof entry !== 'object') return [`${route}: dynamicRoutes entry is not an object`]
+    const findings = []
+    if (entry.fallback !== null) findings.push(`${route}: fallback must be null for on-demand ISR`)
+    if (entry.dataRoute !== `${route}.rsc`) findings.push(`${route}: dataRoute must be the matching .rsc route`)
+    if (typeof entry.routeRegex !== 'string' || entry.routeRegex.length === 0) findings.push(`${route}: routeRegex missing`)
+    return findings
+  })
 }
 
 export function assertPublicReadBuild(root = process.cwd()) {

@@ -74,12 +74,12 @@ function literalRevalidate(source: string): number | null {
   return match ? Number(match[1]) : null
 }
 
-function pageFilesBelow(directory: string): string[] {
+function routeSegmentFilesBelow(directory: string): string[] {
   const files: string[] = []
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const absolute = path.join(directory, entry.name)
-    if (entry.isDirectory()) files.push(...pageFilesBelow(absolute))
-    else if (entry.isFile() && entry.name === 'page.tsx') files.push(absolute)
+    if (entry.isDirectory()) files.push(...routeSegmentFilesBelow(absolute))
+    else if (entry.isFile() && (entry.name === 'page.tsx' || entry.name === 'layout.tsx')) files.push(absolute)
   }
   return files
 }
@@ -88,7 +88,7 @@ function pageFilesBelow(directory: string): string[] {
 export function discoverRevalidatedRoutes(root: string): RouteTruthInput[] {
   const appRoot = path.join(root, 'app')
   if (!fs.existsSync(appRoot)) throw new Error(`app directory missing: ${appRoot}`)
-  return pageFilesBelow(appRoot)
+  return routeSegmentFilesBelow(appRoot)
     .flatMap((file) => literalRevalidate(fs.readFileSync(file, 'utf8')) === null
       ? []
       : [{ entry: path.relative(root, file).replaceAll(path.sep, '/') }])

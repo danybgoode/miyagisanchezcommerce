@@ -12,7 +12,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 test.describe('public-read build manifest · D7/D19/D21', () => {
   test('both internal templates are runtime ISR routes, not dynamic server routes', () => {
     const manifest = {
-      dynamicRoutes: Object.fromEntries(PUBLIC_READ_ISR_ROUTES.map((route) => [route, { fallback: null }])),
+      dynamicRoutes: Object.fromEntries(PUBLIC_READ_ISR_ROUTES.map((route) => [route, {
+        fallback: null,
+        dataRoute: `${route}.rsc`,
+        routeRegex: '^example$',
+      }])),
     }
     expect(publicReadBuildFindings(manifest)).toEqual([])
   })
@@ -21,6 +25,15 @@ test.describe('public-read build manifest · D7/D19/D21', () => {
     expect(publicReadBuildFindings({ dynamicRoutes: {} })).toEqual(
       PUBLIC_READ_ISR_ROUTES.map((route) => `${route}: absent from dynamicRoutes`),
     )
+  })
+
+  test('a present key without runtime fallback and data-route semantics still fails', () => {
+    const dynamicRoutes = Object.fromEntries(PUBLIC_READ_ISR_ROUTES.map((route) => [route, {}]))
+    expect(publicReadBuildFindings({ dynamicRoutes })).toEqual(PUBLIC_READ_ISR_ROUTES.flatMap((route) => [
+      `${route}: fallback must be null for on-demand ISR`,
+      `${route}: dataRoute must be the matching .rsc route`,
+      `${route}: routeRegex missing`,
+    ]))
   })
 
   test('npm build runs the manifest assertion after Next has finalized output', () => {

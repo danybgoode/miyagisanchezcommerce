@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CACHE } from '../lib/cache-policy'
@@ -31,5 +32,17 @@ test.describe('revalidate truth · D7/D9/D12/D19', () => {
     const routes = discoverRevalidatedRoutes(ROOT)
     expect(routes.length, 'the revalidate declaration scan found nothing').toBeGreaterThan(0)
     expect(revalidateTruthFindings(routes, ROOT)).toEqual([])
+  })
+
+  test('the declaration population includes layout segment config, not pages only', () => {
+    const fixture = mkdtempSync(path.join(os.tmpdir(), 'revalidate-layout-'))
+    try {
+      const segment = path.join(fixture, 'app', 'segment')
+      mkdirSync(segment, { recursive: true })
+      writeFileSync(path.join(segment, 'layout.tsx'), 'export const revalidate = 60\nexport default function Layout({ children }) { return children }\n')
+      expect(discoverRevalidatedRoutes(fixture)).toEqual([{ entry: 'app/segment/layout.tsx' }])
+    } finally {
+      rmSync(fixture, { recursive: true, force: true })
+    }
   })
 })
