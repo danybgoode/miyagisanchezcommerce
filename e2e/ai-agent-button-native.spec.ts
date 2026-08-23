@@ -6,6 +6,8 @@ test('S3.3 · D15 — AIAgentButton keeps client context but delegates modality 
   expect(source).toContain("'use client'")
   expect(source).toContain('<dialog')
   expect(source).toContain('showModal()')
+  expect(source).toContain('const sheet = mounted ? createPortal(')
+  expect(source).toContain('if (!open && dialog.open) dialog.close()')
   expect(source).toContain('onClose={() => setOpen(false)}')
   expect(source).toContain('event.target === event.currentTarget')
   expect(source).not.toContain('sheet-backdrop')

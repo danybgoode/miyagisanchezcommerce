@@ -54,7 +54,7 @@ export default function AIAgentButton({ variant = 'icon', copy: ui }: { variant?
     if (!open && dialog.open) dialog.close()
   }, [open])
 
-  const sheet = open && mounted ? createPortal(
+  const sheet = mounted ? createPortal(
       <dialog
         ref={dialogRef}
         className="sheet-panel"

@@ -9,7 +9,7 @@ test('S3.3 · D15 — CollapsibleDescription is server-rendered native details w
   expect(source).toMatch(/return \(\s*<details\b/)
   expect(source).toContain('<summary')
   expect(source).toContain('collapsible-description-teaser')
-  expect(source).toContain('text.slice(0, CLAMP_THRESHOLD)')
+  expect(source).toContain('const teaser = text.slice(0, CLAMP_THRESHOLD).trimEnd()')
   expect(source).toContain('l.id.CollapsibleDescription.32e540cb')
   expect(source).toContain('l.id.CollapsibleDescription.d587022f')
   expect(css).toContain('.collapsible-description[open] .collapsible-description-teaser')

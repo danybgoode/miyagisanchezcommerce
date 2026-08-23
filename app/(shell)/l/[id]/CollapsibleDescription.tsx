@@ -18,7 +18,7 @@ export default function CollapsibleDescription({ text }: { text: string }) {
     return <p style={{ fontSize: 'var(--t-sm)', color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{text}</p>
   }
 
-  const teaser = `${text.slice(0, CLAMP_THRESHOLD).trimEnd()}…`
+  const teaser = text.slice(0, CLAMP_THRESHOLD).trimEnd()
 
   return (
     <details className="collapsible-description">
