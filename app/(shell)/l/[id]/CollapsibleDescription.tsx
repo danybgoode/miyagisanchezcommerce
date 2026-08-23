@@ -18,7 +18,10 @@ export default function CollapsibleDescription({ text }: { text: string }) {
     return <p style={{ fontSize: 'var(--t-sm)', color: 'var(--fg)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{text}</p>
   }
 
-  const teaser = text.slice(0, CLAMP_THRESHOLD).trimEnd()
+  const clipped = text.slice(0, CLAMP_THRESHOLD).trimEnd()
+  // End on a word boundary. The CSS line clamp supplies its own ellipsis when
+  // needed, so a manual one here would render twice on narrow screens.
+  const teaser = clipped.slice(0, clipped.lastIndexOf(' ')).trimEnd() || clipped
 
   return (
     <details className="collapsible-description">

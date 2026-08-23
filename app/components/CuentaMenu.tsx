@@ -66,7 +66,7 @@ export default function CuentaMenu({
         if (supportsPopover === false && event.key === 'Escape') setOpen(false)
       }}
       onBlur={(event) => {
-        if (supportsPopover === false && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+        if (supportsPopover === false && (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget))) setOpen(false)
       }}
     >
       <button
@@ -106,13 +106,15 @@ export default function CuentaMenu({
           // D15: this fallback remains valid without CSS anchor support;
           // supported browsers progressively position it from the trigger.
           position: 'fixed',
-          top: 56,
-          right: 12,
+          top: 56, // header height
+          right: 12, // viewport edge margin
           minWidth: 232,
           borderRadius: 'var(--r-lg)',
           padding: 6,
           zIndex: 60,
-          display: supportsPopover || open ? 'flex' : 'none',
+          // A native popover is hidden by the UA while closed. Do not override
+          // that with inline display, or both responsive menu instances show.
+          display: supportsPopover ? undefined : open ? 'flex' : 'none',
           flexDirection: 'column',
           gap: 2,
         }}

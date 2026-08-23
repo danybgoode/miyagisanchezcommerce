@@ -1652,6 +1652,7 @@ html[data-platform-theme] .platform-theme-spot {
 /* D15: the native popover is usable everywhere; anchors only improve its placement
    where the browser supports them. The absolute fallback keeps the historic position. */
 .cuenta-menu-trigger { anchor-name: var(--cuenta-menu-anchor); }
+.cuenta-menu-popover:popover-open { display: flex; }
 @supports (position-anchor: --cuenta-menu-anchor) {
   .cuenta-menu-popover {
     position-anchor: var(--cuenta-menu-anchor) !important;
@@ -1662,6 +1663,8 @@ html[data-platform-theme] .platform-theme-spot {
 }
 
 .collapsible-description-less { display: none; }
+.collapsible-description > summary { display: block; list-style: none; }
+.collapsible-description > summary::-webkit-details-marker { display: none; }
 .collapsible-description[open] .collapsible-description-teaser,
 .collapsible-description[open] .collapsible-description-more { display: none !important; }
 .collapsible-description[open] .collapsible-description-less { display: inline; }
