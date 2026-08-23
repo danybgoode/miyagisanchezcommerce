@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "next dev --turbopack --port 3001",
     "build": "next build",
+    "postbuild": "node scripts/assert-public-read-build.mjs",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test --project=api",

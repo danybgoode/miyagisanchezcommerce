@@ -35,6 +35,7 @@ export default function AutoHero({
   priceCents,
   attrs,
   marketBasePath = '',
+  showActions = true,
 }: {
   listingId: string
   isSignedIn: boolean
@@ -44,6 +45,7 @@ export default function AutoHero({
   priceCents: number | null | undefined
   attrs: Record<string, unknown>
   marketBasePath?: string
+  showActions?: boolean
 }) {
   const model = autoHeroModel({ bookingUrl })
   const rep = repuveDisplay(repuve)
@@ -121,7 +123,7 @@ export default function AutoHero({
       )}
 
       {/* ── Primary action: test drive ───────────────────────────────────────── */}
-      {model.hasSchedule ? (
+      {showActions && (model.hasSchedule ? (
         <a
           href={bookingUrl!}
           target="_blank"
@@ -135,7 +137,7 @@ export default function AutoHero({
         </a>
       ) : (
         <AskSellerButton listingId={listingId} isSignedIn={isSignedIn} label={model.primaryLabel} marketBasePath={marketBasePath} />
-      )}
+      ))}
     </div>
   )
 }

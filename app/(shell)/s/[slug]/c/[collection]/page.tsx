@@ -8,8 +8,6 @@ import { readPublicSellerMarket } from '@/lib/owned-market'
 import type { MarketCode } from '@/lib/markets'
 import type { Metadata } from 'next'
 
-export const revalidate = 120
-
 export async function generateShopCollectionMetadata({
   params,
   market,

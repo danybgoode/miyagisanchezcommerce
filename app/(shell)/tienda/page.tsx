@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { resolveShopPresentation } from '@/lib/shop-presentation/context'
+import { resolveRequestShopPresentation as resolveShopPresentation } from '@/lib/shop-presentation/request-context'
 import { navSections } from '@/lib/shop-presentation/sections'
 import ShopIndexBody from '../_shop-sections/ShopIndexBody'
 import type { Metadata } from 'next'
@@ -16,8 +16,6 @@ import type { Metadata } from 'next'
  * On the PLATFORM host there is no such header, so this bare path has no meaning
  * and 404s without a Medusa call — the marketplace form is `/s/[slug]/tienda`.
  */
-
-export const revalidate = 120
 
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await resolveShopPresentation(null)

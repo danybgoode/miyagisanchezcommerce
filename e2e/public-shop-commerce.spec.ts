@@ -133,8 +133,8 @@ const PUBLIC_SHOP_CONSUMERS = [
   'lib/trust-inputs.ts',
   'lib/ucp/schema.ts',
   'lib/embed-auth.ts',
-  'app/(shell)/l/[id]/page.tsx',
-  'app/(shell)/s/[slug]/page.tsx',
+  'app/(shell)/l/[id]/ListingRenderer.tsx',
+  'app/(shell)/s/[slug]/ShopRenderer.tsx',
   'app/(shell)/s/[slug]/HeroSection.tsx',
   'app/(shell)/_shop-collection/CollectionPage.tsx',
   'app/(shell)/embed/s/[slug]/page.tsx',
@@ -155,8 +155,8 @@ test.describe('public Shop consumer population guard', () => {
 
   test('every payment-aware public consumer uses the shared boolean seam', () => {
     for (const file of [
-      'app/(shell)/l/[id]/page.tsx',
-      'app/(shell)/s/[slug]/page.tsx',
+      'app/(shell)/l/[id]/ListingRenderer.tsx',
+      'app/(shell)/s/[slug]/ShopRenderer.tsx',
       'app/(shell)/_shop-collection/CollectionPage.tsx',
       'lib/trust-inputs.ts',
       'lib/ucp/schema.ts',

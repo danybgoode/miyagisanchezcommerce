@@ -249,7 +249,7 @@ test.describe('chrome · the count and the render agree (reported live)', () => 
 
   test('BOTH sides read railPanels — neither re-derives it', () => {
     // The trap is two expressions, not one wrong expression.
-    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/ShopRenderer.tsx'), 'utf8')
     const rail = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopRail.tsx'), 'utf8')
     expect(page).toContain('railPanels(')
     expect(rail).toContain('railPanels(')
@@ -317,14 +317,14 @@ test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', (
     // is only as true as its inputs. These assert the inputs.
     const rail = readFileSync(path.join(ROOT, 'app/(shell)/_shop-chrome/ShopRail.tsx'), 'utf8')
     expect(rail).toMatch(/chipCount:\s*chips\.length \+ signals\.length/)
-    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/ShopRenderer.tsx'), 'utf8')
     expect(page).toMatch(/\+ railSignals\.length/)
   })
 
   test('the catalog shares the Wall’s column rather than a wider one', () => {
     // The page used to step from a 42rem feed to a 72rem grid, reading as two
     // pages stapled together. The grid now lives inside the shell's main track.
-    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/ShopRenderer.tsx'), 'utf8')
     const shell = page.slice(page.indexOf('className="shop-shell"'), page.indexOf('<ShopRail'))
     expect(shell).toContain('ClosetListingCard')
     // And no wider container survives around it.
@@ -338,7 +338,7 @@ test.describe('chrome · the EMPTY WALL is the normal case, not an edge case', (
 
   test('trust signals moved INTO the rail, not duplicated beside it', () => {
     // Two copies of "acepta SPEI" on one page is worse than none.
-    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/ShopRenderer.tsx'), 'utf8')
     expect(page).toContain('signals={railSignals}')
     // The old loose chip row is gone.
     expect(page).not.toMatch(/sellerHasMp && <span className="text-xs/)
@@ -352,7 +352,7 @@ test.describe('chrome · no fact is claimed twice in one panel', () => {
     // with pickup said so twice, side by side. The signal wins because it can
     // name the actual spot ("Recolección local: Roma Norte"); the chip could
     // only say pickup exists.
-    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/page.tsx'), 'utf8')
+    const page = readFileSync(path.join(ROOT, 'app/(shell)/s/[slug]/ShopRenderer.tsx'), 'utf8')
     const chipsCall = page.slice(page.indexOf('chips={trustChips({'), page.indexOf('collections={railCollections}'))
     expect(chipsCall).not.toMatch(/localPickup:\s*hasPickup/)
     // And the signal really is still there — the fix must not drop the fact.
@@ -394,7 +394,7 @@ test.describe('chrome · a product is NOT shop-scoped (reported live: 404)', () 
     for (const file of [
       'lib/wall/views.ts',
       'app/(shell)/_shop-sections/ShopIndexBody.tsx',
-      'app/(shell)/s/[slug]/page.tsx',
+      'app/(shell)/s/[slug]/ShopRenderer.tsx',
       'app/(shell)/_wall/WallEntryCard.tsx',
     ]) {
       const source = readFileSync(path.join(ROOT, file), 'utf8')

@@ -66,6 +66,8 @@
     "account.fallbackName": "tu cuenta",
     "listing.buyNowWithPrice": "Comprar ahora — {0}",
     "listing.signInToBuy": "Inicia sesión para comprar",
+    "l.id.page.publicPdpSettling": "Preparando acciones…",
+    "l.id.page.publicPdpUnavailable": "Las acciones personalizadas no están disponibles.",
     "listing.returnWindow7": "7 días",
     "listing.returnWindow14": "14 días",
     "listing.returnWindow30": "30 días",

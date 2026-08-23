@@ -298,10 +298,13 @@ test.describe('population guard · owned detail is a real seller boundary', () =
   })
 
   test('tenant PDP selection comes only from the trusted middleware header', () => {
-    const source = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'l', '[id]', 'page.tsx'), 'utf8'))
-    const listingPage = topLevelBlocks(source).find((block) => block.name === 'ListingPage')?.body
+    const adapter = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'l', '[id]', 'page.tsx'), 'utf8'))
+    const requestChannel = topLevelBlocks(adapter).find((block) => block.name === 'requestChannel')?.body
+    expect(requestChannel, 'requestChannel no longer exists — re-point this guard').toBeTruthy()
+    expect(requestChannel).toContain("get('x-miyagi-shop-slug')")
+    const renderer = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 'l', '[id]', 'ListingRenderer.tsx'), 'utf8'))
+    const listingPage = topLevelBlocks(renderer).find((block) => block.name === 'ListingPage')?.body
     expect(listingPage, 'ListingPage no longer exists — re-point this guard').toBeTruthy()
-    expect(listingPage).toContain("get('x-miyagi-shop-slug')")
     expect(listingPage).toContain('getOwnedShopListing(channelSlug, id)')
     expect(listingPage).toContain('getOwnedShopPriceGrid(channelSlug, id)')
     expect(listingPage).toContain('resolveOwnedPriceGridForPdp')
@@ -598,7 +601,7 @@ test.describe('population guard · D10 agent surfaces are market-scoped', () => 
 
   const MARKET_PRICE_GRID_READERS = [
     {
-      file: 'app/(shell)/l/[id]/page.tsx',
+      file: 'app/(shell)/l/[id]/ListingRenderer.tsx',
       block: 'ListingPage',
       call: /getPriceGrid\(\s*id\s*,\s*market\s*\)/,
     },
@@ -656,7 +659,7 @@ test.describe('population guard · marketplace shop routes do not use owner inve
   })
 
   test('shop home selects owner inventory only when no country market was supplied and surfaces refusal', () => {
-    const stripped = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 's', '[slug]', 'page.tsx'), 'utf8'))
+    const stripped = stripComments(readFileSync(join(ROOT, 'app', '(shell)', 's', '[slug]', 'ShopRenderer.tsx'), 'utf8'))
     const body = topLevelBlocks(stripped).find((block) => block.name === 'ShopPage')?.body
     expect(body, 'ShopPage no longer exists — re-point this guard').toBeTruthy()
     expect(body).toContain('readPublicSellerMarket')

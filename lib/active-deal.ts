@@ -23,30 +23,36 @@ function isUuid(value: string) {
   return /^[0-9a-f-]{36}$/i.test(value)
 }
 
-async function resolveListingMirror(listingId: string) {
-  const { data: byMedusa } = await db
+async function resolveListingMirror(listingId: string, failOnError: boolean) {
+  const { data: byMedusa, error: byMedusaError } = await db
     .from('marketplace_listings')
     .select('id, price_cents, currency')
     .eq('medusa_product_id', listingId)
     .maybeSingle()
+  if (failOnError && byMedusaError) throw byMedusaError
   if (byMedusa) return byMedusa as { id: string; price_cents: number | null; currency: string | null }
 
   if (!isUuid(listingId)) return null
-  const { data: byId } = await db
+  const { data: byId, error: byIdError } = await db
     .from('marketplace_listings')
     .select('id, price_cents, currency')
     .eq('id', listingId)
     .maybeSingle()
+  if (failOnError && byIdError) throw byIdError
   return byId as { id: string; price_cents: number | null; currency: string | null } | null
 }
 
-export async function getActiveDealForBuyer(listingId: string, buyerClerkUserId?: string | null): Promise<ActiveDeal | null> {
+export async function getActiveDealForBuyer(
+  listingId: string,
+  buyerClerkUserId?: string | null,
+  { failOnError = false }: { failOnError?: boolean } = {},
+): Promise<ActiveDeal | null> {
   if (!buyerClerkUserId) return null
 
-  const mirror = await resolveListingMirror(listingId)
+  const mirror = await resolveListingMirror(listingId, failOnError)
   if (!mirror) return null
 
-  const { data: offer } = await db
+  const { data: offer, error: offerError } = await db
     .from('marketplace_offers')
     .select('*')
     .eq('listing_id', mirror.id)
@@ -55,16 +61,18 @@ export async function getActiveDealForBuyer(listingId: string, buyerClerkUserId?
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (failOnError && offerError) throw offerError
 
   if (!offer) return null
 
   const typedOffer = offer as Offer
-  const { data: conv } = await db
+  const { data: conv, error: conversationError } = await db
     .from('marketplace_conversations')
     .select('id')
     .eq('listing_id', mirror.id)
     .eq('buyer_clerk_user_id', buyerClerkUserId)
     .maybeSingle()
+  if (failOnError && conversationError) throw conversationError
 
   const now = Date.now()
   let status: ActiveDealStatus

@@ -10,8 +10,6 @@ import FaqBody from '../../../_shop-content/FaqBody'
 import type { MarketCode } from '@/lib/markets'
 import type { Metadata } from 'next'
 
-export const revalidate = 120
-
 export async function generateShopFaqMetadata({
   params,
   market,

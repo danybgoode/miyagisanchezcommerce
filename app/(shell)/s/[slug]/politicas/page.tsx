@@ -12,8 +12,6 @@ import type { Metadata } from 'next'
 import { getDictionary } from '@/lib/dictionary'
 import { resolveMarketPresentation } from '@/lib/market-presentation'
 
-export const revalidate = 120
-
 export async function generateShopPoliciesMetadata({
   params,
   market,
