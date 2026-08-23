@@ -9,6 +9,28 @@ export const PUBLIC_READ_ISR_ROUTES = Object.freeze([
   '/internal-public-read/[channel]/[identity]/[slug]/shop/[[...rest]]',
 ])
 
+export const PUBLIC_READ_ISR_ROUTE_SAMPLES = Object.freeze({
+  [PUBLIC_READ_ISR_ROUTES[0]]: Object.freeze({
+    requiredPaths: Object.freeze([
+      '/internal-public-read/marketplace/miyagisanchez.com/piezas-unicas/listing/prod_01M0JCJC0FKNEFYK81HSVD72GW',
+    ]),
+    rejectedPaths: Object.freeze([
+      '/internal-public-read/marketplace/miyagisanchez.com/piezas-unicas/shop',
+    ]),
+    testRegex: '^/internal-public-read/[^/]+/[^/]+/[^/]+/listing/[^/]+/?$',
+  }),
+  [PUBLIC_READ_ISR_ROUTES[1]]: Object.freeze({
+    requiredPaths: Object.freeze([
+      '/internal-public-read/marketplace/miyagisanchez.com/piezas-unicas/shop',
+      '/internal-public-read/marketplace/miyagisanchez.com/piezas-unicas/shop/acerca',
+    ]),
+    rejectedPaths: Object.freeze([
+      '/internal-public-read/marketplace/miyagisanchez.com/piezas-unicas/listing/prod_01M0JCJC0FKNEFYK81HSVD72GW',
+    ]),
+    testRegex: '^/internal-public-read/[^/]+/[^/]+/[^/]+/shop(?:/.*)?/?$',
+  }),
+})
+
 export function publicReadBuildFindings(manifest) {
   const dynamicRoutes = manifest?.dynamicRoutes
   if (!dynamicRoutes || typeof dynamicRoutes !== 'object') {
@@ -21,7 +43,22 @@ export function publicReadBuildFindings(manifest) {
     const findings = []
     if (entry.fallback !== null) findings.push(`${route}: fallback must be null for on-demand ISR`)
     if (entry.dataRoute !== `${route}.rsc`) findings.push(`${route}: dataRoute must be the matching .rsc route`)
-    if (typeof entry.routeRegex !== 'string' || entry.routeRegex.length === 0) findings.push(`${route}: routeRegex missing`)
+    if (typeof entry.routeRegex !== 'string' || entry.routeRegex.length === 0) {
+      findings.push(`${route}: routeRegex missing`)
+    } else {
+      let matcher
+      try {
+        matcher = new RegExp(entry.routeRegex)
+      } catch {
+        findings.push(`${route}: routeRegex is invalid`)
+      }
+      const samples = PUBLIC_READ_ISR_ROUTE_SAMPLES[route]
+      if (matcher && !samples.requiredPaths.every((sample) => matcher.test(sample))) {
+        findings.push(`${route}: routeRegex does not match its required public-read shape`)
+      } else if (matcher && samples.rejectedPaths.some((sample) => matcher.test(sample))) {
+        findings.push(`${route}: routeRegex matches a sibling public-read shape`)
+      }
+    }
     return findings
   })
 }

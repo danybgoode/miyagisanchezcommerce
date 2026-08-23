@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   PUBLIC_READ_ISR_ROUTES,
+  PUBLIC_READ_ISR_ROUTE_SAMPLES,
   publicReadBuildFindings,
 } from '../scripts/assert-public-read-build.mjs'
 
@@ -15,10 +16,21 @@ test.describe('public-read build manifest · D7/D19/D21', () => {
       dynamicRoutes: Object.fromEntries(PUBLIC_READ_ISR_ROUTES.map((route) => [route, {
         fallback: null,
         dataRoute: `${route}.rsc`,
-        routeRegex: '^example$',
+        routeRegex: PUBLIC_READ_ISR_ROUTE_SAMPLES[route].testRegex,
       }])),
     }
     expect(publicReadBuildFindings(manifest)).toEqual([])
+  })
+
+  test('a route regex must match its own live shape and reject the sibling shape', () => {
+    const dynamicRoutes = Object.fromEntries(PUBLIC_READ_ISR_ROUTES.map((route) => [route, {
+      fallback: null,
+      dataRoute: `${route}.rsc`,
+      routeRegex: '^example$',
+    }]))
+    expect(publicReadBuildFindings({ dynamicRoutes })).toEqual(PUBLIC_READ_ISR_ROUTES.map(
+      (route) => `${route}: routeRegex does not match its required public-read shape`,
+    ))
   })
 
   test('a route absent from the prerender manifest fails explicitly', () => {
