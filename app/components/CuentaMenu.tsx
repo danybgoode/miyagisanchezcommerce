@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { ACCOUNT_MENU_ITEMS } from '@/lib/account-menu'
+
+const subscribeToBrowser = () => () => {}
 
 /**
  * Cuenta hub — one dropdown holding every account action that used to be
@@ -41,18 +43,33 @@ export default function CuentaMenu({
   hideFavoritesInPwa?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const supportsPopover = useSyncExternalStore(
+    subscribeToBrowser,
+    () => 'showPopover' in HTMLElement.prototype,
+    () => false,
+  )
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div
+      style={{ position: 'relative' }}
+      onKeyDown={(event) => {
+        if (supportsPopover === false && event.key === 'Escape') setOpen(false)
+      }}
+      onBlur={(event) => {
+        if (supportsPopover === false && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+      }}
+    >
       <button
         type="button"
-        popoverTarget="cuenta-menu"
+        popoverTarget={supportsPopover ? 'cuenta-menu' : undefined}
         className="icon-btn cuenta-menu-trigger"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={accountLabel}
         title={accountLabel}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          if (supportsPopover === false) setOpen(value => !value)
+        }}
         style={{ gap: 2 }}
       >
         <i className="iconoir-user" style={{ fontSize: 22 }} />
@@ -69,7 +86,7 @@ export default function CuentaMenu({
 
       <div
           id="cuenta-menu"
-          popover="auto"
+          popover={supportsPopover ? 'auto' : undefined}
           onToggle={(event) => setOpen(event.newState === 'open')}
           role="menu"
           aria-label={accountLabel}
@@ -84,7 +101,7 @@ export default function CuentaMenu({
             borderRadius: 'var(--r-lg)',
             padding: 6,
             zIndex: 60,
-            display: 'flex',
+            display: supportsPopover || open ? 'flex' : 'none',
             flexDirection: 'column',
             gap: 2,
           }}
