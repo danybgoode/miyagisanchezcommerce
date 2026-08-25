@@ -20,10 +20,15 @@ test.describe('discovery · type filter (browser)', () => {
     await expect(serviceChip).toBeVisible()
     await serviceChip.click()
 
-    // The filter round-trips into the URL.
-    await expect(page).toHaveURL(/listing_type=service/)
+    // The filter round-trips into the URL. This is a real client-side navigation
+    // against production (RSC fetch + render), not a local dev server — the default
+    // 5s assertion timeout is tuned for local latency and flaked on real production
+    // variance (observed: a same-run sibling spec took 30s where it's normally ~8s).
+    // 15s matches the precedent for the same kind of wait elsewhere in this suite
+    // (interaction-feedback.browser.spec.ts's `waitForURL`).
+    await expect(page).toHaveURL(/listing_type=service/, { timeout: 15_000 })
     // …and the chip reads as selected after the navigation.
-    await expect(page.locator('a.chip.is-selected[href*="listing_type=service"]')).toBeVisible()
+    await expect(page.locator('a.chip.is-selected[href*="listing_type=service"]')).toBeVisible({ timeout: 15_000 })
   })
 
   test('service results carry a "Servicio" badge, else a valid empty state (S1.3)', async ({ page }) => {
