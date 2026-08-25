@@ -20,10 +20,22 @@ const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
 test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self-check', () => {
-  test('all image stages use the supported Node.js 22 runtime required by Supabase', () => {
-    expect(dockerfile.match(/^FROM node:22-slim AS (deps|builder|runner)$/gm)).toHaveLength(3)
+  // Node 24 is "Krypton", the ACTIVE LTS. Moved 22 -> 24 on 2026-08-25; 22 ("Jod") is the PREVIOUS
+  // LTS and both repos were a full line behind.
+  //
+  // The old title said "the Node.js 22 runtime REQUIRED BY SUPABASE", which is a paraphrase that had
+  // drifted into a ceiling: @supabase/supabase-js declares `node: ">=22.0.0"` and next@16 declares
+  // `>=20.9.0` — both FLOORS, satisfied by 24. Nothing in the dependency tree pins 22. Read from the
+  // installed packages, not restated, because a restated constraint is how this got frozen.
+  //
+  // The `<25` ceiling is the real rule and it is deliberate: odd-numbered Node lines are never LTS,
+  // so it says "no Current-line Node in production" without naming a version. Node 26 is not LTS
+  // until 2026-10, which is why this stops at 24.
+  test('all image stages use the active-LTS Node 24 runtime, above every dependency floor', () => {
+    expect(dockerfile.match(/^FROM node:24-slim AS (deps|builder|runner)$/gm)).toHaveLength(3)
     expect(dockerfile).not.toContain('node:20')
-    expect(pkg.engines?.node).toBe('>=22 <25')
+    expect(dockerfile).not.toContain('node:22')
+    expect(pkg.engines?.node).toBe('>=24 <25')
 
     for (const file of ['ci.yml', 'browser-smoke.yml']) {
       const workflow = readFileSync(join(ROOT, '.github/workflows', file), 'utf8')
@@ -33,7 +45,7 @@ test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self
       ]
       expect(setups.length, `${file} must configure setup-node`).toBeGreaterThan(0)
       for (const setup of setups) {
-        expect(setup[1], `${file} setup-node runtime`).toBe('22')
+        expect(setup[1], `${file} setup-node runtime`).toBe('24')
       }
     }
   })
