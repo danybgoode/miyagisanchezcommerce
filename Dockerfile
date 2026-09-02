@@ -95,11 +95,34 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Reinstall sharp fresh in THIS stage — the standalone trace above copied only
-# stub files for it (see comment at top). package.json (copied by the
-# standalone output as-is) already lists it, so this just fetches the
-# prebuilt binary matching this stage's own platform. Runs as root (before the
-# USER switch below), so re-chown the tree it touched.
-RUN npm install sharp && chown -R nextjs:nodejs node_modules
+# stub files for it (see comment at top).
+#
+# The `rm -rf` is LOAD-BEARING, not tidiness. The standalone output also ships
+# node_modules/.package-lock.json — npm's record of what is ALREADY on disk — and it
+# lists @img/sharp-libvips-linux-x64 as installed AND `optional`. npm believes that
+# inventory over the filesystem, so a bare `npm install sharp` re-extracts NOTHING and
+# exits 0 while lib/libvips-cpp.so.<v> is still absent. sharp then throws
+# ERR_DLOPEN_FAILED at module load and every /api/img request 500s — i.e. every product
+# image on the site. That shipped: 8 days of dead images from 2026-08-25 (rev 00139),
+# the image build green the whole time. npm 10 (Node 22) happened to repair the stub
+# tree; npm 11 (Node 24) does not, so the Node bump alone surfaced it.
+#
+# PINNED to the lockfile's own resolution, not a bare `sharp`: `npm install sharp`
+# re-resolves to the registry's LATEST at build time, ignoring package.json's range and
+# the lockfile both, so the runner could ship a different sharp than the builder
+# compiled against. Reading the pin from package-lock.json keeps the two stages in step
+# with no second place to update.
+#
+# The `node -e "require('sharp')"` is the gate: it forces the layer to FAIL here if the
+# native library cannot actually load, instead of shipping a green image whose image
+# route is dead. An install that exits 0 having restored nothing is exactly the failure
+# above, and only loading it proves otherwise.
+# Runs as root (before the USER switch below), so re-chown the tree it touched.
+RUN SHARP_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/sharp'].version")" \
+ && rm -rf node_modules/sharp node_modules/@img \
+ && npm install --no-save "sharp@${SHARP_VERSION}" \
+ && node -e "require('sharp')" \
+ && chown -R nextjs:nodejs node_modules
 
 USER nextjs
 EXPOSE 8080
