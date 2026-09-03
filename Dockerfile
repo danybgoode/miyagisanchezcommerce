@@ -94,18 +94,24 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# The standalone output does NOT ship package-lock.json, and the runner has no other copy
+# of it — the /app/package-lock.json that used to exist here was a SIDE EFFECT of the old
+# bare `npm install sharp` writing one. The sharp reinstall below pins to it, so copy it
+# in explicitly rather than depending on a file another command happened to leave behind.
+COPY --from=builder --chown=nextjs:nodejs /app/package-lock.json ./package-lock.json
+
 # Reinstall sharp fresh in THIS stage — the standalone trace above copied only
 # stub files for it (see comment at top).
 #
-# The `rm -rf` is LOAD-BEARING, not tidiness. The standalone output also ships
-# node_modules/.package-lock.json — npm's record of what is ALREADY on disk — and it
-# lists @img/sharp-libvips-linux-x64 as installed AND `optional`. npm believes that
-# inventory over the filesystem, so a bare `npm install sharp` re-extracts NOTHING and
-# exits 0 while lib/libvips-cpp.so.<v> is still absent. sharp then throws
-# ERR_DLOPEN_FAILED at module load and every /api/img request 500s — i.e. every product
-# image on the site. That shipped: 8 days of dead images from 2026-08-25 (rev 00139),
-# the image build green the whole time. npm 10 (Node 22) happened to repair the stub
-# tree; npm 11 (Node 24) does not, so the Node bump alone surfaced it.
+# The `rm -rf` is LOAD-BEARING, not tidiness. The standalone trace leaves STUB package
+# directories — a valid package.json and lib/index.js, but no binary. npm reads those as
+# an already-installed package at a satisfying version, so a bare `npm install sharp`
+# re-extracts NOTHING and exits 0 while @img/sharp-libvips-linux-x64's
+# lib/libvips-cpp.so.<v> is still absent. sharp then throws ERR_DLOPEN_FAILED at module
+# load and every /api/img request 500s — i.e. every product image on the site. That
+# shipped: 8 days of dead images from 2026-08-25 (rev 00139), the build green throughout.
+# npm 10 (Node 22) happened to repair the stub tree; npm 11 (Node 24) does not, so the
+# Node bump alone surfaced it. Deleting the stubs is what forces a real fetch.
 #
 # PINNED to the lockfile's own resolution, not a bare `sharp`: `npm install sharp`
 # re-resolves to the registry's LATEST at build time, ignoring package.json's range and
