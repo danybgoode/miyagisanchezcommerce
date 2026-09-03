@@ -72,8 +72,65 @@ test.describe('frontend Dockerfile + lockfile — deploy-pipeline-tuning S1 self
     expect(depsStage).toMatch(/RUN npm ci\b/)
   })
 
-  test('the runner stage keeps its deliberate npm install sharp workaround', () => {
-    expect(dockerfile).toMatch(/RUN npm install sharp/)
+  /**
+   * The runner stage's INSTRUCTIONS, with `#` comment lines stripped.
+   *
+   * Scoping to commands is load-bearing. The runner block is heavily commented and those
+   * comments quote the very strings these guards search for (`npm install sharp`,
+   * `require('sharp')`). Matching the raw slice let the "proves sharp loads" assertion be
+   * satisfied by its own prose — it stayed GREEN when the fix was mutated away, which the
+   * break-the-implementation run caught. A guard a comment can satisfy is decoration.
+   */
+  function runnerCommands(): string {
+    return dockerfile
+      .slice(dockerfile.indexOf('AS runner'))
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+  }
+
+  // This guard used to read `expect(dockerfile).toMatch(/RUN npm install sharp/)` — it
+  // asserted the PRESENCE of the line while saying nothing about whether the line worked,
+  // so it stayed green through the whole outage below and would have blocked the fix.
+  //
+  // 2026-08-25 → 09-02: the runner's bare `npm install sharp` restored nothing. The
+  // standalone trace ships node_modules/.package-lock.json listing
+  // @img/sharp-libvips-linux-x64 as already-installed AND optional; npm trusts that
+  // inventory, so it re-extracted no tarball, exited 0, and left libvips-cpp.so.* absent.
+  // sharp threw ERR_DLOPEN_FAILED at module load ⇒ every /api/img 500'd ⇒ every product
+  // image on the site was dead for 8 days behind a green build.
+  //
+  // So assert the two properties that actually make the reinstall real, and the pin that
+  // keeps the runner on the builder's sharp. Written as ordered/independent regexes rather
+  // than one exact command string so a reformat of the RUN block does not fail a correct
+  // Dockerfile — a guard that rejects correct output gets bypassed.
+  test('the runner stage PURGES the traced sharp stubs before reinstalling', () => {
+    const runnerStage = runnerCommands()
+
+    // npm cannot repair a stub it believes is installed, so the purge must come first.
+    const purge = runnerStage.search(/rm -rf[^\n]*node_modules\/@img/)
+    const install = runnerStage.search(/npm install[^\n]*sharp@/)
+    expect(purge, 'runner stage must rm -rf the traced node_modules/@img stubs').toBeGreaterThan(-1)
+    expect(install, 'runner stage must reinstall sharp').toBeGreaterThan(-1)
+    expect(purge, 'the purge must run BEFORE the reinstall').toBeLessThan(install)
+
+    // Both sharp and @img must go: the .so lives in @img, the loader lives in sharp.
+    expect(runnerStage).toMatch(/rm -rf[^\n]*node_modules\/sharp/)
+  })
+
+  test('the runner reinstall is version-pinned, never a bare `npm install sharp`', () => {
+    const runnerStage = runnerCommands()
+    // A bare `sharp` specifier resolves to the registry's latest at build time, which can
+    // drift from the version the builder stage compiled against.
+    expect(runnerStage).not.toMatch(/npm install\s+sharp(\s|$)/)
+    expect(runnerStage).toMatch(/npm install[^\n]*sharp@/)
+  })
+
+  test('the runner stage proves sharp actually LOADS before shipping the image', () => {
+    // The install exiting 0 is precisely what was untrue during the outage. Only requiring
+    // the module proves the native library resolved, so this must stay in the same layer.
+    const runnerStage = runnerCommands()
+    expect(runnerStage).toMatch(/node -e ["'][^"']*require\(['"]sharp['"]\)/)
   })
 
   test('CI also installs via npm ci (with the lockfile-hash cache), not npm install', () => {
