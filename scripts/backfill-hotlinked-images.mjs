@@ -26,6 +26,12 @@
  * MEDUSA_STORE_URL, MEDUSA_INTERNAL_SECRET
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import {
+  absolutizeImageUrl,
+  classifyListingOutcome,
+  isExternalImageUrl,
+  shouldWriteImages,
+} from './lib/hotlinked-image-urls.mjs'
 
 const APPLY = process.argv.includes('--apply')
 const limitArg = process.argv.find((a) => a.startsWith('--limit='))
@@ -60,12 +66,12 @@ const s3 = new S3Client({
 
 const EXT_BY_TYPE = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' }
 
-function isExternal(url) {
-  try { return new URL(url).hostname !== R2_HOST } catch { return true } // unparsable → treat as needing attention
-}
+const isExternal = (url) => isExternalImageUrl(url, R2_HOST)
 
 async function ingestOne(url, listingId, idx) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+  // Protocol-relative (`//cdn.shopify.com/...`) is how Shopify-imported listings are
+  // stored; fetch() cannot parse it. See absolutizeImageUrl.
+  const res = await fetch(absolutizeImageUrl(url), { signal: AbortSignal.timeout(15_000) })
   if (!res.ok) throw new Error(`upstream ${res.status}`)
   const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
   const ext = EXT_BY_TYPE[type]
@@ -113,18 +119,27 @@ for (const c of candidates) {
   console.log(`- ${c.id} (${c.seller_slug}): ${externalCount}/${c.images.length} hotlinked image(s)`)
   if (!APPLY) continue
 
-  let anyFailed = false
+  let migratedCount = 0
   const finalImages = []
   for (const [idx, img] of c.images.entries()) {
     if (!isExternal(img.url)) { finalImages.push(img); continue }
     try {
       const r2Url = await ingestOne(img.url, c.id, idx)
       finalImages.push({ url: r2Url, alt: img.alt })
+      migratedCount++
     } catch (err) {
-      anyFailed = true
       finalImages.push(img) // keep original — never lose an image
       console.error(`    x image ${idx} (${img.url}):`, err instanceof Error ? err.message : err)
     }
+  }
+
+  const outcome = classifyListingOutcome({ externalCount, migratedCount })
+  // Nothing moved ⇒ finalImages equals what is already stored, so both PATCHes below would
+  // be no-op writes against production. Report the failure instead of performing them.
+  if (!shouldWriteImages(outcome)) {
+    failed++
+    console.error(`    x NOT fixed — 0/${externalCount} image(s) migrated, no write attempted`)
+    continue
   }
 
   // Update the Supabase read-mirror.
@@ -150,8 +165,13 @@ for (const c of candidates) {
     continue
   }
 
-  if (anyFailed) { partiallyFixed++; console.log(`    ~ partially fixed (some images kept hotlinked)`) }
-  else { fixed++; console.log(`    ✓ fixed`) }
+  if (outcome === 'partially_fixed') {
+    partiallyFixed++
+    console.log(`    ~ partially fixed — ${migratedCount}/${externalCount} image(s) migrated`)
+  } else {
+    fixed++
+    console.log(`    ✓ fixed — ${migratedCount}/${externalCount} image(s) migrated`)
+  }
 }
 
 console.log(`\nDone. candidates=${candidates.length} fixed=${fixed} partially_fixed=${partiallyFixed} failed=${failed}`)
