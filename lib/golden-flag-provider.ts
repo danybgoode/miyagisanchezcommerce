@@ -11,18 +11,15 @@ import {
   createFlagProvider,
   type FlagProvider,
   type FlagResolutionReason,
+  type FlagSnapshot,
 } from '@golden-frijoles/sdk'
 import {
   parseGoldenFlagEnvironment,
   type GoldenFlagEnvironment,
-} from '@/lib/flag-provider-mode'
+} from '@/lib/golden-flag-environment'
 import { createFlagProviderRequestRefreshGate } from '@/lib/flag-provider-request-refresh'
 import { scheduleDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
 import { trackGoldenFlagEvaluation } from '@/lib/growth-engine'
-import {
-  routeGoldenFlagReadKey,
-  type GoldenFlagReadKeyRoute,
-} from '@/lib/golden-flag-read-key-routing'
 
 export type GoldenBooleanEvaluation = {
   value: boolean
@@ -56,8 +53,10 @@ function createProviderState(): ProviderState {
   }
 }
 
-const primaryProviderState = createProviderState()
-const partnersRecruitingProviderState = createProviderState()
+// ONE provider: every flag lives in the `miyagisanchez` Golden project (flag-provider-mandate).
+// The second, partners-recruiting-scoped provider existed only while production read a legacy
+// catalog; its credential expired 2026-09-09 and nothing routes to it any more.
+const providerState = createProviderState()
 
 function resetProviderState(state: ProviderState): void {
   try {
@@ -124,10 +123,9 @@ function configuredProvider(
   return state.provider
 }
 
-function getProvider(flagKey: string):
+function getProvider():
   | {
       provider: FlagProvider
-      route: GoldenFlagReadKeyRoute
       state: ProviderState
     }
   | undefined {
@@ -137,59 +135,27 @@ function getProvider(flagKey: string):
   const environment = parseGoldenFlagEnvironment(
     process.env.GOLDEN_BEANS_FLAG_ENVIRONMENT,
   )
-  const route = routeGoldenFlagReadKey(flagKey, {
-    GOLDEN_BEANS_FLAG_READ_KEY: process.env.GOLDEN_BEANS_FLAG_READ_KEY,
-    GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY:
-      process.env.GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY,
-  })
-  if (!baseUrl || !environment) {
-    // The URL and environment are shared prerequisites. If either disappears,
-    // neither provider can refresh safely, so release both timers and snapshots.
-    resetProviderState(primaryProviderState)
-    resetProviderState(partnersRecruitingProviderState)
+  const flagReadKey = process.env.GOLDEN_BEANS_FLAG_READ_KEY?.trim()
+  if (!baseUrl || !environment || !flagReadKey) {
+    // A missing prerequisite must release the refresh timer and the snapshot, never keep serving
+    // a provider configured for a credential or environment that is no longer there.
+    resetProviderState(providerState)
     return undefined
   }
-
-  if (
-    route.resetScopedProvider &&
-    partnersRecruitingProviderState.configuration
-  ) {
-    // Removing the scoped credential must also release its refresh timer. The
-    // reset applies even when later traffic checks only primary flags; the
-    // partner flag immediately falls back to the established primary provider.
-    resetProviderState(partnersRecruitingProviderState)
-  }
-
-  if (!route.flagReadKey) {
-    resetProviderState(primaryProviderState)
-    return undefined
-  }
-
-  const state = route.providerSlot === 'partners-recruiting-v3'
-    ? partnersRecruitingProviderState
-    : primaryProviderState
   return {
-    provider: configuredProvider(state, {
-      baseUrl,
-      flagReadKey: route.flagReadKey,
-      environment,
-    }),
-    route,
-    state,
+    provider: configuredProvider(providerState, { baseUrl, flagReadKey, environment }),
+    state: providerState,
   }
 }
 
 function evaluateSelectedProvider(
-  selected: {
-    provider: FlagProvider
-    route: GoldenFlagReadKeyRoute
-  },
+  selected: { provider: FlagProvider },
   flagKey: string,
   defaultValue: boolean,
 ): GoldenBooleanEvaluation | undefined {
   const snapshot = selected.provider.getSnapshot()
   if (!snapshot) return undefined
-  scheduleDurableGoldenSnapshot(snapshot, selected.route.providerSlot)
+  scheduleDurableGoldenSnapshot(snapshot)
 
   const details = selected.provider.resolveBooleanEvaluation(
     flagKey,
@@ -224,7 +190,7 @@ export function evaluateGoldenBooleanFlag(
   defaultValue: boolean,
 ): GoldenBooleanEvaluation | undefined {
   try {
-    const selected = getProvider(flagKey)
+    const selected = getProvider()
     if (!selected) return undefined
     return evaluateSelectedProvider(selected, flagKey, defaultValue)
   } catch {
@@ -243,10 +209,27 @@ export async function recoverGoldenBooleanFlag(
   defaultValue: boolean,
 ): Promise<GoldenBooleanEvaluation | undefined> {
   try {
-    const selected = getProvider(flagKey)
+    const selected = getProvider()
     if (!selected) return undefined
     await selected.state.initialization
     return evaluateSelectedProvider(selected, flagKey, defaultValue)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The live snapshot for the read-only `/admin/flags` mirror (flag-provider-mandate S2.1): the same
+ * credential and provider that make runtime decisions, so the page can never show a different
+ * project than the one deciding — the "two windows" confusion this epic exists to end. Awaits only
+ * the provider's already-started, bounded initial fetch; `undefined` means Golden is unavailable.
+ */
+export async function readGoldenFlagSnapshot(): Promise<FlagSnapshot | undefined> {
+  try {
+    const selected = getProvider()
+    if (!selected) return undefined
+    await selected.state.initialization
+    return selected.provider.getSnapshot()
   } catch {
     return undefined
   }

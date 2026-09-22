@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { classifyAgentCredential, parseBearer, CONNECTOR_PREFIX } from '../lib/agent-auth'
-import { resolveFlag, type FlagRow } from '../lib/flags-cache'
+import { DEFAULT_FLAGS, FLAG_CATALOG } from '../lib/flag-catalog'
 
 /**
  * Seller agent connect · Sprint 2 (epic 03 · seller-agent-connect-mcp-url) — the
@@ -60,18 +60,13 @@ test.describe('agent-connector · parseBearer accepts both credential shapes', (
   })
 })
 
-test.describe('agent-connector · seller_agent.connector_url_enabled fail-open (both states)', () => {
-  const DEFAULTS = { 'seller_agent.connector_url_enabled': false } as const
-
-  test('missing row falls open to the enablement default (OFF)', () => {
-    expect(resolveFlag([], 'seller_agent.connector_url_enabled', DEFAULTS)).toBe(false)
-  })
-
-  test('an explicit row overrides the default in both directions', () => {
-    const on: FlagRow[] = [{ key: 'seller_agent.connector_url_enabled', enabled: true }]
-    const off: FlagRow[] = [{ key: 'seller_agent.connector_url_enabled', enabled: false }]
-    expect(resolveFlag(on, 'seller_agent.connector_url_enabled', DEFAULTS)).toBe(true)
-    expect(resolveFlag(off, 'seller_agent.connector_url_enabled', DEFAULTS)).toBe(false)
+test.describe('agent-connector · seller_agent.connector_url_enabled fail-safe default (pure)', () => {
+  // Golden decides this flag (flag-provider-mandate). The compile default is only the LAST rung —
+  // live snapshot and durable mirror both unavailable — and for a new auth path it must be OFF,
+  // so an outage can never open an unverified credential route.
+  test('the compile-time default is OFF (enablement polarity)', () => {
+    expect(DEFAULT_FLAGS['seller_agent.connector_url_enabled']).toBe(false)
+    expect(FLAG_CATALOG['seller_agent.connector_url_enabled'].polarity).toBe('enablement')
   })
 })
 

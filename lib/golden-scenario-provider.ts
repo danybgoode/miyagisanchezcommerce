@@ -3,7 +3,7 @@ import {
   createScenarioProvider,
   type ScenarioProvider,
 } from '@golden-frijoles/sdk'
-import { parseGoldenFlagEnvironment } from '@/lib/flag-provider-mode'
+import { parseGoldenFlagEnvironment } from '@/lib/golden-flag-environment'
 
 let provider: ScenarioProvider | undefined
 let configuration: string | undefined
