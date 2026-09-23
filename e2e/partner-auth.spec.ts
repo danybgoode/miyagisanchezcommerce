@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { classifyAgentCredential, parseBearer, PARTNER_PREFIX, generatePartnerToken, hashAgentToken } from '../lib/agent-auth'
 import { PARTNER_READ_TOOLS } from '../lib/partner-tools'
-import { resolveFlag, type FlagRow } from '../lib/flags-cache'
+import { DEFAULT_FLAGS, FLAG_CATALOG } from '../lib/flag-catalog'
 
 /**
  * Miyagi Partners · Sprint 1 — the ms_partner_ credential's auth boundary
@@ -72,18 +72,13 @@ test.describe('partner-auth · viewer read-tool allow-list (pure)', () => {
   })
 })
 
-test.describe('partner-auth · partners.mcp_enabled fail-open default (pure)', () => {
-  const DEFAULTS = { 'partners.mcp_enabled': false } as const
-
-  test('missing row falls open to OFF (dark-launch polarity)', () => {
-    expect(resolveFlag([], 'partners.mcp_enabled', DEFAULTS)).toBe(false)
-  })
-
-  test('an explicit row overrides in both directions', () => {
-    const on: FlagRow[] = [{ key: 'partners.mcp_enabled', enabled: true }]
-    const off: FlagRow[] = [{ key: 'partners.mcp_enabled', enabled: false }]
-    expect(resolveFlag(on, 'partners.mcp_enabled', DEFAULTS)).toBe(true)
-    expect(resolveFlag(off, 'partners.mcp_enabled', DEFAULTS)).toBe(false)
+test.describe('partner-auth · partners.mcp_enabled fail-safe default (pure)', () => {
+  // Golden decides this flag (flag-provider-mandate). The compile default is only the LAST rung —
+  // live snapshot and durable mirror both unavailable — and for a new auth path it must be OFF,
+  // so an outage can never open an unverified credential route.
+  test('the compile-time default is OFF (enablement polarity)', () => {
+    expect(DEFAULT_FLAGS['partners.mcp_enabled']).toBe(false)
+    expect(FLAG_CATALOG['partners.mcp_enabled'].polarity).toBe('enablement')
   })
 })
 

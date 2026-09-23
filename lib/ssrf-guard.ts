@@ -7,7 +7,7 @@
  *
  * Kept `server-only`-free and network-free on purpose (unlike its caller)
  * so the Playwright `api` runner can unit-test the classifiers directly —
- * same reason `lib/flags-cache.ts` / `lib/agent-auth.ts`'s pure halves stay
+ * same reason `lib/flag-provider-evaluator.ts` / `lib/agent-auth.ts`'s pure halves stay
  * next-free (see LEARNINGS → "a unit-tested pure helper can't live in a
  * module that imports next/cache" — `server-only` has the identical bundler-
  * condition trap: importing it outside Next's build throws immediately).

@@ -1,5 +1,12 @@
 import { requireAdmin } from '@/lib/admin/guard'
-import { GoldenFlagAdminUnavailable, getGoldenAdminSnapshot } from '@/lib/golden-flag-admin'
+import { Banner } from '@/components/feedback/Banner'
+import { readGoldenFlagSnapshot } from '@/lib/golden-flag-provider'
+import {
+  GOLDEN_FLAG_CONSOLE_URL,
+  catalogKeysMissingFromSnapshot,
+  mirrorRowsFromSnapshot,
+  type FlagView,
+} from '@/lib/flags-mirror-view'
 import {
   filterFlagsByPolarity,
   filterFlagsByQuery,
@@ -13,7 +20,7 @@ import {
 } from '@/lib/flags-admin-view'
 import FlagsFilterBar from './FlagsFilterBar'
 import FlagsPagination from './FlagsPagination'
-import FlagsAdminClient, { type FlagView } from './FlagsAdminClient'
+import FlagsMirrorTable from './FlagsMirrorTable'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Flags — Admin' }
@@ -25,19 +32,16 @@ const STATUSES: readonly FlagStatusFilter[] = ['all', 'on', 'off']
 const POLARITIES: readonly FlagPolarityFilter[] = ['all', 'killswitch', 'enablement']
 
 /**
- * Admin control surface for the in-house feature flags (epic 09 · feature-flags-inhouse,
- * Sprint 2; filter/sort/pagination polish — admin-flags-cleanup fast-follow chore).
- * Clerk-gated read-only list here; the toggles POST to `/api/admin/flags`.
+ * `/admin/flags` — a READ-ONLY MIRROR of Golden Frijoles (flag-provider-mandate S2.1, D5).
  *
- * The view reads Golden's credential-scoped snapshot directly. Runtime `shadow` mode still keeps
- * Miyagi's local mirror authoritative, but this control surface intentionally has no local-value
- * fallback: showing an old local row here would recreate the second operational writer this story
- * removes.
+ * It renders the snapshot the runtime is serving — same credential, same provider as `isEnabled()`
+ * — and links out to Golden's console, which is the ONLY place a flag can change. It used to be a
+ * second writer onto a retired legacy catalog: two windows, one of which decided nothing, and the
+ * product owner "0% sure where to manage anything". There is deliberately no toggle, no write route,
+ * and no local-value fallback: when Golden is unavailable the page says so and shows nothing,
+ * because an old value here would be a confident falsehood.
  *
- * Filter/sort/pagination is URL-search-param-driven (mirrors `/shop/manage/catalogo`'s
- * pattern — `lib/catalog-query.ts` / `CatalogFilterBar.tsx`) rather than client-side state:
- * shareable/bookmarkable, survives a refresh, and keeps the client bundle down to just the
- * toggle-button interactivity.
+ * Filter/sort/pagination stays URL-search-param-driven (shareable, survives refresh).
  */
 export default async function AdminFlagsPage({
   searchParams,
@@ -47,29 +51,9 @@ export default async function AdminFlagsPage({
   await requireAdmin()
   const params = await searchParams
 
-  let snapshot: Awaited<ReturnType<typeof getGoldenAdminSnapshot>> | null = null
-  try {
-    snapshot = await getGoldenAdminSnapshot()
-  } catch (error) {
-    if (!(error instanceof GoldenFlagAdminUnavailable)) throw error
-  }
-
-  // There is intentionally no platform_flags fallback here. In shadow mode the runtime's local
-  // mirror remains authoritative, but this operational surface must show the Golden source of truth
-  // rather than create a second writer or conceal a control-plane outage.
-  const allFlags: FlagView[] = (snapshot?.flags ?? []).map((flag) => ({
-    key: flag.key,
-    polarity: flag.polarity,
-    criticality: flag.criticality,
-    enabled: flag.value,
-    definitionVersion: flag.definitionVersion,
-    reason: flag.reason,
-    environment: snapshot!.environment,
-    snapshotVersion: snapshot!.snapshotVersion,
-    snapshotUpdatedAt: snapshot!.snapshotUpdatedAt,
-    updated_at: snapshot!.snapshotUpdatedAt,
-    description: flag.description,
-  }))
+  const snapshot = await readGoldenFlagSnapshot()
+  const allFlags: FlagView[] = snapshot ? mirrorRowsFromSnapshot(snapshot) : []
+  const missing = snapshot ? catalogKeysMissingFromSnapshot(snapshot) : []
 
   const q = params.q ?? ''
   const status: FlagStatusFilter = STATUSES.includes(params.status as FlagStatusFilter)
@@ -103,20 +87,35 @@ export default async function AdminFlagsPage({
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <h1 className="text-2xl font-bold mb-1">Flags</h1>
-      <p className="text-sm text-[var(--fg-muted)] mb-1">
-        Control de Golden Beans para las funciones de la plataforma. Cada cambio crea una versión
-        inmutable y queda auditado con su actor.
-      </p>
+      <div data-testid="flags-readonly-mirror" className="mb-4">
+        <Banner variant="info" title="Espejo de sólo lectura de Golden Frijoles">
+          Aquí ves la versión de Golden que este servidor está leyendo en vivo. Las flags se cambian únicamente en la consola de
+          Golden:{' '}
+          <a
+            href={GOLDEN_FLAG_CONSOLE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-medium"
+          >
+            abrir flags de miyagisanchez en Golden ↗
+          </a>
+        </Banner>
+      </div>
       <p className="text-xs text-[var(--fg-muted)] mb-5">
         Entorno {snapshot?.environment ?? 'no disponible'} · snapshot v{snapshot?.snapshotVersion ?? '—'}
-        {snapshot ? ' · fresca desde Golden' : ''}.
-        Los consumidores actualizan dentro de su ventana acotada; durante shadow, la tabla local
-        sigue siendo sólo el respaldo de runtime, no una segunda operación.
+        {snapshot ? ' · la misma lectura que usa el runtime' : ''}.
       </p>
 
       {!snapshot && (
         <p role="alert" className="text-sm text-red-700 mb-5">
-          Golden no está disponible para leer u operar flags. No se muestra un valor local alterno.
+          Golden no está disponible para leer flags. No se muestra un valor local alterno.
+        </p>
+      )}
+
+      {missing.length > 0 && (
+        <p role="alert" className="text-sm text-red-700 mb-5">
+          {missing.length} flag(s) de este build no existen en Golden y usan su valor por defecto:{' '}
+          <span className="font-mono">{missing.join(', ')}</span>
         </p>
       )}
 
@@ -128,7 +127,7 @@ export default async function AdminFlagsPage({
 
       <FlagsPagination params={params} page={page} totalPages={totalPages} />
 
-      <FlagsAdminClient flags={pageItems} />
+      <FlagsMirrorTable flags={pageItems} />
 
       <FlagsPagination params={params} page={page} totalPages={totalPages} className="mt-4" />
     </div>

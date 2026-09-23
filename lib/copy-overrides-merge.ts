@@ -3,14 +3,14 @@
  *
  * The PURE merge seam (epic 08 · admin-content-and-announcements, Sprint 1) that
  * layers `platform_copy_overrides` rows onto a compile-time `Dictionary`. Kept free
- * of `next/*` and `server-only` — like `lib/flags-cache.ts` — so it's unit-testable
+ * of `next/*` and `server-only` — like `lib/flag-provider-evaluator.ts` — so it's unit-testable
  * with zero network. `resolveOverriddenDictionary` also lives here (not in the
  * `server-only` `lib/copy-overrides.ts`) for the same reason `resolveFlag` lives in
- * `flags-cache.ts` rather than `flags.ts`: a `server-only`-tagged module throws on
+ * `flag-provider-evaluator.ts` rather than `flags.ts`: a `server-only`-tagged module throws on
  * import outside a Next server bundle, so the Playwright `api` runner can never load
  * it directly — the injectable-deps core has to live in the `server-only`-free half.
  * `lib/copy-overrides.ts` composes this function, binding the real Supabase/flags/
- * dictionary dependencies (mirrors the flags.ts / flags-cache.ts split).
+ * dictionary dependencies (mirrors the flags.ts / flag-provider-evaluator.ts split).
  *
  * `Dictionary` is imported TYPE-ONLY (erased at runtime): `lib/dictionary.ts` itself
  * imports raw `locales/*.json`, and Node's native ESM loader (which the Playwright

@@ -4,7 +4,7 @@
  * The stateful half of the runtime copy-override reader (epic 08 ·
  * admin-content-and-announcements, Sprint 1) — composes the pure
  * `applyCopyOverrides` (`lib/copy-overrides-merge.ts`) with a fail-open Supabase
- * read, mirroring `lib/flags.ts`'s `platform_flags` pattern:
+ * read, mirroring the in-process-cache pattern `lib/flags.ts` used before flags moved to Golden:
  *
  *  1. FAIL-OPEN. `fetchOverrideRowsBounded()` is a structural copy of `flags.ts`'s
  *     `fetchRows()` — `Promise.race`-bounded (2 s, no retries), try/catch-all,

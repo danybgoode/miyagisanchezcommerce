@@ -1,63 +1,41 @@
 /**
  * lib/flags.ts
  *
- * The platform's feature-flag / kill-switch layer, backed by an OWNED Supabase
- * table (`platform_flags`) — the in-house replacement for the old SaaS flag
- * provider (epic 09 · feature-flags-inhouse).
- * See the scope: Roadmap/09-platform-infra/feature-flags-inhouse/.
+ * The platform's feature-flag / kill-switch seam. ONE authority: Golden Frijoles, project
+ * `miyagisanchez` — the same console the product owner manages in (flag-provider-mandate).
+ * `platform_flags` (the in-house table from feature-flags-inhouse) is PARKED: nothing reads it, it
+ * stays one wave as the rollback, then a follow-up chore drops it.
  *
  * Design rules (non-negotiable — carried over from the original kill-switch spike):
- *  1. FAIL-OPEN. Every read falls back to DEFAULT_FLAGS. Supabase being
- *     unreachable, slow, or the table empty/missing must NEVER break a request —
+ *  1. FAIL-SAFE. Every read resolves: live Golden snapshot → durable mirror → one bounded initial
+ *     fetch → the compile-time default below. A Golden outage must NEVER break a request —
  *     especially checkout. Kill-switches default to ENABLED (feature stays on).
- *  2. SERVER-ONLY, environment-level. Admin-only: no per-identity traits, no
- *     per-shop segments — one boolean per flag, read for the whole environment.
- *  3. IN-PROCESS CACHE. All rows are cached module-side for 60 s (FLAG_CACHE_TTL_MS)
- *     so a fresh cache adds NO DB hit per request; a stale cache triggers ONE
- *     bounded refresh (≤2 s, no retries) shared across concurrent callers.
+ *  2. SERVER-ONLY, environment-level. No per-identity traits on this seam — one boolean per flag,
+ *     for the whole environment (`GOLDEN_BEANS_FLAG_ENVIRONMENT`).
+ *  3. NO REQUEST WAITS ON THE NETWORK in steady state: the SDK serves from an in-memory snapshot it
+ *     refreshes out of band (`lib/golden-flag-provider.ts`).
  *
- * Runtime: Node only (uses the Supabase service-role client). Call this from route
- * handlers / server components — and from middleware ONLY when the middleware
- * runs on the Node runtime (`export const config = { runtime: 'nodejs' }`), never
- * from Edge middleware. `middleware.ts` opts into the Node runtime specifically so
- * the subdomain paywall gate (epic 07 · subdomain-pricing) can read a flag here.
+ * Runtime: Node only. Call this from route handlers / server components — and from middleware ONLY
+ * when the middleware runs on the Node runtime, never from Edge middleware.
  */
 import 'server-only'
-import { db } from '@/lib/supabase'
-import {
-  resolveFlag,
-  isCacheStale,
-  FLAG_CACHE_TTL_MS,
-  FLAG_FETCH_TIMEOUT_MS,
-  type FlagRow,
-} from '@/lib/flags-cache'
-import {
-  DEFAULT_FLAGS,
-  FLAG_KEYS,
-  type FlagKey,
-} from '@/lib/flag-catalog'
-import {
-  parseFlagCutover,
-  resolveFlagAuthority,
-  summarizeFlagCutover,
-  type FlagCutoverStatus,
-} from '@/lib/flag-cutover'
+import { DEFAULT_FLAGS, type FlagKey } from '@/lib/flag-catalog'
 import {
   evaluateGoldenBooleanFlag,
   recoverGoldenBooleanFlag,
 } from '@/lib/golden-flag-provider'
 import { evaluateDurableGoldenBooleanFlag } from '@/lib/golden-flag-mirror'
 import { getDurableGoldenSnapshot } from '@/lib/golden-flag-mirror-store'
-import { routeGoldenFlagReadKey } from '@/lib/golden-flag-read-key-routing'
-import { createFlagShadowObserver } from '@/lib/flag-shadow-observation'
 import { createFlagProviderEvaluator } from '@/lib/flag-provider-evaluator'
-import { createFlagAuthorityObserver } from '@/lib/flag-authority-observation'
+import { createFlagDecisionObserver } from '@/lib/flag-decision-observation'
 
 export type { FlagKey } from '@/lib/flag-catalog'
 
 /**
- * Fail-open defaults. Returned whenever the flag store can't be consulted (creds
- * absent, network error, flag absent).
+ * The compile-time defaults (`DEFAULT_FLAGS`, `lib/flag-catalog.ts`) — the LAST rung, returned only
+ * when neither the live snapshot nor the durable mirror can answer. Per-flag rationale below; where
+ * an entry says "flip in /admin/flags", read "flip in Golden's console" — the admin page became a
+ * read-only mirror in flag-provider-mandate S2.1.
  *
  * Two polarities live here — both fail-open, but to opposite values:
  *  - KILL-SWITCH (`checkout.stripe_enabled`): default `true`. The feature keeps
@@ -377,15 +355,6 @@ export type { FlagKey } from '@/lib/flag-catalog'
  *    operating-channel seam whether the product is BUYABLE, which lets a shop
  *    sell something it never listed in the country marketplace. Flag OFF is the
  *    deliberate protective rollback to today's marketplace-publication proof. */
-const TABLE = 'platform_flags'
-
-// Module-level in-process cache. Single-threaded module evaluation → no init race.
-// `rows: null` means "no trusted values" → resolveFlag() falls open to DEFAULT_FLAGS.
-// `fetchedAt` gates staleness (60 s TTL); `inflight` de-dupes concurrent refreshes so
-// a burst of first requests on a cold instance issues ONE read, not N.
-let cache: { rows: FlagRow[] | null; fetchedAt: number | null } = { rows: null, fetchedAt: null }
-let inflight: Promise<void> | null = null
-
 function writeControlPlaneRecord(prefix: string, value: unknown): void {
   try {
     const line = `[golden-beans:${prefix}] ${JSON.stringify(value)}`
@@ -395,150 +364,31 @@ function writeControlPlaneRecord(prefix: string, value: unknown): void {
     }
     console.info(line)
   } catch {
-    // Cutover evidence must never affect a feature decision.
+    // Decision evidence must never affect a feature decision.
   }
 }
 
-let cutoverCache:
-  | {
-      rawManifest: string | undefined
-      legacyMode: string | undefined
-      status: FlagCutoverStatus<FlagKey>
-    }
-  | undefined
-let lastCutoverReport: string | undefined
-
-/** Current typed cutover state. Raw env content is never included in the report. */
-export function getFlagCutoverStatus(): FlagCutoverStatus<FlagKey> {
-  const rawManifest = process.env.GOLDEN_BEANS_FLAG_CUTOVER
-  const legacyMode = process.env.GOLDEN_BEANS_FLAG_PROVIDER_MODE
-  if (
-    !cutoverCache ||
-    cutoverCache.rawManifest !== rawManifest ||
-    cutoverCache.legacyMode !== legacyMode
-  ) {
-    cutoverCache = {
-      rawManifest,
-      legacyMode,
-      status: parseFlagCutover(rawManifest, FLAG_KEYS, legacyMode),
-    }
-    const status = cutoverCache.status
-    const reportValue = {
-      source: status.source,
-      valid: status.valid,
-      all: status.all,
-      invalidReason: status.invalidReason,
-      overrides: Object.entries(status.overrides)
-        .map(([key, authority]) => ({ key, authority }))
-        .sort((left, right) => left.key.localeCompare(right.key)),
-      counts: summarizeFlagCutover(status, FLAG_KEYS),
-    }
-    const report = JSON.stringify(reportValue)
-    if (lastCutoverReport !== report) {
-      lastCutoverReport = report
-      writeControlPlaneRecord('flag-cutover', reportValue)
-    }
-  }
-  return cutoverCache.status
-}
-
-// Shadow records are intentionally control-plane-only and bounded to one per
-// flag/snapshot in each process. They are the parity evidence during migration,
-// not request telemetry; no subject or request data can enter this record.
-const recordShadowObservation = createFlagShadowObserver((observation) => {
-  // Sentry's production build removes console-level debug logging. Write the
-  // deliberately PII-free control-plane record directly so Cloud Run keeps it.
-  writeControlPlaneRecord('flag-shadow', observation)
+// One PII-free record per flag/snapshot/source per process. `source` other than `golden` in
+// production means Golden is NOT deciding — the signal that exposed the expired read key.
+// Sentry's production build strips console debug logging, so this writes to stdout directly.
+const recordDecision = createFlagDecisionObserver<FlagKey>((observation) => {
+  writeControlPlaneRecord('flag-decision', observation)
 })
 
-const recordAuthorityObservation = createFlagAuthorityObserver<FlagKey>((observation) => {
-  writeControlPlaneRecord('flag-authority', observation)
-})
-
-/**
- * Read every flag row from Supabase, bounded to ~2 s (no retries) so a hung read
- * can't stall a request. Returns null on timeout / error (an EMPTY table returns []
- * → resolveFlag then falls open per-flag) — either way the caller fails open. Uses
- * Promise.race (not .abortSignal) so the missing-config stub — which has no
- * abortSignal — is handled uniformly. Note: Promise.race bounds CALLER latency, not
- * the underlying request; a hung read is abandoned (GC'd when it settles), and the
- * 60 s inflight de-dup caps abandoned reads to ~1/min.
- */
-async function fetchRows(): Promise<FlagRow[] | null> {
-  try {
-    const query = db.from(TABLE).select('key, enabled')
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('platform_flags fetch timeout')), FLAG_FETCH_TIMEOUT_MS),
-    )
-    const { data, error } = (await Promise.race([query, timeout])) as {
-      data: Array<{ key: unknown; enabled: unknown }> | null
-      error: unknown
-    }
-    if (error || !data) return null
-    // Preserve the raw `enabled` — do NOT Boolean()-coerce. resolveFlag's
-    // `typeof === 'boolean'` guard is the SINGLE validation point, so a malformed row
-    // (e.g. the string 'false', which Boolean() would flip to true) fails OPEN to
-    // DEFAULT_FLAGS instead of coercing to a wrong definite state. `enabled` is
-    // `boolean NOT NULL` in Postgres, so this is defense-in-depth, not an expected path.
-    return data.map((r) => ({ key: String(r.key), enabled: r.enabled as boolean }))
-  } catch {
-    return null
-  }
-}
-
-/**
- * Refresh the cache if stale. Never throws. On a successful read the rows + timestamp
- * are replaced; on failure the rows are cleared to null (fail open to DEFAULT_FLAGS)
- * and the timestamp is still bumped so an outage doesn't hammer the DB every request.
- */
-async function refreshIfStale(): Promise<void> {
-  if (!isCacheStale(cache.fetchedAt, Date.now(), FLAG_CACHE_TTL_MS)) return
-  if (inflight) return inflight
-  inflight = fetchRows()
-    .then((rows) => {
-      cache = { rows, fetchedAt: Date.now() }
-    })
-    .finally(() => {
-      inflight = null
-    })
-  return inflight
-}
-
-/**
- * Is a feature enabled? Never throws — returns the fail-open DEFAULT_FLAGS value on
- * any error, timeout, or when the table is unreadable/empty. A fresh cache resolves
- * with no DB hit; a stale cache awaits one bounded (≤2 s) refresh first.
- */
 const evaluateEnabledFlag = createFlagProviderEvaluator<FlagKey>({
-  async readLocal(flag) {
-    try {
-      await refreshIfStale()
-    } catch {
-      // Defensive: refreshIfStale already swallows errors, but a flag read never throws.
-    }
-    return resolveFlag(cache.rows, flag, DEFAULT_FLAGS)
-  },
-  getMode: (flag) => resolveFlagAuthority(getFlagCutoverStatus(), flag),
   evaluateGolden: evaluateGoldenBooleanFlag,
   recoverGolden: recoverGoldenBooleanFlag,
-  async readDurableGolden(flag, localValue) {
-    // Golden mode's only outage fallback is the monotonic, read-only snapshot
-    // mirror. `platform_flags` stays authoritative exclusively in local/shadow.
-    const route = routeGoldenFlagReadKey(flag, {
-      GOLDEN_BEANS_FLAG_READ_KEY: process.env.GOLDEN_BEANS_FLAG_READ_KEY,
-      GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY:
-        process.env.GOLDEN_BEANS_PARTNERS_RECRUITING_V3_FLAG_READ_KEY,
-    })
-    const durableSnapshot = await getDurableGoldenSnapshot(route.providerSlot)
+  async readDurableGolden(flag, defaultValue) {
+    const durableSnapshot = await getDurableGoldenSnapshot()
     return durableSnapshot
-      ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, localValue)
+      ? evaluateDurableGoldenBooleanFlag(durableSnapshot, flag, defaultValue)
       : undefined
   },
-  observeShadow: recordShadowObservation,
   getDefault: (flag) => DEFAULT_FLAGS[flag],
-  reportAuthority: recordAuthorityObservation,
+  reportDecision: recordDecision,
 })
 
+/** Is a feature enabled? Never throws; see the fail-safe chain in the module header. */
 export async function isEnabled(flag: FlagKey): Promise<boolean> {
   return evaluateEnabledFlag(flag)
 }

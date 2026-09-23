@@ -11,7 +11,7 @@ import {
   type FlagResolutionReason,
   type FlagSnapshot,
 } from '@golden-frijoles/sdk'
-import type { GoldenFlagEnvironment } from '@/lib/flag-provider-mode'
+import type { GoldenFlagEnvironment } from '@/lib/golden-flag-environment'
 
 export type DurableGoldenBooleanEvaluation = {
   value: boolean

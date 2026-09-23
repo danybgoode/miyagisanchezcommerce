@@ -4,7 +4,7 @@
  * The PURE decision seam (epic 08 · admin-content-and-announcements, Sprint 3) for the
  * announcement primitive — schedule/status resolution and the one-active-per-audience
  * activation decision. Kept free of `next/*` and `server-only` (mirrors
- * `lib/copy-overrides-merge.ts` / `lib/flags-cache.ts`) so it's unit-testable with zero
+ * `lib/copy-overrides-merge.ts` / `lib/flag-provider-evaluator.ts`) so it's unit-testable with zero
  * network. `lib/announcements.ts` composes `resolveActiveAnnouncement`/`sanitizeAnnouncementCta`,
  * binding the real Supabase/flags dependencies; `app/api/admin/announcements/route.ts`
  * composes `decideActivationConflict` for the write path. `httpUrl` (`lib/settings-import.ts`)
