@@ -6,7 +6,7 @@ import esDictionary from '../locales/es.json' with { type: 'json' }
 // Pure-seam coverage for the runtime copy-override reader (epic 08 ·
 // admin-content-and-announcements). No browser, no network — proves the
 // FAIL-OPEN merge decision `lib/copy-overrides.ts` composes, mirroring how
-// `flags-cache.spec.ts` covers `lib/flags.ts`'s fail-open decision.
+// `flag-provider-evaluator.spec.ts` covers `lib/flags.ts`'s fail-safe decision.
 
 const anchor = {
   heroTitle: 'Vende lo que sea en México. 0% de comisión.',

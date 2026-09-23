@@ -53,7 +53,10 @@ export function createFlagProviderEvaluator<K extends string>(
       try {
         dependencies.reportDecision?.({
           flagKey: flag,
-          source,
+          // A snapshot that does not DEFINE the flag answers with the default we passed in
+          // (reason 'DEFAULT') — the value is right, but Golden did not decide it. Report it as
+          // such, so this record stays an honest "is Golden deciding?" signal.
+          source: evaluation?.reason === 'DEFAULT' ? 'default' : source,
           snapshotVersion: evaluation?.snapshotVersion,
           flagVersion: evaluation?.flagVersion,
           reason: evaluation?.reason,

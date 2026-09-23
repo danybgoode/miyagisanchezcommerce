@@ -41,6 +41,18 @@ const snapshot = {
     // No metadata: polarity/criticality must come from the compiled catalog.
     booleanFlag('shipping.envia_enabled', 'off'),
     booleanFlag('golden.only_flag', 'on'),
+    // A catalog key Golden defines as a NON-boolean: isEnabled() cannot evaluate it.
+    {
+      key: 'pdp_redesign',
+      definitionVersion: 1,
+      definition: {
+        valueType: 'string' as const,
+        description: 'wrong type',
+        defaultVariantKey: 'a',
+        variants: [{ key: 'a', value: 'x' }],
+        rules: [],
+      },
+    },
   ],
 } satisfies FlagSnapshot
 
@@ -66,14 +78,17 @@ test.describe('flags mirror view (pure)', () => {
 
   test('a flag Golden defines but this build does not read is shown and marked, not dropped', () => {
     const row = mirrorRowsFromSnapshot(snapshot).find((r) => r.key === 'golden.only_flag')
-    expect(row).toMatchObject({ enabled: true, unknownToCatalog: true })
+    // No metadata and not in the catalog: the classification is UNKNOWN, never invented.
+    expect(row).toMatchObject({ enabled: true, unknownToCatalog: true, polarity: null, criticality: null })
   })
 
   test('catalog flags missing from Golden are named — they are running on compile defaults', () => {
     const missing = catalogKeysMissingFromSnapshot(snapshot)
     expect(missing).not.toContain('checkout.stripe_enabled')
+    // Defined, but not as a boolean — still missing for isEnabled(), so still named.
     expect(missing).toContain('pdp_redesign')
     expect(missing).toHaveLength(FLAG_KEYS.length - 2)
+    expect(mirrorRowsFromSnapshot(snapshot).some((r) => r.key === 'pdp_redesign')).toBe(false)
   })
 
   test('the console link points at the one project that decides', () => {

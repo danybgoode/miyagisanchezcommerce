@@ -89,7 +89,7 @@ export default async function AdminFlagsPage({
       <h1 className="text-2xl font-bold mb-1">Flags</h1>
       <div data-testid="flags-readonly-mirror" className="mb-4">
         <Banner variant="info" title="Espejo de sólo lectura de Golden Frijoles">
-          Aquí ves lo que producción está sirviendo. Las flags se cambian únicamente en la consola de
+          Aquí ves la versión de Golden que este servidor está leyendo en vivo. Las flags se cambian únicamente en la consola de
           Golden:{' '}
           <a
             href={GOLDEN_FLAG_CONSOLE_URL}

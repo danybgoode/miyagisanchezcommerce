@@ -44,9 +44,13 @@ export default function FlagsMirrorTable({ flags }: { flags: FlagView[] }) {
                 )}
               </td>
               <td className="px-3 py-2">
-                <StatusBadge token={f.polarity === 'killswitch' ? 'info' : 'neutral'}>
-                  {f.polarity === 'killswitch' ? 'Kill-switch' : 'Activación'}
-                </StatusBadge>
+                {f.polarity ? (
+                  <StatusBadge token={f.polarity === 'killswitch' ? 'info' : 'neutral'}>
+                    {f.polarity === 'killswitch' ? 'Kill-switch' : 'Activación'}
+                  </StatusBadge>
+                ) : (
+                  <span className="text-xs text-[var(--fg-muted)]">desconocido</span>
+                )}
               </td>
               <td className="px-3 py-2 whitespace-nowrap">
                 <StatusBadge token={f.enabled ? 'success' : 'neutral'}>
@@ -55,7 +59,7 @@ export default function FlagsMirrorTable({ flags }: { flags: FlagView[] }) {
               </td>
               <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--fg-muted)]">
                 <div>v{f.definitionVersion} · {f.environment} · {f.reason}</div>
-                <div>riesgo {f.criticality}</div>
+                <div>riesgo {f.criticality ?? 'desconocido'}</div>
               </td>
             </tr>
           ))}

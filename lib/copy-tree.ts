@@ -3,7 +3,7 @@
  *
  * Pure dot-path get/set/flatten over a nested copy object (a locales/*.json
  * namespace, or the whole `Dictionary`). Kept free of `next/*` and `server-only` —
- * like `lib/flags-cache.ts` / `lib/cache-policy.ts` — so it's unit-testable with
+ * like `lib/cache-policy.ts` — so it's unit-testable with
  * zero network by the Playwright `api` runner.
  *
  * Namespace values aren't flat: some leaves sit inside arrays (e.g.

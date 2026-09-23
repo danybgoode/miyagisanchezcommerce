@@ -68,4 +68,23 @@ test.describe('flags · one lane, swept from source', () => {
     expect(route).toMatch(/export const GET\b/)
     expect(route).not.toMatch(/export (?:const|async function|function) (?:POST|PUT|PATCH|DELETE)\b/)
   })
+
+  // The I/O shell is not unit-testable without a database, so pin its two load-bearing facts in source:
+  // the durable lane is keyed by the project that decides, and there is exactly one read credential.
+  test('the durable mirror reads and writes ONLY the miyagisanchez lane of the scoped table', () => {
+    const store = code(readFileSync(join(ROOT, 'lib/golden-flag-mirror-store.ts'), 'utf8'))
+    expect(store).toMatch(/GOLDEN_FLAG_MIRROR_SCOPE = 'miyagisanchez'/)
+    expect(store).toMatch(/MIRROR_TABLE = 'golden_flag_scoped_snapshot_mirror'/)
+    expect(store).toMatch(/MIRROR_RPC = 'persist_scoped_golden_flag_snapshot'/)
+    expect(store).toMatch(/p_provider_scope: GOLDEN_FLAG_MIRROR_SCOPE/)
+    expect(store).toMatch(/\.eq\('provider_scope', GOLDEN_FLAG_MIRROR_SCOPE\)/)
+    // The parked legacy lane (retired catalog at v47) would refuse every miyagisanchez snapshot.
+    expect(store).not.toMatch(/golden_flag_snapshot_mirror'|persist_golden_flag_snapshot'/)
+  })
+
+  test('the provider reads exactly one credential: GOLDEN_BEANS_FLAG_READ_KEY', () => {
+    const provider = code(readFileSync(join(ROOT, 'lib/golden-flag-provider.ts'), 'utf8'))
+    const credentials = provider.match(/process\.env\.[A-Z_]*READ_KEY[A-Z_]*/g) ?? []
+    expect([...new Set(credentials)]).toEqual(['process.env.GOLDEN_BEANS_FLAG_READ_KEY'])
+  })
 })

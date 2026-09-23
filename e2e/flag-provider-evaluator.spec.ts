@@ -96,6 +96,19 @@ test.describe('flag evaluator · one authority (Golden)', () => {
     ])
   })
 
+  test('a snapshot that does not define the flag answers the default and is reported as default, not golden', async () => {
+    const decisions: FlagDecisionObservation<TestFlag>[] = []
+    const isEnabled = createFlagProviderEvaluator<TestFlag>({
+      evaluateGolden: (_flag, defaultValue) => ({ value: defaultValue, snapshotVersion: 44, reason: 'DEFAULT' }),
+      readDurableGolden: async () => undefined,
+      getDefault: (flag) => defaults[flag],
+      reportDecision: (observation) => decisions.push(observation),
+    })
+
+    await expect(isEnabled('domain.paywall_enabled')).resolves.toBe(false)
+    expect(decisions.map((d) => d.source)).toEqual(['default'])
+  })
+
   test('the live read receives the COMPILE default — there is no local store left to consult', async () => {
     const seen: boolean[] = []
     const isEnabled = createFlagProviderEvaluator<TestFlag>({

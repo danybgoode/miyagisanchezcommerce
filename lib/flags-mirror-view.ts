@@ -22,8 +22,9 @@ export const GOLDEN_FLAG_CONSOLE_URL = `https://goldenfrijoles.com/app/flags/${G
 
 export type FlagView = {
   key: string
-  polarity: FlagPolarity
-  criticality: FlagCriticality
+  /** `null` = unknown: Golden sent no metadata and this build's catalog does not know the flag. */
+  polarity: FlagPolarity | null
+  criticality: FlagCriticality | null
   enabled: boolean
   definitionVersion: number
   reason: string
@@ -64,14 +65,15 @@ export function mirrorRowsFromSnapshot(snapshot: FlagSnapshot): FlagView[] {
     const criticality = metadataString(metadata, 'criticality')
     rows.push({
       key: flag.key,
+      // Never invent a classification: an operator reads polarity/criticality as risk information.
       polarity:
         polarity === 'killswitch' || polarity === 'enablement'
           ? polarity
-          : (catalog?.polarity ?? 'enablement'),
+          : (catalog?.polarity ?? null),
       criticality:
         criticality === 'low' || criticality === 'medium' || criticality === 'high'
           ? criticality
-          : (catalog?.criticality ?? 'medium'),
+          : (catalog?.criticality ?? null),
       enabled: details.value === true,
       definitionVersion: flag.definitionVersion,
       reason: details.reason,
@@ -85,9 +87,12 @@ export function mirrorRowsFromSnapshot(snapshot: FlagSnapshot): FlagView[] {
   return rows
 }
 
-/** Catalog keys this build reads that Golden's snapshot does not define — each resolves to its
- *  compile default, so the page names them instead of letting them look absent-and-fine. */
+/** Catalog keys this build reads that Golden's snapshot does not define AS A BOOLEAN — each resolves
+ *  to its compile default, so the page names them instead of letting them look absent-and-fine. A
+ *  non-boolean definition counts as missing: `isEnabled()` cannot evaluate it either. */
 export function catalogKeysMissingFromSnapshot(snapshot: FlagSnapshot): string[] {
-  const present = new Set(snapshot.flags.map((flag) => flag.key))
+  const present = new Set(
+    snapshot.flags.filter((flag) => flag.definition.valueType === 'boolean').map((flag) => flag.key),
+  )
   return Object.keys(FLAG_CATALOG).filter((key) => !present.has(key)).sort()
 }

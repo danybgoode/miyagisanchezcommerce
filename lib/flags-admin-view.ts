@@ -23,7 +23,7 @@ export type FlagPolarityFilter = 'all' | 'killswitch' | 'enablement'
 interface SortableFlag {
   key: string
   enabled: boolean
-  polarity: string
+  polarity: string | null
   updated_at: string | null
 }
 
@@ -88,7 +88,7 @@ export function filterFlagsByStatus<T extends { enabled: boolean }>(
   return flags.filter((f) => (status === 'on' ? f.enabled : !f.enabled))
 }
 
-export function filterFlagsByPolarity<T extends { polarity: string }>(
+export function filterFlagsByPolarity<T extends { polarity: string | null }>(
   flags: readonly T[],
   polarity: FlagPolarityFilter,
 ): T[] {

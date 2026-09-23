@@ -23,10 +23,8 @@ import { shopSlugFromHost } from '../lib/subdomain'
  *     pre-gate; full coverage lives in subdomain.spec.ts).
  *
  * NOT covered here (owed to Daniel — sprint-1.md smoke walkthrough): the live 301
- * path. platform_flags seeds subdomain.paywall_enabled OFF, so isEnabled('subdomain.paywall_enabled')
- * resolves to false (⇒ ungated) and the gate is intentionally inert
- * in CI. Exercising the live 301 (non-entitled subdomain → /s/slug) + the
- * grandfathered render needs the flag flipped on in /admin/flags on a preview.
+ * path. Golden decides subdomain.paywall_enabled (served ON in production; compile
+ * default OFF). Exercising the 301 needs a real unentitled shop subdomain.
  */
 
 const GRANDFATHER: DomainGrant = { type: 'grandfather', granted_at: '2026-01-01T00:00:00.000Z', note: 'cutover' }
