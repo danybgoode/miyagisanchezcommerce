@@ -9,10 +9,14 @@ export default async function ClaimPage({ searchParams }: {
 }) {
   const { token } = await searchParams
   let shopName: string | null = null
+  let shopMarket: 'mx' | 'us' = 'mx'
   if (token) {
     try {
       const payload = await verifyClaimToken(token)
-      if (payload.purpose === 'campaign' || payload.purpose === 'promoter') shopName = payload.shopName
+      if (payload.purpose === 'campaign' || payload.purpose === 'promoter' || payload.purpose === 'public') {
+        shopName = payload.shopName
+        shopMarket = payload.market === 'us' ? 'us' : 'mx'
+      }
     } catch { /* The visible recovery path below covers expired links. */ }
   }
   if (!shopName || !token) return <main className="mx-auto max-w-xl px-5 py-16">
@@ -24,11 +28,13 @@ export default async function ClaimPage({ searchParams }: {
   const { userId } = await auth()
   if (!userId) {
     const returnTo = `/claim?token=${encodeURIComponent(token)}`
-    redirect(`/sign-up?redirect_url=${encodeURIComponent(returnTo)}`)
+    redirect(`/sign-up?redirect_url=${encodeURIComponent(returnTo)}&market=${shopMarket}`)
   }
   return <main className="mx-auto max-w-xl px-5 py-16">
-    <h1 className="text-2xl font-bold">Reclamar {shopName}</h1>
-    <p className="mt-4">Vincularemos esta tienda a tu cuenta cuando el correo de tu cuenta coincida con el de la invitación.</p>
-    <ClaimRedeemer token={token} />
+    <h1 className="text-2xl font-bold">{shopMarket === 'us' ? `Claim ${shopName}` : `Reclamar ${shopName}`}</h1>
+    <p className="mt-4">{shopMarket === 'us'
+      ? 'We will link this shop to your account. Use any email or Google account you prefer.'
+      : 'Vincularemos esta tienda a tu cuenta. Puedes usar el correo o la cuenta de Google que prefieras.'}</p>
+    <ClaimRedeemer token={token} market={shopMarket} />
   </main>
 }

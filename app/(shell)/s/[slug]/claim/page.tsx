@@ -1,12 +1,12 @@
 import { BuyerCopyText } from '@/app/components/BuyerPresentationContext'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getShop } from '@/lib/listings'
+import { readShopFresh } from '@/lib/listings'
 import { assertShopNotPreviewPrivate } from '@/lib/preview-access'
-import ClaimForm from '../ClaimForm'
 import { readPublicSellerMarket } from '@/lib/owned-market'
 import type { MarketCode } from '@/lib/markets'
 import { CONTACT_EMAIL } from '@/lib/contact'
+import { signClaimToken } from '@/lib/claimJwt'
 
 export async function ClaimPage({
   params,
@@ -18,11 +18,17 @@ export async function ClaimPage({
   marketBasePath?: string
 }) {
   const { slug } = await params
-  const shop = await getShop(slug, market)
-  if (!shop) notFound()
-  if (market && readPublicSellerMarket(shop)?.market_code !== market) notFound()
-  // Consent-safe previews: a preview-private shop must not expose its name — nor a
-  // live claim form — before the merchant has approved being presented at all.
+  const shopRead = await readShopFresh(slug, market)
+  if (shopRead.state === 'absent') notFound()
+  if (shopRead.state === 'unavailable') return <main className="max-w-lg mx-auto px-4 py-12">
+    <h1 className="text-xl font-bold">No pudimos comprobar la tienda / Shop unavailable</h1>
+    <p className="mt-3">Inténtalo de nuevo más tarde o <a href={`mailto:${CONTACT_EMAIL}`}>escríbenos</a>.</p>
+  </main>
+  const shop = shopRead.shop
+  const shopMarket = readPublicSellerMarket(shop)?.market_code
+  if (!shop.verified || !shopMarket || (market && shopMarket !== market)) notFound()
+  // Consent-safe previews: a preview-private shop must not expose its name or
+  // a claim action before the merchant has approved being presented at all.
   await assertShopNotPreviewPrivate(shop)
 
   if (shop.clerk_user_id) {
@@ -90,6 +96,15 @@ export async function ClaimPage({
     )
   }
 
+  if (!process.env.CLAIM_JWT_SECRET) return <main className="max-w-lg mx-auto px-4 py-12">
+    <h1 className="text-xl font-bold">No pudimos preparar el enlace / Claim unavailable</h1>
+    <p className="mt-3">Inténtalo de nuevo más tarde o <a href={`mailto:${CONTACT_EMAIL}`}>escríbenos</a>.</p>
+  </main>
+  const token = await signClaimToken({
+    shopId: shop.id, shopSlug: shop.slug, shopName: shop.name,
+    market: shopMarket, purpose: 'public',
+  }, null)
+
   return (
     <div className="max-w-lg mx-auto px-4 py-12">
       <nav className="text-sm text-[var(--color-muted)] mb-6">
@@ -101,7 +116,9 @@ export async function ClaimPage({
       <p className="text-base font-semibold text-[var(--color-text)] mb-1">{shop.name}</p>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         <BuyerCopyText copyKey="s.slug.claim.page.753ab0d9" /></p>
-      <ClaimForm shopId={shop.id} shopSlug={slug} shopName={shop.name} market={market} />
+      <Link href={`/claim?token=${encodeURIComponent(token)}`} className="btn btn-primary inline-flex">
+        <BuyerCopyText copyKey="s.slug.ClaimForm.f2f2fc2f" />
+      </Link>
     </div>
   )
 }

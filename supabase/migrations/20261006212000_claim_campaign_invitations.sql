@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS public.claim_campaign_invitations (
   market_code text NOT NULL CHECK (market_code IN ('mx', 'us')),
   campaign_id text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL,
+  -- A shop invitation remains usable until the shop is claimed or taken offline.
+  -- Existing time-limited invitations may still record their historical expiry.
+  expires_at timestamptz,
   claimed_at timestamptz,
   removal_requested_at timestamptz
 );

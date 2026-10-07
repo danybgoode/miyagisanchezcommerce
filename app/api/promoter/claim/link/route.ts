@@ -1,7 +1,7 @@
 /**
  * POST /api/promoter/claim/link — a bound promoter generates a one-tap WhatsApp
  * claim link for a shop they set up (epic 08 · S4 · US-11). Mirrors
- * /api/claim/send (sign the 24h token + upsert the pending marketplace_claims row)
+ * the claim flow (sign a shop link + upsert the pending marketplace_claims row)
  * but is promoter-authed and returns a `wa.me` share link instead of emailing —
  * the merchant taps it, logs in, and the existing /api/claim/complete transfers
  * ownership (flips clerk_user_id only → the promoter's attribution survives).
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'No pudimos verificar la tienda.' }, { status: 503 })
   }
   if (status.status !== 'active') return NextResponse.json({ ok: false, error: 'La tienda no está pública.' }, { status: 409 })
-  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, email, market, purpose: 'promoter' })
+  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, market, purpose: 'promoter' }, null)
   const claimUrl = buildClaimLandingUrl(token)
 
   // Upsert the pending claim against the mirror UUID (marketplace_claims.shop_id

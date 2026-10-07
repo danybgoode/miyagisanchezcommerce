@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const email = normalizedClaimEmail(body.email)
   const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
   const campaignId = typeof invitation.campaignId === 'string' && /^[a-z0-9-]{1,80}$/.test(invitation.campaignId) ? invitation.campaignId : null
-  if (!slug || slug.length > 150 || !email || email !== normalizedClaimEmail(invitation.email) || reason.length < 10 || reason.length > 2000) {
+  if (!slug || slug.length > 150 || !email || reason.length < 10 || reason.length > 2000) {
     return NextResponse.json({ error: 'Revisa el correo y explica brevemente tu solicitud.' }, { status: 400 })
   }
   const shopRead = await readShopFresh(slug, requestedMarket)

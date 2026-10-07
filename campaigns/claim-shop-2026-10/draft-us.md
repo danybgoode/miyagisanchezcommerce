@@ -8,7 +8,7 @@ Hi [Shop] team,
 
 We created a public listing for [Shop] on Miyagi Sánchez. It shows basic details and links to your website. You have not opened an account with us, and the listing cannot take orders on your behalf.
 
-If you would like to manage it, you can claim it for free. Create an account with this email address and the shop will be linked to you. You can review its details, prepare a catalog, and choose what to publish. The basic shop link is free, and products you publish can also be read through integrations for compatible agents.
+If you would like to manage it, you can claim it for free. Open the link, then create an account or sign in with any email or Google account you prefer. The shop will be linked automatically so you can review its details, prepare a catalog, and choose what to publish. The basic shop link is free, and products you publish can also be read through integrations for compatible agents.
 
 **Claim [Shop]:** [UNIQUE INVITATION URL]
 

@@ -10,7 +10,7 @@ type Removal = {
   id: string; shop_id: string; requested_email: string; reason: string;
   state: string; created_at: string; verification_note: string | null
 }
-type Links = { claimUrl: string; removalUrl: string; expiresAt: string }
+type Links = { claimUrl: string; removalUrl: string; expiresAt: string | null }
 
 const field = 'mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]'
 
@@ -109,7 +109,7 @@ export default function ClaimCampaignClient() {
     <div className="grid gap-10 py-9 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <section>
         <h2 className="text-xl font-semibold">Crear los enlaces de una tienda</h2>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">La tienda debe estar pública, activa y sin reclamar. Guarda la procedencia del correo antes de crear la invitación.</p>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">La tienda debe estar pública, activa y sin reclamar. Guarda la procedencia del correo para la campaña; ese correo no limita con qué cuenta se reclama.</p>
         <form onSubmit={mint} className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium">Identificador de la tienda<input required value={shopSlug} onChange={e => setShopSlug(e.target.value)} className={field} placeholder="mi-tienda" /></label>
           <label className="text-sm font-medium">Mercado<select value={market} onChange={e => setMarket(e.target.value as 'mx' | 'us')} className={field}><option value="mx">México</option><option value="us">Estados Unidos</option></select></label>
@@ -119,12 +119,12 @@ export default function ClaimCampaignClient() {
           <button disabled={minting} className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-2">{minting ? 'Verificando…' : 'Crear enlaces para el borrador'}</button>
         </form>
         {links && <div className="mt-6 space-y-4 rounded-md border border-[var(--color-border)] p-5" role="status">
-          <p className="text-sm font-semibold">Enlaces listos · vencen el {new Date(links.expiresAt).toLocaleDateString('es-MX')}</p>
+          <p className="text-sm font-semibold">Enlaces listos · sin fecha de vencimiento</p>
           {([['Reclamar', links.claimUrl], ['Solicitar retiro', links.removalUrl]] as const).map(([label, value]) => <div key={label}>
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">{label}</p>
             <div className="mt-1 flex gap-2"><input readOnly aria-label={`Enlace para ${label.toLowerCase()}`} value={value} className={`${field} mt-0 min-w-0 font-mono text-xs`} /><button type="button" onClick={() => void navigator.clipboard.writeText(value)} className="rounded border border-[var(--color-border)] px-3 text-xs font-semibold">Copiar</button></div>
           </div>)}
-          <p className="text-xs text-[var(--color-muted)]">Pega cada enlace solo en el borrador de este destinatario. Este panel no envía mensajes.</p>
+          <p className="text-xs text-[var(--color-muted)]">Cualquier persona con el enlace puede reclamar esta tienda al iniciar sesión, con cualquier correo. Pega el enlace en el borrador correcto; este panel no envía mensajes.</p>
         </div>}
       </section>
 

@@ -8,7 +8,7 @@ Hola, equipo de [Tienda]:
 
 Creamos una ficha pública para [Tienda] en Miyagi Sánchez. Muestra información básica y enlaza a su sitio; ustedes todavía no tienen una cuenta aquí, y la ficha no recibe pedidos en su nombre.
 
-Si quieren administrarla, pueden reclamarla gratis. Al crear su cuenta con este correo, la tienda quedará vinculada para que revisen sus datos, preparen su catálogo y decidan qué publicar. Su enlace básico no tiene costo. Los productos que publiquen podrán consultarse también desde las integraciones para agentes compatibles.
+Si quieren administrarla, pueden reclamarla gratis. Abran el enlace, creen una cuenta o inicien sesión con el correo o la cuenta de Google que prefieran. La tienda quedará vinculada automáticamente para que revisen sus datos, preparen su catálogo y decidan qué publicar. Su enlace básico no tiene costo. Los productos que publiquen podrán consultarse también desde las integraciones para agentes compatibles.
 
 **Reclamar [Tienda]:** [URL ÚNICA DE INVITACIÓN]
 

@@ -31,7 +31,7 @@ export const POST = withAdmin<NextRequest>(async (req) => {
   if (shopRead.state === 'unavailable') return NextResponse.json({ error: 'No pudimos comprobar la tienda.' }, { status: 503 })
   if (shopRead.state === 'absent') return NextResponse.json({ error: 'La tienda no está disponible para reclamar.' }, { status: 409 })
   const shop = shopRead.shop
-  if (shop.clerk_user_id) return NextResponse.json({ error: 'La tienda ya fue reclamada.' }, { status: 409 })
+  if (!shop.verified || shop.clerk_user_id) return NextResponse.json({ error: 'La tienda no está pública o ya fue reclamada.' }, { status: 409 })
   const market = readPublicSellerMarket(shop)?.market_code
   if (!market || market !== requestedMarket) return NextResponse.json({ error: 'No pudimos verificar el mercado de la tienda.' }, { status: 503 })
   const status = await readSellerStatus(shop.id)
@@ -40,20 +40,19 @@ export const POST = withAdmin<NextRequest>(async (req) => {
   if (!process.env.CLAIM_JWT_SECRET) return NextResponse.json({ error: 'Firma de invitaciones no configurada.' }, { status: 503 })
 
   const invitationId = crypto.randomUUID()
-  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
   const token = await signClaimToken({
     shopId: shop.id, shopSlug: shop.slug, shopName: shop.name,
-    email, market, campaignId, invitationId, purpose: 'campaign',
-  }, 14 * 24 * 60 * 60)
+    market, campaignId, invitationId, purpose: 'campaign',
+  }, null)
   const removalToken = await signClaimToken({
     shopId: shop.id, shopSlug: shop.slug, shopName: shop.name,
-    email, market, campaignId, invitationId, purpose: 'removal',
-  }, 14 * 24 * 60 * 60)
+    market, campaignId, invitationId, purpose: 'removal',
+  }, null)
   const { error } = await db.from('claim_campaign_invitations').insert({
     id: invitationId, seller_id: shop.id, shop_slug: shop.slug,
     contact_email: email, contact_provenance: provenance,
-    market_code: market, campaign_id: campaignId, expires_at: expiresAt,
+    market_code: market, campaign_id: campaignId, expires_at: null,
   })
   if (error) return NextResponse.json({ error: 'No pudimos registrar la invitación.' }, { status: 503 })
-  return NextResponse.json({ claimUrl: buildClaimLandingUrl(token), removalUrl: buildRemovalLandingUrl(removalToken), expiresAt, invitationId })
+  return NextResponse.json({ claimUrl: buildClaimLandingUrl(token), removalUrl: buildRemovalLandingUrl(removalToken), expiresAt: null, invitationId })
 })

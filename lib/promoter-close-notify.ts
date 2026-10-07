@@ -42,9 +42,8 @@ export async function notifyMerchantCloseReceipt(input: {
       shopId: shop.medusaSellerId,
       shopSlug: shop.slug,
       shopName: shop.name,
-      email: merchantEmail,
       purpose: 'promoter',
-    })) : undefined
+    }, null)) : undefined
 
     await sendMerchantCloseReceipt({
       to,

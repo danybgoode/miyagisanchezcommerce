@@ -13,7 +13,7 @@
  *
  *   POST /api/claim/complete   body: { token }
  *   Auth: Clerk session, or the legacy dashboard's shared-secret caller. In
- *   both cases this endpoint loads Clerk's verified email before transfer.
+ *   both cases this endpoint resolves the authenticated Clerk account.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -88,11 +88,9 @@ export async function POST(req: NextRequest) {
     sellerId = medusaId
   }
 
-  // A link proves control of an inbox, not business ownership. Only an invite
-  // issued to a vetted contact may auto-transfer, and only to a Clerk account
-  // where that same address is verified. A public self-submitted email remains
-  // a human-review request. Medusa status is read fresh, never from a cached
-  // public shop projection, because a removal request may have paused it.
+  // The signed link is the claim capability. It identifies a particular
+  // public shop but does not bind the merchant to an outreach address.
+  // Medusa status is read fresh because a removal request may have paused it.
   const shopRead = await readShopFresh(payload.shopSlug, payload.market)
   if (shopRead.state === 'unavailable') return NextResponse.json({ error: 'No pudimos comprobar la tienda. Intenta más tarde.' }, { status: 503 })
   if (shopRead.state === 'absent') return NextResponse.json({ error: 'Tienda no disponible.' }, { status: 404 })
@@ -104,8 +102,8 @@ export async function POST(req: NextRequest) {
   const market = readPublicSellerMarket(shop)?.market_code ?? null
   const decision = decideClaimRedemption(
     { ...payload, shopId: sellerId },
-    { id: shop.id, slug: shop.slug, clerkUserId: shop.clerk_user_id, market, status: status.status },
-    { clerkUserId, verifiedEmails: verifiedClerkEmailAddresses(user.emailAddresses) },
+    { id: shop.id, slug: shop.slug, clerkUserId: shop.clerk_user_id, verified: shop.verified, market, status: status.status },
+    { clerkUserId },
   )
   if (payload.campaignId) {
     await sendGrowthEvent({ userId: sellerId, event: 'campaign.claim_attempted',
@@ -113,8 +111,7 @@ export async function POST(req: NextRequest) {
   }
   if (!decision.ok) {
     const messages = {
-      review_required: 'Esta solicitud necesita revisión. Responde al correo de confirmación para que podamos ayudarte.',
-      wrong_email: 'Inicia sesión con el correo verificado al que enviamos esta invitación.',
+      invalid_link: 'Este enlace no sirve para reclamar una tienda.',
       wrong_shop: 'La invitación no corresponde a esta tienda.',
       wrong_market: 'La invitación no corresponde al mercado de esta tienda.',
       shop_unavailable: 'Esta tienda no está disponible para reclamar.',
@@ -186,7 +183,12 @@ export async function POST(req: NextRequest) {
   const newlyClaimed = claimData.newly_claimed === true
   if (newlyClaimed) {
     tg.newShop(payload.shopName, null, slug)
-    await sendShopClaimedWelcome({ to: payload.email, shopName: payload.shopName, shopSlug: slug, market: market ?? 'mx', sellerId })
+    const accountEmail = verifiedClerkEmailAddresses(user.emailAddresses)[0]
+    if (accountEmail) {
+      await sendShopClaimedWelcome({ to: accountEmail, shopName: payload.shopName, shopSlug: slug, market: market ?? 'mx', sellerId })
+    } else {
+      console.warn('[claim/complete] claimed shop has no verified account email for confirmation', sellerId)
+    }
     if (payload.campaignId) {
       await sendGrowthEvent({ userId: sellerId, event: 'campaign.claim_completed',
         featureId: 'claim-shop-acquisition', tags: { campaign_id: payload.campaignId, market } })
