@@ -11,14 +11,14 @@ test.describe('promoter close receipt · buildMerchantCloseReceipt', () => {
     const r = buildMerchantCloseReceipt({
       shopName: 'Café Don Memo',
       items: [{ label: 'Dominio propio (1 año)', amountMxn: '$499.00' }],
-      claimUrl: 'https://dashboard.despachobonsai.com/onboarding/claim?token=abc',
+      claimUrl: 'https://miyagisanchez.com/claim?token=abc',
       toMerchantDirectly: true,
     })
     expect(r.subject).toContain('Café Don Memo')
     expect(r.intro).toContain('Café Don Memo')
     expect(r.items).toHaveLength(1)
     expect(r.items[0].amountMxn).toBe('$499.00')
-    expect(r.claimUrl).toBe('https://dashboard.despachobonsai.com/onboarding/claim?token=abc')
+    expect(r.claimUrl).toBe('https://miyagisanchez.com/claim?token=abc')
   })
 
   test('multiple items pass through in order (bundle-adjacent close)', () => {

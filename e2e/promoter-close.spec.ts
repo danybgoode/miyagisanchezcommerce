@@ -56,7 +56,7 @@ test.describe('promoter close · idempotent source URL (promoterSourceUrl)', () 
 })
 
 test.describe('promoter close · WhatsApp claim link (buildWhatsAppClaimLink)', () => {
-  const claimUrl = 'https://dashboard.despachobonsai.com/onboarding/claim?token=abc.def.ghi'
+  const claimUrl = 'https://miyagisanchez.com/claim?token=abc.def.ghi'
 
   test('wraps the claim URL in a wa.me share-sheet link (no phone number)', () => {
     const link = buildWhatsAppClaimLink({ claimUrl, shopName: 'Mi Tienda' })
