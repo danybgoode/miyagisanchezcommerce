@@ -61,6 +61,7 @@ export const COMMUNICATION_DOMAINS = [
   // its own because it sent none — starting a conversation notified nobody and a
   // reply sent web push only.
   'mensajes',
+  'cuentas',
 ] as const
 export type CommunicationDomain = (typeof COMMUNICATION_DOMAINS)[number]
 
@@ -88,6 +89,16 @@ export type CommunicationEntry = {
 }
 
 export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
+  {
+    key: 'shop.claim_link_requested', trigger: 'Una persona solicita por correo el enlace para reclamar una tienda.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopClaimLink', origin: 'app/api/claim/send/route.ts',
+  },
+  {
+    key: 'shop.claimed_welcome', trigger: 'La tienda se vincula a una cuenta por primera vez.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopClaimedWelcome', origin: 'app/api/claim/complete/route.ts',
+  },
   // ── Offers ──────────────────────────────────────────────────────────────────
   {
     key: 'offer.confirmed_to_buyer',

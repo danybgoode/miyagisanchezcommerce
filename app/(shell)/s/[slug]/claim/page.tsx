@@ -100,7 +100,7 @@ export async function ClaimPage({
       <p className="text-base font-semibold text-[var(--color-text)] mb-1">{shop.name}</p>
       <p className="text-sm text-[var(--color-muted)] mb-6">
         <BuyerCopyText copyKey="s.slug.claim.page.753ab0d9" /></p>
-      <ClaimForm shopId={shop.id} shopSlug={slug} shopName={shop.name} />
+      <ClaimForm shopId={shop.id} shopSlug={slug} market={readPublicSellerMarket(shop)?.market_code === 'us' ? 'us' : 'mx'} />
     </div>
   )
 }

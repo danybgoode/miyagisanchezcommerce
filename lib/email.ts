@@ -358,6 +358,9 @@ export async function sendWithResult(
       html: html(finalSubject, finalBody, brand, language),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
     })
+    // Resend reports rejected sends in its result object; it does not always
+    // throw. A claim request must never say "link sent" when the provider said no.
+    if (result.error) throw new Error(result.error.message)
     // Resend can accept without echoing an id. That is still a send, so `id` is
     // nullable INSIDE the ok branch rather than collapsing back into a failure.
     logNotification({
@@ -394,6 +397,43 @@ async function send(
 ): Promise<string | null> {
   const result = await sendWithResult(to, subject, body, scheduledAt, brand, language)
   return result.ok ? result.id : null
+}
+
+/** The email request establishes possession of an inbox, not business ownership. */
+export async function sendShopClaimLink(ctx: { to: string; shopName: string; claimUrl: string; market: 'mx' | 'us' }): Promise<EmailSendResult> {
+  const name = esc(ctx.shopName)
+  if (ctx.market === 'us') return sendWithResult(ctx.to, `Claim ${ctx.shopName} on Miyagi Sánchez`, [
+    h1(`Claim ${name}`),
+    p('You asked to claim this shop. Open the link, then create an account or sign in with any email or Google account. The link expires in 24 hours.'),
+    cta('Claim my shop', ctx.claimUrl),
+    p('If you did not request this, you can ignore this message.'),
+  ].join(''), undefined, undefined, 'en')
+  return sendWithResult(ctx.to, `Reclama ${ctx.shopName} en Miyagi Sánchez`, [
+    h1(`Reclama ${name}`),
+    p('Solicitaste reclamar esta tienda. Abre el enlace y crea una cuenta o inicia sesión con el correo o la cuenta de Google que prefieras. El enlace vence en 24 horas.'),
+    cta('Reclamar mi tienda', ctx.claimUrl),
+    p('Si no solicitaste este enlace, puedes ignorar este mensaje.'),
+  ].join(''))
+}
+
+/** Notify the account that now owns the shop, once Medusa confirms a new transfer. */
+export async function sendShopClaimedWelcome(ctx: { to: string; shopName: string; shopSlug: string; market: 'mx' | 'us'; sellerId: string }): Promise<void> {
+  const shopUrl = `${SITE}/${ctx.market}/s/${encodeURIComponent(ctx.shopSlug)}`
+  if (ctx.market === 'us') {
+    await send(ctx.to, `${ctx.shopName} is now linked to your account`, [
+      h1('Your shop is ready'),
+      p(`We linked <strong>${esc(ctx.shopName)}</strong> to your Miyagi Sánchez account.`),
+      cta('Manage my shop', `${SITE}/shop/manage`),
+      p(`Public shop: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+    ].join(''), undefined, undefined, 'en')
+    return
+  }
+  await send(ctx.to, `Tu tienda ${ctx.shopName} ya está en tu cuenta`, [
+    h1('Tu tienda ya es tuya en Miyagi Sánchez'),
+    p(`Vinculamos <strong>${esc(ctx.shopName)}</strong> a tu cuenta.`),
+    cta('Administrar mi tienda', `${SITE}/shop/manage`),
+    p(`Tu tienda pública: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+  ].join(''), undefined, undefined, 'es')
 }
 
 // ── Cancel a scheduled email by Resend ID ─────────────────────────────────────

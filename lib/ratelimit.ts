@@ -122,6 +122,13 @@ const promoterApplyLimiter = () => {
   return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:promoter_apply' })
 }
 
+// Public claim requests can email an address supplied by the visitor.
+const claimRequestLimiter = () => {
+  const redis = getRedis()
+  if (!redis) return null
+  return new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 h'), prefix: 'rl:claim_request' })
+}
+
 // Tiendas Fundadoras public application: max 5 submissions per IP per hour —
 // same shape as promoter_apply (a public, unauthenticated form), the primary
 // anti-spam backstop alongside the honeypot.
@@ -197,7 +204,7 @@ const comparatorAnalyzeLimiter = () => {
 
 // ── Public helper ──────────────────────────────────────────────────────────────
 
-export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'mcp_partner_preflight' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply' | 'fundadoras_track'
+export type LimitKey = 'offers' | 'checkout' | 'mcp' | 'mcp_partner_preflight' | 'supply_import' | 'stamps' | 'catalog_extract' | 'embed' | 'sweepstakes' | 'telegram_webhook' | 'telegram_link' | 'promoter_apply' | 'claim_request' | 'artwork_upload' | 'launchpad' | 'launchpad_vote' | 'comparator_analyze' | 'relationship' | 'fundadoras_apply' | 'fundadoras_track'
 
 function limiterFor(key: LimitKey): Ratelimit | null {
   const getLimiter = key === 'offers'          ? offerLimiter
@@ -211,6 +218,7 @@ function limiterFor(key: LimitKey): Ratelimit | null {
     : key === 'telegram_webhook'? telegramWebhookLimiter
     : key === 'telegram_link'   ? telegramLinkLimiter
     : key === 'promoter_apply'  ? promoterApplyLimiter
+    : key === 'claim_request' ? claimRequestLimiter
     : key === 'artwork_upload'  ? artworkUploadLimiter
     : key === 'launchpad'       ? launchpadLimiter
     : key === 'launchpad_vote'  ? launchpadVoteLimiter

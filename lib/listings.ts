@@ -496,6 +496,29 @@ export const getShop = unstable_cache(
   { revalidate: CACHE.SHOP, tags: ['shops'] },
 )
 
+/** Ownership and takedown decisions cannot wait out the public shop cache. */
+export async function readShopFresh(slug: string, market?: MarketCode): Promise<
+  | { state: 'resolved'; shop: Shop }
+  | { state: 'absent' }
+  | { state: 'unavailable'; reason: string }
+> {
+  const key = market ? resolvePublishableKeyForMarket(market, PROCESS_MARKET_ENV) : null
+  if (key?.status === 'unconfigured') return { state: 'unavailable', reason: 'market credential missing' }
+  try {
+    const res = await medusaFetch(`/store/sellers/${encodeURIComponent(slug)}`, {
+      cache: 'no-store',
+      ...(key ? { headers: { 'x-publishable-api-key': key.token } } : {}),
+    })
+    if (res.status === 404) return { state: 'absent' }
+    if (!res.ok) return { state: 'unavailable', reason: `HTTP ${res.status}` }
+    const data = await res.json() as { seller?: Shop }
+    if (!data.seller?.id) return { state: 'unavailable', reason: 'seller payload malformed' }
+    return { state: 'resolved', shop: data.seller }
+  } catch (error) {
+    return { state: 'unavailable', reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 /**
  * The shape of the Medusa seller-products payload AS THIS MAPPER READS IT — not a
  * full model, just the fields touched below. Introduced by the market-architecture
