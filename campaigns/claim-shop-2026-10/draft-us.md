@@ -1,5 +1,7 @@
 **DRAFT — EDIT BEFORE SENDING**
 
+**Channel pending:** Resend does not permit sending this invitation to public addresses without prior opt-in. See [README.md](README.md).
+
 **Subject:** [Shop] has a free listing on Miyagi Sánchez
 **From:** Miyagi Sánchez <noreply@miyagisanchez.com>
 **Reply to:** hola@miyagisanchez.com
@@ -22,4 +24,4 @@ If anything in the listing is wrong, reply and we will take a look.
 
 — Miyagi Sánchez
 
-[Add Resend unsubscribe footer, a valid sender postal address and the current privacy notice before sending.]
+[Add the selected channel's unsubscribe method, a valid sender postal address and the current privacy notice before sending.]

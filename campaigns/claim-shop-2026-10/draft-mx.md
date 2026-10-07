@@ -1,5 +1,7 @@
 **BORRADOR — NO ENVIAR SIN REVISIÓN**
 
+**Canal pendiente:** Resend no permite enviar esta invitación a direcciones públicas sin consentimiento previo. Ver [README.md](README.md).
+
 **Asunto:** [Tienda] ya tiene una ficha gratuita en Miyagi Sánchez
 **Remitente:** Miyagi Sánchez <noreply@miyagisanchez.com>
 **Responder a:** hola@miyagisanchez.com
@@ -22,4 +24,4 @@ Si algún dato es incorrecto, respondan a este correo y lo revisamos.
 
 — Miyagi Sánchez
 
-[Insertar pie de baja de Resend, domicilio postal válido y enlace al aviso de privacidad vigente antes del envío.]
+[Insertar mecanismo de baja del canal elegido, domicilio postal válido y enlace al aviso de privacidad vigente antes del envío.]

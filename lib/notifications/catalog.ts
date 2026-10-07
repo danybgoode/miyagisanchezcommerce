@@ -95,7 +95,7 @@ export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
     sender: 'sendAccountWelcome', origin: 'app/api/webhooks/clerk/route.ts',
   },
   {
-    key: 'shop.claim_request_received', trigger: 'Una persona solicita reclamar una tienda desde su ficha.',
+    key: 'shop.claim_request_received', trigger: 'Una persona envía el formulario anterior para solicitar una tienda.',
     from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
     sender: 'sendClaimRequestReceived', origin: 'app/api/claim/send/route.ts',
   },

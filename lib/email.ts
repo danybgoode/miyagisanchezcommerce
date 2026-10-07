@@ -407,20 +407,20 @@ async function send(
   return result.ok ? result.id : null
 }
 
-/** A public form records an ownership request; it never grants ownership. */
+/** Receipt for the legacy claim form; the public shop page now offers direct claiming. */
 export async function sendClaimRequestReceived(ctx: { to: string; shopName: string; market: 'mx' | 'us' }): Promise<EmailSendResult> {
   const name = esc(ctx.shopName)
   if (ctx.market === 'us') {
     return sendWithResult(ctx.to, `We received your request for ${ctx.shopName}`, [
       h1('We received your request'),
-      p(`Thanks for writing to us about <strong>${name}</strong>. We will review your connection to the shop before sending an invitation to manage it.`),
-      p('If you have a way to show that you represent the business, reply to this email. You can also reply if the listing needs a correction.'),
+      p(`Thanks for writing to us about <strong>${name}</strong>. To link a public, unclaimed shop to your account, open its listing and select “Claim shop.” You can sign in with any email address or Google account.`),
+      p('If the listing needs a correction or you would like it removed, reply to this email.'),
     ].join(''), undefined, undefined, 'en')
   }
   return sendWithResult(ctx.to, `Recibimos tu solicitud para ${ctx.shopName}`, [
     h1('Recibimos tu solicitud'),
-    p(`Gracias por escribirnos sobre <strong>${name}</strong>. Revisaremos la relación con la tienda antes de enviar una invitación para administrarla.`),
-    p('Si tienes una forma de acreditar que representas al negocio, responde a este correo. Puedes escribirnos directamente si necesitas corregir algún dato de la ficha.'),
+    p(`Gracias por escribirnos sobre <strong>${name}</strong>. Para vincular una tienda pública sin reclamar a tu cuenta, abre su ficha y elige “Reclamar tienda”. Puedes entrar con el correo o la cuenta de Google que prefieras.`),
+    p('Si necesitas corregir algún dato o prefieres que retiremos la ficha, responde a este correo.'),
   ].join(''))
 }
 
@@ -453,11 +453,11 @@ export async function sendAccountWelcome(ctx: { to: string; clerkUserId: string 
   return sendWithResult(ctx.to, 'Bienvenido a Miyagi Sánchez / Welcome', [
     h1('Bienvenido a Miyagi Sánchez'),
     p('Tu cuenta ya está lista. Puedes explorar tiendas y productos, guardar lo que te interese y hablar con quienes venden cuando encuentres algo para ti.'),
-    p('Si tienes un negocio, también puedes crear una tienda o pedir acceso a una ficha que ya exista. Tener una tienda básica es gratis.'),
+    p('Si tienes un negocio, también puedes crear una tienda o reclamar una ficha pública disponible desde su página. Tener una tienda básica es gratis.'),
     divider(),
     h1('Welcome to Miyagi Sánchez'),
     p('Your account is ready. Explore shops and products, save what interests you, and contact sellers when you find something you like.'),
-    p('If you run a business, you can also create a shop or request access to an existing listing. A basic shop is free.'),
+    p('If you run a business, you can also create a shop or claim an available public listing from its page. A basic shop is free.'),
     cta('Explorar / Explore', SITE),
     p('¿Dudas? Responde a este correo. Questions? Just reply.'),
   ].join(''), undefined, undefined, 'es', `account-welcome/${ctx.clerkUserId}`)
