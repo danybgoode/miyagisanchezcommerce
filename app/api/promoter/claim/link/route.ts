@@ -12,6 +12,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { isEnabled } from '@/lib/flags'
 import { db } from '@/lib/supabase'
 import { signClaimToken } from '@/lib/claimJwt'
+import { buildClaimLandingUrl } from '@/lib/claim-invitation'
 import { getPromoterByClerkId } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { buildWhatsAppClaimLink } from '@/lib/promoter-close'
@@ -52,10 +53,8 @@ export async function POST(req: NextRequest) {
   // mirror id only if metadata is missing (older rows).
   const claimShopId = shop.medusaSellerId ?? shop.id
   const email = (body.email ?? '').trim() || 'pendiente@miyagisanchez.com'
-  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, email })
-
-  const despachoBonsaiUrl = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
-  const claimUrl = `${despachoBonsaiUrl}/onboarding/claim?token=${token}`
+  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, email, purpose: 'promoter' })
+  const claimUrl = buildClaimLandingUrl(token)
 
   // Upsert the pending claim against the mirror UUID (marketplace_claims.shop_id
   // FKs marketplace_shops.id), exactly like /api/claim/send. Non-fatal: the claim

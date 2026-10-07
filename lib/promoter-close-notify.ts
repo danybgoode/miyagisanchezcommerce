@@ -12,10 +12,9 @@ import 'server-only'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { getPromoterById } from '@/lib/promoter'
 import { signClaimToken } from '@/lib/claimJwt'
+import { buildClaimLandingUrl } from '@/lib/claim-invitation'
 import { sendMerchantCloseReceipt, getSellerEmail } from '@/lib/email'
 import type { CloseReceiptItem } from '@/lib/promoter-close-receipt'
-
-const DESPACHOBONSAI_URL = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
 
 export async function notifyMerchantCloseReceipt(input: {
   /** marketplace_shops.id — the mirror UUID (survives claim). */
@@ -43,8 +42,9 @@ export async function notifyMerchantCloseReceipt(input: {
       shopSlug: shop.slug,
       shopName: shop.name,
       email: merchantEmail ?? 'pendiente@miyagisanchez.com',
+      purpose: 'promoter',
     })
-    const claimUrl = `${DESPACHOBONSAI_URL}/onboarding/claim?token=${token}`
+    const claimUrl = buildClaimLandingUrl(token)
 
     await sendMerchantCloseReceipt({
       to,

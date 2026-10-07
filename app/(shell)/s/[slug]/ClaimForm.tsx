@@ -6,17 +6,15 @@ import { useState } from 'react'
 interface Props {
   shopId: string
   shopSlug: string
-  shopName: string
+  market: 'mx' | 'us'
 }
 
 type State = 'idle' | 'loading' | 'sent' | 'error'
 
-export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
+export default function ClaimForm({ shopId, shopSlug, market }: Props) {
   const copy = useBuyerCopy()
   const [state, setState] = useState<State>('idle')
   const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
-  const [devLink, setDevLink] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
@@ -28,7 +26,7 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
       const res = await fetch('/api/claim/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, shopSlug, shopName, email, message }),
+        body: JSON.stringify({ shopId, shopSlug, market, email }),
       })
 
       let data: Record<string, unknown> = {}
@@ -46,9 +44,6 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
         return
       }
 
-      if (typeof data.link === 'string') {
-        setDevLink(data.link)
-      }
       setState('sent')
     } catch {
       setErrorMsg('Error de red. Intenta de nuevo.')
@@ -61,24 +56,8 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
       <div style={{ padding: '20px', background: 'var(--claim-accent-soft)', border: '1px solid var(--claim-accent)', borderRadius: '8px' }}>
         <p style={{ fontWeight: 600, color: 'var(--claim-ink)', marginBottom: '8px' }}>
           <BuyerCopyText copyKey="s.slug.ClaimForm.db24adc4" /></p>
-        <p style={{ fontSize: '14px', color: 'var(--claim-muted)', marginBottom: devLink ? '16px' : 0 }}>
+        <p style={{ fontSize: '14px', color: 'var(--claim-muted)' }}>
           <BuyerCopyText copyKey="s.slug.ClaimForm.8d47ed51" />{' '}<strong>{email}</strong><BuyerCopyText copyKey="s.slug.ClaimForm.14ba9f00" /></p>
-        {devLink && (
-          <a
-            href={devLink}
-            style={{
-              display: 'inline-block',
-              background: 'var(--claim-accent)',
-              color: 'var(--fg-inverse)',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: '14px',
-            }}
-          >
-            <BuyerCopyText copyKey="s.slug.ClaimForm.d7366520" /></a>
-        )}
       </div>
     )
   }
@@ -97,18 +76,6 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
           disabled={state === 'loading'}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1"><BuyerCopyText copyKey="s.slug.ClaimForm.10e241c5" /></label>
-        <textarea
-          rows={4}
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)] resize-none"
-          placeholder={copy('s.slug.ClaimForm.d36f280a')}
-          disabled={state === 'loading'}
-        />
-      </div>
-
       {state === 'error' && (
         <p className="text-sm text-red-600">{errorMsg}</p>
       )}

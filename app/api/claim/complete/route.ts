@@ -2,9 +2,8 @@
  * Claim completion — the marketplace half of the shop-claim handshake
  * (Gem → Claimable Shop Loop · S2.2).
  *
- * The claim email (signed by /api/claim/send) lands the owner on the
- * despachobonsai dashboard, which authenticates them with Clerk and then calls
- * THIS endpoint server-to-server. Ownership truth lives on the Medusa seller
+ * A vetted invitation lands the owner at /claim, which authenticates through
+ * Clerk before calling this endpoint. Ownership truth lives on the Medusa seller
  * (`clerk_user_id` drives the "Sin reclamar" badge, /shop/manage and
  * /store/sellers/me), so this endpoint:
  *   1. re-verifies the claim JWT (shared CLAIM_JWT_SECRET),
@@ -12,30 +11,39 @@
  *   3. claims the Supabase mirror row (conversations / offers / agent tooling),
  *   4. approves the marketplace_claims record and busts the shop page cache.
  *
- *   POST /api/claim/complete   body: { token, clerk_user_id }
- *   Auth: x-claim-secret header must equal CLAIM_JWT_SECRET (server-to-server
- *   only — the caller, not this endpoint, authenticates the claiming user).
+ *   POST /api/claim/complete   body: { token }
+ *   Auth: Clerk session, or the legacy dashboard's shared-secret caller. In
+ *   both cases this endpoint resolves the authenticated Clerk account.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
+import { clerkClient, currentUser } from '@clerk/nextjs/server'
 import { db } from '@/lib/supabase'
 import { verifyClaimToken } from '@/lib/claimJwt'
+import { decideClaimRedemption } from '@/lib/claim-invitation'
+import { readShopFresh } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { readSellerStatus } from '@/lib/admin/tenant-status'
+import { verifiedClerkEmailAddresses } from '@/lib/founding-operator-activation'
+import { sendShopClaimedWelcome } from '@/lib/email'
 import { tg } from '@/lib/telegram'
 import { emitPreviewEvent } from '@/lib/preview-lifecycle'
 import { emitMerchantLifecycleForShop } from '@/lib/merchant-lifecycle-server'
+import { sendGrowthEvent } from '@/lib/growth-engine'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const INTERNAL_SECRET = process.env.MEDUSA_INTERNAL_SECRET ?? ''
 
 export async function POST(req: NextRequest) {
-  // Unconfigured secret ⇒ nothing can authenticate (401, not 500) — keeps the
-  // gate fail-closed and behaviourally identical on previews without the env.
+  // The historical dashboard may still call with the shared secret. The new
+  // Miyagi claim page calls with the Clerk session; its body cannot choose an id.
   const sharedSecret = process.env.CLAIM_JWT_SECRET
   if (!sharedSecret) console.error('[claim/complete] CLAIM_JWT_SECRET missing')
-  if (!sharedSecret || req.headers.get('x-claim-secret') !== sharedSecret) {
+  if (!sharedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const serverCaller = req.headers.get('x-claim-secret') === sharedSecret
   if (!INTERNAL_SECRET) {
     console.error('[claim/complete] MEDUSA_INTERNAL_SECRET missing')
     return NextResponse.json({ error: 'Configuración incompleta en el servidor.' }, { status: 500 })
@@ -46,10 +54,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const clerkUserId = body.clerk_user_id?.trim()
-  if (!body.token || !clerkUserId) {
-    return NextResponse.json({ error: 'token y clerk_user_id son requeridos' }, { status: 400 })
+  if (!body.token) {
+    return NextResponse.json({ error: 'Falta el enlace de invitación.' }, { status: 400 })
   }
+  const user = serverCaller
+    ? body.clerk_user_id?.trim()
+      ? await (await clerkClient()).users.getUser(body.clerk_user_id.trim()).catch(() => null)
+      : null
+    : await currentUser().catch(() => null)
+  if (!user) return NextResponse.json({ error: 'Inicia sesión para continuar.' }, { status: 401 })
+  const clerkUserId = user.id
 
   let payload
   try {
@@ -74,6 +88,38 @@ export async function POST(req: NextRequest) {
     sellerId = medusaId
   }
 
+  // The signed link is the claim capability. It identifies a particular
+  // public shop but does not bind the merchant to an outreach address.
+  // Medusa status is read fresh because a removal request may have paused it.
+  const shopRead = await readShopFresh(payload.shopSlug, payload.market)
+  if (shopRead.state === 'unavailable') return NextResponse.json({ error: 'No pudimos comprobar la tienda. Intenta más tarde.' }, { status: 503 })
+  if (shopRead.state === 'absent') return NextResponse.json({ error: 'Tienda no disponible.' }, { status: 404 })
+  const shop = shopRead.shop
+  const status = await readSellerStatus(sellerId)
+  if (status.state !== 'resolved') {
+    return NextResponse.json({ error: 'No pudimos comprobar el estado de la tienda. Intenta más tarde.' }, { status: 503 })
+  }
+  const market = readPublicSellerMarket(shop)?.market_code ?? null
+  const decision = decideClaimRedemption(
+    { ...payload, shopId: sellerId },
+    { id: shop.id, slug: shop.slug, clerkUserId: shop.clerk_user_id, verified: shop.verified, market, status: status.status },
+    { clerkUserId },
+  )
+  if (payload.campaignId) {
+    await sendGrowthEvent({ userId: sellerId, event: 'campaign.claim_attempted',
+      featureId: 'claim-shop-acquisition', tags: { campaign_id: payload.campaignId, market } })
+  }
+  if (!decision.ok) {
+    const messages = {
+      invalid_link: 'Este enlace no sirve para reclamar una tienda.',
+      wrong_shop: 'La invitación no corresponde a esta tienda.',
+      wrong_market: 'La invitación no corresponde al mercado de esta tienda.',
+      shop_unavailable: 'Esta tienda no está disponible para reclamar.',
+      already_claimed: 'Esta tienda ya pertenece a otra cuenta.',
+    }
+    return NextResponse.json({ error: messages[decision.reason] }, { status: decision.reason === 'wrong_shop' ? 404 : 409 })
+  }
+
   // ── 1. Transfer ownership on the Medusa seller (source of truth) ───────────
   const claimRes = await fetch(`${MEDUSA_BASE}/internal/sellers/${sellerId}/claim`, {
     method: 'POST',
@@ -86,6 +132,7 @@ export async function POST(req: NextRequest) {
   const claimData = await claimRes.json().catch(() => ({})) as {
     seller?: { slug?: string }
     message?: string
+    newly_claimed?: boolean
   }
 
   if (claimRes.status === 404) {
@@ -125,21 +172,39 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 4. Shop page stops showing "Sin reclamar" without waiting out ISR ──────
-  revalidateTag('shops', 'default')
-  revalidateTag('listings', 'default')
+  revalidateTag('shops', { expire: 0 })
+  revalidateTag('listings', { expire: 0 })
 
   const slug = claimData.seller?.slug ?? payload.shopSlug
 
-  // A successful, net-new claim — ping the ops chat (fire-and-forget). The 404
-  // (not found) and 409 (already claimed) branches return earlier, so a re-claim
-  // never re-pings. Location isn't in the claim token → pass null.
-  tg.newShop(payload.shopName, null, slug)
+  // The old backend returned the same `claimed: true` on first transfer and
+  // idempotent retry. Its new `newly_claimed` bit is the only safe trigger for
+  // once-only email/telemetry; missing means deploy lag and must not guess.
+  const newlyClaimed = claimData.newly_claimed === true
+  if (newlyClaimed) {
+    tg.newShop(payload.shopName, null, slug)
+    const accountEmail = verifiedClerkEmailAddresses(user.emailAddresses)[0]
+    if (accountEmail) {
+      await sendShopClaimedWelcome({ to: accountEmail, shopName: payload.shopName, shopSlug: slug, market: market ?? 'mx', sellerId })
+    } else {
+      console.warn('[claim/complete] claimed shop has no verified account email for confirmation', sellerId)
+    }
+    if (payload.campaignId) {
+      await sendGrowthEvent({ userId: sellerId, event: 'campaign.claim_completed',
+        featureId: 'claim-shop-acquisition', tags: { campaign_id: payload.campaignId, market } })
+    }
+    if (payload.invitationId) {
+      const { error: conversionError } = await db.from('claim_campaign_invitations')
+        .update({ claimed_at: new Date().toISOString() }).eq('id', payload.invitationId).eq('seller_id', sellerId)
+      if (conversionError) console.error('[claim/complete] invitation conversion update failed', conversionError)
+    }
+  }
 
   // Consent-previews lifecycle telemetry (S3.1) — the claim is the last canonical
   // transition in the founding-merchant funnel. Emitted after ownership actually
   // transferred, keyed on the mirror id only (no name, email or token). Skipped
   // when the mirror row couldn't be resolved — there is no non-PII subject then.
-  if (mirrorRow) {
+  if (mirrorRow && newlyClaimed) {
     await emitPreviewEvent('shop_claimed', { shopId: mirrorRow.id as string })
     // The same moment as a merchant lifecycle fact (event-destination-router S3.1),
     // carrying the merchant subject Golden Beans routes the delivery back on. Once
@@ -154,5 +219,6 @@ export async function POST(req: NextRequest) {
     ok: true,
     shopName: payload.shopName,
     shopSlug: slug,
+    newlyClaimed,
   })
 }
