@@ -43,6 +43,8 @@ export type TenantRow = {
   slug: string
   name: string
   claimed: boolean
+  /** Public Medusa seller verification; null when the projection could not be read. */
+  publicSellerVerified: boolean | null
   /** The custom domain, or null when none is set. */
   customDomain: string | null
   domainStatus: TenantDomainStatus
@@ -159,6 +161,7 @@ export function shapeTenantRow(
     paywallEnabled: boolean
     listingCount: number
     publicSellerMarket?: PublicSellerMarket | null
+    publicSellerVerified?: boolean | null
     status?: SellerStatus | 'not_imported' | 'absent' | 'unavailable'
     registrationEmail?: string | null | 'unavailable'
   },
@@ -175,6 +178,7 @@ export function shapeTenantRow(
     slug: trimmed(raw.slug),
     name: trimmed(raw.name) || trimmed(raw.slug) || '(sin nombre)',
     claimed: isShopClaimed({ clerk_user_id: raw.clerk_user_id }),
+    publicSellerVerified: ctx.publicSellerVerified ?? null,
     customDomain,
     domainStatus: deriveDomainStatus(customDomain, !!raw.custom_domain_verified),
     entitlementReason: entitlement.reason,

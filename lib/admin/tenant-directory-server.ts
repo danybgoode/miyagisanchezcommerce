@@ -58,9 +58,11 @@ async function listingCountsByShop(): Promise<Map<string, number>> {
 
 /**
  * The read-only tenant directory: every mirror shop shaped into a display row.
- * Degrades to `[]` on a read failure so the admin page never throws.
+ * The caller can distinguish a failed enumeration from a genuinely empty directory.
  */
-export async function listTenants(): Promise<TenantRow[]> {
+export async function readTenantDirectory(): Promise<
+  { state: 'resolved'; rows: TenantRow[] } | { state: 'unavailable' }
+> {
   const [paywallEnabled, counts] = await Promise.all([
     isEnabled('domain.paywall_enabled'),
     listingCountsByShop(),
@@ -73,14 +75,14 @@ export async function listTenants(): Promise<TenantRow[]> {
 
   if (error || !data) {
     if (error) console.warn('[tenant-directory] shops unavailable:', error.message)
-    return []
+    return { state: 'unavailable' }
   }
 
   const rows = data as RawTenantRow[]
   // The mirror is only the enumerable list spine. Market state is read from
   // Medusa's public seller projection; an unavailable projection stays visibly
   // unavailable instead of inheriting a made-up MX default.
-  const markets = new Map<string, PublicSellerMarket | null>(await mapWithConcurrency(
+  const projections = new Map<string, { market: PublicSellerMarket | null; verified: boolean | null }>(await mapWithConcurrency(
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {
@@ -97,7 +99,7 @@ export async function listTenants(): Promise<TenantRow[]> {
     } catch (error) {
       console.warn(`[tenant-directory] seller projection unavailable for ${raw.slug}:`, error)
     }
-    return [raw.id, readPublicSellerMarket(seller)] as const
+    return [raw.id, { market: readPublicSellerMarket(seller), verified: seller?.verified ?? null }] as const
     },
   ))
 
@@ -143,13 +145,21 @@ export async function listTenants(): Promise<TenantRow[]> {
     },
   ))
 
-  return rows.map((raw) =>
+  return { state: 'resolved', rows: rows.map((raw) =>
     shapeTenantRow(raw, {
       paywallEnabled,
       listingCount: counts.get(raw.id) ?? 0,
-      publicSellerMarket: markets.get(raw.id) ?? null,
+      publicSellerMarket: projections.get(raw.id)?.market ?? null,
+      publicSellerVerified: projections.get(raw.id)?.verified ?? null,
       status: statuses.get(raw.id) ?? 'unavailable',
-      registrationEmail: emails.get(raw.id) ?? 'unavailable',
+      // Null means a real unclaimed shop, while missing means Clerk was not read.
+      registrationEmail: emails.get(raw.id) === undefined ? 'unavailable' : emails.get(raw.id),
     }),
-  )
+  ) }
+}
+
+/** Existing tenant screen contract; new operator flows can display read failure. */
+export async function listTenants(): Promise<TenantRow[]> {
+  const result = await readTenantDirectory()
+  return result.state === 'resolved' ? result.rows : []
 }

@@ -144,6 +144,15 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     group: 'administracion',
   },
   {
+    key: 'claim-links',
+    label: 'Enlaces de reclamación',
+    description: 'Busca tiendas sin reclamar y prepara sus enlaces de vista y reclamación.',
+    href: '/admin/claim-links',
+    icon: 'iconoir-link',
+    risk: 'high',
+    group: 'administracion',
+  },
+  {
     key: 'comunicaciones',
     label: 'Comunicaciones',
     description: 'Qué avisa la plataforma, a quién y por qué canal. Envíate cualquiera de prueba.',

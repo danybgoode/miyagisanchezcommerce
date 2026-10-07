@@ -16,7 +16,7 @@ const ADMIN_DIR = fileURLToPath(new URL('../app/(shell)/admin', import.meta.url)
 test.describe('admin · ADMIN_SECTIONS registry', () => {
   test('lists the sections in order (S1 + S2 re-homed/extracted/new/audit + S3 tenants + Selección + promoter + flags + contenido + miyagi-partners-mcp S3 feedback + marketplace-communications S2.1 comunicaciones)', () => {
     expect(ADMIN_SECTIONS.map(s => s.key)).toEqual([
-      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'feedback', 'tenants', 'comunicaciones', 'flags', 'scraping',
+      'coupons', 'print', 'supply', 'vecindario', 'seleccion', 'contenido', 'referrals', 'promoter', 'audit', 'feedback', 'tenants', 'claim-links', 'comunicaciones', 'flags', 'scraping',
     ])
   })
 
@@ -56,6 +56,14 @@ test.describe('admin · ADMIN_SECTIONS registry', () => {
     const byKey = Object.fromEntries(ADMIN_SECTIONS.map(s => [s.key, s]))
     expect(byKey.tenants?.href).toBe('/admin/tenants')
     expect(byKey.tenants?.external).toBeUndefined()
+  })
+
+  test('claim links are discoverable from the admin hub and nav', () => {
+    const section = ADMIN_SECTIONS.find(s => s.key === 'claim-links')
+    expect(section?.href).toBe('/admin/claim-links')
+    expect(section?.group).toBe('administracion')
+    expect(section?.risk).toBe('high')
+    expect(activeAdminSectionHref('/admin/claim-links')).toBe('/admin/claim-links')
   })
 
   test('Homepage Selección registers the curation screen (internal, med-risk)', () => {

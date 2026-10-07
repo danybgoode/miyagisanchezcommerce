@@ -16,6 +16,7 @@ function row(overrides: Partial<TenantRow> = {}): TenantRow {
     slug: 'tienda',
     name: 'Tienda',
     claimed: true,
+    publicSellerVerified: true,
     customDomain: null,
     domainStatus: 'none',
     entitlementReason: 'flag_off',

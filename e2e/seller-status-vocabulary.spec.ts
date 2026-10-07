@@ -39,7 +39,7 @@ import { selectTenants, type TenantRow } from '../lib/admin/tenant-directory'
 
 function row(overrides: Partial<TenantRow> = {}): TenantRow {
   return {
-    medusaSellerId: 'sel_1', shopId: 'shop_1', slug: 's', name: 'S', claimed: true,
+    medusaSellerId: 'sel_1', shopId: 'shop_1', slug: 's', name: 'S', claimed: true, publicSellerVerified: true,
     customDomain: null, domainStatus: 'none', entitlementReason: 'flag_off', entitled: true,
     subscriptionUnchecked: false, listingCount: 0, operatingMarketCode: 'mx',
     operatingMarketLabel: 'México', marketplacePublicationLabel: 'Publicada',

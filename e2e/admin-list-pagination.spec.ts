@@ -10,6 +10,7 @@ function tenant(index: number, overrides: Partial<TenantRow> = {}): TenantRow {
     slug: `tienda-${index}`,
     name: `Tienda ${String(index).padStart(2, '0')}`,
     claimed: true,
+    publicSellerVerified: true,
     customDomain: null,
     domainStatus: 'none',
     entitlementReason: 'flag_off',
