@@ -1,95 +1,48 @@
 import { NextRequest } from 'next/server'
-import { signClaimToken } from '@/lib/claimJwt'
 import { db } from '@/lib/supabase'
+import { readShopFresh } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { normalizedClaimEmail } from '@/lib/claim-invitation'
+import { sendClaimRequestReceived } from '@/lib/email'
+import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { tg } from '@/lib/telegram'
 
+/** Public interest is a review request, never proof of business ownership. */
 export async function POST(req: NextRequest) {
-  // Top-level guard — always return JSON even on unexpected errors
-  try {
-    return await handlePost(req)
-  } catch (err) {
-    console.error('[claim/send] unhandled error:', err)
-    return Response.json({ error: 'Error interno. Intenta de nuevo.' }, { status: 500 })
+  const limit = await checkRateLimit('claim_request', getClientIp(req))
+  if (!limit.allowed) return Response.json({ error: 'Intenta de nuevo más tarde.' }, { status: 429 })
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return Response.json({ error: 'Solicitud inválida.' }, { status: 400 }) }
+  const email = normalizedClaimEmail(body.email)
+  const slug = typeof body.shopSlug === 'string' ? body.shopSlug : ''
+  const market = body.market === 'mx' || body.market === 'us' ? body.market : undefined
+  const message = typeof body.message === 'string' ? body.message.trim().slice(0, 2000) : ''
+  if (!email || !slug || slug.length > 150) return Response.json({ error: 'Correo o tienda inválidos.' }, { status: 400 })
+
+  const shopRead = await readShopFresh(slug, market)
+  if (shopRead.state === 'unavailable') return Response.json({ error: 'No pudimos comprobar la tienda. Intenta más tarde.' }, { status: 503 })
+  if (shopRead.state === 'absent') return Response.json({ error: 'Esta tienda no está disponible para reclamar.' }, { status: 409 })
+  const shop = shopRead.shop
+  if (shop.clerk_user_id || shop.id !== body.shopId || (market && readPublicSellerMarket(shop)?.market_code !== market)) {
+    return Response.json({ error: 'Esta tienda no está disponible para reclamar.' }, { status: 409 })
   }
-}
-
-async function handlePost(req: NextRequest) {
-  let body: Record<string, string>
-  try {
-    body = await req.json()
-  } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400 })
+  const { data: mirror, error: mirrorError } = await db.from('marketplace_shops')
+    .select('id').contains('metadata', { medusa_seller_id: shop.id }).maybeSingle()
+  if (mirrorError || !mirror) {
+    console.error('[claim/send] mirror unavailable', mirrorError)
+    return Response.json({ error: 'No pudimos registrar la solicitud. Intenta más tarde.' }, { status: 503 })
   }
-
-  const { shopId, shopSlug, shopName, email, message } = body
-
-  if (!shopId || !shopSlug || !shopName || !email) {
-    return Response.json({ error: 'Missing required fields: shopId, shopSlug, shopName, email' }, { status: 400 })
+  const { error } = await db.from('marketplace_claims').upsert({
+    shop_id: mirror.id,
+    clerk_user_id: `pending:${email}`,
+    status: 'pending',
+    message: message || null,
+  }, { onConflict: 'shop_id,clerk_user_id' })
+  if (error) {
+    console.error('[claim/send] insert failed', error)
+    return Response.json({ error: 'No pudimos registrar la solicitud. Intenta más tarde.' }, { status: 503 })
   }
-
-  if (!process.env.CLAIM_JWT_SECRET) {
-    console.error('[claim/send] CLAIM_JWT_SECRET is not set')
-    return Response.json({ error: 'Configuración incompleta en el servidor.' }, { status: 500 })
-  }
-
-  const token = await signClaimToken({ shopId, shopSlug, shopName, email })
-
-  const despachoBonsaiUrl = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
-  const claimUrl = `${despachoBonsaiUrl}/onboarding/claim?token=${token}`
-
-  // Upsert a pending claim in Supabase. marketplace_claims.shop_id is a UUID
-  // FK to marketplace_shops — the claim page passes the MEDUSA seller id, so
-  // resolve the mirror row first (the old direct upsert silently errored).
-  let claimShopId: string | null = shopId
-  if (shopId.startsWith('sel_')) {
-    const { data: mirror } = await db
-      .from('marketplace_shops')
-      .select('id')
-      .contains('metadata', { medusa_seller_id: shopId })
-      .maybeSingle()
-    claimShopId = (mirror?.id as string | undefined) ?? null
-  }
-  if (claimShopId) {
-    await db.from('marketplace_claims').upsert(
-      {
-        shop_id: claimShopId,
-        clerk_user_id: `pending:${email}`,
-        status: 'pending',
-        message: message ?? null,
-      },
-      { onConflict: 'shop_id,clerk_user_id' }
-    )
-  }
-
-  const resendApiKey = process.env.RESEND_API_KEY
-  if (resendApiKey) {
-    try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(resendApiKey)
-      const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@miyagisanchez.com'
-
-      const htmlBody = `
-<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
-  <h2 style="color:#1a1a1a">Hola 👋</h2>
-  <p>Alguien (posiblemente tú) solicitó reclamar la tienda <strong>${shopName}</strong> en miyagisanchez.com.</p>
-  <p>Haz clic en el botón para continuar. El enlace expira en 24 horas.</p>
-  <a href="${claimUrl}" style="display:inline-block;background:#3a8a7a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Reclamar tienda →</a>
-  <p style="color:#666;font-size:12px">Si no solicitaste esto, ignora este mensaje.</p>
-</div>
-`
-
-      await resend.emails.send({
-        from: `miyagisanchez.com <${fromEmail}>`,
-        to: email,
-        subject: `Reclama tu tienda "${shopName}" en miyagisanchez.com`,
-        html: htmlBody,
-      })
-
-      return Response.json({ ok: true, sent: true })
-    } catch (err) {
-      console.error('Resend error:', err)
-      // Fall through to return link anyway
-    }
-  }
-
-  return Response.json({ ok: true, sent: false, link: claimUrl })
+  const receipt = await sendClaimRequestReceived({ to: email, shopName: shop.name, market: market ?? 'mx' })
+  await tg.alert(`Solicitud de acceso pendiente: ${shop.slug}. Revisar /api/admin/claim-invitations.`)
+  return Response.json({ ok: true, emailSent: receipt.ok })
 }

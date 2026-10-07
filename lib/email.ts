@@ -331,6 +331,7 @@ export async function sendWithResult(
   scheduledAt?: Date,
   brand?: Brand,
   language: EmailLanguage = 'es',
+  idempotencyKey?: string,
 ): Promise<EmailSendResult> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
@@ -357,7 +358,16 @@ export async function sendWithResult(
       subject: finalSubject,
       html: html(finalSubject, finalBody, brand, language),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
-    })
+    }, idempotencyKey && !sample ? { idempotencyKey } : undefined)
+    if (result.error) {
+      // Resend's SDK returns API rejections as `{ data: null, error }` rather
+      // than always throwing. Counting that as sent would burn a once-only
+      // welcome reservation even though the provider refused the message.
+      console.error('[email] provider rejected:', subject, result.error)
+      logNotification({ channel: 'email', outcome: 'failed', recipient: to,
+        subject: finalSubject, reason: 'rejected', context: { detail: result.error.message } })
+      return { ok: false, reason: 'rejected', detail: result.error.message }
+    }
     // Resend can accept without echoing an id. That is still a send, so `id` is
     // nullable INSIDE the ok branch rather than collapsing back into a failure.
     logNotification({
@@ -391,9 +401,66 @@ async function send(
   scheduledAt?: Date,
   brand?: Brand,
   language: EmailLanguage = 'es',
+  idempotencyKey?: string,
 ): Promise<string | null> {
-  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language)
+  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language, idempotencyKey)
   return result.ok ? result.id : null
+}
+
+/** A public form records an ownership request; it never grants ownership. */
+export async function sendClaimRequestReceived(ctx: { to: string; shopName: string; market: 'mx' | 'us' }): Promise<EmailSendResult> {
+  const name = esc(ctx.shopName)
+  if (ctx.market === 'us') {
+    return sendWithResult(ctx.to, `We received your request for ${ctx.shopName}`, [
+      h1('We received your request'),
+      p(`Thanks for writing to us about <strong>${name}</strong>. We will review your connection to the shop before sending an invitation to manage it.`),
+      p('If you have a way to show that you represent the business, reply to this email. You can also reply if the listing needs a correction.'),
+    ].join(''), undefined, undefined, 'en')
+  }
+  return sendWithResult(ctx.to, `Recibimos tu solicitud para ${ctx.shopName}`, [
+    h1('Recibimos tu solicitud'),
+    p(`Gracias por escribirnos sobre <strong>${name}</strong>. Revisaremos la relación con la tienda antes de enviar una invitación para administrarla.`),
+    p('Si tienes una forma de acreditar que representas al negocio, responde a este correo. Puedes escribirnos directamente si necesitas corregir algún dato de la ficha.'),
+  ].join(''))
+}
+
+/** Sent only when Medusa reports a first ownership transfer. */
+export async function sendShopClaimedWelcome(ctx: {
+  to: string; shopName: string; shopSlug: string; market: 'mx' | 'us'; sellerId: string
+}): Promise<void> {
+  const shopUrl = `${SITE}/${ctx.market}/s/${encodeURIComponent(ctx.shopSlug)}`
+  if (ctx.market === 'us') {
+    await send(ctx.to, `${ctx.shopName} is now linked to your account`, [
+      h1('Your shop is ready'),
+      p(`We linked <strong>${esc(ctx.shopName)}</strong> to your Miyagi Sánchez account. You can review the listing, prepare your catalog, and choose what to publish.`),
+      p('Claiming is free. Optional branding and domain services are listed with current prices on the site.'),
+      cta('Manage my shop', `${SITE}/shop/manage`),
+      p(`Public listing: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+    ].join(''), undefined, undefined, 'en', `shop-claimed/${ctx.sellerId}`)
+    return
+  }
+  await send(ctx.to, `Tu tienda ${ctx.shopName} ya está en tu cuenta`, [
+    h1('Tu tienda ya es tuya en Miyagi Sánchez'),
+    p(`Vinculamos <strong>${esc(ctx.shopName)}</strong> a tu cuenta. Ya puedes revisar la ficha, completar la información de tu negocio y administrar lo que muestras.`),
+    p('Reclamar la tienda es gratis. Si alguna vez te interesa ampliar tu presencia, encontrarás las opciones y precios vigentes en el sitio.'),
+    cta('Administrar mi tienda', `${SITE}/shop/manage`),
+    p(`Tu ficha pública: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+  ].join(''), undefined, undefined, 'es', `shop-claimed/${ctx.sellerId}`)
+}
+
+/** General account welcome. Shop-specific language belongs to the claim receipt. */
+export async function sendAccountWelcome(ctx: { to: string; clerkUserId: string }): Promise<EmailSendResult> {
+  return sendWithResult(ctx.to, 'Bienvenido a Miyagi Sánchez / Welcome', [
+    h1('Bienvenido a Miyagi Sánchez'),
+    p('Tu cuenta ya está lista. Puedes explorar tiendas y productos, guardar lo que te interese y hablar con quienes venden cuando encuentres algo para ti.'),
+    p('Si tienes un negocio, también puedes crear una tienda o pedir acceso a una ficha que ya exista. Tener una tienda básica es gratis.'),
+    divider(),
+    h1('Welcome to Miyagi Sánchez'),
+    p('Your account is ready. Explore shops and products, save what interests you, and contact sellers when you find something you like.'),
+    p('If you run a business, you can also create a shop or request access to an existing listing. A basic shop is free.'),
+    cta('Explorar / Explore', SITE),
+    p('¿Dudas? Responde a este correo. Questions? Just reply.'),
+  ].join(''), undefined, undefined, 'es', `account-welcome/${ctx.clerkUserId}`)
 }
 
 // ── Cancel a scheduled email by Resend ID ─────────────────────────────────────
@@ -2129,7 +2196,7 @@ export async function sendMerchantCloseReceipt(ctx: {
   to: string
   shopName: string
   items: CloseReceiptItem[]
-  claimUrl: string
+  claimUrl?: string
   toMerchantDirectly: boolean
 }): Promise<void> {
   const { subject, intro, items, claimUrl } = buildMerchantCloseReceipt(ctx)
@@ -2139,7 +2206,7 @@ export async function sendMerchantCloseReceipt(ctx: {
     p(intro),
     table(items.map((i) => [i.label, i.amountMxn ?? 'GRATIS'] as [string, string])),
     ...(notes.length ? [notice(notes.join('<br>'))] : []),
-    cta('Reclamar mi tienda', claimUrl),
+    ...(claimUrl ? [cta('Reclamar mi tienda', claimUrl)] : []),
   ].join('')
   await send(ctx.to, subject, body)
 }

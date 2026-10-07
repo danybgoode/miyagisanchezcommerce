@@ -2,22 +2,24 @@
 
 import { BuyerCopyText, useBuyerCopy } from '@/app/components/BuyerPresentationContext'
 import { useState } from 'react'
+import { CONTACT_EMAIL } from '@/lib/contact'
 
 interface Props {
   shopId: string
   shopSlug: string
   shopName: string
+  market?: 'mx' | 'us'
 }
 
 type State = 'idle' | 'loading' | 'sent' | 'error'
 
-export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
+export default function ClaimForm({ shopId, shopSlug, shopName, market }: Props) {
   const copy = useBuyerCopy()
   const [state, setState] = useState<State>('idle')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
-  const [devLink, setDevLink] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [emailSent, setEmailSent] = useState(true)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,7 +30,7 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
       const res = await fetch('/api/claim/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, shopSlug, shopName, email, message }),
+        body: JSON.stringify({ shopId, shopSlug, shopName, market, email, message }),
       })
 
       let data: Record<string, unknown> = {}
@@ -46,9 +48,7 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
         return
       }
 
-      if (typeof data.link === 'string') {
-        setDevLink(data.link)
-      }
+      setEmailSent(data.emailSent === true)
       setState('sent')
     } catch {
       setErrorMsg('Error de red. Intenta de nuevo.')
@@ -61,24 +61,12 @@ export default function ClaimForm({ shopId, shopSlug, shopName }: Props) {
       <div style={{ padding: '20px', background: 'var(--claim-accent-soft)', border: '1px solid var(--claim-accent)', borderRadius: '8px' }}>
         <p style={{ fontWeight: 600, color: 'var(--claim-ink)', marginBottom: '8px' }}>
           <BuyerCopyText copyKey="s.slug.ClaimForm.db24adc4" /></p>
-        <p style={{ fontSize: '14px', color: 'var(--claim-muted)', marginBottom: devLink ? '16px' : 0 }}>
+        {emailSent ? <p style={{ fontSize: '14px', color: 'var(--claim-muted)', marginBottom: 0 }}>
           <BuyerCopyText copyKey="s.slug.ClaimForm.8d47ed51" />{' '}<strong>{email}</strong><BuyerCopyText copyKey="s.slug.ClaimForm.14ba9f00" /></p>
-        {devLink && (
-          <a
-            href={devLink}
-            style={{
-              display: 'inline-block',
-              background: 'var(--claim-accent)',
-              color: 'var(--fg-inverse)',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: '14px',
-            }}
-          >
-            <BuyerCopyText copyKey="s.slug.ClaimForm.d7366520" /></a>
-        )}
+          : <p style={{ fontSize: '14px', color: 'var(--claim-muted)' }}>
+            {market === 'us' ? 'We saved the request, but could not email a confirmation.' : 'Guardamos la solicitud, pero no pudimos enviar la confirmación.'}{' '}
+            <a href={`mailto:${CONTACT_EMAIL}`}>{market === 'us' ? 'Contact us' : 'Escríbenos'}</a>.
+          </p>}
       </div>
     )
   }

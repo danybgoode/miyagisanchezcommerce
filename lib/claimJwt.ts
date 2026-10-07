@@ -3,6 +3,11 @@ export interface ClaimPayload {
   shopSlug: string
   shopName: string
   email: string
+  /** Missing on legacy emails, which now require human review. */
+  purpose?: 'campaign' | 'promoter' | 'public' | 'removal'
+  market?: 'mx' | 'us'
+  campaignId?: string
+  invitationId?: string
   iat: number
   exp: number
 }
@@ -36,13 +41,17 @@ async function getKey(): Promise<CryptoKey> {
 }
 
 export async function signClaimToken(
-  payload: Omit<ClaimPayload, 'iat' | 'exp'>
+  payload: Omit<ClaimPayload, 'iat' | 'exp'>,
+  ttlSeconds = 24 * 60 * 60,
 ): Promise<string> {
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 14 * 24 * 60 * 60) {
+    throw new Error('Invalid claim token lifetime')
+  }
   const now = Math.floor(Date.now() / 1000)
   const fullPayload: ClaimPayload = {
     ...payload,
     iat: now,
-    exp: now + 24 * 60 * 60,
+    exp: now + ttlSeconds,
   }
 
   const header = base64urlFromString(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
@@ -70,7 +79,7 @@ export async function verifyClaimToken(token: string): Promise<ClaimPayload> {
 
   const payload = JSON.parse(Buffer.from(body.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()) as ClaimPayload
   const now = Math.floor(Date.now() / 1000)
-  if (payload.exp < now) throw new Error('Token expired')
+  if (!Number.isSafeInteger(payload.exp) || payload.exp <= now) throw new Error('Token expired')
 
   return payload
 }

@@ -18,6 +18,8 @@ function makeMissingConfigQuery(): unknown {
     delete: () => query,
     eq: () => query,
     neq: () => query,
+    not: () => query,
+    contains: () => query,
     in: () => query,
     is: () => query,
     gte: () => query,

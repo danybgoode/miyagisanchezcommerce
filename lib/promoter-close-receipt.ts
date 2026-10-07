@@ -21,7 +21,7 @@ export interface CloseReceiptItem {
 export interface CloseReceiptInput {
   shopName: string
   items: CloseReceiptItem[]
-  claimUrl: string
+  claimUrl?: string
   /** true when addressed to the merchant's own captured email; false = promoter fallback. */
   toMerchantDirectly: boolean
 }
@@ -30,7 +30,7 @@ export interface CloseReceiptContent {
   subject: string
   intro: string
   items: CloseReceiptItem[]
-  claimUrl: string
+  claimUrl?: string
 }
 
 /** `intro` is embedded as raw HTML by the sender — a promoter-typed shop name

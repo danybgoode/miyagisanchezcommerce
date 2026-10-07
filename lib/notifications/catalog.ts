@@ -61,6 +61,7 @@ export const COMMUNICATION_DOMAINS = [
   // its own because it sent none — starting a conversation notified nobody and a
   // reply sent web push only.
   'mensajes',
+  'cuentas',
 ] as const
 export type CommunicationDomain = (typeof COMMUNICATION_DOMAINS)[number]
 
@@ -88,6 +89,21 @@ export type CommunicationEntry = {
 }
 
 export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
+  {
+    key: 'account.welcome', trigger: 'Una persona verifica su correo al crear una cuenta.',
+    from: 'platform', to: 'buyer', channels: ['email'], domain: 'cuentas',
+    sender: 'sendAccountWelcome', origin: 'app/api/webhooks/clerk/route.ts',
+  },
+  {
+    key: 'shop.claim_request_received', trigger: 'Una persona solicita reclamar una tienda desde su ficha.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendClaimRequestReceived', origin: 'app/api/claim/send/route.ts',
+  },
+  {
+    key: 'shop.claimed_welcome', trigger: 'Se transfiere una tienda a una cuenta verificada.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopClaimedWelcome', origin: 'app/api/claim/complete/route.ts',
+  },
   // ── Offers ──────────────────────────────────────────────────────────────────
   {
     key: 'offer.confirmed_to_buyer',

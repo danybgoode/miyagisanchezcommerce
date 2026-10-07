@@ -65,6 +65,9 @@ const offerCtx = (to: string) => ({
  * two agree and neither can silently grow past the other.
  */
 export const COMMUNICATION_FIXTURES: Record<string, CommunicationFixture> = {
+  'account.welcome': (to) => email.sendAccountWelcome({ to, clerkUserId: 'sample_user' }),
+  'shop.claim_request_received': (to) => email.sendClaimRequestReceived({ to, shopName: SHOP, market: 'mx' }),
+  'shop.claimed_welcome': (to) => email.sendShopClaimedWelcome({ to, shopName: SHOP, shopSlug: 'tienda-de-muestra', market: 'mx', sellerId: 'sample_seller' }),
   // ── Offers ──────────────────────────────────────────────────────────────────
   'offer.confirmed_to_buyer': (to) => email.sendOfferConfirmed(offerCtx(to)),
   'offer.new_to_seller': (to) => email.sendNewOfferToSeller({ ...offerCtx(to), sellerEmail: to }),

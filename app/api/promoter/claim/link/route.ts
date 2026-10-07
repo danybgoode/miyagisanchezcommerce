@@ -15,6 +15,10 @@ import { signClaimToken } from '@/lib/claimJwt'
 import { getPromoterByClerkId } from '@/lib/promoter'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { buildWhatsAppClaimLink } from '@/lib/promoter-close'
+import { normalizedClaimEmail, buildClaimLandingUrl } from '@/lib/claim-invitation'
+import { readShopFresh } from '@/lib/listings'
+import { readPublicSellerMarket } from '@/lib/owned-market'
+import { readSellerStatus } from '@/lib/admin/tenant-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,11 +55,19 @@ export async function POST(req: NextRequest) {
   // /api/claim/complete → /internal/sellers/:id/claim transfers. Fall back to the
   // mirror id only if metadata is missing (older rows).
   const claimShopId = shop.medusaSellerId ?? shop.id
-  const email = (body.email ?? '').trim() || 'pendiente@miyagisanchez.com'
-  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, email })
-
-  const despachoBonsaiUrl = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
-  const claimUrl = `${despachoBonsaiUrl}/onboarding/claim?token=${token}`
+  const email = normalizedClaimEmail(body.email)
+  if (!email) return NextResponse.json({ ok: false, error: 'Escribe el correo del representante de la tienda.' }, { status: 400 })
+  const shopRead = await readShopFresh(shop.slug)
+  if (shopRead.state === 'unavailable') return NextResponse.json({ ok: false, error: 'No pudimos comprobar la tienda.' }, { status: 503 })
+  if (shopRead.state === 'absent') return NextResponse.json({ ok: false, error: 'Tienda no encontrada.' }, { status: 404 })
+  const market = readPublicSellerMarket(shopRead.shop)?.market_code
+  const status = await readSellerStatus(claimShopId)
+  if (!market || status.state !== 'resolved') {
+    return NextResponse.json({ ok: false, error: 'No pudimos verificar la tienda.' }, { status: 503 })
+  }
+  if (status.status !== 'active') return NextResponse.json({ ok: false, error: 'La tienda no está pública.' }, { status: 409 })
+  const token = await signClaimToken({ shopId: claimShopId, shopSlug: shop.slug, shopName: shop.name, email, market, purpose: 'promoter' })
+  const claimUrl = buildClaimLandingUrl(token)
 
   // Upsert the pending claim against the mirror UUID (marketplace_claims.shop_id
   // FKs marketplace_shops.id), exactly like /api/claim/send. Non-fatal: the claim

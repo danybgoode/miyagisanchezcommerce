@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin/guard'
 import { COMMUNICATION_CATALOG } from '@/lib/notifications/catalog'
 import { COMMUNICATION_FIXTURES } from '@/lib/notifications/fixtures'
 import { SAMPLE_RECIPIENTS } from '@/lib/notifications/sample'
+import Link from 'next/link'
 
 export const metadata = { title: 'Comunicaciones — Admin' }
 
@@ -29,6 +30,9 @@ export default async function AdminComunicacionesPage() {
   }))
   return (
     <div className="max-w-6xl mx-auto px-4 pt-8 space-y-6">
+      <Link href="/admin/claim-campaign" className="block rounded-md border border-[var(--color-border)] px-4 py-3 text-sm font-semibold text-[var(--color-accent)] hover:underline">
+        Campaña para reclamar tiendas · enlaces, solicitudes y resultados →
+      </Link>
       {/* Difusión sits HERE, not in /admin/contenido: contenido publishes what lives
           ON the site, comunicaciones is what the platform SENDS. A broadcast is a
           send, and this page already owns the catalog, the sample sender and the

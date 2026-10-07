@@ -1,0 +1,51 @@
+lead_id,market,lead_name,lead_type,research_url,verified_contact_email,public_shop_slug,contact_provenance,disposition
+MX-001,mx,Origen Market,Curator / market network,https://origenmarket.mx/marketplace,,,,partnership_or_research
+MX-002,mx,Bazar Fusión / Casa Fusión,Curator / market network,https://casafusion.com.mx/convocatorias/convocatoria-de-diseno/,,,,partnership_or_research
+MX-003,mx,Libre Liebre,Curator / multi-brand marketplace,https://libreliebre.com/collections,,,,partnership_or_research
+MX-004,mx,Bazar Resiliente,Curator / market network,https://www.tiendanube.com/blog/bazares-en-cdmx/,,,,partnership_or_research
+MX-005,mx,Adiós Clóset,Curator / market network,https://www.tiendanube.com/blog/bazares-en-cdmx/,,,,partnership_or_research
+MX-006,mx,Goodbye Folk,Merchant,https://www.vogue.com/article/best-vintage-stores-in-mexico-city,,,,research_required
+MX-007,mx,Roma Vintage,Merchant,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,research_required
+MX-008,mx,Erre Vintage,Merchant,https://www.vogue.com/article/best-vintage-stores-in-mexico-city,,,,research_required
+MX-009,mx,XOLO Vintage,Merchant,https://www.vogue.com/article/best-vintage-stores-in-mexico-city,,,,research_required
+MX-010,mx,Dharana,Merchant,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,research_required
+MX-011,mx,Carla Fernández,Merchant / influencer brand,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,research_required
+MX-012,mx,Lago,Curator / multi-brand retailer,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,partnership_or_research
+MX-013,mx,180º Shop,Curator / merchant,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,partnership_or_research
+MX-014,mx,Selección Marsella,Curator / merchant,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,partnership_or_research
+MX-015,mx,Piezas Únicas,Merchant,https://www.forbes.com/sites/lmowery/2026/03/24/mexican-designers-are-having-a-moment-bookmark-these-shops-in-cdmx/,,,,research_required
+MX-016,mx,Heleh Cerámica,Merchant prospect,https://libreliebre.com/collections,,,,research_required
+MX-017,mx,Melissa Grassie Cerámica de Autor,Merchant prospect,https://libreliebre.com/collections,,,,research_required
+MX-018,mx,Kokone,Merchant prospect,https://libreliebre.com/collections,,,,research_required
+MX-019,mx,Terrumaco,Merchant prospect,https://libreliebre.com/collections,,,,research_required
+MX-020,mx,Kaab,Merchant prospect,https://libreliebre.com/collections,,,,research_required
+MX-021,mx,PAAR,Merchant,https://www.encuentro-encounter.com/mexican-fashion-designers/,,,,research_required
+MX-022,mx,Roth Malêre,Merchant,https://www.encuentro-encounter.com/mexican-fashion-designers/,,,,research_required
+MX-023,mx,Olmos & Flores,Merchant,https://www.encuentro-encounter.com/mexican-fashion-designers/,,,,research_required
+MX-024,mx,Casilda Mut,Merchant,https://www.encuentro-encounter.com/mexican-fashion-designers/,,,,research_required
+MX-025,mx,Proyecto República,Curator / multi-brand retailer,https://www.encuentro-encounter.com/mexican-fashion-designers/,,,,partnership_or_research
+US-001,us,Artists & Fleas,Curator / market network,https://www.artistsandfleas.com/sell-with-us/apply/,,,,partnership_or_research
+US-002,us,Renegade Craft,Curator / market network,https://www.renegadecraft.com/apply/,,,,partnership_or_research
+US-003,us,Grand Bazaar NYC,Curator / market network,https://grandbazaarnyc.org/events/one-of-a-kind-bazaar/,,,,partnership_or_research
+US-004,us,Wavelength Antiques,Merchant,https://grandbazaarnyc.org/vendors/,,,,research_required
+US-005,us,Sole,Merchant,https://grandbazaarnyc.org/vendors/sole/,,,,research_required
+US-006,us,Curated Basics,Merchant,https://www.artistsandfleas.com/williamsburg/,,,,research_required
+US-007,us,141 Atelier,Merchant,https://www.artistsandfleas.com/williamsburg/,,,,research_required
+US-008,us,AGE OF STONES,Merchant,https://www.artistsandfleas.com/williamsburg/,,,,research_required
+US-009,us,Mona Jewelry,Merchant,https://www.artistsandfleas.com/williamsburg/,,,,research_required
+US-010,us,The Curious Desk,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-011,us,Concrete Garden Candles,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-012,us,Gypsy Nation Vintage,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-013,us,Paste NYC,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-014,us,Chacana,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-015,us,The New Savant,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-016,us,Shapes Studio,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-017,us,Ooh Jacquelina Jewelry,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-018,us,Soukenberi,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-019,us,Bencao Herbalist,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-020,us,Object Flux,Merchant,https://www.artistsandfleas.com/aapi-brands/,,,,research_required
+US-021,us,COTENAE,Merchant,https://www.artistsandfleas.com/williamsburg/,,,,research_required
+US-022,us,ONE432,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-023,us,Musu Gift Shop,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-024,us,Marina Pecoraro Jewelry,Merchant,https://www.artistsandfleas.com/sell-with-us/,,,,research_required
+US-025,us,Idlewild Co.,Merchant / maker brand,https://www.snailboxcards.com/blog-original/2018/11/18/artist-spotlight-idlewild-co,,,,research_required

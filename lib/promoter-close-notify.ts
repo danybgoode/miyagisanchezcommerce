@@ -12,10 +12,10 @@ import 'server-only'
 import { resolveTargetShop } from '@/lib/promoter-server'
 import { getPromoterById } from '@/lib/promoter'
 import { signClaimToken } from '@/lib/claimJwt'
+import { buildClaimLandingUrl, normalizedClaimEmail } from '@/lib/claim-invitation'
 import { sendMerchantCloseReceipt, getSellerEmail } from '@/lib/email'
 import type { CloseReceiptItem } from '@/lib/promoter-close-receipt'
 
-const DESPACHOBONSAI_URL = process.env.DESPACHOBONSAI_URL ?? 'https://dashboard.despachobonsai.com'
 
 export async function notifyMerchantCloseReceipt(input: {
   /** marketplace_shops.id — the mirror UUID (survives claim). */
@@ -27,7 +27,7 @@ export async function notifyMerchantCloseReceipt(input: {
     const shop = await resolveTargetShop({ shopId: input.shopId })
     if (!shop || !shop.medusaSellerId) return
 
-    const merchantEmail = typeof shop.metadata.merchant_email === 'string' ? shop.metadata.merchant_email : null
+    const merchantEmail = normalizedClaimEmail(shop.metadata.merchant_email)
 
     // Fall back to the promoter's own email (adapted copy) when the promoter
     // didn't capture one at setup (Decision 3, sprint-5 plan).
@@ -38,13 +38,13 @@ export async function notifyMerchantCloseReceipt(input: {
     }
     if (!to) return // nowhere to send it — not an error, just no recipient yet
 
-    const token = await signClaimToken({
+    const claimUrl = merchantEmail ? buildClaimLandingUrl(await signClaimToken({
       shopId: shop.medusaSellerId,
       shopSlug: shop.slug,
       shopName: shop.name,
-      email: merchantEmail ?? 'pendiente@miyagisanchez.com',
-    })
-    const claimUrl = `${DESPACHOBONSAI_URL}/onboarding/claim?token=${token}`
+      email: merchantEmail,
+      purpose: 'promoter',
+    })) : undefined
 
     await sendMerchantCloseReceipt({
       to,
