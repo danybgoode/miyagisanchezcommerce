@@ -1,6 +1,20 @@
 # Claim your public shop — campaign copy for review
 
-**State:** Draft only. No campaign messages or contacts have been sent or imported into Resend. The copy is local; no Resend Dashboard draft exists yet.
+**State:** Draft only. No campaign messages or contacts have been sent or imported by this epic. The MX/US copy is local and is also available as unpublished Resend Templates for Daniel's review.
+
+## Resend review drafts
+
+These are **Templates**, not Broadcasts. They have no recipient segment and cannot send while unpublished. The invitation Templates are for copy review only; Resend's opt-in policy still rules out sending this public-address campaign through Resend. The three transaction-email Templates mirror current copy in `lib/email.ts`, but the app still renders and sends HTML from code. Daniel chose to keep app code as the source: copy his approved Dashboard edits back into `lib/email.ts` before deployment. His `@miyagisanchez.com` Gmail send-as path also uses Resend SMTP, so Gmail composition does not make the cold campaign eligible for that transport.
+
+| Review copy | Resend draft |
+|---|---|
+| Merchant invitation · MX | [Open draft](https://resend.com/templates/ce7a30bb-68c0-40fa-aea5-65a560a7acb4) |
+| Merchant invitation · US | [Open draft](https://resend.com/templates/83f3085a-b7a0-4ada-90c4-e3f909742b97) |
+| New account welcome · bilingual | [Open draft](https://resend.com/templates/7751c4d3-3a3f-4d63-b72f-82ee4ea953e9) |
+| Shop claimed · MX | [Open draft](https://resend.com/templates/a5449c6c-04ca-4349-9416-f60df7ad2d4e) |
+| Shop claimed · US | [Open draft](https://resend.com/templates/ec845b7f-4857-48bf-8719-53293464803b) |
+
+The legacy claim-request receipt still exists in code for old API callers but is no longer part of the public claim journey. There is no automated campaign follow-up sequence.
 
 **Sending channel:** The planned public-address outreach is unsolicited. [Resend's current Acceptable Use Policy](https://resend.com/legal/acceptable-use) prohibits cold outreach and requires explicit recipient opt-in. Resend remains the app's transport for account and claim transaction emails, but this campaign cannot be sent as a Resend Broadcast to the researched public addresses. A Dashboard copy, if created for review, is review-only. Select a channel that permits this outreach and meets applicable requirements before preparing a sendable list. If a merchant has explicitly opted in, record that consent before considering a Resend Broadcast.
 
@@ -19,4 +33,4 @@ For an explicitly opted-in audience, Resend Broadcasts support editable dashboar
 
 Use one campaign id (`claim-shop-2026-10`) in every invitation. The admin `GET /api/admin/claim-campaign/report?campaignId=claim-shop-2026-10` route counts issued invitations, completed claims and removal requests from durable receipts. The eventual sending channel should report deliveries and clicked links if available; Resend can do this for an opted-in Broadcast. Golden Frijoles already receives `merchant.claimed` after ownership transfer and now receives claim attempts, completions and removals. Events include campaign id and shop id only; never send email, contact name or JWT to Golden. Compare unique claim-link clickers, when available, with successful Medusa transfers and Golden accepted events. Treat unavailable delivery or Golden data as unavailable, never zero conversion.
 
-No live production shop data or Resend audience was accessible from this checkout, so the 50 leads are not eligible for an actual send yet. The configured Resend API key has send-only scope and cannot read or create Broadcasts, Templates, or Segments. No Supabase migration was applied here.
+No live production shop data was accessible from this checkout, so the 50 leads are not eligible for an actual send yet. The app's configured Resend API key has send-only scope; the separate CLI login was used to create the review drafts. No Supabase migration was applied here.
