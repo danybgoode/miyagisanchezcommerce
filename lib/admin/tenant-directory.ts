@@ -43,6 +43,8 @@ export type TenantRow = {
   slug: string
   name: string
   claimed: boolean
+  /** Canonical public Medusa seller ownership; null when the projection is unreadable. */
+  publicSellerClaimed: boolean | null
   /** Public Medusa seller verification; null when the projection could not be read. */
   publicSellerVerified: boolean | null
   /** The custom domain, or null when none is set. */
@@ -131,6 +133,23 @@ export async function mapWithConcurrency<T, R>(
   return output
 }
 
+/** Walk every PostgREST page; a failed later page must never look like a complete list. */
+export async function readAllPages<T>(
+  pageSize: number,
+  readPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ state: 'resolved'; rows: T[] } | { state: 'unavailable'; reason: string }> {
+  if (!Number.isInteger(pageSize) || pageSize < 1) throw new Error('pageSize must be a positive integer')
+  const rows: T[] = []
+  for (let from = 0; ; from += pageSize) {
+    let page: { data: T[] | null; error: { message: string } | null }
+    try { page = await readPage(from, from + pageSize - 1) }
+    catch (error) { return { state: 'unavailable', reason: error instanceof Error ? error.message : String(error) } }
+    if (page.error || !page.data) return { state: 'unavailable', reason: page.error?.message ?? 'empty page response' }
+    rows.push(...page.data)
+    if (page.data.length < pageSize) return { state: 'resolved', rows }
+  }
+}
+
 function trimmed(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -161,6 +180,7 @@ export function shapeTenantRow(
     paywallEnabled: boolean
     listingCount: number
     publicSellerMarket?: PublicSellerMarket | null
+    publicSellerClaimed?: boolean | null
     publicSellerVerified?: boolean | null
     status?: SellerStatus | 'not_imported' | 'absent' | 'unavailable'
     registrationEmail?: string | null | 'unavailable'
@@ -178,6 +198,7 @@ export function shapeTenantRow(
     slug: trimmed(raw.slug),
     name: trimmed(raw.name) || trimmed(raw.slug) || '(sin nombre)',
     claimed: isShopClaimed({ clerk_user_id: raw.clerk_user_id }),
+    publicSellerClaimed: ctx.publicSellerClaimed ?? null,
     publicSellerVerified: ctx.publicSellerVerified ?? null,
     customDomain,
     domainStatus: deriveDomainStatus(customDomain, !!raw.custom_domain_verified),

@@ -78,7 +78,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
     ) : <>
       <div className="flex flex-wrap gap-3 text-sm">
         <span className="rounded-full bg-[var(--color-bg-subtle)] px-3 py-1"><strong>{readyCount}</strong> listas para invitar</span>
-        <span className="rounded-full bg-[var(--color-bg-subtle)] px-3 py-1"><strong>{rows.filter((row) => !row.claimed).length}</strong> sin reclamar</span>
+        <span className="rounded-full bg-[var(--color-bg-subtle)] px-3 py-1"><strong>{rows.filter((row) => row.publicSellerClaimed === false).length}</strong> sin reclamar</span>
         <span className="rounded-full bg-[var(--color-bg-subtle)] px-3 py-1"><strong>{rows.length}</strong> tiendas en total</span>
       </div>
 
@@ -133,12 +133,12 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
                 <p className="break-all text-xs text-[var(--color-muted)]">/{row.slug || 'sin-slug'} · {row.medusaSellerId ?? 'Sin vendedor Medusa'}</p>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
                   <span>{row.operatingMarketLabel}</span><span>{sellerStatusLabel(row.status)}</span>
-                  <span>{row.listingCount} anuncios</span><span>{row.claimed ? 'Reclamada' : 'Sin reclamar'}</span>
+                  <span>{row.listingCount} anuncios</span><span>{row.publicSellerClaimed === null ? 'Reclamo no disponible' : row.publicSellerClaimed ? 'Reclamada' : 'Sin reclamar'}</span>
                   <span>{row.publicSellerVerified === null ? 'Verificación no disponible' : row.publicSellerVerified ? 'Verificada' : 'No verificada'}</span>
                 </div>
                 <p className="mt-2 text-xs text-[var(--color-muted)]">
                   Alta: {row.createdAt ? new Date(row.createdAt).toLocaleDateString('es-MX') : 'No disponible'}
-                  {' · '}Correo de registro: {row.registrationEmail === 'unavailable' ? 'No disponible' : row.registrationEmail ?? 'Sin reclamar'}
+                  {' · '}Correo de registro: {row.registrationEmail === 'unavailable' || (row.publicSellerClaimed && !row.registrationEmail) ? 'No disponible' : row.registrationEmail ?? 'Sin reclamar'}
                   {row.customDomain ? ` · Dominio: ${row.customDomain}` : ''}
                 </p>
               </div>

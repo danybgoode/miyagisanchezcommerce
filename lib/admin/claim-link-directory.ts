@@ -4,7 +4,8 @@ export type ClaimLinkScope = 'unclaimed' | 'ready' | 'all'
 
 /** A list hint only. The POST rechecks the canonical seller before signing a link. */
 export function claimLinkAvailability(row: TenantRow): { ready: true } | { ready: false; reason: string } {
-  if (row.claimed) return { ready: false, reason: 'Ya reclamada' }
+  if (row.publicSellerClaimed === true) return { ready: false, reason: 'Ya reclamada' }
+  if (row.publicSellerClaimed === null) return { ready: false, reason: 'Reclamo no disponible' }
   if (!row.medusaSellerId) return { ready: false, reason: 'Sin importar a Medusa' }
   if (!row.slug) return { ready: false, reason: 'Sin identificador' }
   if (row.status !== 'active') {
@@ -26,5 +27,5 @@ export function selectClaimLinkShops(
   const selected = selectTenants(rows, filter, sort)
   if (scope === 'all') return selected
   if (scope === 'ready') return selected.filter((row) => claimLinkAvailability(row).ready)
-  return selected.filter((row) => !row.claimed)
+  return selected.filter((row) => row.publicSellerClaimed === false)
 }

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
   shapeTenantRow,
+  readAllPages,
   mapWithConcurrency,
   filterTenants,
   medusaSellerIdOf,
@@ -27,6 +28,25 @@ const base: RawTenantRow = {
   metadata: { medusa_seller_id: 'sel_123' },
   created_at: '2026-01-01T00:00:00.000Z',
 }
+
+test.describe('admin tenant-directory · complete mirror reads', () => {
+  test('walks every page, including an exact multiple of the page size', async () => {
+    const ranges: Array<[number, number]> = []
+    const read = await readAllPages(2, async (from, to) => {
+      ranges.push([from, to])
+      return { data: [0, 1, 2, 3].slice(from, to + 1), error: null }
+    })
+    expect(read).toEqual({ state: 'resolved', rows: [0, 1, 2, 3] })
+    expect(ranges).toEqual([[0, 1], [2, 3], [4, 5]])
+  })
+
+  test('marks the entire read unavailable when a later page fails', async () => {
+    const read = await readAllPages(2, async (from) => from === 0
+      ? { data: [0, 1], error: null }
+      : { data: null, error: { message: 'database unavailable' } })
+    expect(read).toEqual({ state: 'unavailable', reason: 'database unavailable' })
+  })
+})
 
 test.describe('admin tenant-directory · shapeTenantRow', () => {
   test('bounds authoritative public-seller reads while preserving directory order', async () => {
