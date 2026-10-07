@@ -56,7 +56,7 @@ export async function ClaimPage({
                 <p className="text-xs text-[var(--color-muted)] mb-3">
                   <BuyerCopyText copyKey="s.slug.claim.page.afb27b70" /></p>
                 <a
-                  href="https://dashboard.despachobonsai.com/dashboard/commerce"
+                  href="/shop/manage"
                   className="btn btn-primary"
                 >
                   <BuyerCopyText copyKey="s.slug.claim.page.bf32221c" /></a>
@@ -71,7 +71,7 @@ export async function ClaimPage({
                 <p className="text-xs text-[var(--color-muted)] mb-2">
                   <BuyerCopyText copyKey="s.slug.claim.page.073db7eb" /></p>
                 <a
-                  href="mailto:miyagi@despachobonsai.com?subject=Recuperar%20tienda%3A%20{slug}&body=Hola%2C%20soy%20el%20due%C3%B1o%20de%20{shop.name}%20y%20necesito%20recuperar%20acceso."
+                  href={`mailto:hola@miyagisanchez.com?subject=${encodeURIComponent(`Recuperar tienda: ${slug}`)}&body=${encodeURIComponent(`Hola, soy el dueño de ${shop.name} y necesito recuperar acceso.`)}`}
                   className="text-sm font-semibold text-amber-700 no-underline hover:underline"
                 >
                   <BuyerCopyText copyKey="s.slug.claim.page.dbdc2f7f" /></a>

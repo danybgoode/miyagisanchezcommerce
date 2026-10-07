@@ -3,6 +3,7 @@ import { signClaimToken } from '@/lib/claimJwt'
 import { buildClaimLandingUrl, canIssuePublicClaimLink, normalizedClaimEmail } from '@/lib/claim-invitation'
 import { readShopFresh } from '@/lib/listings'
 import { readPublicSellerMarket } from '@/lib/owned-market'
+import { readSellerStatus } from '@/lib/admin/tenant-status'
 import { sendShopClaimLink } from '@/lib/email'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
 
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
   )) {
     return Response.json({ error: 'Esta tienda no está disponible para reclamar.' }, { status: 409 })
   }
+  const status = await readSellerStatus(shop.id)
+  if (status.state !== 'resolved') return Response.json({ error: 'No pudimos comprobar el estado de la tienda.' }, { status: 503 })
+  if (status.status !== 'active') return Response.json({ error: 'Esta tienda no está activa.' }, { status: 409 })
   if (!process.env.CLAIM_JWT_SECRET) return Response.json({ error: 'Enlaces de reclamación no disponibles.' }, { status: 503 })
 
   const token = await signClaimToken({ shopId: shop.id, shopSlug: shop.slug, shopName: shop.name, market, purpose: 'public' })

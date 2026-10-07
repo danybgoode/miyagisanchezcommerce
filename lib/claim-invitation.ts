@@ -20,7 +20,8 @@ export type ClaimDecision =
 export function normalizedClaimEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const email = value.trim().toLowerCase()
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : null
+  if (email.length > 254) return null
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
 }
 
 /** A bounded compatibility window for links sent before invitations had a purpose. */
