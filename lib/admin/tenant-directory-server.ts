@@ -86,7 +86,10 @@ export async function readTenantDirectory(): Promise<
   // The mirror is only the enumerable list spine. Market state is read from
   // Medusa's public seller projection; an unavailable projection stays visibly
   // unavailable instead of inheriting a made-up MX default.
-  const projections = new Map<string, { market: PublicSellerMarket | null; claimed: boolean | null; verified: boolean | null }>(await mapWithConcurrency(
+  const projections = new Map<string, {
+    sellerId: string | null; clerkUserId: string | null
+    market: PublicSellerMarket | null; claimed: boolean | null; verified: boolean | null
+  }>(await mapWithConcurrency(
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {
@@ -102,10 +105,18 @@ export async function readTenantDirectory(): Promise<
     } catch (error) {
       console.warn(`[tenant-directory] seller projection unavailable for ${raw.slug}:`, error)
     }
+    const sellerId = seller?.id ?? null
+    const expectedId = medusaSellerIdOf(raw.metadata)
+    const trustedSeller = seller && expectedId && sellerId === expectedId ? seller : null
+    if (seller && expectedId && !trustedSeller) {
+      console.warn(`[tenant-directory] seller identity mismatch for ${raw.slug}: mirror=${expectedId}, public=${sellerId}`)
+    }
     return [raw.id, {
-      market: readPublicSellerMarket(seller),
-      claimed: seller ? !!seller.clerk_user_id : null,
-      verified: seller?.verified ?? null,
+      sellerId,
+      clerkUserId: trustedSeller?.clerk_user_id ?? null,
+      market: readPublicSellerMarket(trustedSeller),
+      claimed: trustedSeller ? !!trustedSeller.clerk_user_id : null,
+      verified: trustedSeller?.verified ?? null,
     }] as const
     },
   ))
@@ -136,11 +147,13 @@ export async function readTenantDirectory(): Promise<
     rows,
     CLERK_EMAIL_CONCURRENCY,
     async (raw) => {
-      // An unclaimed shop has no Clerk user, so it has no email — that is `null`, a
-      // real answer, distinct from "we could not ask".
-      if (!raw.clerk_user_id) return [raw.id, null] as const
+      const projection = projections.get(raw.id)
+      // Medusa owns the claim. A stale mirror Clerk ID must never become a
+      // contact address for a canonically unclaimed (or differently owned) shop.
+      if (projection?.claimed === false) return [raw.id, null] as const
+      if (!projection?.clerkUserId) return [raw.id, 'unavailable' as const] as const
       try {
-        const email = await getSellerEmail(raw.clerk_user_id)
+        const email = await getSellerEmail(projection.clerkUserId)
         // `getSellerEmail` swallows its own failures and returns null, so a null here
         // is ambiguous between "no address on the account" and "Clerk was
         // unreachable". Both are reported as unavailable rather than as a blank cell
@@ -158,16 +171,11 @@ export async function readTenantDirectory(): Promise<
       listingCount: countRead.counts.get(raw.id) ?? 0,
       publicSellerMarket: projections.get(raw.id)?.market ?? null,
       publicSellerClaimed: projections.get(raw.id)?.claimed ?? null,
+      publicSellerId: projections.get(raw.id)?.sellerId ?? null,
       publicSellerVerified: projections.get(raw.id)?.verified ?? null,
       status: statuses.get(raw.id) ?? 'unavailable',
       // Null means a real unclaimed shop, while missing means Clerk was not read.
       registrationEmail: emails.get(raw.id) === undefined ? 'unavailable' : emails.get(raw.id),
     }),
   ) }
-}
-
-/** Existing tenant screen contract; new operator flows can display read failure. */
-export async function listTenants(): Promise<TenantRow[]> {
-  const result = await readTenantDirectory()
-  return result.state === 'resolved' ? result.rows : []
 }

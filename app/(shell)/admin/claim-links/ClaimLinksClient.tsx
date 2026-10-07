@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { claimLinkAvailability, selectClaimLinkShops, type ClaimLinkScope } from '@/lib/admin/claim-link-directory'
+import { claimLinkAvailability, claimLinkRegistrationEmail, selectClaimLinkShops, type ClaimLinkScope } from '@/lib/admin/claim-link-directory'
 import type { TenantFilter, TenantRow, TenantSortKey, SortDirection } from '@/lib/admin/tenant-directory'
 import { sellerStatusLabel } from '@/lib/seller-status'
 import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
@@ -130,7 +130,10 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
             <div className="flex flex-wrap items-start gap-3 p-4">
               <div className="min-w-0 flex-1">
                 <h2 className="font-semibold">{row.name}</h2>
-                <p className="break-all text-xs text-[var(--color-muted)]">/{row.slug || 'sin-slug'} · {row.medusaSellerId ?? 'Sin vendedor Medusa'}</p>
+                <p className="break-all text-xs text-[var(--color-muted)]">
+                  /{row.slug || 'sin-slug'} · {row.medusaSellerId ?? 'Sin vendedor Medusa'}
+                  {row.publicSellerId && row.publicSellerId !== row.medusaSellerId ? ` · Slug apunta a ${row.publicSellerId}` : ''}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
                   <span>{row.operatingMarketLabel}</span><span>{sellerStatusLabel(row.status)}</span>
                   <span>{row.listingCount} anuncios</span><span>{row.publicSellerClaimed === null ? 'Reclamo no disponible' : row.publicSellerClaimed ? 'Reclamada' : 'Sin reclamar'}</span>
@@ -138,7 +141,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
                 </div>
                 <p className="mt-2 text-xs text-[var(--color-muted)]">
                   Alta: {row.createdAt ? new Date(row.createdAt).toLocaleDateString('es-MX') : 'No disponible'}
-                  {' · '}Correo de registro: {row.registrationEmail === 'unavailable' || (row.publicSellerClaimed && !row.registrationEmail) ? 'No disponible' : row.registrationEmail ?? 'Sin reclamar'}
+                  {' · '}Correo de registro: {claimLinkRegistrationEmail(row)}
                   {row.customDomain ? ` · Dominio: ${row.customDomain}` : ''}
                 </p>
               </div>

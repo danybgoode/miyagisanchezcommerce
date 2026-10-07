@@ -45,6 +45,8 @@ export type TenantRow = {
   claimed: boolean
   /** Canonical public Medusa seller ownership; null when the projection is unreadable. */
   publicSellerClaimed: boolean | null
+  /** Seller ID returned for the slug by Medusa; a mismatch flags a stale mirror. */
+  publicSellerId: string | null
   /** Public Medusa seller verification; null when the projection could not be read. */
   publicSellerVerified: boolean | null
   /** The custom domain, or null when none is set. */
@@ -181,6 +183,7 @@ export function shapeTenantRow(
     listingCount: number
     publicSellerMarket?: PublicSellerMarket | null
     publicSellerClaimed?: boolean | null
+    publicSellerId?: string | null
     publicSellerVerified?: boolean | null
     status?: SellerStatus | 'not_imported' | 'absent' | 'unavailable'
     registrationEmail?: string | null | 'unavailable'
@@ -197,8 +200,9 @@ export function shapeTenantRow(
     shopId: raw.id,
     slug: trimmed(raw.slug),
     name: trimmed(raw.name) || trimmed(raw.slug) || '(sin nombre)',
-    claimed: isShopClaimed({ clerk_user_id: raw.clerk_user_id }),
+    claimed: ctx.publicSellerClaimed ?? isShopClaimed({ clerk_user_id: raw.clerk_user_id }),
     publicSellerClaimed: ctx.publicSellerClaimed ?? null,
+    publicSellerId: ctx.publicSellerId ?? null,
     publicSellerVerified: ctx.publicSellerVerified ?? null,
     customDomain,
     domainStatus: deriveDomainStatus(customDomain, !!raw.custom_domain_verified),

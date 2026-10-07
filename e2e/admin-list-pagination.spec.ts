@@ -11,6 +11,7 @@ function tenant(index: number, overrides: Partial<TenantRow> = {}): TenantRow {
     name: `Tienda ${String(index).padStart(2, '0')}`,
     claimed: true,
     publicSellerClaimed: true,
+    publicSellerId: `sel_${index}`,
     publicSellerVerified: true,
     customDomain: null,
     domainStatus: 'none',

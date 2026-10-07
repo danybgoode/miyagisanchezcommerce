@@ -17,6 +17,7 @@ function row(overrides: Partial<TenantRow> = {}): TenantRow {
     name: 'Tienda',
     claimed: true,
     publicSellerClaimed: true,
+    publicSellerId: 'sel_1',
     publicSellerVerified: true,
     customDomain: null,
     domainStatus: 'none',

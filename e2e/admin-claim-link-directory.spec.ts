@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { claimLinkAvailability, selectClaimLinkShops } from '../lib/admin/claim-link-directory'
+import { claimLinkAvailability, claimLinkRegistrationEmail, selectClaimLinkShops } from '../lib/admin/claim-link-directory'
 import type { TenantRow } from '../lib/admin/tenant-directory'
 
 const base: TenantRow = {
   medusaSellerId: 'sel_1', shopId: 'shop_1', slug: 'terrumaco', name: 'Terrumaco',
-  claimed: false, publicSellerClaimed: false, publicSellerVerified: true, customDomain: null, domainStatus: 'none',
+  claimed: false, publicSellerClaimed: false, publicSellerId: 'sel_1', publicSellerVerified: true,
+  customDomain: null, domainStatus: 'none',
   entitlementReason: 'flag_off', entitled: true, subscriptionUnchecked: false,
   listingCount: 5, operatingMarketCode: 'mx', operatingMarketLabel: 'México',
   marketplacePublicationLabel: 'Publicada', createdAt: '2026-01-01T00:00:00.000Z',
@@ -14,7 +15,8 @@ const base: TenantRow = {
 test('only an active, verified, unclaimed seller with a market is ready', () => {
   expect(claimLinkAvailability(base)).toEqual({ ready: true })
   for (const patch of [
-    { publicSellerClaimed: true }, { publicSellerClaimed: null }, { medusaSellerId: null }, { slug: '' }, { status: 'paused' },
+    { publicSellerClaimed: true }, { publicSellerClaimed: null }, { medusaSellerId: null },
+    { publicSellerId: 'sel_other' }, { slug: '' }, { status: 'paused' },
     { publicSellerVerified: false }, { publicSellerVerified: null }, { operatingMarketCode: null },
   ] as Partial<TenantRow>[]) {
     expect(claimLinkAvailability({ ...base, ...patch }).ready).toBe(false)
@@ -38,4 +40,16 @@ test('a stale mirror cannot make a claimed Medusa seller look ready', () => {
   const staleMirror = { ...base, claimed: false, publicSellerClaimed: true }
   expect(claimLinkAvailability(staleMirror)).toEqual({ ready: false, reason: 'Ya reclamada' })
   expect(selectClaimLinkShops([staleMirror], 'unclaimed', {}, { key: 'name', direction: 'asc' })).toEqual([])
+})
+
+test('a slug resolving to another seller is flagged for repair', () => {
+  expect(claimLinkAvailability({ ...base, publicSellerId: 'sel_other' }))
+    .toEqual({ ready: false, reason: 'Identidad de vendedor inconsistente' })
+})
+
+test('a stale mirror email is never shown for an unclaimed or unreadable Medusa seller', () => {
+  const oldEmail = { ...base, claimed: true, registrationEmail: 'old-owner@example.com' }
+  expect(claimLinkRegistrationEmail(oldEmail)).toBe('Sin reclamar')
+  expect(claimLinkRegistrationEmail({ ...oldEmail, publicSellerClaimed: null })).toBe('No disponible')
+  expect(claimLinkRegistrationEmail({ ...oldEmail, publicSellerClaimed: true })).toBe('old-owner@example.com')
 })

@@ -49,6 +49,15 @@ test.describe('admin tenant-directory · complete mirror reads', () => {
 })
 
 test.describe('admin tenant-directory · shapeTenantRow', () => {
+  test('canonical Medusa ownership overrides stale mirror claim state', () => {
+    const row = shapeTenantRow(base, {
+      paywallEnabled: false, listingCount: 0,
+      publicSellerClaimed: false, publicSellerId: 'sel_123',
+      registrationEmail: null,
+    })
+    expect(row.claimed).toBe(false)
+    expect(row.registrationEmail).toBeNull()
+  })
   test('bounds authoritative public-seller reads while preserving directory order', async () => {
     let active = 0
     let peak = 0
