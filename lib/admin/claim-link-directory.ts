@@ -34,9 +34,8 @@ export function claimLinkAvailability(row: TenantRow): { ready: true } | { ready
   if (row.status !== 'active') {
     return { ready: false, reason: row.status === 'unavailable' ? 'Estado no disponible' : 'Tienda no activa' }
   }
-  if (row.publicSellerVerified !== true) {
-    return { ready: false, reason: row.publicSellerVerified === false ? 'Tienda no verificada' : 'Verificación no disponible' }
-  }
+  // Imports start unverified. Verification controls marketplace discovery, not
+  // whether an active unclaimed seller may be transferred to its new owner.
   if (!row.operatingMarketCode) return { ready: false, reason: 'Mercado no disponible' }
   return { ready: true }
 }

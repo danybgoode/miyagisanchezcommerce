@@ -12,12 +12,14 @@ const base: TenantRow = {
   status: 'active', registrationEmail: null,
 }
 
-test('only an active, verified, unclaimed seller with a market is ready', () => {
+test('an active unclaimed seller with a market is ready even before shop verification', () => {
   expect(claimLinkAvailability(base)).toEqual({ ready: true })
+  expect(claimLinkAvailability({ ...base, publicSellerVerified: false })).toEqual({ ready: true })
+  expect(claimLinkAvailability({ ...base, publicSellerVerified: null })).toEqual({ ready: true })
   for (const patch of [
     { publicSellerClaimed: true }, { publicSellerClaimed: null }, { medusaSellerId: null },
     { publicSellerId: 'sel_other' }, { slug: '' }, { status: 'paused' },
-    { publicSellerVerified: false }, { publicSellerVerified: null }, { operatingMarketCode: null },
+    { operatingMarketCode: null },
   ] as Partial<TenantRow>[]) {
     expect(claimLinkAvailability({ ...base, ...patch }).ready).toBe(false)
   }
@@ -39,7 +41,7 @@ test('unclaimed view includes unavailable shops, ready view narrows them, all vi
   ]
   const sort = { key: 'name' as const, direction: 'asc' as const }
   expect(selectClaimLinkShops(rows, 'unclaimed', {}, sort).map(row => row.shopId)).toEqual(['shop_1', 'shop_2'])
-  expect(selectClaimLinkShops(rows, 'ready', {}, sort).map(row => row.shopId)).toEqual(['shop_1'])
+  expect(selectClaimLinkShops(rows, 'ready', {}, sort).map(row => row.shopId)).toEqual(['shop_1', 'shop_2'])
   expect(selectClaimLinkShops(rows, 'all', {}, sort)).toHaveLength(3)
   expect(selectClaimLinkShops(rows, 'all', { q: 'terrumaco' }, sort)).toHaveLength(1)
 })

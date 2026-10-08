@@ -8,6 +8,7 @@ export type ClaimShopFacts = {
   id: string
   slug: string
   clerkUserId: string | null
+  /** Marketplace discovery approval; imported shops start false and remain claimable. */
   verified: boolean
   market: ClaimMarket | null
   status: 'active' | 'paused' | 'deleted' | null
@@ -33,11 +34,11 @@ export function canRedeemClaimToken(token: ClaimPayload): boolean {
 /** Bind a public email request to the live shop, never to its client-supplied name. */
 export function canIssuePublicClaimLink(
   submitted: { shopId: string; shopSlug: string; market?: ClaimMarket },
-  shop: Pick<ClaimShopFacts, 'id' | 'slug' | 'verified' | 'clerkUserId' | 'market'>,
+  shop: Pick<ClaimShopFacts, 'id' | 'slug' | 'clerkUserId' | 'market'> & { previewPrivate: boolean },
 ): boolean {
   return submitted.shopId === shop.id && submitted.shopSlug === shop.slug
     && (!submitted.market || submitted.market === shop.market)
-    && shop.verified && shop.clerkUserId === null && shop.market !== null
+    && !shop.previewPrivate && shop.clerkUserId === null && shop.market !== null
 }
 
 /**
@@ -58,7 +59,8 @@ export function decideClaimRedemption(
   if (token.market && token.market !== shop.market) {
     return { ok: false, reason: 'wrong_market' }
   }
-  if (!shop.verified || shop.status !== 'active') {
+  // Ownership transfer is independent of marketplace discovery approval.
+  if (shop.status !== 'active') {
     return { ok: false, reason: 'shop_unavailable' }
   }
   if (shop.clerkUserId && shop.clerkUserId !== actor.clerkUserId) {
