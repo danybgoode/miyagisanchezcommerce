@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 import { PLATFORM_ORIGIN } from '@/lib/shortlink'
 import '@/app/recovery.css'
@@ -11,14 +10,14 @@ export default function RecoveryScreen({
   title,
   message,
   onRetry,
+  market,
 }: {
   code: '404' | '500'
   title: string
   message: string
   onRetry?: () => void
+  market: 'mx' | 'us'
 }) {
-  const pathname = usePathname()
-  const market = pathname === '/us' || pathname?.startsWith('/us/') ? 'us' : 'mx'
   const browseUrl = `${PLATFORM_ORIGIN}/${market}/l`
   return (
     <main className="recovery-page">
