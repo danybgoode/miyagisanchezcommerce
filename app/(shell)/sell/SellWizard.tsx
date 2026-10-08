@@ -1444,7 +1444,7 @@ export default function SellWizard({
 
       const payload = {
         createShop: hasShopStep
-          ? { name: shopName.trim(), slug: shopSlug.trim() || undefined, state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined }
+          ? { name: shopName.trim(), slug: shopSlug.trim() || undefined, state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined, market: signupMarket }
           : undefined,
         listing: {
           title: title.trim(),

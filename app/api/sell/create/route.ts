@@ -3,7 +3,8 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
 import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
-import { notifyShopCreated } from '@/lib/shop-created-welcome'
+import { notifyShopCreated, retryShopCreatedWelcome } from '@/lib/shop-created-welcome'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -27,6 +28,7 @@ interface CreatePayload {
     state: string
     city?: string
     description?: string
+    market?: unknown
   }
   listing: {
     title: string
@@ -123,6 +125,9 @@ export async function POST(req: NextRequest) {
       shopSlug = sellerForMirror!.slug
       sellerId = sellerForMirror!.id ?? null
       sellerName = sellerForMirror!.name ?? null
+      await retryShopCreatedWelcome(sellerForMirror!).catch((error) => {
+        console.error('[sell/create] shop welcome retry failed:', sellerId, error)
+      })
     } else if (sellerRes.status === 404) {
       // No Medusa seller yet — create one.
       // Use explicit shop name from form (new users) or fall back to Clerk name
@@ -141,6 +146,7 @@ export async function POST(req: NextRequest) {
       const location = body.createShop
         ? [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
         : null
+      const operatingMarket = resolveSellerSignupMarket(body.createShop?.market)
 
       const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
         method: 'POST',
@@ -149,6 +155,7 @@ export async function POST(req: NextRequest) {
           ...(body.createShop?.slug?.trim() && { slug: body.createShop.slug.trim() }),
           description: body.createShop?.description?.trim() || null,
           location,
+          ...(operatingMarket ? { operating_market: operatingMarket } : {}),
         }),
       })
       const createData = await createRes.json()

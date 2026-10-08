@@ -37,23 +37,24 @@ export async function POST(req: NextRequest) {
   }
   if (!email) return Response.json({ ok: true, waitingForVerifiedEmail: true })
 
-  const { data, error } = await db.rpc('claim_account_welcome', { p_user_id: user.id, p_email: email })
+  const { data: claimToken, error } = await db.rpc('reserve_account_welcome', { p_user_id: user.id, p_email: email })
   if (error) {
     console.error('[clerk welcome] reserve failed', error)
     return Response.json({ error: 'Welcome unavailable' }, { status: 503 })
   }
-  if (!data) return Response.json({ ok: true, duplicate: true })
+  if (!claimToken) return Response.json({ ok: true, duplicate: true })
 
   const result = await sendAccountWelcome({ to: email, clerkUserId: user.id })
   if (!result.ok) {
     const { error: releaseError } = await db.from('account_welcome_deliveries')
-      .update({ state: 'pending', claimed_at: null }).eq('clerk_user_id', user.id).eq('state', 'sending')
+      .update({ state: 'pending', claimed_at: null, claim_token: null })
+      .eq('clerk_user_id', user.id).eq('state', 'sending').eq('claim_token', claimToken)
     if (releaseError) console.error('[clerk welcome] release failed', releaseError)
     return Response.json({ error: 'Welcome delivery unavailable' }, { status: 503 })
   }
   const { error: updateError } = await db.from('account_welcome_deliveries')
-    .update({ state: 'sent', sent_at: new Date().toISOString(), provider_email_id: result.id })
-    .eq('clerk_user_id', user.id)
+    .update({ state: 'sent', sent_at: new Date().toISOString(), provider_email_id: result.id, claim_token: null })
+    .eq('clerk_user_id', user.id).eq('state', 'sending').eq('claim_token', claimToken)
   if (updateError) console.error('[clerk welcome] provider accepted but receipt update failed', updateError)
   return Response.json({ ok: true })
 }
