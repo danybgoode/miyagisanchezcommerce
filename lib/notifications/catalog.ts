@@ -104,6 +104,16 @@ export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
     from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
     sender: 'sendShopClaimedWelcome', origin: 'app/api/claim/complete/route.ts',
   },
+  {
+    key: 'shop.created_welcome.mx', trigger: 'Se crea una tienda propia en el mercado de México.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopCreatedWelcome', origin: 'lib/shop-created-welcome.ts',
+  },
+  {
+    key: 'shop.created_welcome.us', trigger: 'Se crea una tienda propia en el mercado de Estados Unidos.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopCreatedWelcome', origin: 'lib/shop-created-welcome.ts',
+  },
   // ── Offers ──────────────────────────────────────────────────────────────────
   {
     key: 'offer.confirmed_to_buyer',

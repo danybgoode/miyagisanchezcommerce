@@ -440,12 +440,39 @@ export async function sendShopClaimedWelcome(ctx: {
     return
   }
   await send(ctx.to, `Tu tienda ${ctx.shopName} ya está en tu cuenta`, [
-    h1('Tu tienda ya es tuya en Miyagi Sánchez'),
+    h1(`${ctx.shopName} ya es tuya en Miyagi Sánchez`),
     p(`Vinculamos <strong>${esc(ctx.shopName)}</strong> a tu cuenta. Ya puedes revisar la ficha, completar la información de tu negocio y administrar lo que muestras.`),
     p('Reclamar la tienda es gratis. Si alguna vez te interesa ampliar tu presencia, encontrarás las opciones y precios vigentes en el sitio.'),
     cta('Administrar mi tienda', `${SITE}/shop/manage`),
     p(`Tu ficha pública: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
   ].join(''), undefined, undefined, 'es', `shop-claimed/${ctx.sellerId}`)
+}
+
+/** First-party shop creation, distinct from taking ownership of a public listing. */
+export async function sendShopCreatedWelcome(ctx: {
+  to: string; shopName: string; shopSlug: string; market: 'mx' | 'us'; sellerId: string
+}): Promise<EmailSendResult> {
+  const shopUrl = `${SITE}/${ctx.market}/s/${encodeURIComponent(ctx.shopSlug)}`
+  if (ctx.market === 'us') {
+    return sendWithResult(ctx.to, `Your shop ${ctx.shopName} is ready on Miyagi Sánchez`, [
+      h1(`${ctx.shopName}, your shop is ready`),
+      p(`You opened <strong>${esc(ctx.shopName)}</strong> on Miyagi Sánchez. Your shop page is ready; you can decide what to publish and share.`),
+      p('Here is what you can do now:'),
+      p('• Add listings for your products or services.<br>• Set up payments and delivery in your shop dashboard.<br>• Manage orders, offers, and messages in one place.<br>• Share your shop link with customers.'),
+      cta('Set up my shop', `${SITE}/shop/manage`),
+      p(`Your shop: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+      p('Opening a basic shop is free. Reply to this email if you need a hand.'),
+    ].join(''), undefined, undefined, 'en', `shop-created/${ctx.sellerId}`)
+  }
+  return sendWithResult(ctx.to, `Tu tienda ${ctx.shopName} ya está en Miyagi Sánchez`, [
+    h1(`${ctx.shopName}, tu tienda ya está lista`),
+    p(`Abriste <strong>${esc(ctx.shopName)}</strong> en Miyagi Sánchez. Tu página de tienda está lista; tú decides qué publicar y compartir.`),
+    p('Esto es lo que puedes hacer ahora:'),
+    p('• Agregar anuncios de tus productos o servicios.<br>• Configurar pagos y entregas desde tu panel.<br>• Administrar pedidos, ofertas y mensajes en un solo lugar.<br>• Compartir el enlace de tu tienda con tus clientes.'),
+    cta('Preparar mi tienda', `${SITE}/shop/manage`),
+    p(`Tu tienda: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+    p('Abrir una tienda básica es gratis. Si necesitas ayuda, responde a este correo.'),
+  ].join(''), undefined, undefined, 'es', `shop-created/${ctx.sellerId}`)
 }
 
 /** General account welcome. Shop-specific language belongs to the claim receipt. */

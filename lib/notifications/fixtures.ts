@@ -68,6 +68,8 @@ export const COMMUNICATION_FIXTURES: Record<string, CommunicationFixture> = {
   'account.welcome': (to) => email.sendAccountWelcome({ to, clerkUserId: 'sample_user' }),
   'shop.claim_request_received': (to) => email.sendClaimRequestReceived({ to, shopName: SHOP, market: 'mx' }),
   'shop.claimed_welcome': (to) => email.sendShopClaimedWelcome({ to, shopName: SHOP, shopSlug: 'tienda-de-muestra', market: 'mx', sellerId: 'sample_seller' }),
+  'shop.created_welcome.mx': (to) => email.sendShopCreatedWelcome({ to, shopName: SHOP, shopSlug: 'tienda-de-muestra', market: 'mx', sellerId: 'sample_created_mx' }),
+  'shop.created_welcome.us': (to) => email.sendShopCreatedWelcome({ to, shopName: 'Sample Shop', shopSlug: 'sample-shop', market: 'us', sellerId: 'sample_created_us' }),
   // ── Offers ──────────────────────────────────────────────────────────────────
   'offer.confirmed_to_buyer': (to) => email.sendOfferConfirmed(offerCtx(to)),
   'offer.new_to_seller': (to) => email.sendNewOfferToSeller({ ...offerCtx(to), sellerEmail: to }),

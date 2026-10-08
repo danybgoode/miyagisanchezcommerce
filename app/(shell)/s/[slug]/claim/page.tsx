@@ -21,8 +21,8 @@ export async function ClaimPage({
   const shopRead = await readShopFresh(slug, market)
   if (shopRead.state === 'absent') notFound()
   if (shopRead.state === 'unavailable') return <main className="max-w-lg mx-auto px-4 py-12">
-    <h1 className="text-xl font-bold">No pudimos comprobar la tienda / Shop unavailable</h1>
-    <p className="mt-3">Inténtalo de nuevo más tarde o <a href={`mailto:${CONTACT_EMAIL}`}>escríbenos</a>.</p>
+    <h1 className="text-xl font-bold"><BuyerCopyText copyKey="s.slug.claim.page.shopUnavailable" /></h1>
+    <p className="mt-3"><BuyerCopyText copyKey="s.slug.claim.page.tryAgain" /> <a href={`mailto:${CONTACT_EMAIL}`}><BuyerCopyText copyKey="s.slug.claim.page.writeToUs" /></a>.</p>
   </main>
   const shop = shopRead.shop
   const shopMarket = readPublicSellerMarket(shop)?.market_code
@@ -97,8 +97,8 @@ export async function ClaimPage({
   }
 
   if (!process.env.CLAIM_JWT_SECRET) return <main className="max-w-lg mx-auto px-4 py-12">
-    <h1 className="text-xl font-bold">No pudimos preparar el enlace / Claim unavailable</h1>
-    <p className="mt-3">Inténtalo de nuevo más tarde o <a href={`mailto:${CONTACT_EMAIL}`}>escríbenos</a>.</p>
+    <h1 className="text-xl font-bold"><BuyerCopyText copyKey="s.slug.claim.page.claimUnavailable" /></h1>
+    <p className="mt-3"><BuyerCopyText copyKey="s.slug.claim.page.tryAgain" /> <a href={`mailto:${CONTACT_EMAIL}`}><BuyerCopyText copyKey="s.slug.claim.page.writeToUs" /></a>.</p>
   </main>
   const token = await signClaimToken({
     shopId: shop.id, shopSlug: shop.slug, shopName: shop.name,

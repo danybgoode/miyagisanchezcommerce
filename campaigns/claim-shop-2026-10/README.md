@@ -4,7 +4,7 @@
 
 ## Resend review drafts
 
-These are **Templates**, not Broadcasts. They have no recipient segment and cannot send while unpublished. The invitation Templates are for copy review only; Resend's opt-in policy still rules out sending this public-address campaign through Resend. The three transaction-email Templates mirror current copy in `lib/email.ts`, but the app still renders and sends HTML from code. Daniel chose to keep app code as the source: copy his approved Dashboard edits back into `lib/email.ts` before deployment. His `@miyagisanchez.com` Gmail send-as path also uses Resend SMTP, so Gmail composition does not make the cold campaign eligible for that transport.
+These are **Templates**, not Broadcasts. They have no recipient segment and cannot send while unpublished. The invitation Templates are for copy review only; Resend's opt-in policy still rules out sending this public-address campaign through Resend. The app renders and sends transaction-email HTML from `lib/email.ts`. Daniel chose to keep app code as the source. The MX shop-claimed headline in code and its unpublished Dashboard draft both include the shop name; the new-account draft's copy was left as approved. His `@miyagisanchez.com` Gmail send-as path also uses Resend SMTP, so Gmail composition does not make the cold campaign eligible for that transport.
 
 | Review copy | Resend draft |
 |---|---|

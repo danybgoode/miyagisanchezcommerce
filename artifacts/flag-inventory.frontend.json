@@ -430,7 +430,7 @@
         "app/(shell)/shop/manage/canal-propio/page.tsx:54",
         "app/api/print/submissions/[id]/checkout/route.ts:100",
         "app/api/promoter/attribute/route.ts:22",
-        "app/api/promoter/claim/link/route.ts:22",
+        "app/api/promoter/claim/link/route.ts:26",
         "app/api/promoter/close/domain/route.ts:35",
         "app/api/promoter/close/listing/route.ts:74",
         "app/api/promoter/close/migration/route.ts:27",

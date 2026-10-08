@@ -71,7 +71,8 @@ test.describe('the address is actually rendered where people look', () => {
   })
 
   test('the 404 page offers it — the page a stuck person is most likely on', () => {
-    expect(source('app/not-found.tsx')).toContain('CONTACT_EMAIL')
+    expect(source('app/not-found.tsx')).toContain('RecoveryScreen')
+    expect(source('app/components/RecoveryScreen.tsx')).toContain('CONTACT_EMAIL')
   })
 
   test('/terminos carries a contact clause, in both locales', () => {
