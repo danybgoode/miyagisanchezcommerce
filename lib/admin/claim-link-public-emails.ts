@@ -13,6 +13,8 @@ const PUBLIC_EMAILS: Record<string, { email: string; source: string }> = {
   sel_01KTQY8KXD9W3VFYR3XSXHN1E4: { email: 'contacto@teatrounam.com.mx', source: 'https://teatrounam.com.mx/teatro/entradasteatro/nuestro-equipo/' },
   sel_01KTQX0T7JX1QJRYVP8EMBC4X2: { email: 'borola_roma@outlook.com', source: 'https://www.tripadvisor.com.mx/Restaurant_Review-g150800-d12291525-Reviews-Borola_Cafe_Roma_Norte-Mexico_City_Central_Mexico_and_Gulf_Coast.html' },
   sel_01KTRRWHQHWM7BTP237SXPZ6BZ: { email: 'sofiaweidner@gmail.com', source: 'https://www.sofiaweidner.com/info' },
+  sel_01M0JCJ6KSVDECC2N5WX59TR95: { email: 'errevintage@gmail.com', source: 'https://www.takethatjourney.com/products/detail/errevintage' },
+  sel_01M0JCJBMQJRMFEWSAZ4S44BN8: { email: 'mobiliario.piezas.unicas@gmail.com', source: 'https://www.allbiz.mx/piezas-unicas-55-5276-5611' },
 }
 
 export function publicClaimLinkEmail(sellerId: string): string {
