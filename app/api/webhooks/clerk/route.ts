@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const { error: createError } = await db.from('account_welcome_deliveries')
       .upsert({ clerk_user_id: user.id }, { onConflict: 'clerk_user_id', ignoreDuplicates: true })
     if (createError) {
-      console.error('[clerk welcome] registration failed', createError)
+      console.error('[clerk welcome] registration failed')
       return Response.json({ error: 'Welcome unavailable' }, { status: 503 })
     }
   }
@@ -31,15 +31,15 @@ export async function POST(req: NextRequest) {
       email_address: address.emailAddress,
       verification: { status: address.verification?.status },
     })))
-  } catch (error) {
-    console.error('[clerk welcome] current user lookup failed', error)
+  } catch {
+    console.error('[clerk welcome] current user lookup failed')
     return Response.json({ error: 'Welcome unavailable' }, { status: 503 })
   }
   if (!email) return Response.json({ ok: true, waitingForVerifiedEmail: true })
 
   const { data: claimToken, error } = await db.rpc('reserve_account_welcome', { p_user_id: user.id, p_email: email })
   if (error) {
-    console.error('[clerk welcome] reserve failed', error)
+    console.error('[clerk welcome] reserve failed')
     return Response.json({ error: 'Welcome unavailable' }, { status: 503 })
   }
   if (!claimToken) return Response.json({ ok: true, duplicate: true })
@@ -49,12 +49,12 @@ export async function POST(req: NextRequest) {
     const { error: releaseError } = await db.from('account_welcome_deliveries')
       .update({ state: 'pending', claimed_at: null, claim_token: null })
       .eq('clerk_user_id', user.id).eq('state', 'sending').eq('claim_token', claimToken)
-    if (releaseError) console.error('[clerk welcome] release failed', releaseError)
+    if (releaseError) console.error('[clerk welcome] release failed')
     return Response.json({ error: 'Welcome delivery unavailable' }, { status: 503 })
   }
   const { error: updateError } = await db.from('account_welcome_deliveries')
     .update({ state: 'sent', sent_at: new Date().toISOString(), provider_email_id: result.id, claim_token: null })
     .eq('clerk_user_id', user.id).eq('state', 'sending').eq('claim_token', claimToken)
-  if (updateError) console.error('[clerk welcome] provider accepted but receipt update failed', updateError)
+  if (updateError) console.error('[clerk welcome] provider accepted but receipt update failed')
   return Response.json({ ok: true })
 }

@@ -32,7 +32,7 @@ async function sendPending(delivery: Delivery): Promise<void> {
     p_seller_id: delivery.seller_id,
     p_email: recipient.email,
   })
-  if (reserveError) throw reserveError
+  if (reserveError) throw new Error('shop_created_welcome_reservation_failed')
   if (!claimToken) return
 
   const result = await sendShopCreatedWelcome(plan.context)
@@ -40,14 +40,14 @@ async function sendPending(delivery: Delivery): Promise<void> {
     const { error } = await db.from('shop_created_welcome_deliveries')
       .update({ state: 'pending', claimed_at: null, claim_token: null })
       .eq('seller_id', delivery.seller_id).eq('state', 'sending').eq('claim_token', claimToken)
-    if (error) console.error('[shop-created-welcome] release failed:', delivery.seller_id, error)
-    console.error('[shop-created-welcome] delivery failed:', delivery.seller_id, result.reason, result.detail)
+    if (error) console.error('[shop-created-welcome] release failed:', delivery.seller_id)
+    console.error('[shop-created-welcome] delivery failed:', delivery.seller_id, result.reason)
     return
   }
   const { error } = await db.from('shop_created_welcome_deliveries')
     .update({ state: 'sent', sent_at: new Date().toISOString(), provider_email_id: result.id, claim_token: null })
     .eq('seller_id', delivery.seller_id).eq('state', 'sending').eq('claim_token', claimToken)
-  if (error) console.error('[shop-created-welcome] receipt update failed:', delivery.seller_id, error)
+  if (error) console.error('[shop-created-welcome] receipt update failed:', delivery.seller_id)
 }
 
 /** Create a durable delivery only for a genuinely new shop. */
@@ -67,7 +67,7 @@ export async function notifyShopCreated(ownerClerkId: string, seller: MedusaSell
   }
   const { error } = await db.from('shop_created_welcome_deliveries')
     .upsert(delivery, { onConflict: 'seller_id', ignoreDuplicates: true })
-  if (error) throw error
+  if (error) throw new Error('shop_created_welcome_registration_failed')
   await sendPending(delivery)
 }
 
@@ -76,6 +76,6 @@ export async function retryShopCreatedWelcome(seller: Pick<MedusaSellerForMirror
   const { data, error } = await db.from('shop_created_welcome_deliveries')
     .select('seller_id, owner_clerk_id, shop_name, shop_slug, market, state')
     .eq('seller_id', seller.id).maybeSingle()
-  if (error) throw error
+  if (error) throw new Error('shop_created_welcome_lookup_failed')
   if (data) await sendPending(data as Delivery)
 }
