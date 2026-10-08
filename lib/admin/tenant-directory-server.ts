@@ -19,7 +19,7 @@ import 'server-only'
 import { db } from '@/lib/supabase'
 import { isEnabled } from '@/lib/flags'
 import { DELETED_STATUS } from '@/lib/listing-lifecycle'
-import { mapWithConcurrency, shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
+import { mapWithConcurrency, readAllPages, shapeTenantRow, type RawTenantRow, type TenantRow } from '@/lib/admin/tenant-directory'
 import { getShop } from '@/lib/listings'
 import { readPublicSellerMarket, type PublicSellerMarket } from '@/lib/owned-market'
 import { getSellerEmail } from '@/lib/email'
@@ -28,6 +28,9 @@ import { medusaSellerIdOf } from '@/lib/admin/tenant-directory'
 import type { SellerStatus } from '@/lib/seller-status'
 
 const PUBLIC_SELLER_READ_CONCURRENCY = 8
+// PostgREST caps one response at 1,000 rows in this project (LEARNINGS.md).
+// Read smaller stable pages so an outreach list never silently omits later shops.
+const MIRROR_PAGE_SIZE = 500
 /**
  * Clerk's Management API is rate-limited and the directory fans one call per claimed
  * shop. Same bounding as the market projection read for the same reason (D5).
@@ -35,60 +38,65 @@ const PUBLIC_SELLER_READ_CONCURRENCY = 8
 const CLERK_EMAIL_CONCURRENCY = 6
 
 /**
- * Count non-deleted listings per `shop_id` from the mirror — one read, counted in
- * memory (the way `neighborhood-pulse-server.ts` already aggregates), instead of
- * N per-seller Medusa calls. Mirror data = display/enrichment; never throws.
+ * Count non-deleted listings per `shop_id` from the mirror in stable pages,
+ * instead of N per-seller Medusa calls. A failed page is unavailable, not zero.
  */
-async function listingCountsByShop(): Promise<Map<string, number>> {
+async function listingCountsByShop(): Promise<
+  { state: 'resolved'; counts: Map<string, number> } | { state: 'unavailable' }
+> {
   const counts = new Map<string, number>()
-  const { data, error } = await db
-    .from('marketplace_listings')
-    .select('shop_id, status')
-    .neq('status', DELETED_STATUS)
-  if (error || !data) {
-    if (error) console.warn('[tenant-directory] listing counts unavailable:', error.message)
-    return counts
+  const read = await readAllPages<{ id: string; shop_id: string | null }>(MIRROR_PAGE_SIZE, async (from, to) => {
+    const { data, error } = await db.from('marketplace_listings')
+      .select('id, shop_id').neq('status', DELETED_STATUS).order('id').range(from, to)
+    return { data: data as Array<{ id: string; shop_id: string | null }> | null, error }
+  })
+  if (read.state === 'unavailable') {
+    console.warn('[tenant-directory] listing counts unavailable:', read.reason)
+    return { state: 'unavailable' }
   }
-  for (const row of data as Array<{ shop_id: string | null; status: string | null }>) {
+  for (const row of read.rows) {
     if (!row.shop_id) continue
     counts.set(row.shop_id, (counts.get(row.shop_id) ?? 0) + 1)
   }
-  return counts
+  return { state: 'resolved', counts }
 }
 
 /**
  * The read-only tenant directory: every mirror shop shaped into a display row.
- * Degrades to `[]` on a read failure so the admin page never throws.
+ * The caller can distinguish a failed enumeration from a genuinely empty directory.
  */
-export async function listTenants(): Promise<TenantRow[]> {
-  const [paywallEnabled, counts] = await Promise.all([
+export async function readTenantDirectory(): Promise<
+  { state: 'resolved'; rows: TenantRow[] } | { state: 'unavailable' }
+> {
+  const [paywallEnabled, countRead, shopRead] = await Promise.all([
     isEnabled('domain.paywall_enabled'),
     listingCountsByShop(),
+    readAllPages<RawTenantRow>(MIRROR_PAGE_SIZE, async (from, to) => {
+      const { data, error } = await db.from('marketplace_shops')
+        .select('id, slug, name, clerk_user_id, custom_domain, custom_domain_verified, metadata, created_at')
+        .order('name', { ascending: true }).order('id', { ascending: true }).range(from, to)
+      return { data: data as RawTenantRow[] | null, error }
+    }),
   ])
-
-  const { data, error } = await db
-    .from('marketplace_shops')
-    .select('id, slug, name, clerk_user_id, custom_domain, custom_domain_verified, metadata, created_at')
-    .order('name', { ascending: true })
-
-  if (error || !data) {
-    if (error) console.warn('[tenant-directory] shops unavailable:', error.message)
-    return []
+  if (countRead.state === 'unavailable' || shopRead.state === 'unavailable') {
+    if (shopRead.state === 'unavailable') console.warn('[tenant-directory] shops unavailable:', shopRead.reason)
+    return { state: 'unavailable' }
   }
-
-  const rows = data as RawTenantRow[]
+  const rows = shopRead.rows
   // The mirror is only the enumerable list spine. Market state is read from
   // Medusa's public seller projection; an unavailable projection stays visibly
   // unavailable instead of inheriting a made-up MX default.
-  const markets = new Map<string, PublicSellerMarket | null>(await mapWithConcurrency(
+  const projections = new Map<string, {
+    sellerId: string | null; clerkUserId: string | null
+    market: PublicSellerMarket | null; claimed: boolean | null; verified: boolean | null
+  }>(await mapWithConcurrency(
     rows,
     PUBLIC_SELLER_READ_CONCURRENCY,
     async (raw) => {
     // `getShop` is a bare `fetch` with no error handling of its own, so a network
     // fault, timeout or malformed body REJECTS rather than returning null. Inside
     // a Promise.all that would reject the whole batch and 500 the directory —
-    // breaking this function's contract two doc-comments up ("degrades to [] on a
-    // read failure so the admin page never throws") over one unreachable seller.
+    // turning one unreachable seller into a 500 for the entire directory.
     // An unreadable projection is the UNAVAILABLE state, which `readPublicSellerMarket`
     // already renders as "Mercado operativo no disponible" — never a made-up MX default.
     let seller = null
@@ -97,7 +105,19 @@ export async function listTenants(): Promise<TenantRow[]> {
     } catch (error) {
       console.warn(`[tenant-directory] seller projection unavailable for ${raw.slug}:`, error)
     }
-    return [raw.id, readPublicSellerMarket(seller)] as const
+    const sellerId = seller?.id ?? null
+    const expectedId = medusaSellerIdOf(raw.metadata)
+    const trustedSeller = seller && expectedId && sellerId === expectedId ? seller : null
+    if (seller && expectedId && !trustedSeller) {
+      console.warn(`[tenant-directory] seller identity mismatch for ${raw.slug}: mirror=${expectedId}, public=${sellerId}`)
+    }
+    return [raw.id, {
+      sellerId,
+      clerkUserId: trustedSeller?.clerk_user_id ?? null,
+      market: readPublicSellerMarket(trustedSeller),
+      claimed: trustedSeller ? !!trustedSeller.clerk_user_id : null,
+      verified: trustedSeller?.verified ?? null,
+    }] as const
     },
   ))
 
@@ -127,11 +147,13 @@ export async function listTenants(): Promise<TenantRow[]> {
     rows,
     CLERK_EMAIL_CONCURRENCY,
     async (raw) => {
-      // An unclaimed shop has no Clerk user, so it has no email — that is `null`, a
-      // real answer, distinct from "we could not ask".
-      if (!raw.clerk_user_id) return [raw.id, null] as const
+      const projection = projections.get(raw.id)
+      // Medusa owns the claim. A stale mirror Clerk ID must never become a
+      // contact address for a canonically unclaimed (or differently owned) shop.
+      if (projection?.claimed === false) return [raw.id, null] as const
+      if (!projection?.clerkUserId) return [raw.id, 'unavailable' as const] as const
       try {
-        const email = await getSellerEmail(raw.clerk_user_id)
+        const email = await getSellerEmail(projection.clerkUserId)
         // `getSellerEmail` swallows its own failures and returns null, so a null here
         // is ambiguous between "no address on the account" and "Clerk was
         // unreachable". Both are reported as unavailable rather than as a blank cell
@@ -143,13 +165,17 @@ export async function listTenants(): Promise<TenantRow[]> {
     },
   ))
 
-  return rows.map((raw) =>
+  return { state: 'resolved', rows: rows.map((raw) =>
     shapeTenantRow(raw, {
       paywallEnabled,
-      listingCount: counts.get(raw.id) ?? 0,
-      publicSellerMarket: markets.get(raw.id) ?? null,
+      listingCount: countRead.counts.get(raw.id) ?? 0,
+      publicSellerMarket: projections.get(raw.id)?.market ?? null,
+      publicSellerClaimed: projections.get(raw.id)?.claimed ?? null,
+      publicSellerId: projections.get(raw.id)?.sellerId ?? null,
+      publicSellerVerified: projections.get(raw.id)?.verified ?? null,
       status: statuses.get(raw.id) ?? 'unavailable',
-      registrationEmail: emails.get(raw.id) ?? 'unavailable',
+      // Null means a real unclaimed shop, while missing means Clerk was not read.
+      registrationEmail: emails.get(raw.id) === undefined ? 'unavailable' : emails.get(raw.id),
     }),
-  )
+  ) }
 }

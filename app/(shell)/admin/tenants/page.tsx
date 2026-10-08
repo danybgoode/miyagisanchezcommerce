@@ -1,6 +1,6 @@
 import AdminTenantsClient from './AdminTenantsClient'
 import { requireAdmin } from '@/lib/admin/guard'
-import { listTenants } from '@/lib/admin/tenant-directory-server'
+import { readTenantDirectory } from '@/lib/admin/tenant-directory-server'
 
 export const metadata = { title: 'Tiendas — Admin' }
 
@@ -12,6 +12,11 @@ export const metadata = { title: 'Tiendas — Admin' }
  */
 export default async function AdminTenantsPage() {
   await requireAdmin()
-  const tenants = await listTenants()
-  return <AdminTenantsClient tenants={tenants} />
+  const directory = await readTenantDirectory()
+  if (directory.state === 'unavailable') {
+    return <div role="alert" className="mx-auto max-w-5xl px-4 py-8 text-sm">
+      No pudimos cargar el directorio de tiendas. Actualiza la página para intentarlo de nuevo.
+    </div>
+  }
+  return <AdminTenantsClient tenants={directory.rows} />
 }
