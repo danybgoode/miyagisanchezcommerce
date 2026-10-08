@@ -446,9 +446,8 @@ export async function sendShopCreatedWelcome(ctx: {
   if (ctx.market === 'us') {
     return sendWithResult(ctx.to, `Your shop ${ctx.shopName} is ready on Miyagi Sánchez`, [
       h1(`${ctx.shopName}, your shop is ready`),
-      p(`You opened <strong>${esc(ctx.shopName)}</strong> on Miyagi Sánchez. Your shop page is ready; you can decide what to publish and share.`),
       p('Here is what you can do now:'),
-      p('• Add listings for your products or services.<br>• Set up payments and delivery in your shop dashboard.<br>• Manage orders, offers, and messages in one place.<br>• Share your shop link with customers.'),
+      p('• Your AI agents can help manage your shop end to end: set it up, publish products, respond to offers, and review orders.<br>• Other agents can discover your products and show them to shoppers.<br>• Add listings for your products or services.<br>• Set up payments and delivery in your shop dashboard.<br>• Manage orders, offers, and messages in one place.<br>• Share your shop link with customers.'),
       cta('Set up my shop', `${SITE}/shop/manage`),
       p(`Your shop: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
       p('Opening a basic shop is free. Reply to this email if you need a hand.'),
@@ -456,9 +455,8 @@ export async function sendShopCreatedWelcome(ctx: {
   }
   return sendWithResult(ctx.to, `Tu tienda ${ctx.shopName} ya está en Miyagi Sánchez`, [
     h1(`${ctx.shopName}, tu tienda ya está lista`),
-    p(`Abriste <strong>${esc(ctx.shopName)}</strong> en Miyagi Sánchez. Tu página de tienda está lista; tú decides qué publicar y compartir.`),
     p('Esto es lo que puedes hacer ahora:'),
-    p('• Agregar anuncios de tus productos o servicios.<br>• Configurar pagos y entregas desde tu panel.<br>• Administrar pedidos, ofertas y mensajes en un solo lugar.<br>• Compartir el enlace de tu tienda con tus clientes.'),
+    p('• Tus agentes de IA pueden ayudarte a gestionar tu tienda de principio a fin: configurarla, publicar productos, responder ofertas y revisar pedidos.<br>• Otros agentes pueden descubrir tus productos y mostrárselos a quienes buscan comprar.<br>• Agregar anuncios de tus productos o servicios.<br>• Configurar pagos y entregas desde tu panel.<br>• Administrar pedidos, ofertas y mensajes en un solo lugar.<br>• Compartir el enlace de tu tienda con tus clientes.'),
     cta('Preparar mi tienda', `${SITE}/shop/manage`),
     p(`Tu tienda: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
     p('Abrir una tienda básica es gratis. Si necesitas ayuda, responde a este correo.'),
