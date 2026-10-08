@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
   const listingCurrency = sellerListingCurrency(sellerForMirror?.metadata)
   if (!listingCurrency) {
     console.error('[sell/create] seller has unsupported persisted market:', sellerId)
-    return NextResponse.json({ error: 'No se pudo determinar la moneda de esta tienda.' }, { status: 503 })
+    return NextResponse.json({ error: 'El mercado de esta tienda no es compatible. Escríbenos para corregirlo.' }, { status: 409 })
   }
   if (body.listing.currency && body.listing.currency.toUpperCase() !== listingCurrency) {
     return NextResponse.json({ error: `La moneda de esta tienda es ${listingCurrency}.`, field: 'currency' }, { status: 422 })
