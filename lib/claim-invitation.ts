@@ -20,7 +20,13 @@ export type ClaimDecision =
 export function normalizedClaimEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const email = value.trim().toLowerCase()
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : null
+  // The old three-greedy-group expression backtracked polynomially on a
+  // user-provided campaign address. Delimiters give this a linear scan.
+  if (!email || email.length > 254 || /\s/.test(email)) return null
+  const at = email.indexOf('@')
+  if (at < 1 || at !== email.lastIndexOf('@')) return null
+  const dot = email.lastIndexOf('.')
+  return dot > at + 1 && dot < email.length - 1 ? email : null
 }
 
 /**
