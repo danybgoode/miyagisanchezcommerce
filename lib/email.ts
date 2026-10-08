@@ -73,8 +73,11 @@ export async function getSellerEmailResult(clerkUserId: string): Promise<SellerE
   } catch (e) {
     // Said out loud. Every seller notification in the product resolves its recipient
     // through here, so a silent failure here is a silent failure everywhere.
-    console.error('[getSellerEmail] Clerk lookup failed for', clerkUserId, e)
-    return { email: null, reason: 'lookup_failed', detail: e instanceof Error ? e.message : String(e) }
+    // SDK errors can contain request headers; only log a bounded error type.
+    const name = e instanceof Error ? e.name : ''
+    const errorType = /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) ? name : 'unknown'
+    console.error('[getSellerEmail] Clerk lookup failed for', clerkUserId, errorType)
+    return { email: null, reason: 'lookup_failed', detail: errorType }
   }
 }
 
@@ -374,16 +377,19 @@ export async function sendWithResult(
     })
     return { ok: true, id: result.data?.id ?? null }
   } catch (err) {
-    console.error('[email] send failed:', subject, '→', to, err)
+    // Provider errors may echo request headers or payloads; do not persist them.
+    const name = err instanceof Error ? err.name : ''
+    const errorType = /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(name) ? name : 'unknown'
+    console.error('[email] send failed:', subject, '→', to, errorType)
     logNotification({
       channel: 'email',
       outcome: 'failed',
       recipient: to,
       subject: finalSubject,
       reason: 'rejected',
-      context: { detail: err instanceof Error ? err.message : String(err) },
+      context: { error_type: errorType },
     })
-    return { ok: false, reason: 'rejected', detail: err instanceof Error ? err.message : undefined }
+    return { ok: false, reason: 'rejected', detail: errorType }
   }
 }
 
