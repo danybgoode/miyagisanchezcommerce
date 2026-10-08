@@ -3,6 +3,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { ensureSupabaseShopMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { tg } from '@/lib/telegram'
 import type { MarketCode } from '@/lib/markets'
+import { notifyShopCreated } from '@/lib/shop-created-welcome'
 
 /**
  * lib/ensure-shop.ts
@@ -130,6 +131,11 @@ export async function ensureShop(userId: string, clerkJwt: string, body: ShopCre
   // already-exists branch above returns before reaching here, so a re-call
   // never double-pings.
   tg.newShop(shopName, location, seller.slug)
+  // Await before returning: a serverless response can end the process before a
+  // detached email task runs. The helper records failures without undoing a shop.
+  await notifyShopCreated(userId, seller).catch((error) => {
+    console.error('[ensure-shop] shop welcome failed:', seller.id, error)
+  })
 
   return { ok: true, status: 201, shopSlug: seller.slug }
 }

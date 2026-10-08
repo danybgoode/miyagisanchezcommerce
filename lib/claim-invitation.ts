@@ -21,8 +21,13 @@ export type ClaimDecision =
 export function normalizedClaimEmail(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const email = value.trim().toLowerCase()
-  if (email.length > 254) return null
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
+  // Delimiter checks stay linear on user-supplied addresses; the old greedy
+  // expression could backtrack polynomially on malformed input.
+  if (!email || email.length > 254 || /\s/.test(email)) return null
+  const at = email.indexOf('@')
+  if (at < 1 || at !== email.lastIndexOf('@')) return null
+  const dot = email.lastIndexOf('.')
+  return dot > at + 1 && dot < email.length - 1 ? email : null
 }
 
 /** A bounded compatibility window for links sent before invitations had a purpose. */

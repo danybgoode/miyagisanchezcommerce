@@ -331,6 +331,7 @@ export async function sendWithResult(
   scheduledAt?: Date,
   brand?: Brand,
   language: EmailLanguage = 'es',
+  idempotencyKey?: string,
 ): Promise<EmailSendResult> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY not set — skipping:', subject, '→', to)
@@ -357,7 +358,7 @@ export async function sendWithResult(
       subject: finalSubject,
       html: html(finalSubject, finalBody, brand, language),
       ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}),
-    })
+    }, idempotencyKey && !sample ? { idempotencyKey } : undefined)
     // Resend reports rejected sends in its result object; it does not always
     // throw. A claim request must never say "link sent" when the provider said no.
     if (result.error) throw new Error(result.error.message)
@@ -394,8 +395,9 @@ async function send(
   scheduledAt?: Date,
   brand?: Brand,
   language: EmailLanguage = 'es',
+  idempotencyKey?: string,
 ): Promise<string | null> {
-  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language)
+  const result = await sendWithResult(to, subject, body, scheduledAt, brand, language, idempotencyKey)
   return result.ok ? result.id : null
 }
 
@@ -429,11 +431,53 @@ export async function sendShopClaimedWelcome(ctx: { to: string; shopName: string
     return
   }
   await send(ctx.to, `Tu tienda ${ctx.shopName} ya está en tu cuenta`, [
-    h1('Tu tienda ya es tuya en Miyagi Sánchez'),
+    h1(`${ctx.shopName} ya es tuya en Miyagi Sánchez`),
     p(`Vinculamos <strong>${esc(ctx.shopName)}</strong> a tu cuenta.`),
     cta('Administrar mi tienda', `${SITE}/shop/manage`),
     p(`Tu tienda pública: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
-  ].join(''), undefined, undefined, 'es')
+  ].join(''), undefined, undefined, 'es', `shop-claimed/${ctx.sellerId}`)
+}
+
+/** First-party shop creation, distinct from taking ownership of a public listing. */
+export async function sendShopCreatedWelcome(ctx: {
+  to: string; shopName: string; shopSlug: string; market: 'mx' | 'us'; sellerId: string
+}): Promise<EmailSendResult> {
+  const shopUrl = `${SITE}/${ctx.market}/s/${encodeURIComponent(ctx.shopSlug)}`
+  if (ctx.market === 'us') {
+    return sendWithResult(ctx.to, `Your shop ${ctx.shopName} is ready on Miyagi Sánchez`, [
+      h1(`${ctx.shopName}, your shop is ready`),
+      p(`You opened <strong>${esc(ctx.shopName)}</strong> on Miyagi Sánchez. Your shop page is ready; you can decide what to publish and share.`),
+      p('Here is what you can do now:'),
+      p('• Add listings for your products or services.<br>• Set up payments and delivery in your shop dashboard.<br>• Manage orders, offers, and messages in one place.<br>• Share your shop link with customers.'),
+      cta('Set up my shop', `${SITE}/shop/manage`),
+      p(`Your shop: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+      p('Opening a basic shop is free. Reply to this email if you need a hand.'),
+    ].join(''), undefined, undefined, 'en', `shop-created/${ctx.sellerId}`)
+  }
+  return sendWithResult(ctx.to, `Tu tienda ${ctx.shopName} ya está en Miyagi Sánchez`, [
+    h1(`${ctx.shopName}, tu tienda ya está lista`),
+    p(`Abriste <strong>${esc(ctx.shopName)}</strong> en Miyagi Sánchez. Tu página de tienda está lista; tú decides qué publicar y compartir.`),
+    p('Esto es lo que puedes hacer ahora:'),
+    p('• Agregar anuncios de tus productos o servicios.<br>• Configurar pagos y entregas desde tu panel.<br>• Administrar pedidos, ofertas y mensajes en un solo lugar.<br>• Compartir el enlace de tu tienda con tus clientes.'),
+    cta('Preparar mi tienda', `${SITE}/shop/manage`),
+    p(`Tu tienda: <a href="${shopUrl}">${esc(shopUrl)}</a>`),
+    p('Abrir una tienda básica es gratis. Si necesitas ayuda, responde a este correo.'),
+  ].join(''), undefined, undefined, 'es', `shop-created/${ctx.sellerId}`)
+}
+
+/** General account welcome. Shop-specific language belongs to the claim receipt. */
+export async function sendAccountWelcome(ctx: { to: string; clerkUserId: string }): Promise<EmailSendResult> {
+  return sendWithResult(ctx.to, 'Bienvenido a Miyagi Sánchez / Welcome', [
+    h1('Bienvenido a Miyagi Sánchez'),
+    p('Tu cuenta ya está lista. Puedes explorar tiendas y productos, guardar lo que te interese y hablar con quienes venden cuando encuentres algo para ti.'),
+    p('Si tienes un negocio, también puedes crear una tienda o reclamar una ficha pública disponible desde su página. Tener una tienda básica es gratis.'),
+    divider(),
+    h1('Welcome to Miyagi Sánchez'),
+    p('Your account is ready. Explore shops and products, save what interests you, and contact sellers when you find something you like.'),
+    p('If you run a business, you can also create a shop or claim an available public listing from its page. A basic shop is free.'),
+    cta('Explorar / Explore', SITE),
+    p('¿Dudas? Responde a este correo. Questions? Just reply.'),
+  ].join(''), undefined, undefined, 'es', `account-welcome/${ctx.clerkUserId}`)
 }
 
 // ── Cancel a scheduled email by Resend ID ─────────────────────────────────────
