@@ -158,7 +158,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
             onClick={() => void createBulkLinks()}>{busy && selectedId === null ? 'Preparando…' : 'Generar enlaces seleccionados'}</button>
           <button type="button" className="btn btn-secondary btn-sm" disabled={!exportReady} onClick={exportCsv}>Exportar CSV</button>
         </div>
-        <p className="text-xs text-[var(--color-muted)]">La selección incluye todas las páginas. El CSV contiene Name, Email, Link1 (tienda pública) y Link2 (reclamación). El correo usa el dato capturado para esa tienda o una dirección pública comprobada; queda vacío si no hay una coincidencia segura. Link1 queda vacío cuando la vista pública está oculta o no se pudo comprobar. No se envían mensajes.</p>
+        <p className="text-xs text-[var(--color-muted)]">La selección incluye todas las páginas. El CSV contiene Name, Email, Link1 (tienda pública) y Link2 (reclamación). El correo usa el dato capturado para esa tienda o una dirección pública comprobada; queda vacío si no hay una coincidencia segura. Link1 queda vacío cuando la vista pública está oculta o no se pudo comprobar. Quien tenga el CSV puede reclamar las tiendas incluidas: guárdalo con cuidado y comprueba cada destinatario antes de compartir un enlace. No se envían mensajes.</p>
         {bulkError && <p role="alert" className="text-sm text-red-700">{bulkError}</p>}
         {exportReady && <p role="status" className="text-sm">{bulkLinks.length} enlaces preparados; {bulkLinks.filter((item) => item.email).length} con correo. Ya puedes exportar el CSV.</p>}
       </div>
