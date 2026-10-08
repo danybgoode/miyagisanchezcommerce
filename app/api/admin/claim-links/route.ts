@@ -7,10 +7,10 @@ import { buildClaimLandingUrl } from '@/lib/claim-invitation'
 import { signClaimToken } from '@/lib/claimJwt'
 import { isShopPreviewPrivateForShop } from '@/lib/preview-access'
 import { claimLinkPreviewUrl } from '@/lib/admin/claim-link-directory'
-import { mapWithConcurrency } from '@/lib/admin/tenant-directory'
+import { prepareClaimLinkBatch, type ClaimLinkShopInput } from '@/lib/admin/claim-link-bulk'
 import { publicClaimLinkEmail } from '@/lib/admin/claim-link-public-emails'
 
-type ShopInput = { shopSlug: string; market: 'mx' | 'us' }
+type ShopInput = ClaimLinkShopInput
 type PreparedLinks = { shopSlug: string; market: 'mx' | 'us'; shopName: string; email: string; previewUrl: string | null; claimUrl: string }
 class ClaimLinkError extends Error {
   constructor(message: string, readonly status: number) { super(message) }
@@ -66,17 +66,9 @@ export const POST = withAdmin<NextRequest>(async (req) => {
     const valid = shops as ShopInput[]
     const keys = valid.map((shop) => `${shop.market}:${shop.shopSlug}`)
     if (new Set(keys).size !== keys.length) return NextResponse.json({ error: 'Hay tiendas repetidas.' }, { status: 400 })
-    const outcomes = await mapWithConcurrency(valid, 8, async (shop) => {
-      try { return { result: await prepareLinks(shop), failure: null } }
-      catch (error) {
-        return { result: null, failure: { shopSlug: shop.shopSlug, market: shop.market,
-          error: error instanceof ClaimLinkError ? error.message : 'No pudimos preparar los enlaces.' } }
-      }
-    })
-    return NextResponse.json({
-      results: outcomes.flatMap(({ result }) => result ? [result] : []),
-      failures: outcomes.flatMap(({ failure }) => failure ? [failure] : []),
-    })
+    const batch = await prepareClaimLinkBatch(valid, prepareLinks,
+      (error) => error instanceof ClaimLinkError ? error.message : 'No pudimos preparar los enlaces.')
+    return NextResponse.json(batch)
   }
   const shop = parseShop(body)
   if (!shop) return NextResponse.json({ error: 'Elige una tienda y un mercado.' }, { status: 400 })
