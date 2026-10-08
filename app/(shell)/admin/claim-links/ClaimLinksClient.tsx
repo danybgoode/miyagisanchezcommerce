@@ -124,7 +124,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
         {pagination.pageItems.map((row) => {
           const availability = claimLinkAvailability(row)
           const previewUrl = row.operatingMarketCode && row.slug
-            ? `https://miyagisanchez.com/${row.operatingMarketCode}/s/${encodeURIComponent(row.slug)}` : null
+            ? `/${row.operatingMarketCode}/s/${encodeURIComponent(row.slug)}` : null
           const open = selectedId === row.shopId
           return <section key={row.shopId} className="overflow-hidden rounded-lg border border-[var(--color-border)]">
             <div className="flex flex-wrap items-start gap-3 p-4">
@@ -153,6 +153,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
               </div>
             </div>
             {open && (busy || error || links) && <div className="space-y-3 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-4">
+              {busy && <p role="status" className="text-sm text-[var(--color-muted)]">Preparando enlaces…</p>}
               {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
               {links && <>
                 <p className="text-sm font-medium">Enlaces de {links.shopName}</p>
