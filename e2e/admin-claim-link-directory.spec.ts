@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { claimLinkAvailability, claimLinkPreviewUrl, claimLinkRegistrationEmail, selectClaimLinkShops } from '../lib/admin/claim-link-directory'
 import type { TenantRow } from '../lib/admin/tenant-directory'
+import { claimLinksCsv } from '../lib/admin/claim-link-csv'
+import { publicClaimLinkEmail } from '../lib/admin/claim-link-public-emails'
 
 const base: TenantRow = {
   medusaSellerId: 'sel_1', shopId: 'shop_1', slug: 'terrumaco', name: 'Terrumaco',
@@ -62,4 +64,20 @@ test('a stale mirror email is never shown for an unclaimed or unreadable Medusa 
   expect(claimLinkRegistrationEmail(oldEmail)).toBe('Sin reclamar')
   expect(claimLinkRegistrationEmail({ ...oldEmail, publicSellerClaimed: null })).toBe('No disponible')
   expect(claimLinkRegistrationEmail({ ...oldEmail, publicSellerClaimed: true })).toBe('old-owner@example.com')
+})
+
+test('bulk CSV has the four requested columns and protects imported spreadsheet values', () => {
+  const csv = claimLinksCsv([
+    { shopName: 'Tienda, "Uno"', email: 'merchant@example.com', previewUrl: 'https://miyagisanchez.com/mx/s/uno', claimUrl: 'https://miyagisanchez.com/claim?t=one' },
+    { shopName: '=IMPORTRANGE(1)', email: '', previewUrl: null, claimUrl: 'https://miyagisanchez.com/claim?t=two' },
+  ])
+  expect(csv).toBe('\uFEFF"Name","Email","Link1","Link2"\r\n'
+    + '"Tienda, ""Uno""","merchant@example.com","https://miyagisanchez.com/mx/s/uno","https://miyagisanchez.com/claim?t=one"\r\n'
+    + '"\'=IMPORTRANGE(1)","","","https://miyagisanchez.com/claim?t=two"\r\n')
+})
+
+test('researched public email belongs to the canonical seller ID, not a matching shop name', () => {
+  expect(publicClaimLinkEmail('sel_01M0HCS0RXRCEW5ZNXY7GV2HEB')).toBe('info@curatedbasics.com')
+  expect(publicClaimLinkEmail('sel_01M0GJY4G6R9ARRXNDGN1VPQ4H')).toBe('') // retired lookalike preview
+  expect(publicClaimLinkEmail('sel_unknown')).toBe('')
 })
