@@ -90,6 +90,11 @@ export type CommunicationEntry = {
 
 export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
   {
+    key: 'account.welcome', trigger: 'Una persona verifica su correo al crear una cuenta.',
+    from: 'platform', to: 'buyer', channels: ['email'], domain: 'cuentas',
+    sender: 'sendAccountWelcome', origin: 'app/api/webhooks/clerk/route.ts',
+  },
+  {
     key: 'shop.claim_link_requested', trigger: 'Una persona solicita por correo el enlace para reclamar una tienda.',
     from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
     sender: 'sendShopClaimLink', origin: 'app/api/claim/send/route.ts',
@@ -98,6 +103,16 @@ export const COMMUNICATION_CATALOG: readonly CommunicationEntry[] = [
     key: 'shop.claimed_welcome', trigger: 'La tienda se vincula a una cuenta por primera vez.',
     from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
     sender: 'sendShopClaimedWelcome', origin: 'app/api/claim/complete/route.ts',
+  },
+  {
+    key: 'shop.created_welcome.mx', trigger: 'Se crea una tienda propia en el mercado de México.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopCreatedWelcome', origin: 'lib/shop-created-welcome.ts',
+  },
+  {
+    key: 'shop.created_welcome.us', trigger: 'Se crea una tienda propia en el mercado de Estados Unidos.',
+    from: 'platform', to: 'seller', channels: ['email'], domain: 'cuentas',
+    sender: 'sendShopCreatedWelcome', origin: 'lib/shop-created-welcome.ts',
   },
   // ── Offers ──────────────────────────────────────────────────────────────────
   {

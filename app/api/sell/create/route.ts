@@ -3,6 +3,9 @@ import { auth, currentUser } from '@clerk/nextjs/server'
 import { tg } from '@/lib/telegram'
 import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
+import { notifyShopCreated, retryShopCreatedWelcome } from '@/lib/shop-created-welcome'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
+import { sellerListingCurrency } from '@/lib/seller-listing-currency'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -26,6 +29,7 @@ interface CreatePayload {
     state: string
     city?: string
     description?: string
+    market?: unknown
   }
   listing: {
     title: string
@@ -122,6 +126,9 @@ export async function POST(req: NextRequest) {
       shopSlug = sellerForMirror!.slug
       sellerId = sellerForMirror!.id ?? null
       sellerName = sellerForMirror!.name ?? null
+      await retryShopCreatedWelcome(sellerForMirror!).catch((error) => {
+        console.error('[sell/create] shop welcome retry failed:', sellerId, error)
+      })
     } else if (sellerRes.status === 404) {
       // No Medusa seller yet — create one.
       // Use explicit shop name from form (new users) or fall back to Clerk name
@@ -140,6 +147,11 @@ export async function POST(req: NextRequest) {
       const location = body.createShop
         ? [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
         : null
+      const operatingMarket = resolveSellerSignupMarket(body.createShop?.market)
+      const intendedCurrency = sellerListingCurrency(operatingMarket ? { operating_market: operatingMarket } : null)
+      if (body.listing.currency && body.listing.currency.toUpperCase() !== intendedCurrency) {
+        return NextResponse.json({ error: `La moneda de esta tienda es ${intendedCurrency}.`, field: 'currency' }, { status: 422 })
+      }
 
       const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
         method: 'POST',
@@ -148,6 +160,7 @@ export async function POST(req: NextRequest) {
           ...(body.createShop?.slug?.trim() && { slug: body.createShop.slug.trim() }),
           description: body.createShop?.description?.trim() || null,
           location,
+          ...(operatingMarket ? { operating_market: operatingMarket } : {}),
         }),
       })
       const createData = await createRes.json()
@@ -159,6 +172,11 @@ export async function POST(req: NextRequest) {
       shopSlug = sellerForMirror!.slug
       sellerId = sellerForMirror!.id ?? null
       sellerName = sellerForMirror!.name ?? null
+      // The first-listing path can create the seller without visiting /sell/shop.
+      // Send at creation, even if listing setup later fails.
+      await notifyShopCreated(userId, sellerForMirror!).catch((error) => {
+        console.error('[sell/create] shop welcome failed:', sellerId, error)
+      })
     } else {
       // Unexpected error from backend — surface it for easier debugging
       const errBody = await sellerRes.json().catch(() => ({})) as { message?: string }
@@ -167,6 +185,15 @@ export async function POST(req: NextRequest) {
         error: errBody.message ?? `Error ${sellerRes.status} al verificar tu tienda. Inténtalo de nuevo.`,
       }, { status: 500 })
     }
+  }
+
+  const listingCurrency = sellerListingCurrency(sellerForMirror?.metadata)
+  if (!listingCurrency) {
+    console.error('[sell/create] seller has unsupported persisted market:', sellerId)
+    return NextResponse.json({ error: 'El mercado de esta tienda no es compatible. Escríbenos para corregirlo.' }, { status: 409 })
+  }
+  if (body.listing.currency && body.listing.currency.toUpperCase() !== listingCurrency) {
+    return NextResponse.json({ error: `La moneda de esta tienda es ${listingCurrency}.`, field: 'currency' }, { status: 422 })
   }
 
   // ── Build product metadata ────────────────────────────────────────────────
@@ -191,7 +218,7 @@ export async function POST(req: NextRequest) {
             title: `${body.listing.title?.trim()} — ${t.label.trim()}`,
             description: null,
             price_cents: t.price_cents,
-            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            currency: listingCurrency.toLowerCase(),
             interval: t.interval,
           })
           return { ...t, label: t.label.trim(), features: t.features.filter(Boolean), stripe_price_id: priceId }
@@ -213,7 +240,7 @@ export async function POST(req: NextRequest) {
         title: body.listing.title?.trim() ?? 'Suscripción',
         description: null,
         price_cents: body.listing.price_cents,
-        currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+        currency: listingCurrency.toLowerCase(),
         interval: body.listing.subscription?.interval ?? 'month',
       })
       singleTierStripePriceId = priceId
@@ -245,7 +272,7 @@ export async function POST(req: NextRequest) {
       title: titleClean,
       description: body.listing.description?.trim() || null,
       price_cents: effectivePriceCents,
-      currency: body.listing.currency ?? 'MXN',
+      currency: listingCurrency,
       condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
       listing_type: body.listing.listing_type ?? 'physical',
       // Arranged-only delivery (epic, S1.2) — a TOP-LEVEL field (not inside
@@ -299,7 +326,7 @@ export async function POST(req: NextRequest) {
           title: titleClean,
           description: body.listing.description?.trim() || null,
           price_cents: effectivePriceCents,
-          currency: body.listing.currency ?? 'MXN',
+          currency: listingCurrency,
           condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
           listing_type: body.listing.listing_type ?? 'product',
           category: body.listing.category,
@@ -345,7 +372,7 @@ export async function POST(req: NextRequest) {
             label: plan.label,
             description: plan.description ?? null,
             price_cents: plan.price_cents,
-            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            currency: listingCurrency.toLowerCase(),
             interval: plan.interval,
             stripe_price_id: plan.stripe_price_id ?? null,
             metadata: { listing_id: listingId },
@@ -357,9 +384,8 @@ export async function POST(req: NextRequest) {
 
   // ── Telegram notification ────────────────────────────────────────────────
   const priceCents = body.listing.price_cents
-  const currency = body.listing.currency ?? 'MXN'
   const priceFmt = priceCents
-    ? new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(priceCents / 100)
+    ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: listingCurrency }).format(priceCents / 100)
     : 'Precio a consultar'
   tg.newListing(titleClean, priceFmt, shopSlug, listingId)
 

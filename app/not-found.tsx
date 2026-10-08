@@ -1,28 +1,13 @@
-import Link from 'next/link'
-import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
+import RecoveryScreen from '@/app/components/RecoveryScreen'
 
-// Global 404 — intentionally chrome-free. It renders under the STATIC root layout
-// (the dynamic `(shell)` layout that decides platform-vs-white-label chrome isn't in
-// its layout chain), and it can't read the channel headers to know whether the request
-// is white-label. The old dynamic root suppressed platform chrome on embed/white-label
-// 404s, so wrapping this in the platform shell would wrongly leak the platform header
-// (and its search box) onto embed/custom-domain 404s. Bare is the channel-safe choice.
+// A channel-safe 404: this can render for marketplace and white-label URLs,
+// so it provides a clear route home without adding the buyer header.
 export default function NotFound() {
   return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
-      <p className="text-5xl mb-4">404</p>
-      <h1 className="text-lg font-bold mb-2">Página no encontrada</h1>
-      <p className="text-[var(--color-muted)] text-sm mb-6">El anuncio o tienda que buscas no existe o fue eliminado.</p>
-      <Link href="/" className="text-[var(--color-accent)] text-sm">← Volver al inicio</Link>
-      {/* Of every page on the site this is the one where someone is most likely
-          to be stuck, and it was the one with no way to ask. Deliberately quiet
-          and below the primary action — an offer, not a demand. */}
-      <p className="text-[var(--color-muted)] text-xs mt-6">
-        ¿Creías que aquí había algo?{' '}
-        <a href={contactMailto('Página no encontrada')} className="text-[var(--color-accent)]">
-          {CONTACT_EMAIL}
-        </a>
-      </p>
-    </div>
+    <RecoveryScreen
+      code="404"
+      title="No encontramos esta página"
+      message="El enlace pudo cambiar o el anuncio ya no está disponible. Puedes seguir explorando desde aquí."
+    />
   )
 }

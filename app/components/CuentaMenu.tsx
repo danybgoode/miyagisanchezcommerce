@@ -108,6 +108,11 @@ export default function CuentaMenu({
           position: 'fixed',
           top: 56, // header height
           right: 12, // viewport edge margin
+          // Native popovers default to inset: 0 and margin: auto. Clear the
+          // opposing insets and auto margins or the menu can land at x=0.
+          left: 'auto',
+          bottom: 'auto',
+          margin: '8px 0 0',
           minWidth: 232,
           borderRadius: 'var(--r-lg)',
           padding: 6,

@@ -1,0 +1,105 @@
+/* The unmatched-route page can render without a root layout's CSS reset. */
+body { margin: 0; }
+
+.recovery-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background: var(--papel-100, whitesmoke);
+  color: var(--papel-900, CanvasText);
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+
+.recovery-card {
+  position: relative;
+  width: min(100%, 560px);
+  padding: clamp(28px, 6vw, 56px);
+  overflow: hidden;
+  background: var(--papel-0, white);
+  border: 1px solid var(--papel-300, lightgray);
+  border-radius: 16px;
+  box-shadow: 0 18px 60px rgb(26 26 24 / 6%);
+}
+
+.recovery-rule {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--selva-500, darkgreen);
+}
+
+.recovery-kicker {
+  margin: 0 0 10px;
+  color: var(--selva-500, darkgreen);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.recovery-code {
+  margin: 0 0 8px;
+  color: var(--selva-100, honeydew);
+  font-size: clamp(72px, 18vw, 124px);
+  font-weight: 700;
+  letter-spacing: -.09em;
+  line-height: .9;
+}
+
+.recovery-card h1 {
+  margin: 0;
+  font-size: clamp(27px, 6vw, 38px);
+  font-weight: 700;
+  letter-spacing: -.045em;
+  line-height: 1.12;
+}
+
+.recovery-message {
+  max-width: 42ch;
+  margin: 16px 0 0;
+  color: var(--papel-600, dimgray);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.recovery-actions a,
+.recovery-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--selva-500, darkgreen);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.recovery-primary { background: var(--selva-500, darkgreen); color: var(--papel-0, white); }
+.recovery-primary:hover { background: var(--selva-600, darkgreen); }
+.recovery-secondary { background: var(--papel-0, white); color: var(--selva-500, darkgreen); }
+.recovery-secondary:hover { background: var(--selva-50, honeydew); }
+.recovery-actions :focus-visible,
+.recovery-help a:focus-visible { outline: 3px solid var(--azafran-500, saddlebrown); outline-offset: 3px; }
+
+.recovery-help {
+  margin: 32px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--papel-300, lightgray);
+  color: var(--papel-600, dimgray);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.recovery-help a { color: var(--selva-600, darkgreen); text-underline-offset: 2px; }

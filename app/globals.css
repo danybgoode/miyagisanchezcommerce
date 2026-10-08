@@ -1658,7 +1658,6 @@ html[data-platform-theme] .platform-theme-spot {
     position-anchor: var(--cuenta-menu-anchor) !important;
     top: anchor(bottom) !important;
     right: anchor(right) !important;
-    margin-top: 8px;
   }
 }
 

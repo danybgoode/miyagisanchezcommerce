@@ -11,6 +11,8 @@ import { SuccessCard } from '@/components/SuccessCard'
 import { listingUrlFor, shopUrlFor } from '@/lib/market-url'
 import { SITE_ORIGIN } from '@/lib/market-seo'
 import { createPublishToMarket } from '@/lib/publication-state'
+import { DEFAULT_MARKET, MARKETS, type MarketCode } from '@/lib/markets'
+import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,7 @@ interface ExistingShop {
   slug: string
   name: string
   location: string | null
+  market: MarketCode
 }
 
 interface UploadedPhoto {
@@ -639,6 +642,7 @@ function StepListing({
   onBack,
   onSubmit,
   hasShopStep,
+  currency,
 }: {
   photos: UploadedPhoto[]; setPhotos: (fn: React.SetStateAction<UploadedPhoto[]>) => void
   title: string; setTitle: (v: string) => void
@@ -669,6 +673,7 @@ function StepListing({
   onBack: () => void
   onSubmit: () => void
   hasShopStep: boolean
+  currency: string
 }) {
   const [digitalUploading, setDigitalUploading] = useState(false)
   const digitalInputRef = useRef<HTMLInputElement>(null)
@@ -1091,7 +1096,7 @@ function StepListing({
           <div className="flex-1">
             <div className="flex items-center border rounded-[var(--r-sm)] overflow-hidden focus-within:ring-2 focus-within:ring-[var(--color-accent)] focus-within:border-transparent transition">
               <span className="px-3 text-[var(--color-muted)] text-sm border-r border-[var(--color-border)] py-2.5 bg-[var(--color-background)] shrink-0">
-                MXN $
+                {currency} $
               </span>
               <input
                 type="text"
@@ -1283,6 +1288,8 @@ export default function SellWizard({
   signupMarket?: string
 }) {
   const hasShopStep = existingShop === null
+  const listingMarket = existingShop?.market ?? resolveSellerSignupMarket(signupMarket) ?? DEFAULT_MARKET
+  const listingCurrency = MARKETS[listingMarket].currency_code.toUpperCase()
   const initialStep = hasShopStep ? 1 : 2
 
   // Navigation
@@ -1444,13 +1451,13 @@ export default function SellWizard({
 
       const payload = {
         createShop: hasShopStep
-          ? { name: shopName.trim(), slug: shopSlug.trim() || undefined, state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined }
+          ? { name: shopName.trim(), slug: shopSlug.trim() || undefined, state: shopState, city: shopCity.trim() || undefined, description: shopDescription.trim() || undefined, market: signupMarket }
           : undefined,
         listing: {
           title: title.trim(),
           description: description.trim() || undefined,
           price_cents: priceCents,
-          currency: 'MXN',
+          currency: listingCurrency,
           condition: listingType === 'product' ? condition : undefined,
           quantity: listingType === 'product' ? Math.max(1, parseInt(quantity) || 1) : undefined,
           listing_type: listingType,
@@ -1600,6 +1607,7 @@ export default function SellWizard({
             onBack={handleBack}
             onSubmit={handleSubmit}
             hasShopStep={hasShopStep}
+            currency={listingCurrency}
           />
         )}
         {step === 3 && result && (
