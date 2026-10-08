@@ -1,14 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { claimLinkAvailability, claimLinkRegistrationEmail, selectClaimLinkShops, type ClaimLinkScope } from '@/lib/admin/claim-link-directory'
+import { claimLinkAvailability, claimLinkPreviewUrl, claimLinkRegistrationEmail, selectClaimLinkShops, type ClaimLinkScope } from '@/lib/admin/claim-link-directory'
 import type { TenantFilter, TenantRow, TenantSortKey, SortDirection } from '@/lib/admin/tenant-directory'
 import { sellerStatusLabel } from '@/lib/seller-status'
 import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
 import AdminPagination from '../_components/AdminPagination'
 
 type Directory = { state: 'resolved'; rows: TenantRow[] } | { state: 'unavailable' }
-type Links = { shopName: string; previewUrl: string; claimUrl: string }
+type Links = { shopName: string; previewUrl: string | null; claimUrl: string }
 const PAGE_SIZE = 25
 const EMPTY_ROWS: TenantRow[] = []
 
@@ -67,7 +67,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
     <div>
       <h1 className="text-2xl font-bold">Enlaces de reclamación</h1>
       <p className="mt-1 max-w-3xl text-sm text-[var(--color-muted)]">
-        Elige una tienda para preparar los dos enlaces de tu correo personal: su vista pública y la reclamación. Esta página no envía mensajes.
+        Elige una tienda para preparar su enlace de reclamación y, cuando esté visible, el de su vista pública. Esta página no envía mensajes.
       </p>
     </div>
 
@@ -123,8 +123,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
       <div className="space-y-3">
         {pagination.pageItems.map((row) => {
           const availability = claimLinkAvailability(row)
-          const previewUrl = row.operatingMarketCode && row.slug
-            ? `/${row.operatingMarketCode}/s/${encodeURIComponent(row.slug)}` : null
+          const previewUrl = claimLinkPreviewUrl(row.operatingMarketCode, row.slug, row.publicPreviewAvailable)
           const open = selectedId === row.shopId
           return <section key={row.shopId} className="overflow-hidden rounded-lg border border-[var(--color-border)]">
             <div className="flex flex-wrap items-start gap-3 p-4">
@@ -138,6 +137,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
                   <span>{row.operatingMarketLabel}</span><span>{sellerStatusLabel(row.status)}</span>
                   <span>{row.listingCount} anuncios</span><span>{row.publicSellerClaimed === null ? 'Reclamo no disponible' : row.publicSellerClaimed ? 'Reclamada' : 'Sin reclamar'}</span>
                   <span>{row.publicSellerVerified === null ? 'Verificación no disponible' : row.publicSellerVerified ? 'Verificada' : 'No verificada'}</span>
+                  <span>{row.publicPreviewAvailable === true ? 'Vista pública visible' : row.publicPreviewAvailable === false ? 'Vista pública oculta o no verificable' : 'Vista pública no comprobada'}</span>
                 </div>
                 <p className="mt-2 text-xs text-[var(--color-muted)]">
                   Alta: {row.createdAt ? new Date(row.createdAt).toLocaleDateString('es-MX') : 'No disponible'}
@@ -157,7 +157,9 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
               {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
               {links && <>
                 <p className="text-sm font-medium">Enlaces de {links.shopName}</p>
-                <LinkField id="preview" label="Ver la tienda" value={links.previewUrl} copied={copied === 'preview'} onCopy={() => void copy(links.previewUrl, 'preview')} />
+                {links.previewUrl
+                  ? <LinkField id="preview" label="Ver la tienda" value={links.previewUrl} copied={copied === 'preview'} onCopy={() => { if (links.previewUrl) void copy(links.previewUrl, 'preview') }} />
+                  : <p className="text-xs text-[var(--color-muted)]">La vista pública de esta tienda está oculta o no se pudo comprobar. Envía solo el enlace de reclamación.</p>}
                 <LinkField id="claim" label="Reclamar la tienda" value={links.claimUrl} copied={copied === 'claim'} onCopy={() => void copy(links.claimUrl, 'claim')} />
                 <p className="text-xs text-[var(--color-muted)]">Quien tenga el enlace de reclamación puede tomar esta tienda con cualquier cuenta mientras siga sin dueño. Comprueba el destinatario antes de enviarlo.</p>
               </>}

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { claimLinkAvailability, claimLinkRegistrationEmail, selectClaimLinkShops } from '../lib/admin/claim-link-directory'
+import { claimLinkAvailability, claimLinkPreviewUrl, claimLinkRegistrationEmail, selectClaimLinkShops } from '../lib/admin/claim-link-directory'
 import type { TenantRow } from '../lib/admin/tenant-directory'
 
 const base: TenantRow = {
@@ -21,6 +21,14 @@ test('only an active, verified, unclaimed seller with a market is ready', () => 
   ] as Partial<TenantRow>[]) {
     expect(claimLinkAvailability({ ...base, ...patch }).ready).toBe(false)
   }
+})
+
+test('a held or unreadable merchant preview never produces a public shop link', () => {
+  expect(claimLinkPreviewUrl('mx', 'terrumaco', false)).toBeNull()
+  expect(claimLinkPreviewUrl('mx', 'terrumaco', null, 'https://miyagisanchez.com')).toBeNull()
+  expect(claimLinkPreviewUrl('mx', 'terrumaco', true)).toBe('/mx/s/terrumaco')
+  expect(claimLinkPreviewUrl('mx', 'terrumaco', true, 'https://miyagisanchez.com'))
+    .toBe('https://miyagisanchez.com/mx/s/terrumaco')
 })
 
 test('unclaimed view includes unavailable shops, ready view narrows them, all view shows claimed', () => {

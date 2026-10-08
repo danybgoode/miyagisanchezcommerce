@@ -49,6 +49,8 @@ export type TenantRow = {
   publicSellerId: string | null
   /** Public Medusa seller verification; null when the projection could not be read. */
   publicSellerVerified: boolean | null
+  /** Claim-link page only: whether the public shop shell is currently viewable. */
+  publicPreviewAvailable?: boolean | null
   /** The custom domain, or null when none is set. */
   customDomain: string | null
   domainStatus: TenantDomainStatus

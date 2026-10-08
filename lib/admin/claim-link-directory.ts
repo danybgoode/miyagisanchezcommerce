@@ -1,6 +1,18 @@
 import { selectTenants, type TenantFilter, type TenantRow, type TenantSortKey, type SortDirection } from './tenant-directory'
+import type { MarketCode } from '@/lib/markets'
 
 export type ClaimLinkScope = 'unclaimed' | 'ready' | 'all'
+
+/** The public shop route 404s for held merchant previews and unreadable privacy state. */
+export function claimLinkPreviewUrl(
+  market: MarketCode | null,
+  slug: string,
+  available: boolean | null | undefined,
+  origin = '',
+): string | null {
+  if (available !== true || !market || !slug) return null
+  return `${origin}/${market}/s/${encodeURIComponent(slug)}`
+}
 
 export function claimLinkRegistrationEmail(row: TenantRow): string {
   if (row.publicSellerClaimed === false) return 'Sin reclamar'
