@@ -69,6 +69,7 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
       <p className="mt-1 max-w-3xl text-sm text-[var(--color-muted)]">
         Elige una tienda para preparar su enlace de reclamación y, cuando esté visible, el de su vista pública. Esta página no envía mensajes.
       </p>
+      <p className="mt-1 max-w-3xl text-xs text-[var(--color-muted)]">Una tienda importada puede reclamarse antes de que se verifique para aparecer en el directorio.</p>
     </div>
 
     {directory.state === 'unavailable' ? (

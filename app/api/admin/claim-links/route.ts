@@ -20,7 +20,7 @@ export const POST = withAdmin<NextRequest>(async (req) => {
   if (read.state === 'unavailable') return NextResponse.json({ error: 'No pudimos comprobar la tienda.' }, { status: 503 })
   if (read.state === 'absent') return NextResponse.json({ error: 'Tienda no encontrada.' }, { status: 404 })
   const shop = read.shop
-  if (!shop.verified || shop.clerk_user_id || readPublicSellerMarket(shop)?.market_code !== market) {
+  if (shop.clerk_user_id || readPublicSellerMarket(shop)?.market_code !== market) {
     return NextResponse.json({ error: 'La tienda no está disponible para reclamar.' }, { status: 409 })
   }
   const status = await readSellerStatus(shop.id)
