@@ -6,9 +6,12 @@ import type { TenantFilter, TenantRow, TenantSortKey, SortDirection } from '@/li
 import { sellerStatusLabel } from '@/lib/seller-status'
 import { ADMIN_LIST_FIRST_PAGE, paginate } from '@/lib/admin-pagination'
 import AdminPagination from '../_components/AdminPagination'
+import { claimLinksCsv } from '@/lib/admin/claim-link-csv'
 
 type Directory = { state: 'resolved'; rows: TenantRow[] } | { state: 'unavailable' }
-type Links = { shopName: string; previewUrl: string | null; claimUrl: string }
+type Links = { shopName: string; email: string; previewUrl: string | null; claimUrl: string }
+type BulkLinks = Links & { shopSlug: string; market: 'mx' | 'us' }
+type BulkFailure = { shopSlug: string; market: 'mx' | 'us'; error: string }
 const PAGE_SIZE = 25
 const EMPTY_ROWS: TenantRow[] = []
 
@@ -23,8 +26,15 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<'preview' | 'claim' | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkLinks, setBulkLinks] = useState<BulkLinks[]>([])
+  const [bulkFailures, setBulkFailures] = useState<BulkFailure[]>([])
+  const [bulkError, setBulkError] = useState('')
 
-  const readyCount = useMemo(() => rows.filter((row) => claimLinkAvailability(row).ready).length, [rows])
+  const readyRows = useMemo(() => rows.filter((row) => claimLinkAvailability(row).ready), [rows])
+  const readyCount = readyRows.length
+  const selectedReady = useMemo(() => readyRows.filter((row) => selectedIds.includes(row.shopId)), [readyRows, selectedIds])
+  const exportReady = selectedReady.length > 0 && bulkLinks.length === selectedReady.length && bulkFailures.length === 0 && !busy
   const selected = useMemo(() => selectClaimLinkShops(rows, scope, filter, sort), [rows, scope, filter, sort])
   const pagination = useMemo(() => paginate(selected, page, PAGE_SIZE), [selected, page])
 
@@ -33,6 +43,58 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
   function changeSort(key: TenantSortKey) {
     setSort({ key, direction: key === 'name' ? 'asc' : 'desc' })
     setPage(ADMIN_LIST_FIRST_PAGE)
+  }
+
+  function changeSelection(ids: string[]) {
+    setSelectedIds(ids)
+    setBulkLinks([])
+    setBulkFailures([])
+    setBulkError('')
+  }
+
+  async function createBulkLinks() {
+    if (selectedReady.length === 0) return
+    setBusy(true)
+    setSelectedId(null)
+    setBulkLinks([])
+    setBulkFailures([])
+    setBulkError('')
+    const results: BulkLinks[] = []
+    const failures: BulkFailure[] = []
+    try {
+      // Bound request size while keeping Select all genuinely across every page.
+      for (let from = 0; from < selectedReady.length; from += 100) {
+        const batch = selectedReady.slice(from, from + 100)
+        const response = await fetch('/api/admin/claim-links', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shops: batch.map((row) => ({ shopSlug: row.slug, market: row.operatingMarketCode })) }),
+        })
+        const data = await response.json() as { results?: BulkLinks[]; failures?: BulkFailure[]; error?: string }
+        if (!response.ok || !Array.isArray(data.results) || !Array.isArray(data.failures)) {
+          throw new Error(data.error ?? 'No pudimos preparar los enlaces.')
+        }
+        results.push(...data.results)
+        failures.push(...data.failures)
+      }
+      setBulkLinks(results)
+      setBulkFailures(failures)
+      if (failures.length > 0) setBulkError('Algunas tiendas cambiaron o no se pudieron comprobar. Actualiza la página y vuelve a generar la selección completa.')
+    } catch (cause) {
+      setBulkError(cause instanceof Error ? cause.message : 'No pudimos preparar los enlaces.')
+    } finally { setBusy(false) }
+  }
+
+  function exportCsv() {
+    if (!exportReady) return
+    const csv = claimLinksCsv(bulkLinks)
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `enlaces-reclamacion-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   async function createLinks(row: TenantRow) {
@@ -83,6 +145,24 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
         <span className="rounded-full bg-[var(--color-bg-subtle)] px-3 py-1"><strong>{rows.length}</strong> tiendas en total</span>
       </div>
 
+      <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)] p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy || readyCount === 0}
+            onClick={() => changeSelection(selectedReady.length === readyCount ? [] : readyRows.map((row) => row.shopId))}>
+            {selectedReady.length === readyCount && readyCount > 0 ? 'Quitar selección' : `Seleccionar las ${readyCount} listas para invitar`}
+          </button>
+          <span className="text-sm">{selectedReady.length} seleccionadas</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy || selectedReady.length === 0}
+            onClick={() => void createBulkLinks()}>{busy && selectedId === null ? 'Preparando…' : 'Generar enlaces seleccionados'}</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={!exportReady} onClick={exportCsv}>Exportar CSV</button>
+        </div>
+        <p className="text-xs text-[var(--color-muted)]">La selección incluye todas las páginas. El CSV contiene Name, Email, Link1 (tienda pública) y Link2 (reclamación). El correo usa el dato capturado para esa tienda o una dirección pública comprobada; queda vacío si no hay una coincidencia segura. Link1 queda vacío cuando la vista pública está oculta o no se pudo comprobar. Quien tenga el CSV puede reclamar las tiendas incluidas: guárdalo con cuidado y comprueba cada destinatario antes de compartir un enlace. No se envían mensajes.</p>
+        {bulkError && <p role="alert" className="text-sm text-red-700">{bulkError}</p>}
+        {exportReady && <p role="status" className="text-sm">{bulkLinks.length} enlaces preparados; {bulkLinks.filter((item) => item.email).length} con correo. Ya puedes exportar el CSV.</p>}
+      </div>
+
       <div className="space-y-3 rounded-lg border border-[var(--color-border)] p-4">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Mostrar tiendas">
           {([['unclaimed', 'Sin reclamar'], ['ready', 'Listas para invitar'], ['all', 'Todas']] as const).map(([value, label]) =>
@@ -128,6 +208,12 @@ export default function ClaimLinksClient({ directory }: { directory: Directory }
           const open = selectedId === row.shopId
           return <section key={row.shopId} className="overflow-hidden rounded-lg border border-[var(--color-border)]">
             <div className="flex flex-wrap items-start gap-3 p-4">
+              {availability.ready && <label className="flex items-center gap-1 text-xs">
+                <input type="checkbox" aria-label={`Seleccionar ${row.name}`} checked={selectedIds.includes(row.shopId)} disabled={busy}
+                  onChange={(event) => changeSelection(event.target.checked
+                    ? [...selectedIds, row.shopId] : selectedIds.filter((id) => id !== row.shopId))} />
+                <span className="sr-only">Seleccionar</span>
+              </label>}
               <div className="min-w-0 flex-1">
                 <h2 className="font-semibold">{row.name}</h2>
                 <p className="break-all text-xs text-[var(--color-muted)]">
