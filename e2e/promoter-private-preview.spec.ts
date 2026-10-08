@@ -367,3 +367,15 @@ test.describe('every public shop-shell + PDP surface consults the preview anchor
     ).toEqual([])
   })
 })
+
+test('public claim emails check preview privacy before signing a claim capability', async () => {
+  const fs = await import('fs')
+  const src = fs.readFileSync(new URL('../app/api/claim/send/route.ts', import.meta.url), 'utf8')
+  const privacyRead = src.indexOf('await isShopPreviewPrivateForShop(shop)')
+  const eligibility = src.indexOf('canIssuePublicClaimLink(')
+  const signing = src.indexOf('await signClaimToken(')
+  expect(privacyRead).toBeGreaterThan(-1)
+  expect(eligibility).toBeGreaterThan(privacyRead)
+  expect(signing).toBeGreaterThan(eligibility)
+  expect(src).toContain('let previewPrivate = true')
+})

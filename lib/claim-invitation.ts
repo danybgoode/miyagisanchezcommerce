@@ -34,11 +34,11 @@ export function canRedeemClaimToken(token: ClaimPayload): boolean {
 /** Bind a public email request to the live shop, never to its client-supplied name. */
 export function canIssuePublicClaimLink(
   submitted: { shopId: string; shopSlug: string; market?: ClaimMarket },
-  shop: Pick<ClaimShopFacts, 'id' | 'slug' | 'verified' | 'clerkUserId' | 'market'>,
+  shop: Pick<ClaimShopFacts, 'id' | 'slug' | 'clerkUserId' | 'market'> & { previewPrivate: boolean },
 ): boolean {
   return submitted.shopId === shop.id && submitted.shopSlug === shop.slug
     && (!submitted.market || submitted.market === shop.market)
-    && shop.clerkUserId === null && shop.market !== null
+    && !shop.previewPrivate && shop.clerkUserId === null && shop.market !== null
 }
 
 /**

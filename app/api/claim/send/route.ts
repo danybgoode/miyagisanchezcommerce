@@ -6,6 +6,7 @@ import { readPublicSellerMarket } from '@/lib/owned-market'
 import { readSellerStatus } from '@/lib/admin/tenant-status'
 import { sendShopClaimLink } from '@/lib/email'
 import { checkRateLimit, getClientIp } from '@/lib/ratelimit'
+import { isShopPreviewPrivateForShop } from '@/lib/preview-access'
 
 /** Anyone may request a shop-specific link to an inbox they control. */
 export async function POST(req: NextRequest) {
@@ -27,11 +28,16 @@ export async function POST(req: NextRequest) {
   const shop = shopRead.shop
   const market = readPublicSellerMarket(shop)?.market_code
   if (!market) return Response.json({ error: 'No pudimos comprobar el mercado de la tienda.' }, { status: 503 })
+  // The public claim page hides held merchant previews. This endpoint must
+  // honor the same boundary; admin campaign invitations are a separate path.
+  // An unreadable privacy check also stays closed, as it does on the page.
+  let previewPrivate = true
+  try { previewPrivate = await isShopPreviewPrivateForShop(shop) } catch { /* fail closed */ }
   // Never sign the client-supplied name/id: stale tabs and crafted requests can
   // otherwise send a valid claim for a different shop than the page displayed.
   if (!canIssuePublicClaimLink(
     { shopId: body.shopId, shopSlug: slug, market: requestedMarket },
-    { id: shop.id, slug: shop.slug, verified: shop.verified, clerkUserId: shop.clerk_user_id, market: market ?? null },
+    { id: shop.id, slug: shop.slug, clerkUserId: shop.clerk_user_id, market, previewPrivate },
   )) {
     return Response.json({ error: 'Esta tienda no está disponible para reclamar.' }, { status: 409 })
   }
