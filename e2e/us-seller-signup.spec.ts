@@ -3,6 +3,7 @@ import { join } from 'path'
 import { expect, test } from '@playwright/test'
 import { resolveSellerSignupMarket } from '../lib/seller-signup-market'
 import { sellerLandingPath } from '../lib/seller-acquisition'
+import { sellerListingCurrency } from '../lib/seller-listing-currency'
 
 /**
  * us-marketplace S5.2 (D17) — the signup handoff carries the intended market into the
@@ -48,6 +49,23 @@ test.describe('resolveSellerSignupMarket', () => {
 })
 
 test.describe('the market reaches the create', () => {
+  test('a US first listing uses persisted USD for product, Stripe and mirrors', () => {
+    const market = resolveSellerSignupMarket('us')
+    expect(sellerListingCurrency({ operating_market: market })).toBe('USD')
+    expect(sellerListingCurrency({ operating_market: 'mx' })).toBe('MXN')
+    expect(sellerListingCurrency({})).toBe('MXN') // legacy seller only
+    expect(sellerListingCurrency({ operating_market: 'unknown' })).toBeNull()
+
+    const wizard = source('app/(shell)/sell/SellWizard.tsx')
+    const route = source('app/api/sell/create/route.ts')
+    expect(wizard).toMatch(/market: signupMarket/)
+    expect(wizard).toMatch(/currency: listingCurrency/)
+    expect(route).toMatch(/const intendedCurrency = sellerListingCurrency\(operatingMarket/)
+    expect(route).toMatch(/sellerListingCurrency\(sellerForMirror\?\.metadata\)/)
+    expect(route.match(/currency: listingCurrency(?:\.toLowerCase\(\))?/g)?.length).toBeGreaterThanOrEqual(5)
+    expect(route).not.toMatch(/currency: body\.listing\.currency/)
+  })
+
   test('ensureShop sends operating_market, and only when it has one', () => {
     const ensure = source('lib/ensure-shop.ts')
     expect(ensure).toMatch(/operating_market: body\.operatingMarket/)

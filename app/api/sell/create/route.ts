@@ -5,6 +5,7 @@ import { createSubscriptionPrice } from '@/lib/stripe-subscriptions'
 import { ensureSupabaseShopMirror, syncSupabaseListingMirror, type MedusaSellerForMirror } from '@/lib/provisioning'
 import { notifyShopCreated, retryShopCreatedWelcome } from '@/lib/shop-created-welcome'
 import { resolveSellerSignupMarket } from '@/lib/seller-signup-market'
+import { sellerListingCurrency } from '@/lib/seller-listing-currency'
 
 const MEDUSA_BASE = process.env.MEDUSA_STORE_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? ''
@@ -147,6 +148,10 @@ export async function POST(req: NextRequest) {
         ? [body.createShop.city?.trim(), body.createShop.state?.trim()].filter(Boolean).join(', ') || null
         : null
       const operatingMarket = resolveSellerSignupMarket(body.createShop?.market)
+      const intendedCurrency = sellerListingCurrency(operatingMarket ? { operating_market: operatingMarket } : null)
+      if (body.listing.currency && body.listing.currency.toUpperCase() !== intendedCurrency) {
+        return NextResponse.json({ error: `La moneda de esta tienda es ${intendedCurrency}.`, field: 'currency' }, { status: 422 })
+      }
 
       const createRes = await medusaFetch('/store/sellers/me', clerkJwt, {
         method: 'POST',
@@ -182,6 +187,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const listingCurrency = sellerListingCurrency(sellerForMirror?.metadata)
+  if (!listingCurrency) {
+    console.error('[sell/create] seller has unsupported persisted market:', sellerId)
+    return NextResponse.json({ error: 'No se pudo determinar la moneda de esta tienda.' }, { status: 503 })
+  }
+  if (body.listing.currency && body.listing.currency.toUpperCase() !== listingCurrency) {
+    return NextResponse.json({ error: `La moneda de esta tienda es ${listingCurrency}.`, field: 'currency' }, { status: 422 })
+  }
+
   // ── Build product metadata ────────────────────────────────────────────────
   const effectivePriceCents = hasMultiTier
     ? Math.min(...(body.listing.subscription_tiers ?? []).map(t => t.price_cents))
@@ -204,7 +218,7 @@ export async function POST(req: NextRequest) {
             title: `${body.listing.title?.trim()} — ${t.label.trim()}`,
             description: null,
             price_cents: t.price_cents,
-            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            currency: listingCurrency.toLowerCase(),
             interval: t.interval,
           })
           return { ...t, label: t.label.trim(), features: t.features.filter(Boolean), stripe_price_id: priceId }
@@ -226,7 +240,7 @@ export async function POST(req: NextRequest) {
         title: body.listing.title?.trim() ?? 'Suscripción',
         description: null,
         price_cents: body.listing.price_cents,
-        currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+        currency: listingCurrency.toLowerCase(),
         interval: body.listing.subscription?.interval ?? 'month',
       })
       singleTierStripePriceId = priceId
@@ -258,7 +272,7 @@ export async function POST(req: NextRequest) {
       title: titleClean,
       description: body.listing.description?.trim() || null,
       price_cents: effectivePriceCents,
-      currency: body.listing.currency ?? 'MXN',
+      currency: listingCurrency,
       condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
       listing_type: body.listing.listing_type ?? 'physical',
       // Arranged-only delivery (epic, S1.2) — a TOP-LEVEL field (not inside
@@ -312,7 +326,7 @@ export async function POST(req: NextRequest) {
           title: titleClean,
           description: body.listing.description?.trim() || null,
           price_cents: effectivePriceCents,
-          currency: body.listing.currency ?? 'MXN',
+          currency: listingCurrency,
           condition: body.listing.listing_type === 'product' ? (body.listing.condition ?? null) : null,
           listing_type: body.listing.listing_type ?? 'product',
           category: body.listing.category,
@@ -358,7 +372,7 @@ export async function POST(req: NextRequest) {
             label: plan.label,
             description: plan.description ?? null,
             price_cents: plan.price_cents,
-            currency: body.listing.currency?.toLowerCase() ?? 'mxn',
+            currency: listingCurrency.toLowerCase(),
             interval: plan.interval,
             stripe_price_id: plan.stripe_price_id ?? null,
             metadata: { listing_id: listingId },
@@ -370,9 +384,8 @@ export async function POST(req: NextRequest) {
 
   // ── Telegram notification ────────────────────────────────────────────────
   const priceCents = body.listing.price_cents
-  const currency = body.listing.currency ?? 'MXN'
   const priceFmt = priceCents
-    ? new Intl.NumberFormat('es-MX', { style: 'currency', currency }).format(priceCents / 100)
+    ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: listingCurrency }).format(priceCents / 100)
     : 'Precio a consultar'
   tg.newListing(titleClean, priceFmt, shopSlug, listingId)
 

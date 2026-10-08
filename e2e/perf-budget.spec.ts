@@ -5,13 +5,13 @@ import { imageVaryHeader, LOADER_DEVICE_WIDTHS, LOADER_IMAGE_WIDTHS, resolveImag
 import { readBuyerRouteReports } from '../scripts/route-client-budget.mjs'
 
 // D16 — calibrated against built output with the same deterministic Brotli
-// encoder the gate uses. The branded 500 boundary is loaded on buyer routes;
-// its measured ~2 KiB cost is included instead of treating the previous ceiling
+// encoder the gate uses. The branded page/global 500 boundary is loaded on buyer
+// routes; its measured ~3 KiB cost is included instead of treating the old ceiling
 // as a ban on an intentional recovery path. Keep measurement beside each ceiling.
 const BUYER_ROUTE_BUDGETS = {
-  '/mx': { measured: 99_814, ceiling: 102_000 },
-  '/mx/l/[id]': { measured: 110_872, ceiling: 114_000 },
-  '/mx/s/[slug]': { measured: 92_858, ceiling: 94_000 },
+  '/mx': { measured: 100_712, ceiling: 102_000 },
+  '/mx/l/[id]': { measured: 111_780, ceiling: 114_000 },
+  '/mx/s/[slug]': { measured: 93_766, ceiling: 96_000 },
 } as const
 
 /**
