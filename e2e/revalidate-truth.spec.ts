@@ -45,4 +45,19 @@ test.describe('revalidate truth · D7/D9/D12/D19', () => {
       rmSync(fixture, { recursive: true, force: true })
     }
   })
+
+  test('an ISR route includes its root not-found boundary in the request-neutrality check', () => {
+    const fixture = mkdtempSync(path.join(os.tmpdir(), 'revalidate-not-found-'))
+    try {
+      const app = path.join(fixture, 'app')
+      mkdirSync(path.join(app, 'shop'), { recursive: true })
+      writeFileSync(path.join(app, 'shop', 'page.tsx'), 'export const revalidate = 60\nexport default function Page() { return null }\n')
+      writeFileSync(path.join(app, 'not-found.tsx'), "import { headers } from 'next/headers'\nexport default function NotFound() { return null }\n")
+      expect(revalidateTruthFindings([{ entry: 'app/shop/page.tsx' }], fixture)).toEqual([
+        { route: 'app/shop/page.tsx', file: 'app/not-found.tsx', reason: 'imports next/headers' },
+      ])
+    } finally {
+      rmSync(fixture, { recursive: true, force: true })
+    }
+  })
 })
