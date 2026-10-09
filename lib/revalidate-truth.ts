@@ -36,23 +36,28 @@ function sourceImports(source: string): string[] {
   return [...imports]
 }
 
-function routeLayouts(entry: string, root: string): string[] {
+function routeSegmentBoundaries(entry: string, root: string): string[] {
   const appRoot = path.join(root, 'app')
-  const layouts: string[] = []
+  const boundaries: string[] = []
   let directory = path.dirname(entry)
   while (directory.startsWith(appRoot)) {
-    const layout = path.join(directory, 'layout.tsx')
-    if (fs.existsSync(layout)) layouts.push(layout)
+    // Next may render a not-found boundary while building an ISR response even
+    // when the page itself succeeds. A request read there broke every claimed
+    // shop and listing with a static-to-dynamic 500 (2026-10-08).
+    for (const name of ['layout.tsx', 'not-found.tsx']) {
+      const boundary = path.join(directory, name)
+      if (fs.existsSync(boundary)) boundaries.push(boundary)
+    }
     if (directory === appRoot) break
     directory = path.dirname(directory)
   }
-  return layouts
+  return boundaries
 }
 
 export function resolveImportLayoutGraph(entry: string, root: string): string[] {
   const absoluteEntry = path.resolve(root, entry)
   if (!fs.existsSync(absoluteEntry)) throw new Error(`route entry missing: ${entry}`)
-  const queue = [absoluteEntry, ...routeLayouts(absoluteEntry, root)]
+  const queue = [absoluteEntry, ...routeSegmentBoundaries(absoluteEntry, root)]
   const visited = new Set<string>()
 
   while (queue.length) {

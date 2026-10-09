@@ -1,9 +1,20 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { CONTACT_EMAIL, contactMailto } from '@/lib/contact'
 import { PLATFORM_ORIGIN } from '@/lib/shortlink'
 import '@/app/recovery.css'
+
+function subscribeToLocation(onChange: () => void) {
+  window.addEventListener('popstate', onChange)
+  return () => window.removeEventListener('popstate', onChange)
+}
+
+function requestedMarketFromAddressBar(): 'mx' | 'us' {
+  const path = window.location.pathname
+  return path === '/us' || path.startsWith('/us/') ? 'us' : 'mx'
+}
 
 export default function RecoveryScreen({
   code,
@@ -16,9 +27,18 @@ export default function RecoveryScreen({
   title: string
   message: string
   onRetry?: () => void
-  market: 'mx' | 'us'
+  market?: 'mx' | 'us'
 }) {
-  const browseUrl = `${PLATFORM_ORIGIN}/${market}/l`
+  // Rewritten ISR pages can expose the internal route to usePathname(). The
+  // address bar still has the original public URL and needs no server request
+  // read. Until hydration, the market selector is a safe destination.
+  const requestedMarket = useSyncExternalStore(
+    subscribeToLocation,
+    requestedMarketFromAddressBar,
+    () => null,
+  )
+  const browseMarket = market ?? requestedMarket
+  const browseUrl = browseMarket ? `${PLATFORM_ORIGIN}/${browseMarket}/l` : PLATFORM_ORIGIN
   return (
     <main className="recovery-page">
       <section className="recovery-card" aria-labelledby="recovery-title">
